@@ -62,17 +62,6 @@ For full details, see the [Payment Architecture guide](/guides/payment-architect
 
 If a Kalshi market is cancelled or delisted before all legs in a parlay have resolved, the escrow's timeout protection kicks in. The timeout service automatically cancels the escrow after the deadline (default 1 hour) and refunds both the user's stake and the market maker's risk to their respective wallets. No party loses funds due to an external market cancellation.
 
-## How do I become a market maker?
-
-Market makers connect via WebSocket, receive RFQs in real-time, and submit competitive quotes. To get started:
-
-1. Create an account on [app.totalis.com](https://app.totalis.com)
-2. Generate an API key from your account settings
-3. Connect to the WebSocket and subscribe to the `rfqs:open` channel
-4. Submit quotes on incoming RFQs via the `POST /mm/quotes` endpoint
-
-See the [WebSocket guide](/guides/websocket) for connection details and a sample market maker bot.
-
 ## Will you add markets from other prediction markets like Polymarket? Can I make cross-platform parlays?
 
 Yes, in the near future.
