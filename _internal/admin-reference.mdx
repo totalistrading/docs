@@ -1,0 +1,106 @@
+---
+title: 'Admin API Reference (Internal)'
+description: 'Internal admin endpoints and authentication methods — not for public documentation'
+---
+
+<Warning>
+  This page is internal and should NOT be included in the public Mintlify navigation (docs.json). It documents admin-only endpoints and deprecated authentication methods for internal reference.
+</Warning>
+
+## Admin Authentication
+
+Admin endpoints require a separate `x-admin-api-key` header:
+
+```bash
+curl -X GET https://api.totalis.com/admin/api-keys \
+  -H "x-admin-api-key: <admin-key>"
+```
+
+This key is configured server-side via the `RFQ_ADMIN_API_KEY` environment variable.
+
+## Privy JWT Token (Deprecated for Public API)
+
+For web applications using [Privy](https://privy.io) authentication. After a user logs in via Privy, the frontend receives a JWT token. This is used internally by the Totalis frontend — external API users should use API keys instead.
+
+```bash
+curl -X GET https://api.totalis.com/rfqs \
+  -H "Authorization: Bearer eyJhbGciOiJFUzI1NiIs..."
+```
+
+Privy JWT tokens are only supported for REST API calls. WebSocket connections require API keys.
+
+---
+
+## Admin Endpoints
+
+### Create API Key
+
+```
+POST /admin/api-keys
+```
+
+Create a new API key for any entity. Requires `x-admin-api-key` header.
+
+**Request Body:**
+
+```json
+{
+  "entity_id": "did:privy:abc123",
+  "entity_type": "unified",
+  "name": "Market Maker Bot",
+  "environment": "live",
+  "expires_in_days": 90
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "key": "api_live_xxxxxxxxxxxxxxxxxxxxx",
+  "key_prefix": "api_live_xxx",
+  "entity_type": "unified",
+  "entity_id": "did:privy:abc123",
+  "name": "Market Maker Bot",
+  "expires_at": "2025-05-07T00:00:00.000Z",
+  "created_at": "2025-02-07T00:00:00.000Z",
+  "message": "Save this key — it will not be shown again."
+}
+```
+
+### List API Keys
+
+```
+GET /admin/api-keys
+```
+
+List all API keys, optionally filtered by `entity_id` or `entity_type`.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `entity_id` | string | Filter by entity ID |
+| `entity_type` | string | Filter by entity type (`unified`) |
+
+### Get API Key
+
+```
+GET /admin/api-keys/{prefix}
+```
+
+Get detailed information about an API key by its prefix.
+
+### Revoke API Key
+
+```
+DELETE /admin/api-keys/{prefix}
+```
+
+Revoke an API key by its prefix. Optionally provide a reason in the request body:
+
+```json
+{
+  "reason": "Compromised key"
+}
+```

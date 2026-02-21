@@ -77,15 +77,6 @@
             ]
           },
           {
-            "group": "Admin",
-            "pages": [
-              "api-reference/admin/create-api-key",
-              "api-reference/admin/list-api-keys",
-              "api-reference/admin/get-api-key",
-              "api-reference/admin/revoke-api-key"
-            ]
-          },
-          {
             "group": "Status",
             "pages": [
               "api-reference/status/health",

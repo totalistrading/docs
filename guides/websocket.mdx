@@ -26,7 +26,7 @@ After connecting, send an auth message with your API key:
 You'll receive either:
 
 ```json
-{ "type": "auth:success", "user_id": "did:privy:abc123", "user_type": "user" }
+{ "type": "auth:success", "user_id": "user_abc123", "user_type": "user" }
 ```
 
 or:
@@ -35,9 +35,9 @@ or:
 { "type": "auth:error", "message": "Invalid API key" }
 ```
 
-<Warning>
-  WebSocket only supports API key authentication. Privy JWT tokens are not supported.
-</Warning>
+<Note>
+  WebSocket connections require API key authentication. Generate your key from the [Totalis Dashboard](https://app.totalis.com).
+</Note>
 
 ## Subscribing to Channels
 

@@ -3,50 +3,40 @@ title: 'Authentication'
 description: 'How to authenticate with the Totalis API'
 ---
 
-The Totalis API supports two authentication methods. Choose based on your integration type.
+The Totalis API uses API keys for authentication. API keys work for both REST API calls and WebSocket connections.
 
-## Privy JWT Token
+## Getting Your API Key
 
-For web applications using [Privy](https://privy.io) authentication. After a user logs in via Privy, your frontend receives a JWT token.
+Generate an API key from the [Totalis Dashboard](https://app.totalis.com):
 
-Send it in the `Authorization` header:
+1. Log in to [app.totalis.com](https://app.totalis.com)
+2. Navigate to your account settings
+3. Create a new API key and give it a name
+4. Copy the full key immediately — it is only shown once
 
-```bash
-curl -X GET https://api.totalis.com/rfqs \
-  -H "Authorization: Bearer eyJhbGciOiJFUzI1NiIs..."
-```
+<Warning>
+  The full API key is only displayed at creation time. Save it securely — you will not be able to retrieve it later.
+</Warning>
 
-<Note>
-  Privy JWT tokens are only supported for REST API calls. WebSocket connections require API keys.
-</Note>
+## Using Your API Key
 
-## API Keys
-
-For programmatic access, trading bots, and WebSocket connections. API keys use the format `api_live_xxxxxxxxxxxxxxxxxxxxx`.
-
-Send it in the `UCALLEDIT_API_KEY` header:
+Send your API key in the `UCALLEDIT_API_KEY` header with every request:
 
 ```bash
 curl -X GET https://api.totalis.com/rfqs \
   -H "UCALLEDIT_API_KEY: api_live_abc123def456ghi789"
 ```
 
-### Generating API Keys
+For WebSocket connections, authenticate after connecting:
 
-You can generate API keys via the API:
-
-```bash
-curl -X POST https://api.totalis.com/user/api-keys \
-  -H "Authorization: Bearer <your-privy-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My Trading Bot"}'
+```json
+{
+  "type": "auth",
+  "api_key": "api_live_abc123def456ghi789"
+}
 ```
 
-<Warning>
-  The full API key is only returned once at creation time. Save it securely.
-</Warning>
-
-### Key Format
+## Key Format
 
 | Component | Example | Description |
 |-----------|---------|-------------|
@@ -54,19 +44,16 @@ curl -X POST https://api.totalis.com/user/api-keys \
 | Secret | `abc123def456...` | Random secret portion |
 | Full key | `api_live_abc123def456ghi789` | Complete key for authentication |
 
-### Key Lifecycle
+## Managing API Keys
+
+Once you have an API key, you can manage your keys programmatically:
+
+- **List keys** — `GET /user/api-keys`
+- **Create additional keys** — `POST /user/api-keys`
+- **Revoke a key** — `DELETE /user/api-keys/{prefix}`
+
+## Key Lifecycle
 
 - **Active** — Key is valid and can be used for authentication
 - **Revoked** — Key has been manually revoked and will be rejected
 - **Expired** — Key has passed its expiration date
-
-## Admin Authentication
-
-Admin endpoints require a separate `x-admin-api-key` header:
-
-```bash
-curl -X GET https://api.totalis.com/admin/api-keys \
-  -H "x-admin-api-key: <admin-key>"
-```
-
-This key is configured server-side via the `RFQ_ADMIN_API_KEY` environment variable.
