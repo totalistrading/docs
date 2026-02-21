@@ -17,11 +17,11 @@
             "group": "Getting Started",
             "pages": [
               "index",
-              "guides/websocket","guides/faq",
               "guides/authentication",
               "guides/lifecycle",
               "guides/payment-architecture",
-              
+              "guides/websocket",
+              "guides/faq"
             ]
           }
         ]
