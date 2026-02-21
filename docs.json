@@ -17,10 +17,11 @@
             "group": "Getting Started",
             "pages": [
               "index",
+              "guides/faq",
               "guides/authentication",
               "guides/lifecycle",
               "guides/payment-architecture",
-              "guides/websocket","guides/faq"
+              "guides/websocket"
             ]
           }
         ]
@@ -74,15 +75,6 @@
               "api-reference/user/airdrop-usdc",
               "api-reference/user/get-blockhash",
               "api-reference/user/submit-tx"
-            ]
-          },
-          {
-            "group": "Admin",
-            "pages": [
-              "api-reference/admin/create-api-key",
-              "api-reference/admin/list-api-keys",
-              "api-reference/admin/get-api-key",
-              "api-reference/admin/revoke-api-key"
             ]
           },
           {

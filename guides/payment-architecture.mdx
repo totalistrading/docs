@@ -1,0 +1,108 @@
+---
+title: 'Payment Architecture and Onchain Logic'
+description: 'How Totalis uses Solana escrow and offchain oracles to settle parlay bets'
+---
+
+Totalis uses a non-custodial escrow system on Solana to hold funds during the lifecycle of a parlay bet. An offchain oracle service monitors Kalshi market outcomes and triggers on-chain settlement automatically.
+
+## Escrow Flow Overview
+
+```
+                         Totalis Server (Offchain Oracle)
+                        ┌──────────────────────────────────┐
+                        │                                  │
+                        │   1. Validates RFQ + Quote       │
+                        │   2. Creates escrow PDA          │
+                        │   3. Orchestrates deposits       │
+                        │   4. Polls Kalshi for results    │
+                        │   5. Triggers settlement         │
+                        │                                  │
+                        └──────┬───────────────┬───────────┘
+                               │               │
+                    create +   │               │   poll results
+                    deposit    │               │
+                               │               │
+              ┌────────────────▼──┐      ┌─────▼──────────────┐
+              │                   │      │                     │
+              │  Solana Escrow    │      │   Kalshi API        │
+              │  (PDA + Token     │      │   (Market Data +    │
+              │   Account)        │      │    Settlement)      │
+              │                   │      │                     │
+              └──▲──────────▲─────┘      └─────────────────────┘
+                 │          │
+         deposit │          │ deposit
+         USDC   │          │ USDC
+                 │          │
+           ┌─────┘          └──────┐
+           │                       │
+     ┌─────┴──────┐        ┌──────┴──────┐
+     │   User     │        │  Market     │
+     │            │        │  Maker      │
+     │  Stakes    │        │  Risks      │
+     │  bet_amount│        │  mm_payout  │
+     └────────────┘        └─────────────┘
+```
+
+## Step-by-Step Flow
+
+<Steps>
+  <Step title="Escrow Creation">
+    After a market maker confirms a quote, the oracle server calls the `create_parlay` instruction on the Solana program. This creates:
+
+    - **Escrow PDA** — A program-derived account that holds the parlay state (legs, amounts, deadline)
+    - **Escrow Token Account** — A USDC token account owned by the PDA to hold deposited funds
+
+    The escrow is initialized with a configurable deadline (default 1 hour) after which it can be auto-cancelled.
+  </Step>
+
+  <Step title="User Deposit">
+    The oracle calls `deposit_user` to transfer the user's bet amount (in USDC) from their wallet into the escrow token account.
+
+    | Field | Example |
+    |-------|---------|
+    | Source | User's USDC wallet |
+    | Destination | Escrow token account (PDA) |
+    | Amount | `bet_amount` (e.g., $100 USDC) |
+  </Step>
+
+  <Step title="Market Maker Deposit">
+    The oracle calls `deposit_mm` to transfer the market maker's risk amount into the same escrow token account.
+
+    | Field | Example |
+    |-------|---------|
+    | Source | Market maker's USDC wallet |
+    | Destination | Escrow token account (PDA) |
+    | Amount | `mm_payout` = total_payout - bet_amount (e.g., $300 USDC) |
+
+    At this point, the escrow holds the full potential payout (e.g., $400 USDC).
+  </Step>
+
+  <Step title="Kalshi Outcome Polling">
+    A background settlement service polls the Kalshi API every 30 seconds to check whether all leg markets in the parlay have resolved. Each leg has a `yes` or `no` side that the user bet on.
+  </Step>
+
+  <Step title="Settlement">
+    Once all legs have resolved, the oracle determines the outcome and calls the appropriate settlement instruction:
+
+    - **All legs win** — `settle_win`: The entire escrow balance (bet_amount + mm_payout) is transferred to the user. Status: `settled_win`
+    - **Any leg loses** — `settle_loss`: Funds are returned proportionally to each party. Status: `settled_loss`
+  </Step>
+</Steps>
+
+## Timeout Protection
+
+Two background services protect against stuck or abandoned escrows:
+
+| Service | Interval | Action |
+|---------|----------|--------|
+| **Settlement Service** | Every 30s | Checks if all legs resolved on Kalshi and settles the escrow |
+| **Timeout Service** | Every 60s | Cancels escrows past their deadline and refunds both deposits |
+
+If an escrow times out before all markets settle, the `cancel_escrow` instruction is called, returning each party's deposit to their original wallet.
+
+## Key Properties
+
+- **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana escrow PDAs controlled by the program.
+- **Atomic settlement** — Outcomes are determined by a single oracle check against the Kalshi API, and funds are distributed in a single on-chain transaction.
+- **Transparent** — All escrow accounts, deposits, and settlements are verifiable on the Solana blockchain.
+- **Time-bounded** — Every escrow has a deadline. If markets don't settle in time, funds are automatically refunded.

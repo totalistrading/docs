@@ -17,9 +17,6 @@
   ],
   "security": [
     {
-      "bearerAuth": []
-    },
-    {
       "apiKeyAuth": []
     }
   ],
@@ -28,7 +25,6 @@
     { "name": "Market Maker", "description": "Market maker endpoints for quoting and confirming trades" },
     { "name": "Markets", "description": "Cached Kalshi market data" },
     { "name": "User", "description": "User profile, API keys, and wallet management" },
-    { "name": "Admin", "description": "Administrative API key management" },
     { "name": "Status", "description": "System health and sync observability" }
   ],
   "paths": {
@@ -38,7 +34,7 @@
         "summary": "Create RFQ",
         "description": "Create a new Request for Quote (parlay bet request) with 2-5 legs. Each leg references a Kalshi market ticker and a side (yes/no). The system validates markets against cached and live Kalshi data, checks USDC balance, and broadcasts the RFQ to market makers via WebSocket.",
         "tags": ["RFQs"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -98,7 +94,7 @@
         "summary": "List RFQs",
         "description": "List the authenticated user's RFQs, optionally filtered by status.",
         "tags": ["RFQs"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "status",
@@ -153,7 +149,7 @@
         "summary": "Get RFQ",
         "description": "Get detailed information about a specific RFQ, including all quotes. Auto-expires the RFQ if past its expiration time.",
         "tags": ["RFQs"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "id",
@@ -196,7 +192,7 @@
         "summary": "Cancel RFQ",
         "description": "Cancel an open or quoted RFQ. Cannot cancel RFQs that are already accepted, confirmed, executed, or cancelled.",
         "tags": ["RFQs"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "id",
@@ -245,7 +241,7 @@
         "summary": "List RFQ Quotes",
         "description": "List all quotes for a specific RFQ, sorted by payout odds descending (best odds first).",
         "tags": ["RFQs"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "id",
@@ -285,7 +281,7 @@
         "summary": "Accept Quote",
         "description": "Accept a quote on an RFQ. This rejects all other pending quotes, sets a 60-second confirmation deadline for the market maker, and broadcasts the acceptance via WebSocket.",
         "tags": ["RFQs"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "id",
@@ -588,9 +584,9 @@
       "get": {
         "operationId": "getUserProfile",
         "summary": "Get Profile",
-        "description": "Get the authenticated user's profile. Auto-creates a user record on first call if one doesn't exist, using the Privy ID and optional query parameters for wallet address and email.",
+        "description": "Get the authenticated user's profile. Auto-creates a user record on first call if one doesn't exist.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "wallet_address",
@@ -625,7 +621,7 @@
         "summary": "Update Username",
         "description": "Change the authenticated user's username. Must be 3-20 characters, alphanumeric and underscores only. Cannot be in wallet address format (0x...).",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -687,7 +683,7 @@
         "summary": "Check Username",
         "description": "Check if a username is available. Username must match the format: 3-20 characters, alphanumeric and underscores only.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "username",
@@ -730,7 +726,7 @@
         "summary": "Create API Key",
         "description": "Generate a new API key for the authenticated user. The full key is only returned once — save it securely.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
           "required": false,
           "content": {
@@ -766,7 +762,7 @@
         "summary": "List API Keys",
         "description": "List all API keys belonging to the authenticated user. Key hashes are never returned.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "responses": {
           "200": {
             "description": "List of API keys",
@@ -795,7 +791,7 @@
         "summary": "Revoke API Key",
         "description": "Revoke one of the authenticated user's API keys by its prefix. The key will immediately stop working.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "parameters": [
           {
             "name": "prefix",
@@ -818,9 +814,9 @@
       "get": {
         "operationId": "getWallet",
         "summary": "Get Wallet",
-        "description": "Get the user's embedded Privy wallet address and current SOL/USDC balances.",
+        "description": "Get the user's wallet address and current SOL/USDC balances.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "responses": {
           "200": {
             "description": "Wallet address and balances",
@@ -841,7 +837,7 @@
         "summary": "Airdrop SOL",
         "description": "Airdrop devnet SOL to the user's embedded wallet. Only works on devnet. Amount must be between 0 and 2 SOL.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
           "required": false,
           "content": {
@@ -896,7 +892,7 @@
         "summary": "Airdrop USDC",
         "description": "Mint devnet USDC to the user's embedded wallet. Only works on devnet. Amount must be between 1 and 1000 USDC.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
           "required": false,
           "content": {
@@ -951,7 +947,7 @@
         "summary": "Get Blockhash",
         "description": "Proxy endpoint to get the latest Solana blockhash. Useful for browser clients that don't have direct RPC access.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "responses": {
           "200": {
             "description": "Latest blockhash",
@@ -978,7 +974,7 @@
         "summary": "Submit Transaction",
         "description": "Proxy endpoint to submit a signed Solana transaction. The transaction must be serialized as base64. Useful for browser clients that don't have direct RPC access.",
         "tags": ["User"],
-        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "security": [{ "apiKeyAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -1020,188 +1016,6 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/admin/api-keys": {
-      "post": {
-        "operationId": "adminCreateApiKey",
-        "summary": "Create API Key",
-        "description": "Create a new API key for any entity. Requires the `x-admin-api-key` header.",
-        "tags": ["Admin"],
-        "security": [{ "adminKeyAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["entity_id"],
-                "properties": {
-                  "entity_id": {
-                    "type": "string",
-                    "description": "ID of the entity to create a key for"
-                  },
-                  "entity_type": {
-                    "type": "string",
-                    "enum": ["unified"],
-                    "default": "unified",
-                    "description": "Entity type (only `unified` is supported)"
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Optional friendly name"
-                  },
-                  "environment": {
-                    "type": "string",
-                    "enum": ["live", "test"],
-                    "default": "live",
-                    "description": "Key environment"
-                  },
-                  "expires_in_days": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Optional expiration in days"
-                  }
-                }
-              },
-              "example": {
-                "entity_id": "did:privy:abc123",
-                "name": "Market Maker Bot",
-                "environment": "live"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "API key created",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminCreatedApiKey" }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ApiError" }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
-      "get": {
-        "operationId": "adminListApiKeys",
-        "summary": "List API Keys",
-        "description": "List all API keys, optionally filtered by entity ID or entity type.",
-        "tags": ["Admin"],
-        "security": [{ "adminKeyAuth": [] }],
-        "parameters": [
-          {
-            "name": "entity_id",
-            "in": "query",
-            "description": "Filter by entity ID",
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "entity_type",
-            "in": "query",
-            "description": "Filter by entity type",
-            "schema": { "type": "string", "enum": ["unified"] }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of API keys",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "keys": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/AdminApiKeyInfo" }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/admin/api-keys/{prefix}": {
-      "get": {
-        "operationId": "adminGetApiKey",
-        "summary": "Get API Key",
-        "description": "Get detailed information about an API key by its prefix.",
-        "tags": ["Admin"],
-        "security": [{ "adminKeyAuth": [] }],
-        "parameters": [
-          {
-            "name": "prefix",
-            "in": "path",
-            "required": true,
-            "description": "API key prefix",
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "API key details",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminApiKeyInfo" }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
-      "delete": {
-        "operationId": "adminRevokeApiKey",
-        "summary": "Revoke API Key",
-        "description": "Revoke an API key by its prefix. Optionally provide a reason.",
-        "tags": ["Admin"],
-        "security": [{ "adminKeyAuth": [] }],
-        "parameters": [
-          {
-            "name": "prefix",
-            "in": "path",
-            "required": true,
-            "description": "API key prefix",
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "description": "Reason for revocation"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": { "description": "API key revoked" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -1291,23 +1105,11 @@
   },
   "components": {
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Privy JWT token. Use `Authorization: Bearer <token>`. Supported for REST API only."
-      },
       "apiKeyAuth": {
         "type": "apiKey",
         "in": "header",
         "name": "UCALLEDIT_API_KEY",
-        "description": "API key for programmatic access. Format: `api_live_xxxxxxxxxxxxxxxxxxxxx`. Supported for REST API and WebSocket."
-      },
-      "adminKeyAuth": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "x-admin-api-key",
-        "description": "Admin API key for administrative operations."
+        "description": "API key for programmatic access. Generate from the Totalis Dashboard. Format: `api_live_xxxxxxxxxxxxxxxxxxxxx`. Supported for REST API and WebSocket."
       }
     },
     "schemas": {
@@ -1516,36 +1318,6 @@
           "expires_at": { "type": "string", "format": "date-time", "nullable": true },
           "last_used_at": { "type": "string", "format": "date-time", "nullable": true },
           "request_count": { "type": "integer" }
-        }
-      },
-      "AdminCreatedApiKey": {
-        "type": "object",
-        "properties": {
-          "key": { "type": "string", "description": "Full API key (only shown once)" },
-          "key_prefix": { "type": "string" },
-          "entity_type": { "type": "string" },
-          "entity_id": { "type": "string" },
-          "name": { "type": "string", "nullable": true },
-          "expires_at": { "type": "string", "format": "date-time", "nullable": true },
-          "created_at": { "type": "string", "format": "date-time" },
-          "message": { "type": "string" }
-        }
-      },
-      "AdminApiKeyInfo": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "key_prefix": { "type": "string" },
-          "entity_type": { "type": "string" },
-          "entity_id": { "type": "string" },
-          "name": { "type": "string", "nullable": true },
-          "status": { "type": "string", "enum": ["active", "revoked", "expired"] },
-          "created_at": { "type": "string", "format": "date-time" },
-          "expires_at": { "type": "string", "format": "date-time", "nullable": true },
-          "last_used_at": { "type": "string", "format": "date-time", "nullable": true },
-          "request_count": { "type": "integer" },
-          "revoked_at": { "type": "string", "format": "date-time", "nullable": true },
-          "revoked_reason": { "type": "string", "nullable": true }
         }
       },
       "WalletBalances": {

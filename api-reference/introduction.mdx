@@ -9,40 +9,15 @@ description: 'Totalis Parlay RFQ API — a decentralized request-for-quote marke
 https://api.totalis.com
 ```
 
-For local development:
-
-```
-http://localhost:3000
-```
-
 ## Authentication
 
-The API supports two authentication methods:
+All API requests require an API key. Generate one from the [Totalis Dashboard](https://app.totalis.com), then include it in every request:
 
-<CardGroup cols={2}>
-  <Card title="Privy JWT Token" icon="key">
-    For web applications using Privy authentication.
+```
+UCALLEDIT_API_KEY: api_live_xxxxxxxxxxxxxxxxxxxxx
+```
 
-    ```
-    Authorization: Bearer <token>
-    ```
-
-    Supported for **REST API only**.
-  </Card>
-  <Card title="API Key" icon="lock">
-    For programmatic access, bots, and WebSocket connections.
-
-    ```
-    UCALLEDIT_API_KEY: api_live_xxxxxxxxxxxxxxxxxxxxx
-    ```
-
-    Supported for **REST API + WebSocket**.
-  </Card>
-</CardGroup>
-
-<Note>
-  WebSocket connections require API keys. Privy JWT tokens are not supported for WebSocket.
-</Note>
+API keys work for both REST API and WebSocket connections. See the [Authentication guide](/guides/authentication) for details.
 
 ## Endpoint Groups
 
@@ -58,9 +33,6 @@ The API supports two authentication methods:
   </Card>
   <Card title="User" icon="user" href="/api-reference/user/get-profile">
     Manage your profile, API keys, and Solana wallet.
-  </Card>
-  <Card title="Admin" icon="shield" href="/api-reference/admin/create-api-key">
-    Administrative API key management.
   </Card>
   <Card title="Status" icon="heart-pulse" href="/api-reference/status/health">
     System health and sync observability.
