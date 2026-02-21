@@ -31,7 +31,7 @@ expired  cancelled  (MM fails to confirm → cancelled)
     }
     ```
 
-    The system validates each leg against Kalshi market data, checks the user's USDC balance, and broadcasts the RFQ to all connected market makers via WebSocket.
+    The system validates that each market exists in our cache and is still active on Kalshi, then broadcasts the RFQ to all connected market makers via WebSocket.
 
     **Status: `open`**
   </Step>
@@ -79,20 +79,26 @@ expired  cancelled  (MM fails to confirm → cancelled)
   </Step>
 
   <Step title="On-Chain Escrow Execution">
-    The system executes a 3-step Solana transaction flow:
+    The system executes a 3-step Solana transaction flow. The oracle pays all gas fees so users and MMs only need USDC. User/MM signatures are obtained via Privy TEE wallets using `signTransaction` (sign-only), then the oracle co-signs and broadcasts locally.
 
-    1. **create_parlay** — Oracle creates the escrow PDA and token account
-    2. **deposit_user** — User's USDC stake is transferred to the escrow
-    3. **deposit_mm** — Market maker's risk USDC is transferred to the escrow
+    1. **create_parlay** — Oracle creates the escrow PDA and token account (oracle signs locally)
+    2. **deposit_user** — User's USDC stake is transferred to the escrow (Privy TEE signs for user, oracle co-signs)
+    3. **deposit_mm** — Market maker's USDC risk is transferred to the escrow (Privy TEE signs for MM, oracle co-signs)
+
+    All three transaction signatures and the escrow account address are stored in the database and displayed in the UI with links to Solana Explorer.
+
+    <Card title="Payment Architecture" icon="link" href="/guides/payment-architecture">
+      Learn more about the Privy TEE wallet integration, oracle-sponsored gas, and the escrow program.
+    </Card>
 
     **Status: `executed`**
   </Step>
 
   <Step title="Settlement">
-    A background service polls Kalshi every 30 seconds to check if all leg markets have settled.
+    A background service polls Kalshi every 30 seconds to check if all leg markets have settled. Settlement is winner-take-all:
 
-    - **All legs win** — Total payout transferred to user (`settled_win`)
-    - **Any leg loses** — Stakes returned proportionally (`settled_loss`)
+    - **All legs win** — The entire escrow balance (user_stake + mm_risk) is transferred to the user (`settled_win`)
+    - **Any leg loses** — The entire escrow balance is transferred to the market maker (`settled_loss`)
   </Step>
 </Steps>
 

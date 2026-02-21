@@ -537,7 +537,7 @@
       "get": {
         "operationId": "listMarkets",
         "summary": "List Markets",
-        "description": "List cached Kalshi markets from whitelisted series. Markets are synced from Kalshi every 5 minutes. Filter by category (e.g., Crypto, Politics).",
+        "description": "List cached Kalshi markets from whitelisted series. Markets are synced from Kalshi every 20 minutes. Filter by category (e.g., Crypto, Politics).",
         "tags": ["Markets"],
         "parameters": [
           {

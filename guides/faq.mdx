@@ -5,7 +5,7 @@ description: 'Frequently asked questions about Totalis'
 
 ## What is Totalis?
 
-Totalis is a parlay engine for prediction markets. 
+Totalis is a parlay engine for prediction markets.
 We enable users to combine multiple prediction markets into a single leveraged position, and facilitate RFQ-based execution between users and market makers.
 We are currently using Kalshi as a data layer that provides markets and settlement outcomes.
 
@@ -16,7 +16,7 @@ We believe that an RFQ system at core is the correct way to build parlays on pre
 
 We allow you to construct parlays on markets across sports, crypto, weather, entertainment, and economic events.
 
-## What markets do you guys offer?
+## What markets does Totalis offer?
 
 We currently offer markets that:
 
@@ -32,17 +32,35 @@ For a detailed and up-to-date list of supported markets, users can query our pub
 
 Our focus is on high-frequency, short-duration markets that enable continuous structured positioning and rapid capital turnover.
 
+## What chain are you on?
+
+Totalis runs on **Solana**. All escrow accounts, deposits, and settlements are executed on-chain via our `parlay_escrow` Anchor program. We currently operate on Solana devnet, with mainnet deployment coming soon.
+
+## What are the bet and leg limits?
+
+| Parameter | Limit |
+|-----------|-------|
+| Legs per parlay | 2 - 5 |
+| Bet amount | $1 - $10,000 USDC |
+| Payout odds | 1.01x - 1000x |
+
 ## How does RFQ work exactly?
 
-See our section on RFQ.
+See the [RFQ Lifecycle guide](/guides/lifecycle) for a detailed walkthrough of the full flow from creation to settlement.
 
 ## How secure is it?
 
-We do not hold user money, all funds are non-custodial. 
+All funds are held in a **Solana escrow program** — not by Totalis. When a trade is matched, both the user's stake and the market maker's risk are deposited into an on-chain escrow PDA (Program Derived Address). Neither party can withdraw unilaterally; only the settlement authority (our oracle) can release funds, and only based on the verified outcome from Kalshi.
 
-Users can optionally grant permission for the server to help sign transactions for smoother UX. We use secure embedded wallets for seamless onchain interactions.
+Users can optionally grant permission for the server to help sign transactions for smoother UX. We use secure embedded wallets (Privy TEE) where private keys never leave the Trusted Execution Environment.
 
-Collateral is locked only for the duration of the position and settles automatically upon resolution.
+Collateral is locked only for the duration of the position and settles automatically upon resolution. Every escrow has a timeout — if markets don't resolve in time, funds are automatically refunded to both parties.
+
+For full details, see the [Payment Architecture guide](/guides/payment-architecture).
+
+## What happens if a market gets cancelled on Kalshi?
+
+If a Kalshi market is cancelled or delisted before all legs in a parlay have resolved, the escrow's timeout protection kicks in. The timeout service automatically cancels the escrow after the deadline (default 1 hour) and refunds both the user's stake and the market maker's risk to their respective wallets. No party loses funds due to an external market cancellation.
 
 ## Will you add markets from other prediction markets like Polymarket? Can I make cross-platform parlays?
 
@@ -56,4 +74,6 @@ We do not list primary markets.
 
 ## How does Totalis make money?
 
-We generate revenue through a small percentage fee on winning profits.
+We take a **1% fee on the profit** earned by the winning side of each trade.
+
+For example, if you bet $100 at 4x odds and all legs hit, your total payout is $400. Your profit is $300, so Totalis takes $3 (1% of $300). You receive $397.
