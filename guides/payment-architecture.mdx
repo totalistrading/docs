@@ -1,93 +1,147 @@
 ---
 title: 'Payment Architecture and Onchain Logic'
-description: 'How Totalis uses Solana escrow and offchain oracles to settle parlay bets'
+description: 'How on-chain escrow works with Privy TEE wallets and oracle-sponsored gas'
 ---
 
-Totalis uses a non-custodial escrow system on Solana to hold funds during the lifecycle of a parlay bet. An offchain oracle service monitors Kalshi market outcomes and triggers on-chain settlement automatically.
+## Overview
 
-## Escrow Flow Overview
+Totalis uses on-chain Solana escrow accounts to hold both the user's stake and the market maker's risk capital for the duration of a parlay bet. All wallet signing is done server-side via **Privy TEE (Trusted Execution Environment) wallets**, so users never need to manually sign transactions. The oracle server pays all gas fees — users and market makers only need USDC.
+
+## Architecture Diagram
 
 ```
-                         Totalis Server (Offchain Oracle)
-                        ┌──────────────────────────────────┐
-                        │                                  │
-                        │   1. Validates RFQ + Quote       │
-                        │   2. Creates escrow PDA          │
-                        │   3. Orchestrates deposits       │
-                        │   4. Polls Kalshi for results    │
-                        │   5. Triggers settlement         │
-                        │                                  │
-                        └──────┬───────────────┬───────────┘
-                               │               │
-                    create +   │               │   poll results
-                    deposit    │               │
-                               │               │
-              ┌────────────────▼──┐      ┌─────▼──────────────┐
-              │                   │      │                     │
-              │  Solana Escrow    │      │   Kalshi API        │
-              │  (PDA + Token     │      │   (Market Data +    │
-              │   Account)        │      │    Settlement)      │
-              │                   │      │                     │
-              └──▲──────────▲─────┘      └─────────────────────┘
-                 │          │
-         deposit │          │ deposit
-         USDC   │          │ USDC
-                 │          │
-           ┌─────┘          └──────┐
-           │                       │
-     ┌─────┴──────┐        ┌──────┴──────┐
-     │   User     │        │  Market     │
-     │            │        │  Maker      │
-     │  Stakes    │        │  Risks      │
-     │  bet_amount│        │  mm_payout  │
-     └────────────┘        └─────────────┘
+User (Frontend)                Backend (Oracle)              Privy TEE              Solana
+     │                              │                          │                     │
+     │  1. Login via Privy          │                          │                     │
+     │─────────────────────────────>│                          │                     │
+     │                              │                          │                     │
+     │  2. Enable Trading           │                          │                     │
+     │  (addSessionSigners)         │                          │                     │
+     │─────────────────────────────>│                          │                     │
+     │                              │                          │                     │
+     │  3. Accept quote / MM confirm│                          │                     │
+     │─────────────────────────────>│                          │                     │
+     │                              │                          │                     │
+     │                              │── create_parlay ────────────────────────────────>│
+     │                              │  (oracle signs locally)                         │
+     │                              │                                                 │
+     │                              │── build deposit_user tx ─>│                     │
+     │                              │                           │── sign (TEE) ──────>│
+     │                              │<─ signed tx ──────────────│                     │
+     │                              │── oracle co-signs + broadcast ──────────────────>│
+     │                              │                                                 │
+     │                              │── build deposit_mm tx ───>│                     │
+     │                              │                           │── sign (TEE) ──────>│
+     │                              │<─ signed tx ──────────────│                     │
+     │                              │── oracle co-signs + broadcast ──────────────────>│
 ```
 
-## Step-by-Step Flow
+## Key Design Decisions
 
-<Steps>
-  <Step title="Escrow Creation">
-    After a market maker confirms a quote, the oracle server calls the `create_parlay` instruction on the Solana program. This creates:
+### Oracle-Sponsored Gas
 
-    - **Escrow PDA** — A program-derived account that holds the parlay state (legs, amounts, deadline)
-    - **Escrow Token Account** — A USDC token account owned by the PDA to hold deposited funds
+The oracle keypair pays gas fees for all transactions, so **users and market makers never need SOL** in their wallets — only USDC for their stakes.
 
-    The escrow is initialized with a configurable deadline (default 1 hour) after which it can be auto-cancelled.
-  </Step>
+| Transaction | Fee Payer | Signers |
+|-------------|-----------|---------|
+| `create_parlay` | Oracle | Oracle + escrow token account |
+| `deposit_user` | Oracle | Oracle + User (via Privy TEE) |
+| `deposit_mm` | Oracle | Oracle + MM (via Privy TEE) |
+| `settle` | Oracle | Oracle |
+| `cancel_parlay` | Oracle | Oracle |
+| `close_account` | Oracle | Oracle |
 
-  <Step title="User Deposit">
-    The oracle calls `deposit_user` to transfer the user's bet amount (in USDC) from their wallet into the escrow token account.
+### Privy TEE Wallets with Session Signers
 
-    | Field | Example |
-    |-------|---------|
-    | Source | User's USDC wallet |
-    | Destination | Escrow token account (PDA) |
-    | Amount | `bet_amount` (e.g., $100 USDC) |
-  </Step>
+Privy embedded wallets run inside a **Trusted Execution Environment**. The private key never leaves the TEE — not even Privy can extract it. Server-side signing works via **session signers** (key quorums):
 
-  <Step title="Market Maker Deposit">
-    The oracle calls `deposit_mm` to transfer the market maker's risk amount into the same escrow token account.
+1. **Frontend** calls `addSessionSigners()` with the app's key quorum ID when the user clicks "Enable Trading"
+2. User sees a Privy consent dialog and approves
+3. **Backend** can now request signing via `signTransaction()` with the authorization private key
 
-    | Field | Example |
-    |-------|---------|
-    | Source | Market maker's USDC wallet |
-    | Destination | Escrow token account (PDA) |
-    | Amount | `mm_payout` = total_payout - bet_amount (e.g., $300 USDC) |
+This is semi-custodial: the user explicitly grants and can revoke signing permission at any time.
 
-    At this point, the escrow holds the full potential payout (e.g., $400 USDC).
-  </Step>
+### `signTransaction` vs `signAndSendTransaction`
 
-  <Step title="Kalshi Outcome Polling">
-    A background settlement service polls the Kalshi API every 30 seconds to check whether all leg markets in the parlay have resolved. Each leg has a `yes` or `no` side that the user bet on.
-  </Step>
+We use Privy's **`signTransaction`** (sign-only) instead of `signAndSendTransaction` (sign + broadcast) for deposit transactions. This is critical because:
 
-  <Step title="Settlement">
-    Once all legs have resolved, the oracle determines the outcome and calls the appropriate settlement instruction:
+- **`signAndSendTransaction`** broadcasts via Privy's RPC, which may have different blockhash state than our RPC, causing "Blockhash not found" errors
+- **`signTransaction`** just signs the transaction bytes and returns them. We then add the oracle's signature and broadcast via our own RPC, ensuring blockhash consistency
 
-    - **All legs win** — `settle_win`: The entire escrow balance (bet_amount + mm_payout) is transferred to the user. Status: `settled_win`
-    - **Any leg loses** — `settle_loss`: Funds are returned proportionally to each party. Status: `settled_loss`
-  </Step>
-</Steps>
+The flow for each deposit:
+1. Build transaction with our RPC's blockhash, oracle as fee payer
+2. Privy TEE signs for the user/MM (sign-only, no broadcast)
+3. Add oracle's co-signature locally
+4. Broadcast via our own RPC (same one we got the blockhash from)
+
+## Escrow Program
+
+The `parlay_escrow` Solana program (Anchor-based) manages the on-chain state.
+
+### Accounts
+
+| Account | Description |
+|---------|-------------|
+| **Escrow PDA** | Stores parlay metadata (legs, stakes, status, settlement authority). Derived from `["parlay", parlay_id]` seeds. |
+| **Escrow Token Account** | SPL Token account (USDC) owned by the escrow PDA. Holds deposits from both user and MM. |
+
+### On-Chain State
+
+Each escrow PDA stores:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `parlay_id` | 16 bytes | Unique parlay identifier |
+| `user` | Pubkey | User's wallet address |
+| `mm` | Pubkey | Market maker's wallet address |
+| `user_stake` | u64 | Amount user deposited (USDC) |
+| `mm_risk` | u64 | Amount MM deposited (USDC) |
+| `total_payout` | u64 | `user_stake + mm_risk` |
+| `status` | enum | `Created → UserFunded → Active → SettledWin / SettledLoss / Cancelled` |
+| `settlement_authority` | Pubkey | Oracle pubkey (only signer that can settle/cancel) |
+| `num_legs` | u8 | Number of parlay legs (up to 5) |
+| `legs` | array | Each leg: 32-byte market ticker + side (0=Yes, 1=No) |
+
+### Instructions
+
+| Instruction | Description | Required Signers |
+|-------------|-------------|-----------------|
+| `create_parlay` | Creates escrow PDA + token account | `settlement_authority` (oracle) |
+| `deposit_user` | Transfers user's USDC stake to escrow | `user` (via Privy TEE) |
+| `deposit_mm` | Transfers MM's USDC risk to escrow | `mm` (via Privy TEE) |
+| `settle` | Transfers entire pot to winner | `settlement_authority` |
+| `cancel_parlay` | Returns deposits to respective parties | `settlement_authority` |
+| `close_account` | Closes escrow PDA + token account, reclaims rent | `settlement_authority` |
+
+### State Machine
+
+```
+create_parlay()     → Created
+deposit_user()      → UserFunded     (requires Created)
+deposit_mm()        → Active         (requires UserFunded)
+settle(user_won)    → SettledWin/Loss (requires Active)
+cancel_parlay()     → Cancelled      (requires Created | UserFunded | Active)
+close_account()     → [deleted]      (requires SettledWin | SettledLoss | Cancelled)
+```
+
+## Settlement Logic
+
+Settlement is **winner-take-all**:
+
+- **All legs win** → `settle(user_won: true)`: The entire escrow balance (`user_stake + mm_risk`) is transferred to the user's token account. Status: `SettledWin`
+- **Any leg loses** → `settle(user_won: false)`: The entire escrow balance is transferred to the market maker's token account. Status: `SettledLoss`
+
+There is no partial payout — the winner receives the full pot.
+
+## Cancellation Logic
+
+Cancellation refunds depend on how far the escrow progressed:
+
+| Status at Cancel | Refund |
+|-----------------|--------|
+| `Created` | No funds deposited — nothing to refund |
+| `UserFunded` | User's stake returned to their token account |
+| `Active` | Both user's stake and MM's risk returned to their respective token accounts |
 
 ## Timeout Protection
 
@@ -95,14 +149,23 @@ Two background services protect against stuck or abandoned escrows:
 
 | Service | Interval | Action |
 |---------|----------|--------|
-| **Settlement Service** | Every 30s | Checks if all legs resolved on Kalshi and settles the escrow |
-| **Timeout Service** | Every 60s | Cancels escrows past their deadline and refunds both deposits |
-
-If an escrow times out before all markets settle, the `cancel_escrow` instruction is called, returning each party's deposit to their original wallet.
+| **Settlement Service** | Every 30s | Polls Kalshi API, settles escrows when all legs resolve |
+| **Timeout Service** | Every 60s | Cancels escrows past their deadline (default 1 hour), refunds deposits |
+| **Retry Service** | Every 60s | Retries stuck escrow flows (e.g., deposit failed mid-execution) |
 
 ## Key Properties
 
 - **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana escrow PDAs controlled by the program.
-- **Atomic settlement** — Outcomes are determined by a single oracle check against the Kalshi API, and funds are distributed in a single on-chain transaction.
+- **Oracle-sponsored gas** — Users and MMs never need SOL. The oracle pays all transaction fees.
+- **TEE-secured signing** — Private keys never leave the Privy Trusted Execution Environment.
 - **Transparent** — All escrow accounts, deposits, and settlements are verifiable on the Solana blockchain.
 - **Time-bounded** — Every escrow has a deadline. If markets don't settle in time, funds are automatically refunded.
+
+## Market Validation
+
+When an RFQ is submitted, two checks are performed:
+
+1. **Market exists in cache** — ensures we have metadata for the ticker
+2. **Market is active on Kalshi** — live API check confirms the market hasn't closed
+
+All other filtering (resolution window, volume, category) is done at display time in the frontend. If a market is shown in the UI, it's valid to bet on.
