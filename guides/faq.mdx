@@ -1,0 +1,59 @@
+---
+title: 'FAQ'
+description: 'Frequently asked questions about Totalis'
+---
+
+## What is Totalis?
+
+Totalis is a parlay engine for prediction markets. 
+We enable users to combine multiple prediction markets into a single leveraged position, and facilitate RFQ-based execution between users and market makers.
+We are urrently using Kalshi as a data layer that provides markets and settlement outcomes.
+
+## Can't I just do this on Kalshi?
+
+Kalshi only offers combos on specific sports markets with very limited options. This is because Kalshi has to create an orderbook for every single combination of their combos, which is highly inefficient.
+We believe that an RFQ system at core is the correct way to build parlays on prediction markets.
+
+We allow you to construct pralays on markets across sports, crypto, weather, entertainment, and economic events.
+
+## What markets do you guys offer?
+
+We currently offer markets that:
+
+- Are recurring
+
+- Have reliable liquidity on Kalshi
+
+- Settle within one week
+
+These include structured combinations across sports, macro, politics, crypto, and weather events.
+
+For a detailed and up-to-date list of supported markets, users can query our public API endpoint (https://docs.totalis.trade/api-reference/markets/list).
+
+Our focus is on high-frequency, short-duration markets that enable continuous structured positioning and rapid capital turnover.
+
+## How does RFQ work exactly?
+
+See our section on RFQ.
+
+## How secure is it?
+
+We do not hold user money, all funds are non-custodial. 
+
+Users can optionally grant permission for the server to help sign transactions for smoother UX. We use Privy for secure wallet integrations.
+
+Collateral is locked only for the duration of the position and settles automatically upon resolution.
+
+## Will you add markets from other prediction markets like Polymarket? Can I make cross-platform parlays?
+
+Yes, in the near future.
+
+## Are you an exchange?
+
+In a sense, yes. We facilitate peer-to-peer structured transactions between users and market makers, settled on-chain via escrow.
+We do not operate a traditional central limit order book.
+We do not list primary markets.
+
+## How does Totalis make money?
+
+We generate revenue through a small percentage fee on winning profits.
