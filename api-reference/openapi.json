@@ -721,42 +721,6 @@
       }
     },
     "/user/api-keys": {
-      "post": {
-        "operationId": "createUserApiKey",
-        "summary": "Create API Key",
-        "description": "Generate a new API key for the authenticated user. The full key is only returned once — save it securely.",
-        "tags": ["User"],
-        "security": [{ "apiKeyAuth": [] }],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Optional friendly name for the API key"
-                  }
-                }
-              },
-              "example": { "name": "My Trading Bot" }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "API key created",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/CreatedApiKey" }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
       "get": {
         "operationId": "listUserApiKeys",
         "summary": "List API Keys",
@@ -781,31 +745,6 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/user/api-keys/{prefix}": {
-      "delete": {
-        "operationId": "revokeUserApiKey",
-        "summary": "Revoke API Key",
-        "description": "Revoke one of the authenticated user's API keys by its prefix. The key will immediately stop working.",
-        "tags": ["User"],
-        "security": [{ "apiKeyAuth": [] }],
-        "parameters": [
-          {
-            "name": "prefix",
-            "in": "path",
-            "required": true,
-            "description": "API key prefix (e.g., `api_live_abc`)",
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "204": { "description": "API key revoked" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
