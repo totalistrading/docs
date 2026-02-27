@@ -58,7 +58,8 @@
           {
             "group": "Markets",
             "pages": [
-              "api-reference/markets/list"
+              "api-reference/markets/list",
+              "api-reference/markets/exclusion-groups"
             ]
           },
           {

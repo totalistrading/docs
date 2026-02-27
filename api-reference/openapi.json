@@ -80,6 +80,9 @@
                   },
                   "insufficient_balance": {
                     "value": { "error": { "code": "INSUFFICIENT_BALANCE", "message": "Insufficient USDC balance. Required: 100, Available: 50", "details": { "wallet_address": "...", "required_usdc": 100, "available_usdc": 50 } } }
+                  },
+                  "exclusion_group_conflict": {
+                    "value": { "error": { "code": "EXCLUSION_GROUP_CONFLICT", "message": "Cannot combine markets from conflicting series: KXBTC, KXBTCD", "details": { "group": ["KXBTC", "KXBTCD", "KXBTCMAXMON", "KXBTCMINMON"], "conflicting": ["KXBTC", "KXBTCD"] } } }
                   }
                 }
               }
@@ -578,6 +581,37 @@
             }
           },
           "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/markets/exclusion-groups": {
+      "get": {
+        "operationId": "getExclusionGroups",
+        "summary": "Get Exclusion Groups",
+        "description": "Returns the list of series exclusion groups. Each group is an array of `series_ticker` values that represent correlated outcomes on the same underlying asset. If a parlay contains a leg from one series in a group, no other leg may use a different series from the same group. No authentication required.",
+        "tags": ["Markets"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Exclusion groups configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exclusion_groups": {
+                      "type": "array",
+                      "description": "Array of exclusion groups. Each group is an array of series_ticker strings that cannot co-exist in a single parlay.",
+                      "items": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
