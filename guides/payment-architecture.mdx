@@ -13,18 +13,29 @@ Totalis uses on-chain Solana escrow accounts to hold both the user's stake and t
 
 ## Key Design Decisions
 
-### Oracle-Sponsored Gas
+### Role-Separated Signers
 
-The oracle keypair pays gas fees for all transactions, so **users and market makers never need SOL** in their wallets — only USDC for their stakes.
+The program uses a **Config PDA** (seeds: `["config"]`) to store role-separated keys, allowing different security postures per role:
+
+| Role | Description | Key Type |
+|------|-------------|----------|
+| **Admin** | Updates config PDA (key rotation, fee changes) | Cold key, rarely used |
+| **Fee Payer** | Pays transaction fees and rent for all instructions | Hot wallet, easily rotated |
+| **Settlement Authority** | Signs `settle` and `cancel_parlay` instructions | Warm wallet |
+| **Fee Vault Owner** | Owns the protocol fee vault token account | Cold wallet |
+
+### Gas Sponsorship
+
+The fee payer keypair pays gas fees for all transactions, so **users and market makers never need SOL** in their wallets — only USDC for their stakes.
 
 | Transaction | Fee Payer | Signers |
 |-------------|-----------|---------|
-| `create_parlay` | Oracle | Oracle + escrow token account |
-| `deposit_user` | Oracle | Oracle + User (via Privy TEE) |
-| `deposit_mm` | Oracle | Oracle + MM (via Privy TEE) |
-| `settle` | Oracle | Oracle |
-| `cancel_parlay` | Oracle | Oracle |
-| `close_account` | Oracle | Oracle |
+| `create_parlay` | Fee Payer | Fee Payer + escrow token account |
+| `deposit_user` | Fee Payer | Fee Payer + User (via Privy TEE) |
+| `deposit_mm` | Fee Payer | Fee Payer + MM (via Privy TEE) |
+| `settle` | Fee Payer | Fee Payer + Settlement Authority |
+| `cancel_parlay` | Fee Payer | Fee Payer + Settlement Authority |
+| `close_account` | Fee Payer | Fee Payer + Settlement Authority |
 
 ### Privy TEE Wallets with Session Signers
 
@@ -41,12 +52,12 @@ This is semi-custodial: the user explicitly grants and can revoke signing permis
 We use Privy's **`signTransaction`** (sign-only) instead of `signAndSendTransaction` (sign + broadcast) for deposit transactions. This is critical because:
 
 - **`signAndSendTransaction`** broadcasts via Privy's RPC, which may have different blockhash state than our RPC, causing "Blockhash not found" errors
-- **`signTransaction`** just signs the transaction bytes and returns them. We then add the oracle's signature and broadcast via our own RPC, ensuring blockhash consistency
+- **`signTransaction`** just signs the transaction bytes and returns them. We then add the fee payer's signature and broadcast via our own RPC, ensuring blockhash consistency
 
 The flow for each deposit:
-1. Build transaction with our RPC's blockhash, oracle as fee payer
+1. Build transaction with our RPC's blockhash, fee payer as fee payer
 2. Privy TEE signs for the user/MM (sign-only, no broadcast)
-3. Add oracle's co-signature locally
+3. Add fee payer's co-signature locally
 4. Broadcast via our own RPC (same one we got the blockhash from)
 
 ## Escrow Program
@@ -57,8 +68,10 @@ The `parlay_escrow` Solana program (Anchor-based) manages the on-chain state.
 
 | Account | Description |
 |---------|-------------|
+| **Config PDA** | Singleton config storing admin, fee payer, settlement authority, fee vault owner, and `fee_bps`. Derived from `["config"]` seeds. |
 | **Escrow PDA** | Stores parlay metadata (legs, stakes, status, settlement authority). Derived from `["parlay", parlay_id]` seeds. |
 | **Escrow Token Account** | SPL Token account (USDC) owned by the escrow PDA. Holds deposits from both user and MM. |
+| **Fee Vault Token Account** | SPL Token account (USDC) owned by `config.fee_vault_owner`. Receives protocol fees on settlement. |
 
 ### On-Chain State
 
@@ -69,24 +82,27 @@ Each escrow PDA stores:
 | `parlay_id` | 16 bytes | Unique parlay identifier |
 | `user` | Pubkey | User's wallet address |
 | `mm` | Pubkey | Market maker's wallet address |
-| `user_stake` | u64 | Amount user deposited (USDC) |
-| `mm_risk` | u64 | Amount MM deposited (USDC) |
+| `user_stake` | u64 | Amount user deposited (USDC lamports) |
+| `mm_risk` | u64 | Amount MM deposited (USDC lamports) |
 | `total_payout` | u64 | `user_stake + mm_risk` |
-| `status` | enum | `Created → UserFunded → Active → SettledWin / SettledLoss / Cancelled` |
-| `settlement_authority` | Pubkey | Oracle pubkey (only signer that can settle/cancel) |
+| `status` | enum | See [State Machine](#state-machine) below |
+| `settlement_authority` | Pubkey | Signer that can settle/cancel |
+| `created_at` | i64 | Unix timestamp of escrow creation |
 | `num_legs` | u8 | Number of parlay legs (up to 5) |
-| `legs` | array | Each leg: 32-byte market ticker + side (0=Yes, 1=No) |
+| `legs` | array | Each leg: 64-byte market ticker (null-padded) + side (0=Yes, 1=No) |
 
 ### Instructions
 
-| Instruction | Description | Required Signers |
-|-------------|-------------|-----------------|
-| `create_parlay` | Creates escrow PDA + token account | `settlement_authority` (oracle) |
-| `deposit_user` | Transfers user's USDC stake to escrow | `user` (via Privy TEE) |
-| `deposit_mm` | Transfers MM's USDC risk to escrow | `mm` (via Privy TEE) |
-| `settle` | Transfers entire pot to winner | `settlement_authority` |
-| `cancel_parlay` | Returns deposits to respective parties | `settlement_authority` |
-| `close_account` | Closes escrow PDA + token account, reclaims rent | `settlement_authority` |
+| Instruction | Description | Required Signers | Additional Accounts |
+|-------------|-------------|-----------------|---------------------|
+| `initialize_config` | Creates the singleton config PDA | `admin` | — |
+| `update_config` | Updates config roles and fee_bps | `admin` | Config PDA |
+| `create_parlay` | Creates escrow PDA + token account | `settlement_authority` | — |
+| `deposit_user` | Transfers user's USDC stake to escrow | `user` (via Privy TEE) | — |
+| `deposit_mm` | Transfers MM's USDC risk to escrow | `mm` (via Privy TEE) | — |
+| `settle` | Pays winner (minus fee) and sends fee to vault | `settlement_authority` | Config PDA, Fee Vault Token Account |
+| `cancel_parlay` | Returns deposits to respective parties | `settlement_authority` | — |
+| `close_account` | Closes escrow PDA + token account, reclaims rent | `settlement_authority` | — |
 
 ### State Machine
 
@@ -99,14 +115,45 @@ cancel_parlay()     → Cancelled      (requires Created | UserFunded | Active)
 close_account()     → [deleted]      (requires SettledWin | SettledLoss | Cancelled)
 ```
 
+The on-chain program defines six statuses: `Created`, `UserFunded`, `Active`, `SettledWin`, `SettledLoss`, `Cancelled`.
+
+The backend tracks additional transient states for operational safety:
+
+| Backend Status | Purpose |
+|----------------|---------|
+| `settling` | Atomic claim lock while settlement transaction is in-flight. Prevents double-execution. |
+| `cancelling` | Atomic claim lock while cancellation transaction is in-flight. |
+| `stale` | Flagged by the timeout service for active escrows older than 30 days. |
+
 ## Settlement Logic
 
-Settlement is **winner-take-all**:
+Settlement deducts a **protocol fee** from the winner's profit before payout:
 
-- **All legs win** → `settle(user_won: true)`: The entire escrow balance (`user_stake + mm_risk`) is transferred to the user's token account. Status: `SettledWin`
-- **Any leg loses** → `settle(user_won: false)`: The entire escrow balance is transferred to the market maker's token account. Status: `SettledLoss`
+- **All legs win** → `settle(user_won: true)`: Winner receives `total_payout - fee`, fee goes to protocol vault. Status: `SettledWin`
+- **Any leg loses** → `settle(user_won: false)`: Winner receives `total_payout - fee`, fee goes to protocol vault. Status: `SettledLoss`
+- **Any leg is invalid** → `cancel_parlay()`: All deposits refunded to their respective parties. Status: `Cancelled`
 
-There is no partial payout — the winner receives the full pot.
+### Fee Calculation
+
+The fee is calculated **on profit only** (not on the total payout):
+
+```
+winner_deposit = user_won ? user_stake : mm_risk
+profit         = total_payout - winner_deposit
+fee            = profit * fee_bps / 10_000
+winner_payout  = total_payout - fee
+```
+
+`fee_bps` is stored in the Config PDA and can be updated by the admin (e.g., `100` = 1%). The fee is transferred to the `fee_vault_token_account` in the same `settle` instruction.
+
+### `close_account`
+
+After settlement or cancellation, `close_account` is called to:
+
+1. Close the escrow token account (transfers any remaining dust to the fee payer)
+2. Close the escrow PDA (reclaims rent-exempt SOL to the fee payer)
+
+This is a separate instruction because Solana requires accounts to be drained before they can be closed. The `close_account` instruction can only be called on escrows in a terminal state (`SettledWin`, `SettledLoss`, or `Cancelled`).
 
 ## Cancellation Logic
 
@@ -118,22 +165,29 @@ Cancellation refunds depend on how far the escrow progressed:
 | `UserFunded` | User's stake returned to their token account |
 | `Active` | Both user's stake and MM's risk returned to their respective token accounts |
 
-## Timeout Protection
+### Invalid Leg Cancellation
 
-Two background services protect against stuck or abandoned escrows:
+If any leg in a parlay resolves as **invalid** (e.g., the event is voided or the market is delisted), the entire parlay is cancelled rather than settled. Both parties are refunded — no one wins or loses on an invalid market. Invalid legs are tracked with a `push` outcome.
 
-| Service | Interval | Action |
-|---------|----------|--------|
-| **Settlement Service** | Every 30s | Polls Kalshi API, settles escrows when all legs resolve |
-| **Timeout Service** | Every 60s | Cancels escrows past their deadline (default 1 hour), refunds deposits |
-| **Retry Service** | Every 60s | Retries stuck escrow flows (e.g., deposit failed mid-execution) |
+## Background Services
+
+Three background services with adaptive polling protect against stuck or abandoned escrows:
+
+| Service | Base Interval | Max Interval | Action |
+|---------|---------------|--------------|--------|
+| **Settlement Service** | 30s | 120s | Polls Kalshi API for market results. When all legs resolve, settles escrows on-chain. |
+| **Timeout Service** | 60s | 240s | Cancels escrows past their deadline (default 1 hour), refunds deposits. |
+| **Retry Service** | 60s | 240s | Retries stuck escrow flows (e.g., deposit failed mid-execution). |
+
+Intervals use **adaptive polling**: when a cycle finds no work, the interval backs off toward the max. When work is found, it resets to the base interval.
 
 ## Key Properties
 
 - **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana escrow PDAs controlled by the program.
-- **Oracle-sponsored gas** — Users and MMs never need SOL. The oracle pays all transaction fees.
+- **Gas-sponsored** — Users and MMs never need SOL. The fee payer pays all transaction fees.
 - **TEE-secured signing** — Private keys never leave the Privy Trusted Execution Environment.
-- **Transparent** — All escrow accounts, deposits, and settlements are verifiable on the Solana blockchain.
+- **Role-separated** — Admin, fee payer, settlement authority, and fee vault owner are distinct keys with different security postures.
+- **Transparent** — All escrow accounts, deposits, settlements, and fees are verifiable on the Solana blockchain.
 - **Time-bounded** — Every escrow has a deadline. If markets don't settle in time, funds are automatically refunded.
 
 ## Market Validation
