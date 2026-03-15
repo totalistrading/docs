@@ -118,13 +118,13 @@
   },
   "openapi": ["/api-reference/openapi.json"],
   "seo": {
-    "metatags": [
-      { "property": "og:type", "content": "website" },
-      { "property": "og:site_name", "content": "Totalis Documentation" },
-      { "property": "og:locale", "content": "en_US" },
-      { "property": "og:image", "content": "https://docs.totalis.trade/totalis.png" },
-      { "name": "twitter:card", "content": "summary_large_image" },
-      { "name": "twitter:image", "content": "https://docs.totalis.trade/totalis.png" }
-    ]
+    "metatags": {
+      "og:type": "website",
+      "og:site_name": "Totalis Documentation",
+      "og:locale": "en_US",
+      "og:image": "https://docs.totalis.trade/totalis.png",
+      "twitter:card": "summary_large_image",
+      "twitter:image": "https://docs.totalis.trade/totalis.png"
+    }
   }
 }
