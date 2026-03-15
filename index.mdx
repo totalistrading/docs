@@ -1,11 +1,13 @@
 ---
 title: "Totalis"
-description: "Custom parlay engine on prediction markets"
+description: "Totalis is the derivatives layer for prediction markets — combine bets across venues like Kalshi and Polymarket into custom parlays, settled on-chain via Solana escrow"
 ---
 
 ## Welcome to Totalis
 
-Totalis is a request-for-quote (RFQ) marketplace for parlay bets on Kalshi. Users create multi-leg parlay bets, market makers compete to offer the best payout odds, and trades are settled via on-chain Solana escrow.
+Totalis is the derivatives layer for prediction markets. We let you take bets from different prediction market venues — starting with Kalshi, with Polymarket and others coming soon — stack them together, and turn them into custom parlays.
+
+Our first product is **custom parlays on prediction markets**. Pick 2-5 outcomes across sports, crypto, politics, weather, and more, combine them into a single leveraged position, and let market makers compete to give you the best payout odds. All trades are facilitated through our infrastructure: a request-for-quote (RFQ) system for price discovery and non-custodial Solana escrow for settlement.
 
 ## Get Started
 
@@ -14,7 +16,7 @@ Totalis is a request-for-quote (RFQ) marketplace for parlay bets on Kalshi. User
     Generate an API key and start making requests.
   </Card>
   <Card title="RFQ Lifecycle" icon="arrows-spin" href="/guides/lifecycle">
-    Understand how an RFQ flows from creation to settlement.
+    Understand how a parlay flows from creation to settlement.
   </Card>
   <Card title="WebSocket" icon="bolt" href="/guides/websocket">
     Connect to real-time updates for RFQs and quotes.
@@ -26,32 +28,32 @@ Totalis is a request-for-quote (RFQ) marketplace for parlay bets on Kalshi. User
 
 ## For Users
 
-Create parlay bets across multiple Kalshi prediction markets and get competitive quotes from market makers.
+Combine bets across prediction markets into custom parlays and get competitive quotes from market makers.
 
 <Steps>
-  <Step title="Create an RFQ">
-    Submit a parlay bet request with 2-5 legs and your bet amount.
+  <Step title="Build Your Parlay">
+    Pick 2-5 outcomes from any supported prediction market and set your bet amount.
   </Step>
-  <Step title="Receive Quotes">
-    Market makers compete to offer you the best payout odds.
+  <Step title="Get Competitive Quotes">
+    Market makers compete to offer you the best payout odds via our RFQ system.
   </Step>
-  <Step title="Accept and Settle">
-    Accept the best quote. Funds are locked in on-chain escrow and automatically settled when markets resolve.
+  <Step title="Trade and Settle">
+    Accept the best quote. Funds are locked in on-chain Solana escrow and automatically settled when markets resolve.
   </Step>
 </Steps>
 
 ## For Market Makers
 
-Monitor incoming RFQs in real-time, submit competitive quotes, and earn the spread.
+Monitor incoming parlay requests in real-time, submit competitive quotes, and earn the spread.
 
 <Steps>
   <Step title="Connect via WebSocket">
-    Subscribe to the `rfqs:open` channel to receive new RFQs instantly.
+    Subscribe to the `rfqs:open` channel to receive new parlay requests instantly.
   </Step>
   <Step title="Submit Quotes">
-    Analyze legs and submit your payout odds.
+    Analyze the legs and submit your payout odds.
   </Step>
   <Step title="Confirm Trades">
-    When a user accepts your quote, confirm within 60 seconds to lock in the trade.
+    When a user accepts your quote, confirm within 60 seconds to lock in the trade via on-chain escrow.
   </Step>
 </Steps>
