@@ -1,6 +1,6 @@
 ---
 title: 'Payment Architecture and Onchain Logic'
-description: 'How on-chain escrow works with Privy TEE wallets and oracle-sponsored gas'
+description: 'Totalis on-chain payment architecture — Solana escrow PDAs, Privy TEE wallet signing, and gas-sponsored transactions'
 ---
 
 ## Overview
@@ -9,7 +9,7 @@ Totalis uses on-chain Solana escrow accounts to hold both the user's stake and t
 
 ## Architecture Diagram
 
-![On-chain payment flow diagram showing User, Parlay Escrow (PDA), Market Maker, and Offline Oracle interactions](/parlay_escrow_architecture.png)
+![Totalis on-chain payment flow diagram showing Solana escrow interactions between User, Parlay Escrow PDA, Market Maker, and Settlement Oracle](/parlay_escrow_architecture.png)
 
 ## Key Design Decisions
 

@@ -116,5 +116,15 @@
       "github": "https://github.com/totalistrading"
     }
   },
-  "openapi": ["/api-reference/openapi.json"]
+  "openapi": ["/api-reference/openapi.json"],
+  "seo": {
+    "metatags": {
+      "og:type": "website",
+      "og:site_name": "Totalis Documentation",
+      "og:locale": "en_US",
+      "og:image": "https://docs.totalis.trade/totalis.png",
+      "twitter:card": "summary_large_image",
+      "twitter:image": "https://docs.totalis.trade/totalis.png"
+    }
+  }
 }
