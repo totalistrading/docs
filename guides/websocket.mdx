@@ -76,6 +76,20 @@ After authenticating, subscribe to channels to receive events:
 | `quote:executed` | On-chain escrow executed | `{ quote_id, rfq_id }` |
 | `quote:expired` | Quote expired | `{ quote_id, rfq_id }` |
 | `quote:rejected` | Quote rejected (another was accepted) | `{ quote_id, rfq_id, reason }` |
+| `quote:withdrawn` | Quote withdrawn by MM | `{ quote_id, rfq_id }` |
+
+### Escrow Events
+
+Escrow events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a specific RFQ's channel to receive its escrow lifecycle updates. Step and error events are also sent to the MM's `mm:quotes:{mm_id}` channel.
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `escrow:created` | Escrow PDA created on-chain | `{ rfq_id, step, timestamp }` |
+| `escrow:user_funded` | User's stake deposited into escrow | `{ rfq_id, step, timestamp }` |
+| `escrow:active` | Escrow fully funded and active | `{ rfq_id, step, timestamp }` |
+| `escrow:settled` | Escrow settled with outcome | `{ rfq_id, escrow_pda, outcome, tx_signature, timestamp }` |
+| `escrow:cancelled` | Escrow cancelled and refunded | `{ rfq_id, escrow_pda, reason, timestamp }` |
+| `escrow:error` | Escrow execution error | `{ rfq_id, error, timestamp }` |
 
 ## Keep-Alive
 
