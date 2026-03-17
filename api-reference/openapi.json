@@ -540,7 +540,7 @@
       "get": {
         "operationId": "listMarkets",
         "summary": "List Markets",
-        "description": "List cached Kalshi markets from whitelisted series. Markets are synced from Kalshi every 20 minutes. Filter by category (e.g., Crypto, Politics).",
+        "description": "List cached Kalshi markets from whitelisted series. Markets are synced from Kalshi every 5 minutes. Filter by category (e.g., Crypto, Politics).",
         "tags": ["Markets"],
         "security": [],
         "parameters": [
@@ -553,6 +553,18 @@
               "all": { "value": "all", "summary": "All categories" },
               "crypto": { "value": "Crypto", "summary": "Crypto markets" }
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of markets to return",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor (ticker-based). Use `next_cursor` from the previous response.",
+            "schema": { "type": "string" }
           }
         ],
         "responses": {
@@ -567,13 +579,22 @@
                       "type": "array",
                       "items": { "$ref": "#/components/schemas/CachedMarket" }
                     },
-                    "total": {
+                    "count": {
                       "type": "integer",
-                      "description": "Total number of markets returned"
+                      "description": "Number of markets returned"
                     },
                     "category": {
                       "type": "string",
                       "description": "Category filter applied"
+                    },
+                    "next_cursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Cursor for the next page of results"
+                    },
+                    "has_more": {
+                      "type": "boolean",
+                      "description": "Whether more results are available"
                     }
                   }
                 }
@@ -1089,7 +1110,7 @@
     "schemas": {
       "RFQStatus": {
         "type": "string",
-        "enum": ["open", "quoted", "accepted", "confirmed", "executed", "cancelled", "expired"],
+        "enum": ["open", "quoted", "accepted", "confirmed", "executed", "cancelled", "expired", "settled"],
         "description": "Lifecycle status of an RFQ"
       },
       "QuoteStatus": {
@@ -1268,6 +1289,8 @@
           "username": { "type": "string" },
           "email": { "type": "string", "nullable": true },
           "wallet_address": { "type": "string", "nullable": true },
+          "approved": { "type": "boolean", "description": "Whether the user has been approved (via invite code)" },
+          "waitlisted": { "type": "boolean", "description": "Whether the user is on the waitlist" },
           "created_at": { "type": "string", "format": "date-time" }
         }
       },
