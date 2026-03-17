@@ -80,6 +80,8 @@ After authenticating, subscribe to channels to receive events:
 
 ### Escrow Events
 
+Escrow events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a specific RFQ's channel to receive its escrow lifecycle updates. Step and error events are also sent to the MM's `mm:quotes:{mm_id}` channel.
+
 | Event | Description | Data |
 |-------|-------------|------|
 | `escrow:created` | Escrow PDA created on-chain | `{ rfq_id, step, timestamp }` |
