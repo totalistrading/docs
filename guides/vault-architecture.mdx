@@ -1,0 +1,264 @@
+---
+title: 'Vault Architecture and Portfolio Margining'
+description: 'Totalis vault-based position flow — single-TX position creation, portfolio margining via ILP, and persistent participant vaults'
+---
+
+## Overview
+
+The vault flow is an optimized alternative to the escrow flow, replacing 3 separate transactions with a single atomic position creation. Instead of creating a new escrow for each bet, participants have persistent vaults that hold their collateral across all positions.
+
+| Aspect | Escrow Flow | Vault Flow |
+|--------|-------------|------------|
+| Position creation | 3 TXs (`create` → `deposit_user` → `deposit_mm`) | 1 TX (`create_position`) |
+| Collateral model | Full collateral per position | Portfolio-margined via ILP |
+| MM collateral | `mm_risk` (full payout) | `mm_collateral_locked` (incremental worst-case) |
+| State machine | 6 intermediate states | 4 states (`Active` → terminal) |
+| Account lifecycle | Created and closed per bet | Persistent, reused across all bets |
+
+**Key benefits:**
+- **Faster execution** — Single atomic transaction instead of 3-step flow
+- **Capital efficiency** — MMs lock only incremental worst-case exposure, not full risk per position
+- **Lower rent costs** — Vaults are reused; only position accounts are created/closed per bet
+
+## Architecture Diagram
+
+![Totalis vault flow diagram showing persistent vaults, position creation, and settlement](/vault_architecture.png)
+
+## Key Design Decisions
+
+### One Vault Per Participant
+
+Each participant (user or market maker) has exactly one vault, derived from their wallet address:
+
+```
+Vault PDA = ["vault", owner_wallet]
+```
+
+Vaults are created lazily on first interaction and reused for all subsequent bets. The vault holds:
+- **Gross balance** — Total USDC deposited
+- **Locked collateral** — Sum of collateral across all active positions
+- **Free balance** — `gross_balance - locked_collateral`, available for new positions or withdrawal
+
+### Portfolio Margining via ILP
+
+Market makers don't lock full `mm_risk` for each position. Instead, the system calculates `mm_collateral_locked` — the **incremental worst-case exposure** — using an Integer Linear Programming (ILP) solver.
+
+```
+mm_collateral_locked = worst_case(existing + new) - worst_case(existing)
+```
+
+Properties:
+- **Incremental** — Only the marginal exposure increase is locked, not the full risk
+- **Netting** — Hedged or correlated positions reduce collateral requirements
+- **Snapshot** — Calculated once at position creation and stored immutably
+
+Example: If an MM has opposing positions on correlated markets, they can't lose both simultaneously. The ILP solver recognizes this and requires less collateral than the naive sum of all `mm_risk` values.
+
+### Single Atomic Transaction
+
+Position creation happens in one transaction with both user and MM as signers:
+
+```
+create_position(
+    position_id,      // UUID from backend
+    user_stake,       // User's bet amount
+    mm_risk,          // MM's potential payout to user
+    mm_collateral_locked,  // ILP-calculated incremental exposure
+    legs[]            // Parlay leg details
+)
+```
+
+Both parties' collateral is locked atomically — no intermediate states where one party is funded but not the other.
+
+### Role-Separated Signers
+
+The vault program uses the same role separation as the escrow program via a **Config PDA**:
+
+| Role | Description | Key Type |
+|------|-------------|----------|
+| **Admin** | Updates config PDA (key rotation, fee changes) | Cold key, rarely used |
+| **Fee Payer** | Pays transaction fees and rent for all instructions | Hot wallet, easily rotated |
+| **Settlement Authority** | Signs `settle_position`, `cancel_position`, `close_position` | Warm wallet |
+| **Fee Vault Owner** | Owns the protocol fee vault token account | Cold wallet |
+
+### Gas Sponsorship
+
+The fee payer keypair pays all transaction fees. Users and market makers only need USDC in their vaults — no SOL required.
+
+| Transaction | Fee Payer | Signers |
+|-------------|-----------|---------|
+| `initialize_vault` | Fee Payer | Fee Payer |
+| `deposit_to_vault` | Owner | Owner |
+| `withdraw_from_vault` | Owner | Owner |
+| `create_position` | Fee Payer | Fee Payer + User + MM (via Privy TEE) |
+| `settle_position` | Fee Payer | Settlement Authority |
+| `cancel_position` | Fee Payer | Settlement Authority |
+| `close_position` | Fee Payer | Settlement Authority |
+
+## Vault Program Accounts
+
+The `parlay_vaults` Solana program (Anchor-based) manages three account types:
+
+| Account | Seeds | Description |
+|---------|-------|-------------|
+| **Config PDA** | `["config"]` | Singleton storing admin, fee payer, settlement authority, fee vault owner, and `fee_bps` |
+| **Vault PDA** | `["vault", owner_wallet]` | Per-participant vault storing balances and collateral state |
+| **Position PDA** | `["position", position_id]` | Per-bet position storing stakes, legs, and settlement authority |
+
+Each vault has an associated **Vault Token Account** (USDC) owned by the vault PDA. This holds the actual tokens backing the vault's `gross_balance`.
+
+## On-Chain State
+
+### Vault Struct
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bump` | u8 | PDA bump seed |
+| `owner` | Pubkey | Wallet address that owns this vault |
+| `gross_balance` | u64 | Total USDC deposited (lamports) |
+| `locked_collateral` | u64 | Sum of collateral locked across active positions |
+| `created_at` | i64 | Unix timestamp |
+| `last_updated_at` | i64 | Unix timestamp of last state change |
+
+Derived value: `free_balance = gross_balance - locked_collateral`
+
+### Position Struct
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bump` | u8 | PDA bump seed |
+| `position_id` | [u8; 16] | Unique identifier (UUID from backend) |
+| `user_vault` | Pubkey | User's vault PDA |
+| `mm_vault` | Pubkey | MM's vault PDA |
+| `user_stake` | u64 | User's bet amount (USDC lamports) |
+| `user_collateral_locked` | u64 | Always equals `user_stake` |
+| `mm_risk` | u64 | Potential payout to user if they win |
+| `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
+| `total_payout` | u64 | `user_stake + mm_risk` |
+| `status` | enum | `Active`, `SettledWin`, `SettledLoss`, `Cancelled` |
+| `settlement_authority` | Pubkey | Snapshotted from config at creation |
+| `created_at` | i64 | Unix timestamp |
+| `num_legs` | u8 | Number of parlay legs (1-5) |
+| `legs` | [ParlayLeg; 5] | Market ticker (64 bytes) + side (0=Yes, 1=No) |
+
+## Instructions
+
+| Instruction | Description | Required Signers |
+|-------------|-------------|-----------------|
+| `initialize_config` | Creates singleton config PDA | `admin` (deployer only) |
+| `update_config` | Updates config roles and fee_bps | `admin` |
+| `initialize_vault` | Creates vault PDA + token account for a participant | `fee_payer` |
+| `deposit_to_vault` | Transfers USDC from owner's wallet to vault | `owner` |
+| `withdraw_from_vault` | Transfers USDC from vault to owner's wallet (up to free balance) | `owner` |
+| `create_position` | Creates position PDA, locks collateral in both vaults | `fee_payer` + `user` + `mm` |
+| `settle_position` | Transfers funds to winner, deducts fee, unlocks collateral | `settlement_authority` |
+| `cancel_position` | Unlocks collateral in both vaults (no fund transfer) | `settlement_authority` |
+| `close_position` | Closes position PDA, reclaims rent (included in same TX as settle/cancel) | `settlement_authority` |
+
+## State Machines
+
+### Vault States
+
+Vaults don't have explicit status fields — their state is derived from balances:
+
+| State | Condition | Available Actions |
+|-------|-----------|-------------------|
+| **Empty** | `gross_balance = 0` | Deposit |
+| **Available** | `free_balance > 0` | Deposit, Withdraw (up to free), Create Position |
+| **Fully Locked** | `free_balance = 0` | Deposit only |
+
+### Position States
+
+```
+create_position()   → Active
+settle_position()   → SettledWin | SettledLoss
+cancel_position()   → Cancelled
+close_position()    → [deleted]  (requires terminal status)
+```
+
+| Status | Description |
+|--------|-------------|
+| `Active` | Position created, awaiting market resolution |
+| `SettledWin` | User won, funds transferred to user vault |
+| `SettledLoss` | MM won, funds transferred to MM vault |
+| `Cancelled` | Position voided (invalid leg), collateral unlocked |
+
+Only terminal positions (`SettledWin`, `SettledLoss`, `Cancelled`) can be closed.
+
+### Backend Transient States
+
+The backend tracks additional transient states for operational safety:
+
+| Backend Status | Purpose |
+|----------------|---------|
+| `settling` | Atomic claim lock while settlement transaction is in-flight. Prevents double-execution. |
+| `cancelling` | Atomic claim lock while cancellation transaction is in-flight. |
+
+These states are used by `vault-settlement-service` to ensure only one process settles or cancels a given position, even under concurrent execution.
+
+## Settlement Logic
+
+Settlement transfers funds between vaults and deducts a protocol fee on profit:
+
+- **User wins** → `settle_position(user_won: true)`: MM vault transfers `mm_risk` minus fee to user vault
+- **MM wins** → `settle_position(user_won: false)`: User vault transfers `user_stake` minus fee to MM vault
+- **Invalid leg** → `cancel_position()`: Both vaults' collateral is unlocked, no fund transfer
+
+### Fee Calculation
+
+Identical to the escrow flow — fee is calculated on **profit only**:
+
+```
+profit = user_won ? mm_risk : user_stake
+fee    = profit * fee_bps / 10_000
+winner_receives = profit - fee
+```
+
+The fee is transferred to the `fee_vault_token_account` in the same `settle_position` instruction.
+
+### Collateral Release
+
+On settlement or cancellation:
+- User's `locked_collateral` decreases by `user_collateral_locked` (= `user_stake`)
+- MM's `locked_collateral` decreases by `mm_collateral_locked`
+
+The `gross_balance` changes only reflect actual token transfers — winner gains, loser loses.
+
+## Background Services
+
+Two background services manage the vault position lifecycle:
+
+| Service | Base Interval | Description |
+|---------|---------------|-------------|
+| **vault-job-service** | 5s | Processes pending positions: resolves Privy wallets, calculates ILP exposure, executes `create_position` |
+| **vault-settlement-service** | 30s | Polls market results, settles or cancels active positions based on outcomes |
+
+### vault-job-service Flow
+
+1. Atomically claim one pending position using a transaction-based lock (`claimAndLockPendingPosition`)
+2. Resolve wallet addresses via Privy (`getOrCreateSolanaWallet`)
+3. Ensure vaults exist for both parties (`initialize_vault` if needed)
+4. Calculate `mm_collateral_locked` via mm-exposure-api ILP solver
+5. Execute `create_position` with all resolved values
+6. Update position status to `active`
+
+### vault-settlement-service Flow
+
+1. Fetch active positions with their legs
+2. Check market results (Kalshi API)
+3. Determine outcome: settle (win/loss) or cancel (invalid leg)
+4. Claim position atomically (`status = 'settling'` or `'cancelling'`)
+5. Execute on-chain settlement/cancellation
+6. `close_position` is executed in the same TX as `settle_position`/`cancel_position` — not a separate step
+7. Record fee in database, broadcast WebSocket event
+
+## Key Properties
+
+- **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana vault PDAs controlled by the program.
+- **Capital efficient** — Portfolio margining via ILP allows MMs to operate with less locked capital.
+- **Atomic execution** — Position creation is a single transaction with no intermediate failure states.
+- **Gas-sponsored** — Users and MMs never need SOL. The fee payer pays all transaction fees.
+- **TEE-secured signing** — Private keys never leave the Privy Trusted Execution Environment.
+- **Persistent vaults** — Participants maintain one vault across all bets, reducing account overhead.
+- **Role-separated** — Admin, fee payer, settlement authority, and fee vault owner are distinct keys with different security postures.
+- **Transparent** — All vaults, positions, and settlements are verifiable on the Solana blockchain.

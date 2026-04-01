@@ -21,6 +21,7 @@
               "guides/authentication",
               "guides/lifecycle",
               "guides/payment-architecture",
+              "guides/vault-architecture",
               "guides/websocket"
             ]
           }
