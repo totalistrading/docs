@@ -83,7 +83,7 @@ The vault program uses the same role separation as the escrow program via a **Co
 
 ### Gas Sponsorship
 
-The fee payer keypair pays all transaction fees. Users and market makers only need USDC in their vaults — no SOL required.
+For most operations, the fee payer covers gas. However, deposit_to_vault and withdraw_from_vault are owner-signed and require the owner to have SOL for transaction fees.
 
 | Transaction | Fee Payer | Signers |
 |-------------|-----------|---------|
@@ -115,7 +115,7 @@ Each vault has an associated **Vault Token Account** (USDC) owned by the vault P
 |-------|------|-------------|
 | `bump` | u8 | PDA bump seed |
 | `owner` | Pubkey | Wallet address that owns this vault |
-| `gross_balance` | u64 | Total USDC deposited (lamports) |
+| `gross_balance` | u64 | Total USDC deposited (6 decimals) |
 | `locked_collateral` | u64 | Sum of collateral locked across active positions |
 | `created_at` | i64 | Unix timestamp |
 | `last_updated_at` | i64 | Unix timestamp of last state change |
@@ -130,7 +130,7 @@ Derived value: `free_balance = gross_balance - locked_collateral`
 | `position_id` | [u8; 16] | Unique identifier (UUID from backend) |
 | `user_vault` | Pubkey | User's vault PDA |
 | `mm_vault` | Pubkey | MM's vault PDA |
-| `user_stake` | u64 | User's bet amount (USDC lamports) |
+| `user_stake` | u64 | User's bet amount (USDC 6 decimals) |
 | `user_collateral_locked` | u64 | Always equals `user_stake` |
 | `mm_risk` | u64 | Potential payout to user if they win |
 | `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
@@ -165,7 +165,7 @@ Vaults don't have explicit status fields — their state is derived from balance
 |-------|-----------|-------------------|
 | **Empty** | `gross_balance = 0` | Deposit |
 | **Available** | `free_balance > 0` | Deposit, Withdraw (up to free), Create Position |
-| **Fully Locked** | `free_balance = 0` | Deposit only |
+| **Fully Locked** | `gross_balance > 0 AND free_balance = 0` | Deposit only |
 
 ### Position States
 
@@ -173,7 +173,6 @@ Vaults don't have explicit status fields — their state is derived from balance
 create_position()   → Active
 settle_position()   → SettledWin | SettledLoss
 cancel_position()   → Cancelled
-close_position()    → [deleted]  (requires terminal status)
 ```
 
 | Status | Description |
@@ -257,7 +256,7 @@ Two background services manage the vault position lifecycle:
 - **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana vault PDAs controlled by the program.
 - **Capital efficient** — Portfolio margining via ILP allows MMs to operate with less locked capital.
 - **Atomic execution** — Position creation is a single transaction with no intermediate failure states.
-- **Gas-sponsored** — Users and MMs never need SOL. The fee payer pays all transaction fees.
+- **Gas-sponsored** — The fee payer covers gas for most operations. Owners need SOL only for deposit_to_vault and withdraw_from_vault.
 - **TEE-secured signing** — Private keys never leave the Privy Trusted Execution Environment.
 - **Persistent vaults** — Participants maintain one vault across all bets, reducing account overhead.
 - **Role-separated** — Admin, fee payer, settlement authority, and fee vault owner are distinct keys with different security postures.
