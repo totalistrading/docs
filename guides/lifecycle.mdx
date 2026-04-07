@@ -63,13 +63,13 @@ expired  cancelled  (MM fails to confirm → cancelled)
     PUT /rfqs/<rfq-id>/quotes/<quote-id>/accept
     ```
 
-    This rejects all other pending quotes and gives the market maker a **60-second confirmation deadline**.
+    This rejects all other pending quotes and gives the market maker a **5-second confirmation deadline**.
 
     **Status: `accepted`**
   </Step>
 
   <Step title="Market Maker Confirms">
-    The market maker must confirm within 60 seconds, triggering the on-chain vault position creation.
+    The market maker must confirm within 5 seconds, triggering the on-chain vault position creation.
 
     ```bash
     PUT /mm/quotes/<quote-id>/confirm
@@ -118,4 +118,4 @@ Two background services manage the vault position lifecycle:
 | Payout odds | 1.01x - 1000x |
 | RFQ expiration | 60 - 3600 seconds |
 | Quote validity | Configurable (default 60s) |
-| MM confirmation window | 60 seconds |
+| MM confirmation window | 5 seconds |
