@@ -7,7 +7,7 @@
     "light": "#07C983",
     "dark": "#15803D"
   },
-  "favicon": "/totalis_logo.jpeg",
+  "favicon": "/totalis_logo.png",
   "navigation": {
     "tabs": [
       {
@@ -92,8 +92,8 @@
     }
   },
   "logo": {
-    "light": "/totalis_logo.jpeg",
-    "dark": "/totalis_logo.jpeg"
+    "light": "/totalis_logo.png",
+    "dark": "/totalis_logo.png"
   },
   "navbar": {
     "primary": {

@@ -1,17 +1,61 @@
 ---
 title: 'Payment Architecture and Onchain Logic'
-description: 'Totalis on-chain payment architecture — Solana escrow PDAs, Privy TEE wallet signing, and gas-sponsored transactions'
+description: 'Totalis on-chain payment architecture — Solana vault PDAs, portfolio margining via ILP, Privy TEE wallet signing, and gas-sponsored transactions'
 ---
 
 ## Overview
 
-Totalis uses on-chain Solana escrow accounts to hold both the user's stake and the market maker's risk capital for the duration of a parlay bet. All wallet signing is done server-side via **Privy TEE (Trusted Execution Environment) wallets**, so users never need to manually sign transactions. The oracle server pays all gas fees — users and market makers only need USDC.
+Totalis uses on-chain Solana vaults to hold participant collateral across all positions. Each participant (user or market maker) has a single persistent vault derived from their wallet address. When a trade is matched, both parties' collateral is locked atomically in a single `create_position` transaction — no intermediate states. All wallet signing is done server-side via **Privy TEE (Trusted Execution Environment) wallets**, so users never need to manually sign transactions. The fee payer covers gas for position creation and settlement — users and market makers only need USDC in their vaults.
 
 ## Architecture Diagram
 
-![Totalis on-chain payment flow diagram showing Solana escrow interactions between User, Parlay Escrow PDA, Market Maker, and Settlement Oracle](/parlay_escrow_architecture.png)
+![Totalis vault flow diagram showing persistent vaults, position creation, and settlement](/vault_architecture.png)
 
 ## Key Design Decisions
+
+### One Vault Per Participant
+
+Each participant has exactly one vault, derived from their wallet address:
+
+```
+Vault PDA = ["vault", owner_wallet]
+```
+
+Vaults are created lazily on first interaction and reused for all subsequent bets. The vault holds:
+- **Gross balance** — Total USDC deposited
+- **Locked collateral** — Sum of collateral across all active positions
+- **Free balance** — `gross_balance - locked_collateral`, available for new positions or withdrawal
+
+### Portfolio Margining via ILP
+
+Market makers don't lock full `mm_risk` for each position. Instead, the system calculates `mm_collateral_locked` — the **incremental worst-case exposure** — using an Integer Linear Programming (ILP) solver.
+
+```
+mm_collateral_locked = worst_case(existing + new) - worst_case(existing)
+```
+
+Properties:
+- **Incremental** — Only the marginal exposure increase is locked, not the full risk
+- **Netting** — Hedged or correlated positions reduce collateral requirements
+- **Snapshot** — Calculated once at position creation and stored immutably
+
+Example: If an MM has opposing positions on correlated markets, they can't lose both simultaneously. The ILP solver recognizes this and requires less collateral than the naive sum of all `mm_risk` values.
+
+### Single Atomic Transaction
+
+Position creation happens in one transaction with both user and MM as signers:
+
+```
+create_position(
+    position_id,           // UUID from backend
+    user_stake,            // User's bet amount
+    mm_risk,               // MM's potential payout to user
+    mm_collateral_locked,  // ILP-calculated incremental exposure
+    legs[]                 // Parlay leg details
+)
+```
+
+Both parties' collateral is locked atomically — no intermediate states where one party is funded but not the other.
 
 ### Role-Separated Signers
 
@@ -21,21 +65,22 @@ The program uses a **Config PDA** (seeds: `["config"]`) to store role-separated 
 |------|-------------|----------|
 | **Admin** | Updates config PDA (key rotation, fee changes) | Cold key, rarely used |
 | **Fee Payer** | Pays transaction fees and rent for all instructions | Hot wallet, easily rotated |
-| **Settlement Authority** | Signs `settle` and `cancel_parlay` instructions | Warm wallet |
+| **Settlement Authority** | Signs `settle_position`, `cancel_position`, `close_position` | Warm wallet |
 | **Fee Vault Owner** | Owns the protocol fee vault token account | Cold wallet |
 
 ### Gas Sponsorship
 
-The fee payer keypair pays gas fees for all transactions, so **users and market makers never need SOL** in their wallets — only USDC for their stakes.
+For most operations, the fee payer covers gas. However, `deposit_to_vault` and `withdraw_from_vault` are owner-signed and require the owner to have SOL for transaction fees.
 
 | Transaction | Fee Payer | Signers |
 |-------------|-----------|---------|
-| `create_parlay` | Fee Payer | Fee Payer + escrow token account |
-| `deposit_user` | Fee Payer | Fee Payer + User (via Privy TEE) |
-| `deposit_mm` | Fee Payer | Fee Payer + MM (via Privy TEE) |
-| `settle` | Fee Payer | Fee Payer + Settlement Authority |
-| `cancel_parlay` | Fee Payer | Fee Payer + Settlement Authority |
-| `close_account` | Fee Payer | Fee Payer + Settlement Authority |
+| `initialize_vault` | Fee Payer | Fee Payer |
+| `deposit_to_vault` | Owner | Owner |
+| `withdraw_from_vault` | Owner | Owner |
+| `create_position` | Fee Payer | Fee Payer + User + MM (via Privy TEE) |
+| `settle_position` | Fee Payer | Settlement Authority |
+| `cancel_position` | Fee Payer | Settlement Authority |
+| `close_position` | Fee Payer | Settlement Authority |
 
 ### Privy TEE Wallets with Session Signers
 
@@ -49,73 +94,100 @@ This is semi-custodial: the user explicitly grants and can revoke signing permis
 
 ### `signTransaction` vs `signAndSendTransaction`
 
-We use Privy's **`signTransaction`** (sign-only) instead of `signAndSendTransaction` (sign + broadcast) for deposit transactions. This is critical because:
+We use Privy's **`signTransaction`** (sign-only) instead of `signAndSendTransaction` (sign + broadcast) for position creation. This is critical because:
 
 - **`signAndSendTransaction`** broadcasts via Privy's RPC, which may have different blockhash state than our RPC, causing "Blockhash not found" errors
 - **`signTransaction`** just signs the transaction bytes and returns them. We then add the fee payer's signature and broadcast via our own RPC, ensuring blockhash consistency
 
-The flow for each deposit:
+The flow for position creation:
 1. Build transaction with our RPC's blockhash, fee payer as fee payer
-2. Privy TEE signs for the user/MM (sign-only, no broadcast)
+2. Privy TEE signs for the user and MM (sign-only, no broadcast)
 3. Add fee payer's co-signature locally
 4. Broadcast via our own RPC (same one we got the blockhash from)
 
-## Escrow Program
+## Vault Program
 
-The `parlay_escrow` Solana program (Anchor-based) manages the on-chain state.
+The `parlay_vaults` Solana program (Anchor-based) manages three account types:
 
 ### Accounts
 
-| Account | Description |
-|---------|-------------|
-| **Config PDA** | Singleton config storing admin, fee payer, settlement authority, fee vault owner, and `fee_bps`. Derived from `["config"]` seeds. |
-| **Escrow PDA** | Stores parlay metadata (legs, stakes, status, settlement authority). Derived from `["parlay", parlay_id]` seeds. |
-| **Escrow Token Account** | SPL Token account (USDC) owned by the escrow PDA. Holds deposits from both user and MM. |
-| **Fee Vault Token Account** | SPL Token account (USDC) owned by `config.fee_vault_owner`. Receives protocol fees on settlement. |
+| Account | Seeds | Description |
+|---------|-------|-------------|
+| **Config PDA** | `["config"]` | Singleton storing admin, fee payer, settlement authority, fee vault owner, and `fee_bps` |
+| **Vault PDA** | `["vault", owner_wallet]` | Per-participant vault storing balances and collateral state |
+| **Position PDA** | `["position", position_id]` | Per-bet position storing stakes, legs, and settlement authority |
+
+Each vault has an associated **Vault Token Account** (USDC) owned by the vault PDA. This holds the actual tokens backing the vault's `gross_balance`.
 
 ### On-Chain State
 
-Each escrow PDA stores:
+#### Vault Struct
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `parlay_id` | 16 bytes | Unique parlay identifier |
-| `user` | Pubkey | User's wallet address |
-| `mm` | Pubkey | Market maker's wallet address |
-| `user_stake` | u64 | Amount user deposited (USDC lamports) |
-| `mm_risk` | u64 | Amount MM deposited (USDC lamports) |
+| `bump` | u8 | PDA bump seed |
+| `owner` | Pubkey | Wallet address that owns this vault |
+| `gross_balance` | u64 | Total USDC deposited (6 decimals) |
+| `locked_collateral` | u64 | Sum of collateral locked across active positions |
+| `created_at` | i64 | Unix timestamp |
+| `last_updated_at` | i64 | Unix timestamp of last state change |
+
+Derived value: `free_balance = gross_balance - locked_collateral`
+
+#### Position Struct
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bump` | u8 | PDA bump seed |
+| `position_id` | [u8; 16] | Unique identifier (UUID from backend) |
+| `user_vault` | Pubkey | User's vault PDA |
+| `mm_vault` | Pubkey | MM's vault PDA |
+| `user_stake` | u64 | User's bet amount (USDC 6 decimals) |
+| `user_collateral_locked` | u64 | Always equals `user_stake` |
+| `mm_risk` | u64 | Potential payout to user if they win |
+| `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
 | `total_payout` | u64 | `user_stake + mm_risk` |
-| `status` | enum | See [State Machine](#state-machine) below |
-| `settlement_authority` | Pubkey | Signer that can settle/cancel |
-| `created_at` | i64 | Unix timestamp of escrow creation |
-| `num_legs` | u8 | Number of parlay legs (up to 5) |
-| `legs` | array | Each leg: 64-byte market ticker (null-padded) + side (0=Yes, 1=No) |
+| `status` | enum | `Active`, `SettledWin`, `SettledLoss`, `Cancelled` |
+| `settlement_authority` | Pubkey | Snapshotted from config at creation |
+| `created_at` | i64 | Unix timestamp |
+| `num_legs` | u8 | Number of parlay legs (1-5) |
+| `legs` | [ParlayLeg; 5] | Market ticker (64 bytes) + side (0=Yes, 1=No) |
 
 ### Instructions
 
-| Instruction | Description | Required Signers | Additional Accounts |
-|-------------|-------------|-----------------|---------------------|
-| `initialize_config` | Creates the singleton config PDA | `admin` | — |
-| `update_config` | Updates config roles and fee_bps | `admin` | Config PDA |
-| `create_parlay` | Creates escrow PDA + token account | `settlement_authority` | — |
-| `deposit_user` | Transfers user's USDC stake to escrow | `user` (via Privy TEE) | — |
-| `deposit_mm` | Transfers MM's USDC risk to escrow | `mm` (via Privy TEE) | — |
-| `settle` | Pays winner (minus fee) and sends fee to vault | `settlement_authority` | Config PDA, Fee Vault Token Account |
-| `cancel_parlay` | Returns deposits to respective parties | `settlement_authority` | — |
-| `close_account` | Closes escrow PDA + token account, reclaims rent | `settlement_authority` | — |
+| Instruction | Description | Required Signers |
+|-------------|-------------|-----------------|
+| `initialize_config` | Creates singleton config PDA | `admin` (deployer only) |
+| `update_config` | Updates config roles and fee_bps | `admin` |
+| `initialize_vault` | Creates vault PDA + token account for a participant | `fee_payer` |
+| `deposit_to_vault` | Transfers USDC from owner's wallet to vault | `owner` |
+| `withdraw_from_vault` | Transfers USDC from vault to owner's wallet (up to free balance) | `owner` |
+| `create_position` | Creates position PDA, locks collateral in both vaults | `fee_payer` + `user` + `mm` |
+| `settle_position` | Transfers funds to winner, deducts fee, unlocks collateral | `settlement_authority` |
+| `cancel_position` | Unlocks collateral in both vaults (no fund transfer) | `settlement_authority` |
+| `close_position` | Closes position PDA, reclaims rent (included in same TX as settle/cancel) | `settlement_authority` |
 
-### State Machine
+### State Machines
+
+#### Vault States
+
+Vaults don't have explicit status fields — their state is derived from balances:
+
+| State | Condition | Available Actions |
+|-------|-----------|-------------------|
+| **Empty** | `gross_balance = 0` | Deposit |
+| **Available** | `free_balance > 0` | Deposit, Withdraw (up to free), Create Position |
+| **Fully Locked** | `gross_balance > 0 AND free_balance = 0` | Deposit only |
+
+#### Position States
 
 ```
-create_parlay()     → Created
-deposit_user()      → UserFunded     (requires Created)
-deposit_mm()        → Active         (requires UserFunded)
-settle(user_won)    → SettledWin/Loss (requires Active)
-cancel_parlay()     → Cancelled      (requires Created | UserFunded | Active)
-close_account()     → [deleted]      (requires SettledWin | SettledLoss | Cancelled)
+create_position()   -> Active
+settle_position()   -> SettledWin | SettledLoss
+cancel_position()   -> Cancelled
 ```
 
-The on-chain program defines six statuses: `Created`, `UserFunded`, `Active`, `SettledWin`, `SettledLoss`, `Cancelled`.
+Only terminal positions (`SettledWin`, `SettledLoss`, `Cancelled`) can be closed.
 
 The backend tracks additional transient states for operational safety:
 
@@ -123,72 +195,84 @@ The backend tracks additional transient states for operational safety:
 |----------------|---------|
 | `settling` | Atomic claim lock while settlement transaction is in-flight. Prevents double-execution. |
 | `cancelling` | Atomic claim lock while cancellation transaction is in-flight. |
-| `stale` | Flagged by the timeout service for active escrows older than 30 days. |
 
 ## Settlement Logic
 
-Settlement deducts a **protocol fee** from the winner's profit before payout:
+Settlement transfers funds between vaults and deducts a **protocol fee** on profit:
 
-- **All legs win** → `settle(user_won: true)`: Winner receives `total_payout - fee`, fee goes to protocol vault. Status: `SettledWin`
-- **Any leg loses** → `settle(user_won: false)`: Winner receives `total_payout - fee`, fee goes to protocol vault. Status: `SettledLoss`
-- **Any leg is invalid** → `cancel_parlay()`: All deposits refunded to their respective parties. Status: `Cancelled`
+- **User wins** -> `settle_position(user_won: true)`: MM vault transfers `mm_risk` minus fee to user vault. Status: `SettledWin`
+- **MM wins** -> `settle_position(user_won: false)`: User vault transfers `user_stake` minus fee to MM vault. Status: `SettledLoss`
+- **Invalid leg** -> `cancel_position()`: Both vaults' collateral is unlocked, no fund transfer. Status: `Cancelled`
 
 ### Fee Calculation
 
 The fee is calculated **on profit only** (not on the total payout):
 
 ```
-winner_deposit = user_won ? user_stake : mm_risk
-profit         = total_payout - winner_deposit
-fee            = profit * fee_bps / 10_000
-winner_payout  = total_payout - fee
+profit = user_won ? mm_risk : user_stake
+fee    = profit * fee_bps / 10_000
+winner_receives = profit - fee
 ```
 
-`fee_bps` is stored in the Config PDA and can be updated by the admin (e.g., `100` = 1%). The fee is transferred to the `fee_vault_token_account` in the same `settle` instruction.
+`fee_bps` is stored in the Config PDA and can be updated by the admin (e.g., `100` = 1%). The fee is transferred to the `fee_vault_token_account` in the same `settle_position` instruction.
 
-### `close_account`
+### Collateral Release
 
-After settlement or cancellation, `close_account` is called to:
+On settlement or cancellation:
+- User's `locked_collateral` decreases by `user_collateral_locked` (= `user_stake`)
+- MM's `locked_collateral` decreases by `mm_collateral_locked`
 
-1. Close the escrow token account (transfers any remaining dust to the fee payer)
-2. Close the escrow PDA (reclaims rent-exempt SOL to the fee payer)
-
-This is a separate instruction because Solana requires accounts to be drained before they can be closed. The `close_account` instruction can only be called on escrows in a terminal state (`SettledWin`, `SettledLoss`, or `Cancelled`).
+The `gross_balance` changes only reflect actual token transfers — winner gains, loser loses.
 
 ## Cancellation Logic
 
-Cancellation refunds depend on how far the escrow progressed:
+Cancellation unlocks collateral in both vaults — no fund transfers occur:
 
-| Status at Cancel | Refund |
-|-----------------|--------|
-| `Created` | No funds deposited — nothing to refund |
-| `UserFunded` | User's stake returned to their token account |
-| `Active` | Both user's stake and MM's risk returned to their respective token accounts |
+- User's `locked_collateral` decreases by `user_stake`
+- MM's `locked_collateral` decreases by `mm_collateral_locked`
 
 ### Invalid Leg Cancellation
 
-If any leg in a parlay resolves as **invalid** (e.g., the event is voided or the market is delisted), the entire parlay is cancelled rather than settled. Both parties are refunded — no one wins or loses on an invalid market. Invalid legs are tracked with a `push` outcome.
+If any leg in a parlay resolves as **invalid** (e.g., the event is voided or the market is delisted), the entire position is cancelled rather than settled. Both parties' collateral is unlocked — no one wins or loses on an invalid market. Invalid legs are tracked with a `push` outcome.
 
 ## Background Services
 
-Three background services with adaptive polling protect against stuck or abandoned escrows:
+Two background services manage the vault position lifecycle:
 
-| Service | Base Interval | Max Interval | Action |
-|---------|---------------|--------------|--------|
-| **Settlement Service** | 30s | 120s | Polls Kalshi API for market results. When all legs resolve, settles escrows on-chain. |
-| **Timeout Service** | 60s | 240s | Cancels escrows past their deadline (default 1 hour), refunds deposits. |
-| **Retry Service** | 60s | 240s | Retries stuck escrow flows (e.g., deposit failed mid-execution). |
+| Service | Base Interval | Description |
+|---------|---------------|-------------|
+| **vault-job-service** | 5s | Processes pending positions: resolves Privy wallets, calculates ILP exposure via mm-exposure-api, executes `create_position` |
+| **vault-settlement-service** | 30s | Polls Kalshi API for market results. Settles or cancels active positions based on outcomes. |
 
-Intervals use **adaptive polling**: when a cycle finds no work, the interval backs off toward the max. When work is found, it resets to the base interval.
+### vault-job-service Flow
+
+1. Atomically claim one pending position using a transaction-based lock
+2. Resolve wallet addresses via Privy (`getOrCreateSolanaWallet`)
+3. Ensure vaults exist for both parties (`initialize_vault` if needed)
+4. Calculate `mm_collateral_locked` via mm-exposure-api ILP solver
+5. Execute `create_position` with all resolved values
+6. Update position status to `active`
+
+### vault-settlement-service Flow
+
+1. Fetch active positions with their legs
+2. Check market results (Kalshi API)
+3. Determine outcome: settle (win/loss) or cancel (invalid leg)
+4. Claim position atomically (`status = 'settling'` or `'cancelling'`)
+5. Execute on-chain settlement/cancellation
+6. `close_position` is executed in the same TX as `settle_position`/`cancel_position`
+7. Record fee in database, broadcast WebSocket event
 
 ## Key Properties
 
-- **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana escrow PDAs controlled by the program.
-- **Gas-sponsored** — Users and MMs never need SOL. The fee payer pays all transaction fees.
+- **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana vault PDAs controlled by the program.
+- **Capital efficient** — Portfolio margining via ILP allows MMs to operate with less locked capital.
+- **Atomic execution** — Position creation is a single transaction with no intermediate failure states.
+- **Gas-sponsored** — The fee payer covers gas for most operations. Owners need SOL only for `deposit_to_vault` and `withdraw_from_vault`.
 - **TEE-secured signing** — Private keys never leave the Privy Trusted Execution Environment.
+- **Persistent vaults** — Participants maintain one vault across all bets, reducing account overhead and rent costs.
 - **Role-separated** — Admin, fee payer, settlement authority, and fee vault owner are distinct keys with different security postures.
-- **Transparent** — All escrow accounts, deposits, settlements, and fees are verifiable on the Solana blockchain.
-- **Time-bounded** — Every escrow has a deadline. If markets don't settle in time, funds are automatically refunded.
+- **Transparent** — All vaults, positions, and settlements are verifiable on the Solana blockchain.
 
 ## Market Validation
 

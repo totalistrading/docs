@@ -1,6 +1,6 @@
 ---
 title: 'RFQ Lifecycle'
-description: 'Complete Totalis parlay lifecycle — from RFQ creation through market maker quoting, acceptance, on-chain Solana escrow, and settlement'
+description: 'Complete Totalis parlay lifecycle — from RFQ creation through market maker quoting, acceptance, on-chain Solana vault position creation, and settlement'
 ---
 
 An RFQ (Request for Quote) goes through several stages from creation to on-chain settlement. This guide walks through the complete flow.
@@ -69,7 +69,7 @@ expired  cancelled  (MM fails to confirm → cancelled)
   </Step>
 
   <Step title="Market Maker Confirms">
-    The market maker must confirm within 60 seconds, triggering the on-chain escrow.
+    The market maker must confirm within 60 seconds, triggering the on-chain vault position creation.
 
     ```bash
     PUT /mm/quotes/<quote-id>/confirm
@@ -78,38 +78,36 @@ expired  cancelled  (MM fails to confirm → cancelled)
     **Status: `confirmed`**
   </Step>
 
-  <Step title="On-Chain Escrow Execution">
-    The system executes a 3-step Solana transaction flow. The oracle pays all gas fees so users and MMs only need USDC. User/MM signatures are obtained via Privy TEE wallets using `signTransaction` (sign-only), then the oracle co-signs and broadcasts locally.
+  <Step title="On-Chain Vault Position Creation">
+    The system executes a single atomic Solana transaction via the `parlay_vaults` program. The fee payer covers gas so users and MMs only need USDC in their vaults. User/MM signatures are obtained via Privy TEE wallets.
 
-    1. **create_parlay** — Oracle creates the escrow PDA and token account (oracle signs locally)
-    2. **deposit_user** — User's USDC stake is transferred to the escrow (Privy TEE signs for user, oracle co-signs)
-    3. **deposit_mm** — Market maker's USDC risk is transferred to the escrow (Privy TEE signs for MM, oracle co-signs)
+    **`create_position`** — Both the user's stake and the MM's collateral are locked atomically in their persistent vaults. The MM's collateral is calculated via ILP (Integer Linear Programming) to reflect incremental worst-case exposure across their portfolio, not the full risk amount.
 
-    All three transaction signatures and the escrow account address are stored in the database and displayed in the UI with links to Solana Explorer.
+    The transaction signature and position PDA address are stored in the database and displayed in the UI with links to Solana Explorer.
 
     <Card title="Payment Architecture" icon="link" href="/guides/payment-architecture">
-      Learn more about the Privy TEE wallet integration, oracle-sponsored gas, and the escrow program.
+      Learn more about the vault architecture, Privy TEE wallet integration, and gas-sponsored transactions.
     </Card>
 
     **Status: `executed`**
   </Step>
 
   <Step title="Settlement">
-    A background service polls Kalshi every 30 seconds to check if all leg markets have settled. Settlement is winner-take-all:
+    A background service polls Kalshi every 30 seconds to check if all leg markets have settled. Settlement transfers funds between vaults and deducts a protocol fee on profit:
 
-    - **All legs win** — The entire escrow balance (user_stake + mm_risk) is transferred to the user (`settled_win`)
-    - **Any leg loses** — The entire escrow balance is transferred to the market maker (`settled_loss`)
+    - **All legs win** — MM's risk amount (minus fee) is transferred from the MM vault to the user vault (`settled_win`)
+    - **Any leg loses** — User's stake (minus fee) is transferred from the user vault to the MM vault (`settled_loss`)
 
     **Status: `settled`**
   </Step>
 </Steps>
 
-## Timeout Protection
+## Background Services
 
-Two background services protect against stuck escrows:
+Two background services manage the vault position lifecycle:
 
-- **Settlement Service** (every 30s) — Checks if all legs have resolved and settles the escrow
-- **Timeout Service** (every 60s) — Cancels escrows past their deadline (default 1 hour) and refunds deposits
+- **vault-job-service** (every 5s) — Processes pending positions: resolves Privy wallets, calculates ILP exposure, executes `create_position`
+- **vault-settlement-service** (every 30s) — Polls market results, settles or cancels active positions based on outcomes
 
 ## Validation Rules
 
@@ -121,4 +119,3 @@ Two background services protect against stuck escrows:
 | RFQ expiration | 60 - 3600 seconds |
 | Quote validity | Configurable (default 60s) |
 | MM confirmation window | 60 seconds |
-| Escrow deadline | Configurable (default 1 hour) |
