@@ -1,13 +1,13 @@
 ---
 title: 'FAQ'
-description: 'Frequently asked questions about Totalis — the derivatives layer for prediction markets, custom parlays, Solana escrow, fees, limits, and security'
+description: 'Frequently asked questions about Totalis — the derivatives layer for prediction markets, custom parlays, Solana vaults, fees, limits, and security'
 ---
 
 ## What is Totalis?
 
 Totalis is the derivatives layer for prediction markets. We let you take bets from different prediction market venues, stack them together, and build custom structured positions like parlays.
 
-Our first product is **custom parlays on prediction markets**. You pick outcomes across multiple markets, combine them into a single leveraged bet, and market makers compete to give you the best payout odds. All trades are facilitated through our infrastructure — a request-for-quote (RFQ) system for price discovery and non-custodial Solana escrow for settlement.
+Our first product is **custom parlays on prediction markets**. You pick outcomes across multiple markets, combine them into a single leveraged bet, and market makers compete to give you the best payout odds. All trades are facilitated through our infrastructure — a request-for-quote (RFQ) system for price discovery and non-custodial Solana vault settlement.
 
 We currently support Kalshi as a market venue, with Polymarket and other prediction market platforms coming soon.
 
@@ -35,7 +35,7 @@ Our focus is on high-frequency, short-duration markets that enable continuous st
 
 ## What chain are you on?
 
-Totalis runs on **Solana**. All escrow accounts, deposits, and settlements are executed on-chain via our `parlay_escrow` Anchor program. We currently operate on Solana devnet, with mainnet deployment coming soon.
+Totalis runs on **Solana**. All vaults, positions, and settlements are executed on-chain via our `parlay_vaults` Anchor program. Each participant has a persistent vault that holds their collateral across all positions.
 
 ## What are the bet and leg limits?
 
@@ -51,17 +51,17 @@ See the [RFQ Lifecycle guide](/guides/lifecycle) for a detailed walkthrough of t
 
 ## How secure is it?
 
-All funds are held in a **Solana escrow program** — not by Totalis. When a trade is matched, both the user's stake and the market maker's risk are deposited into an on-chain escrow PDA (Program Derived Address). Neither party can withdraw unilaterally; only the settlement authority (our oracle) can release funds, and only based on the verified outcome from Kalshi.
+All funds are held in **Solana vault PDAs** (Program Derived Addresses) — not by Totalis. Each participant has a persistent on-chain vault derived from their wallet address. When a trade is matched, both the user's stake and the market maker's collateral are locked atomically in their vaults via a single `create_position` transaction. Neither party can withdraw locked collateral unilaterally; only the settlement authority can release funds, and only based on the verified outcome from Kalshi.
 
 Users can optionally grant permission for the server to help sign transactions for smoother UX. We use secure embedded wallets (Privy TEE) where private keys never leave the Trusted Execution Environment.
 
-Collateral is locked only for the duration of the position and settles automatically upon resolution. Every escrow has a timeout — if markets don't resolve in time, funds are automatically refunded to both parties.
+Collateral is locked only for the duration of the position and settles automatically upon resolution. Market makers benefit from **portfolio margining** — the system uses ILP (Integer Linear Programming) to calculate incremental worst-case exposure, so hedged or correlated positions require less collateral than naive summation.
 
 For full details, see the [Payment Architecture guide](/guides/payment-architecture).
 
 ## What happens if a market gets cancelled on Kalshi?
 
-If a Kalshi market is cancelled or delisted before all legs in a parlay have resolved, the escrow's timeout protection kicks in. The timeout service automatically cancels the escrow after the deadline (default 1 hour) and refunds both the user's stake and the market maker's risk to their respective wallets. No party loses funds due to an external market cancellation.
+If a Kalshi market is cancelled or delisted before all legs in a parlay have resolved, the vault-settlement-service detects the invalid leg and executes `cancel_position`, which unlocks both the user's and market maker's collateral in their respective vaults. No party loses funds due to an external market cancellation.
 
 ## Will you add markets from other prediction markets like Polymarket? Can I make cross-platform parlays?
 
@@ -69,7 +69,7 @@ Yes. Totalis is built as a venue-agnostic derivatives layer — our infrastructu
 
 ## Are you an exchange?
 
-Totalis is a derivatives layer that sits on top of prediction markets. We facilitate peer-to-peer structured transactions between users and market makers, settled on-chain via Solana escrow. We don't operate a traditional central limit order book or list primary markets — we aggregate outcomes from existing venues and enable new structured products like parlays on top of them.
+Totalis is a derivatives layer that sits on top of prediction markets. We facilitate peer-to-peer structured transactions between users and market makers, settled on-chain via Solana vaults. We don't operate a traditional central limit order book or list primary markets — we aggregate outcomes from existing venues and enable new structured products like parlays on top of them.
 
 ## How does Totalis make money?
 

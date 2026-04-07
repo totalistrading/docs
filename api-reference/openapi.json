@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Totalis Parlay RFQ API",
-    "description": "API for the Totalis Parlay RFQ system — a decentralized request-for-quote marketplace for parlay bets on Kalshi prediction markets, with on-chain Solana escrow settlement.",
+    "description": "API for the Totalis Parlay RFQ system — a decentralized request-for-quote marketplace for parlay bets on Kalshi prediction markets, with on-chain Solana vault settlement.",
     "version": "1.0.0"
   },
   "servers": [
@@ -498,7 +498,7 @@
       "put": {
         "operationId": "confirmQuote",
         "summary": "Confirm Quote",
-        "description": "Confirm an accepted quote, triggering the on-chain escrow flow. This creates the Solana escrow PDA, deposits the user's stake, and deposits the market maker's risk. The escrow has a configurable deadline (default 1 hour) after which it can be auto-cancelled.",
+        "description": "Confirm an accepted quote, triggering the on-chain vault position flow. Both the user's stake and the market maker's collateral are locked atomically in their persistent vaults via a single `create_position` transaction.",
         "tags": ["Market Maker"],
         "security": [{ "apiKeyAuth": [] }],
         "parameters": [
@@ -512,7 +512,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Quote confirmed, escrow execution started",
+            "description": "Quote confirmed, vault position creation started",
             "content": {
               "application/json": {
                 "schema": {
@@ -1019,7 +1019,7 @@
       "get": {
         "operationId": "getStatus",
         "summary": "System Health",
-        "description": "Get system health status including RFQ/quote/escrow statistics, market cache info, sync status, and WebSocket connection counts.",
+        "description": "Get system health status including RFQ/quote/position statistics, market cache info, sync status, and WebSocket connection counts.",
         "tags": ["Status"],
         "responses": {
           "200": {
@@ -1118,10 +1118,10 @@
         "enum": ["pending", "accepted", "confirmed", "executed", "rejected", "expired", "withdrawn"],
         "description": "Lifecycle status of a quote"
       },
-      "EscrowStatus": {
+      "PositionStatus": {
         "type": "string",
-        "enum": ["created", "user_funded", "active", "settled_win", "settled_loss", "cancelled"],
-        "description": "On-chain escrow status"
+        "enum": ["active", "settled_win", "settled_loss", "cancelled"],
+        "description": "On-chain vault position status"
       },
       "Side": {
         "type": "string",
@@ -1161,8 +1161,8 @@
           "implied_probability": { "type": "number", "description": "Combined implied probability of all legs" },
           "accepted_quote_id": { "type": "string", "format": "uuid", "nullable": true },
           "cancellation_reason": { "type": "string", "nullable": true },
-          "escrow_pda": { "type": "string", "nullable": true, "description": "Solana escrow PDA address" },
-          "escrow_status": { "$ref": "#/components/schemas/EscrowStatus" }
+          "position_pda": { "type": "string", "nullable": true, "description": "Solana position PDA address" },
+          "position_status": { "$ref": "#/components/schemas/PositionStatus" }
         }
       },
       "Quote": {
@@ -1359,7 +1359,7 @@
           "timestamp": { "type": "string", "format": "date-time" },
           "stats": {
             "type": "object",
-            "description": "RFQ, quote, and escrow counts"
+            "description": "RFQ, quote, and position counts"
           },
           "market_cache": {
             "type": "object",

@@ -73,23 +73,21 @@ After authenticating, subscribe to channels to receive events:
 | `quote:submitted` | New quote submitted | Full quote object |
 | `quote:accepted` | Quote accepted by user | `{ quote_id, rfq_id, confirmation_deadline }` |
 | `quote:confirmed` | Quote confirmed by MM | `{ quote_id, rfq_id, execution_id }` |
-| `quote:executed` | On-chain escrow executed | `{ quote_id, rfq_id }` |
+| `quote:executed` | On-chain vault position created | `{ quote_id, rfq_id }` |
 | `quote:expired` | Quote expired | `{ quote_id, rfq_id }` |
 | `quote:rejected` | Quote rejected (another was accepted) | `{ quote_id, rfq_id, reason }` |
 | `quote:withdrawn` | Quote withdrawn by MM | `{ quote_id, rfq_id }` |
 
-### Escrow Events
+### Position Events
 
-Escrow events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a specific RFQ's channel to receive its escrow lifecycle updates. Step and error events are also sent to the MM's `mm:quotes:{mm_id}` channel.
+Position events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a specific RFQ's channel to receive its position lifecycle updates. Status and error events are also sent to the MM's `mm:quotes:{mm_id}` channel.
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `escrow:created` | Escrow PDA created on-chain | `{ rfq_id, step, timestamp }` |
-| `escrow:user_funded` | User's stake deposited into escrow | `{ rfq_id, step, timestamp }` |
-| `escrow:active` | Escrow fully funded and active | `{ rfq_id, step, timestamp }` |
-| `escrow:settled` | Escrow settled with outcome | `{ rfq_id, escrow_pda, outcome, tx_signature, timestamp }` |
-| `escrow:cancelled` | Escrow cancelled and refunded | `{ rfq_id, escrow_pda, reason, timestamp }` |
-| `escrow:error` | Escrow execution error | `{ rfq_id, error, timestamp }` |
+| `position:created` | Position PDA created, collateral locked in vaults | `{ rfq_id, position_pda, timestamp }` |
+| `position:settled` | Position settled with outcome | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
+| `position:cancelled` | Position cancelled, collateral unlocked | `{ rfq_id, position_pda, reason, timestamp }` |
+| `position:error` | Position execution error | `{ rfq_id, error, timestamp }` |
 
 ## Keep-Alive
 
