@@ -282,7 +282,7 @@
       "put": {
         "operationId": "acceptQuote",
         "summary": "Accept Quote",
-        "description": "Accept a quote on an RFQ. This rejects all other pending quotes, sets a 60-second confirmation deadline for the market maker, and broadcasts the acceptance via WebSocket.",
+        "description": "Accept a quote on an RFQ. This rejects all other pending quotes, sets a 5-second confirmation deadline for the market maker, and broadcasts the acceptance via WebSocket.",
         "tags": ["RFQs"],
         "security": [{ "apiKeyAuth": [] }],
         "parameters": [
@@ -1266,7 +1266,7 @@
         "properties": {
           "status": { "type": "string", "enum": ["accepted"] },
           "message": { "type": "string" },
-          "confirmation_deadline": { "type": "string", "format": "date-time", "description": "MM must confirm within this deadline (60 seconds)" },
+          "confirmation_deadline": { "type": "string", "format": "date-time", "description": "MM must confirm within this deadline (5 seconds)" },
           "quote_id": { "type": "string", "format": "uuid" },
           "payout_odds": { "type": "number" },
           "total_cost": { "type": "number" },
