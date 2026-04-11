@@ -1,0 +1,786 @@
+---
+title: 'API Contract v2.1 (Vault-Based)'
+description: 'Full REST and WebSocket API contract for the vault-based position system — atomic single-TX position creation, ILP portfolio margining, and position lifecycle'
+---
+**Architecture Update (v2.1)**: The system uses persistent participant vaults.
+Positions are created atomically in a single transaction.
+
+**Key architecture points:**
+- Single atomic TX per trade via `create_position`
+- Persistent vault PDA per participant: `["vault", owner_wallet]`
+- Position PDA per trade: `["position", position_id]`
+- MM collateral calculated via ILP (`mm_collateral_locked` may be less than `mm_risk`)
+- Position statuses: `pending` → `active` → `settled_win`/`settled_loss`/`cancelled`
+
+**Other key changes from current backend:**
+- Consistent `{ data, meta }` response envelope
+- `venue` field on legs, markets, and events (multi-venue from day 1)
+- Auth header standardized to `X-API-Key` (was `TOTALIS_API_KEY`)
+- Wire format is **snake_case** (Go/JSON convention). The frontend API client
+  transforms to **camelCase** at the boundary (`bet_amount` → `betAmount`).
+  Frontend types in `src/types/` are all camelCase.
+- All pagination is cursor-based (leaderboard and MM history migrated from offset)
+- Settlement outcomes use `winner: "user" | "mm"` everywhere (unified `WinnerSide`)
+- `success: boolean` removed from responses where errors throw (redeem-invite, waitlist)
+- Error responses include `retry_after` for rate-limited requests
+- `kalshi_url` renamed to `venue_url` on markets
+- State-transition endpoints use `POST` not `PUT` or `DELETE`
+- Pagination cursors encode `(created_at, id)` sort key, not offset
+
+---
+
+## Base URL
+
+```
+Production: https://api.totalis.com
+Development: http://localhost:8080
+```
+
+## Authentication
+
+### Method 1: Privy JWT (Web Frontend)
+```
+Authorization: Bearer <privy_jwt_token>
+```
+
+### Method 2: API Key (Programmatic / WebSocket)
+```
+X-API-Key: api_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Method 3: Admin Key (Admin Endpoints)
+```
+X-Admin-Key: <admin_secret>
+```
+
+## Common Response Format
+
+```json
+// Success
+{ "data": { ... }, "meta": { "cursor": "...", "has_more": true } }
+
+// Error
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "bet_amount must be > 0",
+    "details": {},
+    "retry_after": null
+  }
+}
+```
+
+## Error Codes
+
+| HTTP | Code | Meaning |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Invalid request body/params |
+| 401 | `UNAUTHORIZED` | Missing or invalid auth |
+| 403 | `FORBIDDEN` | Authenticated but not allowed (geo-block, not approved) |
+| 404 | `NOT_FOUND` | Resource doesn't exist |
+| 409 | `CONFLICT` | Duplicate action (e.g., double-quote) |
+| 429 | `RATE_LIMITED` | Too many requests - `retry_after` field set (seconds) |
+| 413 | `PAYLOAD_TOO_LARGE` | Request body exceeds 256KB limit |
+| 500 | `INTERNAL_ERROR` | Server error |
+
+## Rate Limits
+
+- Anonymous: 100 req/min per IP
+- Authenticated: 300 req/min per (IP + user)
+- Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- Request body limit: 256KB
+
+## Idempotency
+
+Mutation endpoints (`POST /rfqs`, `POST /mm/quotes`) accept an optional `Idempotency-Key`
+header. If the server has already processed a request with the same key (within a 24h TTL
+window), it returns the cached response without re-executing.
+
+```
+Idempotency-Key: <client-generated UUID>
+```
+
+---
+
+## Endpoints
+
+### Public
+
+#### `GET /health`
+Minimal liveness check. Suitable for load balancers and uptime monitors.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "services": {
+    "database": "ok",
+    "solana_rpc": "ok",
+    "market_sync": "ok",
+    "settlement": "ok"
+  },
+  "timestamp": "2026-04-01T12:00:00Z"
+}
+```
+
+---
+
+#### `GET /status` [Admin]
+Full internal observability. Background service metrics, DB pool, WS stats, sync state, fee payer balance.
+
+**Auth:** `X-Admin-Key` required. Exposes infrastructure state (DB pools, fee payer balance, service errors).
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service_health": "healthy",
+  "version": "1.0.0",
+  "timestamp": "2026-04-01T12:00:00Z",
+  "db_pool": { "total_count": 5, "idle_count": 4, "waiting_count": 0, "max_size": 25 },
+  "db_bg_pool": { "total_count": 2, "idle_count": 1, "waiting_count": 0, "max_size": 5 },
+  "sync": {
+    "running": false,
+    "last_run": {
+      "started_at": "2026-04-01T12:00:00Z",
+      "completed_at": "2026-04-01T12:00:05Z",
+      "duration_ms": 5000,
+      "series_succeeded": 42,
+      "series_failed": 0,
+      "total_markets_synced": 300
+    }
+  },
+  "websocket": {},
+  "services": [
+    {
+      "name": "vault-jobs",
+      "status": "healthy",
+      "last_run_at": "2026-04-01T12:00:00Z",
+      "last_error": null,
+      "error_count": 0,
+      "consecutive_errors": 0,
+      "total_runs": 100
+    },
+    {
+      "name": "escrow-jobs",
+      "status": "healthy",
+      "last_run_at": "2026-04-01T12:00:00Z",
+      "last_error": null,
+      "error_count": 0,
+      "consecutive_errors": 0,
+      "total_runs": 50
+    }
+  ],
+  "fee_payer": { "sol": 1.5, "status": "ok" }
+}
+```
+
+**Note:** `vault-settlement-service` runs as a background service but does NOT register with the health tracker (no `reportHealth` calls). Only `vault-jobs` and `escrow-jobs` appear in the services array.
+
+---
+
+### Markets
+
+#### `GET /markets`
+List markets grouped by event. Cached, publicly accessible.
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `category` | string | - | Filter: politics, sports, crypto, economics, entertainment, weather, tech, science |
+| `sports_subcategory` | string | - | Filter: nba, nfl, mlb, nhl, soccer, mma, tennis |
+| `date_filter` | string | - | today, this_week, this_month |
+| `search` | string | - | Full-text search on titles |
+| `cursor` | string | - | Pagination cursor |
+| `limit` | integer | 20 | Max 100 |
+
+**Response:**
+```json
+{
+  "data": {
+    "events": [
+      {
+        "event_ticker": "NBA-LAL-BOS-20260402",
+        "title": "Lakers vs Celtics - Apr 2, 2026",
+        "category": "sports",
+        "venue": "kalshi",
+        "image_url": "https://...",
+        "markets": [
+          {
+            "ticker": "NBA-LAL-BOS-LAL",
+            "event_ticker": "NBA-LAL-BOS-20260402",
+            "series_ticker": "NBA-GAME",
+            "title": "Lakers beat Celtics",
+            "subtitle": "April 2, 2026 - Crypto.com Arena",
+            "yes_sub_title": "Los Angeles Lakers",
+            "no_sub_title": "Boston Celtics",
+            "category": "sports",
+            "sports_subcategory": "nba",
+            "venue": "kalshi",
+            "status": "open",
+            "yes_bid": 38,
+            "yes_ask": 40,
+            "no_bid": 60,
+            "no_ask": 62,
+            "last_price": 39,
+            "volume": 320000,
+            "volume_24h": 42000,
+            "open_interest": 210000,
+            "venue_url": "https://kalshi.com/markets/NBA-LAL-BOS-LAL",
+            "open_time": "2026-03-30T00:00:00Z",
+            "close_time": "2026-04-02T23:30:00Z",
+            "expiration_time": "2026-04-03T06:00:00Z"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "cursor": "eyJjIjoiMjAyNi0wNC0wMSIsImlkIjoiYWJjMTIzIn0",
+    "has_more": true,
+    "total_events": 45
+  }
+}
+```
+
+---
+
+### User (Auth Required)
+
+#### `GET /user/me`
+Get or auto-create user profile.
+
+**Response:**
+```json
+{
+  "data": {
+    "id": "did:privy:abc123",
+    "username": "degen_trader",
+    "email": "trader@example.com",
+    "wallet_address": "7xKp...wallet123",
+    "approved": true,
+    "waitlisted": false,
+    "created_at": "2026-01-15T00:00:00Z"
+  }
+}
+```
+
+#### `GET /user/wallet`
+**Response:**
+```json
+{
+  "data": {
+    "address": "7xKp...wallet123",
+    "sol_balance": 2.45,
+    "usdc_balance": 1847.50,
+    "locked_amount": 275.00,
+    "total_usdc_airdropped": 500,
+    "airdrop_remaining": 500
+  }
+}
+```
+
+**Note:** `locked_amount` currently reflects escrow flow only (sum of `bet_amount` from `parlay_tickets` in pre-funded statuses). When vault flow is fully live, this should also include `locked_collateral` from the user's vault.
+
+---
+
+### RFQs (Auth Required)
+
+#### `POST /rfqs`
+Create a new parlay RFQ.
+
+**Request:**
+```json
+{
+  "legs": [
+    { "market_ticker": "BTC-100K-APR", "side": "yes", "venue": "polymarket" },
+    { "market_ticker": "ETH-5K-APR", "side": "yes", "venue": "polymarket" }
+  ],
+  "bet_amount": 25.00,
+  "expires_in_seconds": 300
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "id": "rfq-uuid",
+    "user_id": "did:privy:abc123",
+    "status": "open",
+    "bet_amount": 25.00,
+    "implied_probability": 0.18,
+    "legs": [
+      {
+        "leg_index": 0,
+        "market_ticker": "BTC-100K-APR",
+        "event_ticker": "BTC-PRICE-APR-2026",
+        "side": "yes",
+        "venue": "polymarket",
+        "market_title": "Bitcoin above $100,000 on April 30",
+        "event_title": "Bitcoin Price April 2026",
+        "current_yes_price": 62,
+        "current_no_price": 38,
+        "outcome": "pending"
+      }
+    ],
+    "quotes": null,
+    "position_pda": null,
+    "position_status": null,
+    "created_at": "2026-04-01T12:00:00Z",
+    "updated_at": "2026-04-01T12:00:00Z",
+    "expires_at": "2026-04-01T12:05:00Z"
+  }
+}
+```
+
+Note: RFQ response includes `position_pda` and `position_status` fields for vault positions.
+
+---
+
+### Market Maker (Auth Required)
+
+#### `POST /mm/quotes/:quoteId/confirm`
+Confirm accepted quote, triggers vault position creation.
+
+When MM confirms:
+1. A `vault_position` record is created with status `pending`
+2. The vault-job-service processes it asynchronously
+3. On-chain position is created atomically (single TX with both deposits)
+4. Status transitions to `active` on success
+
+**Balance handling:**
+- No balance pre-check at confirm time - confirmation always succeeds if quote is valid
+- vault-job-service fetches on-chain vault state and auto-deposits the shortfall from the user's/MM's ATA if needed
+- If ATA has insufficient USDC for the required deposit, the TX fails and `retry_count` increments
+- After `MAX_RETRIES` (default 5, configurable via `VAULT_JOB_MAX_RETRIES`) exhausted, position transitions to `error` status
+
+**`mm_collateral_locked` calculation (ILP):**
+- Calculated at vault-job-service processing time, NOT at confirm time
+- Inputs: MM's existing active positions (mm_risk + legs) + the new position
+- Formula: `mm_collateral_locked = worst_case(existing + new) - worst_case(existing)`
+- This enables collateral netting when positions hedge each other
+
+**Response:**
+```json
+{
+  "data": {
+    "status": "confirmed",
+    "quote_id": "quote-uuid",
+    "execution_id": "exec-uuid"
+  }
+}
+```
+
+#### `GET /mm/dashboard/positions`
+**Response:**
+```json
+{
+  "data": {
+    "positions": [
+      {
+        "position_pda": "PosN...xyz",
+        "rfq_id": "rfq-uuid",
+        "user_stake": 50,
+        "mm_risk": 120,
+        "mm_collateral_locked": 95,
+        "total_payout": 170,
+        "status": "active",
+        "legs": [
+          { "market_title": "Lakers beat Celtics", "side": "yes", "outcome": "pending" }
+        ],
+        "created_at": "2026-03-30T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+Note: Fields are `position_pda`, `user_stake`, `mm_risk`, and `mm_collateral_locked` (actual collateral locked via ILP).
+
+---
+
+### Admin (Admin Key Required)
+
+#### `GET /admin/positions`
+**Query:** `status`, `from_date`, `to_date`, `limit`, `cursor`
+
+**Status values:** `pending`, `active`, `settling`, `cancelling`, `settled_win`, `settled_loss`, `cancelled`, `error`
+
+**Response:**
+```json
+{
+  "data": {
+    "positions": [
+      {
+        "id": "uuid",
+        "ticket_id": "rfq-uuid",
+        "position_id": "0x1234abcd...",
+        "position_pda": "PosN...",
+        "user_vault_pda": "VltU...",
+        "mm_vault_pda": "VltM...",
+        "user_wallet": "7xKp...",
+        "mm_wallet": "3bRq...",
+        "user_stake": 50,
+        "mm_risk": 120,
+        "mm_collateral_locked": 95,
+        "total_payout": 170,
+        "status": "active",
+        "create_position_tx": "5xYz...",
+        "settle_tx": null,
+        "cancel_tx": null,
+        "error": null,
+        "retry_count": 0,
+        "created_at": "2026-04-01T00:00:00Z",
+        "settled_at": null,
+        "updated_at": "2026-04-01T00:00:00Z"
+      }
+    ]
+  },
+  "meta": { "cursor": "...", "has_more": true }
+}
+```
+
+#### `GET /admin/positions/:pda`
+Position detail by on-chain PDA address.
+
+#### `POST /admin/positions/:pda/settle`
+Manually settle a vault position.
+
+**Request:** `{ "winner": "user" | "mm" }`
+**Response:**
+```json
+{
+  "data": {
+    "status": "settled_win",
+    "winner": "user",
+    "tx_signature": "5xYz...",
+    "close_tx": "7aBc..."
+  }
+}
+```
+
+#### `POST /admin/positions/:pda/cancel`
+**Request:** `{ "reason": "stuck position - manual intervention" }`
+**Response:**
+```json
+{
+  "data": {
+    "status": "cancelled",
+    "reason": "stuck position - manual intervention",
+    "cancel_tx": "9dEf..."
+  }
+}
+```
+
+---
+
+## State Transitions
+
+### RFQ Lifecycle
+
+```
+open → quoted       (first quote received)
+open → cancelled    (user cancels)
+open → expired      (expires_at reached)
+quoted → accepted   (user accepts a quote)
+quoted → cancelled  (user cancels)
+quoted → expired    (expires_at reached)
+accepted → confirmed (MM confirms the accepted quote)
+accepted → expired  (MM fails to confirm before deadline)
+confirmed → executed (vault position created on-chain)
+executed → settled  (all legs resolved, payout distributed)
+executed → cancelled (timeout or manual admin cancellation)
+```
+
+### Quote Lifecycle
+
+```
+pending → accepted   (user accepts this quote)
+pending → rejected   (user rejects this quote)
+pending → withdrawn  (MM withdraws)
+pending → expired    (RFQ expires or quote valid_until reached)
+accepted → confirmed (MM confirms)
+accepted → expired   (MM fails to confirm before deadline)
+confirmed → executed (position funded)
+```
+
+### Vault Position Lifecycle (NEW)
+
+```
+pending → active         (on-chain position created successfully)
+pending → [retry]        (creation failed, retry_count < MAX_RETRIES, stays pending and retries)
+pending → error          (retry_count >= MAX_RETRIES, exhausted)
+active → settling        (settlement in progress, claimed by worker)
+active → cancelling      (cancellation in progress)
+settling → settled_win   (user won, payout distributed)
+settling → settled_loss  (MM won, payout distributed)
+settling → active        (settlement failed, reverted for retry)
+cancelling → cancelled   (position cancelled, funds returned)
+cancelling → active      (cancellation failed, reverted for retry)
+```
+
+**Key points:**
+- Position creation is atomic (single TX)
+- Intermediate `settling`/`cancelling` states for async processing
+- `error` is a terminal state requiring manual intervention
+
+**Retry behavior:**
+- vault-job-service retries failed positions up to `MAX_RETRIES` (default 5, configurable via `VAULT_JOB_MAX_RETRIES` env var)
+- On each failure, `error` field is set and `retry_count` increments
+- When `retry_count >= MAX_RETRIES`: position transitions to `error` status, `position:error` WebSocket event emitted
+- No automatic timeout - settlement only happens when underlying markets resolve (via Kalshi/Polymarket)
+
+---
+
+## WebSocket Contract
+
+### Connection
+
+```
+URL: wss://api.totalis.com/ws
+```
+
+### Authentication (first message after connect)
+
+The client must send an auth message within **10 seconds** of connecting.
+
+```json
+// Via API key
+{ "type": "auth", "api_key": "api_live_xxx" }
+
+// Via Privy JWT
+{ "type": "auth", "token": "eyJ..." }
+
+// Server response
+{ "type": "auth:success", "user_id": "did:privy:abc123" }
+```
+
+### Channels
+
+| Channel | Description | Who subscribes |
+|---------|-------------|----------------|
+| `rfqs:open` | All new open RFQs | Market makers |
+| `rfq:{rfq_id}` | Updates for specific RFQ | RFQ creator |
+| `mm:quotes:{user_id}` | Quote updates for MM | Market maker |
+| `vault:{user_id}` | Vault deposit/withdraw events | Vault owner |
+
+### Server Events
+
+All server events include:
+- `type` - Event type string
+- `seq` - Per-channel monotonically increasing integer
+- `channel` - Which channel this message was sent on
+- `timestamp` - ISO 8601 timestamp
+
+#### RFQ Events
+```json
+{ "type": "rfq:created", "seq": 1, "channel": "rfqs:open", "timestamp": "...",
+  "data": { /* full RFQ object */ } }
+
+{ "type": "rfq:status", "seq": 3, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { "rfq_id": "...", "status": "quoted", "updated_at": "..." } }
+
+{ "type": "rfq:cancelled", "seq": 4, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { "rfq_id": "...", "reason": "user_cancelled" } }
+
+{ "type": "rfq:expired", "seq": 5, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { "rfq_id": "..." } }
+```
+
+#### Quote Events
+```json
+{ "type": "quote:submitted", "seq": 2, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { /* quote object */ } }
+
+{ "type": "quote:accepted", "seq": 1, "channel": "mm:quotes:mm-user-id", "timestamp": "...",
+  "data": { "quote_id": "...", "rfq_id": "...", "confirmation_deadline": "..." } }
+
+{ "type": "quote:confirmed", "seq": 3, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { "quote_id": "...", "rfq_id": "...", "execution_id": "..." } }
+
+{ "type": "quote:executed", "seq": 4, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { "quote_id": "...", "rfq_id": "..." } }
+
+{ "type": "quote:rejected", "seq": 2, "channel": "mm:quotes:mm-user-id", "timestamp": "...",
+  "data": { "quote_id": "...", "rfq_id": "..." } }
+
+{ "type": "quote:withdrawn", "seq": 3, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": { "quote_id": "...", "rfq_id": "..." } }
+
+{ "type": "quote:expired", "seq": 4, "channel": "mm:quotes:mm-user-id", "timestamp": "...",
+  "data": { "quote_id": "...", "rfq_id": "..." } }
+```
+
+#### Position Events
+
+```json
+// Position created on-chain (status: active)
+{ "type": "position:created", "seq": 5, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": {
+    "rfq_id": "...",
+    "position_pda": "PosN..."
+  } }
+
+// Position settled
+{ "type": "position:settled", "seq": 6, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": {
+    "rfq_id": "...",
+    "position_pda": "PosN...",
+    "winner": "user",
+    "tx_signature": "5xYz..."
+  } }
+
+// Position cancelled
+{ "type": "position:cancelled", "seq": 6, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": {
+    "rfq_id": "...",
+    "position_pda": "PosN...",
+    "reason": "timeout"
+  } }
+
+// Single creation attempt failed (status stays pending, will retry)
+{ "type": "position:failed", "seq": 5, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": {
+    "quote_id": "...",
+    "rfq_id": "...",
+    "reason": "on-chain execution failed",
+    "retry_count": 2
+  } }
+
+// Retries exhausted (status -> error, terminal, needs manual intervention)
+{ "type": "position:error", "seq": 5, "channel": "rfq:abc-123", "timestamp": "...",
+  "data": {
+    "rfq_id": "...",
+    "error": "on-chain execution failed after 5 attempts",
+    "retry_count": 5
+  } }
+```
+
+### Reconnection
+
+Client implements exponential backoff (1s → 2s → 4s → ... → 30s cap). On reconnect:
+1. Re-authenticate
+2. Re-subscribe to all channels
+3. Send `resync` for each channel with `last_seq`
+4. Full HTTP refetch as safety net
+
+---
+
+## Vault Endpoints (Future - not yet implemented)
+
+#### `GET /user/vault`
+**Response:**
+```json
+{
+  "data": {
+    "vault_pda": "VltU...",
+    "vault_token_account": "TokA...",
+    "gross_balance": 500.00,
+    "locked_collateral": 200.00,
+    "free_balance": 300.00,
+    "positions": [
+      {
+        "position_id": "0x1234...",
+        "rfq_id": "rfq-uuid",
+        "user_stake": 50,
+        "mm_risk": 100,
+        "total_payout": 150,
+        "status": "active",
+        "created_at": "..."
+      }
+    ]
+  }
+}
+```
+
+#### `POST /user/vault/deposit`
+Deposit USDC into the user's vault.
+
+**Request:** `{ "amount": 100 }`
+**Response:** `{ "data": { "vault_balance": 500, "tx_signature": "..." } }`
+
+#### `POST /user/vault/withdraw`
+Withdraw USDC from the user's vault.
+
+**Request:** `{ "amount": 50 }`
+**Response:** `{ "data": { "vault_balance": 450, "tx_signature": "..." } }`
+
+#### Vault WebSocket Events
+```json
+{ "type": "vault:deposited", "seq": 1, "channel": "vault:{user_id}", "timestamp": "...",
+  "data": { "amount": 100, "vault_balance": 500 } }
+
+{ "type": "vault:withdrawn", "seq": 2, "channel": "vault:{user_id}", "timestamp": "...",
+  "data": { "amount": 50, "vault_balance": 450 } }
+```
+
+---
+
+## Migration Notes
+
+### Escrow → Vault Architecture Changes
+
+The vault-based system replaces per-trade escrows with persistent participant vaults. Key differences:
+
+| Aspect | Escrow Flow (v1) | Vault Flow (v2.1) |
+|--------|------------------|-------------------|
+| Account creation | 3-step: create → user_fund → mm_fund | Single atomic TX via `create_position` |
+| PDA seeds | `["escrow", parlay_id]` | Vault: `["vault", owner_wallet]`, Position: `["position", position_id]` |
+| Collateral | Full amount from both parties | User: full stake, MM: ILP-calculated (`mm_collateral_locked` ≤ `mm_risk`) |
+| Funding model | Per-trade escrow account | Persistent vault with locked collateral |
+| Status progression | created → user_funded → active → settled | pending → active → settled_win/settled_loss |
+
+### Vault Initialization
+
+Vaults are created automatically when a user's first position is created. There is no separate "deposit before trading" step - the vault is initialized as part of the first `create_position` transaction. Users can deposit additional funds to their vault after it exists.
+
+### WebSocket Event Migration
+
+| Escrow Event (v1) | Position Event (v2.1) | Notes |
+|-------------------|----------------------|-------|
+| `escrow:created` | `position:created` | Emitted after atomic position creation (was after escrow PDA created) |
+| `escrow:user_funded` | (removed) | Not applicable - vault flow is atomic |
+| `escrow:active` | (removed) | Position is `active` immediately after creation |
+| `escrow:settled` | `position:settled` | Same semantics |
+| `escrow:cancelled` | `position:cancelled` | Same semantics |
+| `escrow:failed` | `position:failed` | Same semantics |
+| `escrow:error` | `position:error` | Same semantics |
+
+### Escrow → Vault Field Mapping
+
+| Escrow Field | Vault Field | Notes |
+|--------------|-------------|-------|
+| `escrow_pda` | `position_pda` | Position PDA, not vault PDA |
+| `escrow_token_account` | `vault_token_account` | Token account associated with vault |
+| `user_deposit` | `user_stake` | User's bet amount |
+| `mm_deposit` | `mm_risk` | Max payout if user wins |
+| - | `mm_collateral_locked` | Actual collateral locked via ILP (≤ mm_risk) |
+| `parlay_id_onchain` | `position_id` | 16-byte UUID seed for position PDA |
+| `escrow_status` | `status` | See status mapping below |
+| `deadline` | - | Not used in vault flow (settlement is event-driven) |
+
+### Status Mapping
+
+| Escrow Status | Vault Position Status | Notes |
+|--------------|----------------------|-------|
+| `created` | `pending` | Awaiting on-chain creation |
+| `user_funded` | - | Not applicable (atomic flow) |
+| `active` | `active` | Position live on-chain |
+| `settling` | `settling` | Settlement in progress |
+| `settled` | `settled_win` / `settled_loss` | Split by outcome |
+| `cancelling` | `cancelling` | Cancellation in progress |
+| `cancelled` | `cancelled` | Position cancelled |
+| `stale` | - | Handled via retry logic |
+
+---
+
+## Admin Endpoint Migration
+
+| Escrow Endpoint (v1) | Position Endpoint (v2.1) |
+|---------------------|-------------------------|
+| `GET /admin/escrows` | `GET /admin/positions` |
+| `GET /admin/escrows/:pda` | `GET /admin/positions/:pda` |
+| `POST /admin/escrows/:pda/settle` | `POST /admin/positions/:pda/settle` |
+| `POST /admin/escrows/:pda/cancel` | `POST /admin/positions/:pda/cancel` |
