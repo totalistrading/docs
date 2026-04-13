@@ -148,13 +148,14 @@ Derived value: `free_balance = gross_balance - locked_collateral`
 | `user_stake` | u64 | User's bet amount (USDC 6 decimals) |
 | `user_collateral_locked` | u64 | Always equals `user_stake` |
 | `mm_risk` | u64 | Potential payout to user if they win |
-| `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
 | `total_payout` | u64 | `user_stake + mm_risk` |
+| `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
 | `status` | enum | `Active`, `SettledWin`, `SettledLoss`, `Cancelled` |
 | `settlement_authority` | Pubkey | Snapshotted from config at creation |
 | `created_at` | i64 | Unix timestamp |
 | `num_legs` | u8 | Number of parlay legs (1-5) |
 | `legs` | [ParlayLeg; 5] | Market ticker (64 bytes) + side (0=Yes, 1=No) |
+| `fee_bps` | u16 | Protocol fee in basis points, snapshotted from config at position creation |
 
 ## Instructions
 
@@ -228,7 +229,7 @@ fee    = profit * fee_bps / 10_000
 winner_receives = profit - fee
 ```
 
-`fee_bps` is stored in the Config PDA and can be updated by the admin (e.g., `100` = 1%). The fee is transferred to the `fee_vault_token_account` in the same `settle_position` instruction.
+`fee_bps` is stored in the Config PDA and can be updated by the admin (e.g., `100` = 1%). The rate is **snapshotted onto each position at creation time** — settlement always uses the rate that was active when the position was created, not the current config value. The fee is transferred to the `fee_vault_token_account` in the same `settle_position` instruction.
 
 ### Collateral Release
 
