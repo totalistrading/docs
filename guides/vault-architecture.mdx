@@ -1,22 +1,14 @@
 ---
 title: 'Vault Architecture and Portfolio Margining'
-description: 'Totalis vault-based position flow — single-TX position creation, portfolio margining via ILP, and persistent participant vaults'
+description: 'Totalis on-chain architecture — Solana vault PDAs, portfolio margining via ILP, Privy TEE wallet signing, and gas-sponsored transactions'
 ---
 
 ## Overview
 
-The vault flow is an optimized alternative to the escrow flow, replacing 3 separate transactions with a single atomic position creation. Instead of creating a new escrow for each bet, participants have persistent vaults that hold their collateral across all positions.
-
-| Aspect | Escrow Flow | Vault Flow |
-|--------|-------------|------------|
-| Position creation | 3 TXs (`create` → `deposit_user` → `deposit_mm`) | 1 TX (`create_position`) |
-| Collateral model | Full collateral per position | Portfolio-margined via ILP |
-| MM collateral | `mm_risk` (full payout) | `mm_collateral_locked` (incremental worst-case) |
-| State machine | 6 intermediate states | 4 states (`Active` → terminal) |
-| Account lifecycle | Created and closed per bet | Persistent, reused across all bets |
+Totalis uses on-chain Solana vaults to hold participant collateral across all positions. Each participant (user or market maker) has a single persistent vault derived from their wallet address. When a trade is matched, both parties' collateral is locked atomically in a single `create_position` transaction — no intermediate states. All wallet signing is done server-side via **Privy TEE (Trusted Execution Environment) wallets**, so users never need to manually sign transactions. The fee payer covers gas for position creation and settlement — users and market makers only need USDC in their vaults.
 
 **Key benefits:**
-- **Faster execution** — Single atomic transaction instead of 3-step flow
+- **Faster execution** — Single atomic transaction for position creation
 - **Capital efficiency** — MMs lock only incremental worst-case exposure, not full risk per position
 - **Lower rent costs** — Vaults are reused; only position accounts are created/closed per bet
 
@@ -60,11 +52,11 @@ Position creation happens in one transaction with both user and MM as signers:
 
 ```
 create_position(
-    position_id,      // UUID from backend
-    user_stake,       // User's bet amount
-    mm_risk,          // MM's potential payout to user
+    position_id,           // UUID from backend
+    user_stake,            // User's bet amount
+    mm_risk,               // MM's potential payout to user
     mm_collateral_locked,  // ILP-calculated incremental exposure
-    legs[]            // Parlay leg details
+    legs[]                 // Parlay leg details
 )
 ```
 
@@ -72,7 +64,7 @@ Both parties' collateral is locked atomically — no intermediate states where o
 
 ### Role-Separated Signers
 
-The vault program uses the same role separation as the escrow program via a **Config PDA**:
+The program uses a **Config PDA** (seeds: `["config"]`) to store role-separated keys, allowing different security postures per role:
 
 | Role | Description | Key Type |
 |------|-------------|----------|
@@ -83,7 +75,7 @@ The vault program uses the same role separation as the escrow program via a **Co
 
 ### Gas Sponsorship
 
-For most operations, the fee payer covers gas. However, deposit_to_vault and withdraw_from_vault are owner-signed and require the owner to have SOL for transaction fees.
+For most operations, the fee payer covers gas. However, `deposit_to_vault` and `withdraw_from_vault` are owner-signed and require the owner to have SOL for transaction fees.
 
 | Transaction | Fee Payer | Signers |
 |-------------|-----------|---------|
@@ -94,6 +86,29 @@ For most operations, the fee payer covers gas. However, deposit_to_vault and wit
 | `settle_position` | Fee Payer | Settlement Authority |
 | `cancel_position` | Fee Payer | Settlement Authority |
 | `close_position` | Fee Payer | Settlement Authority |
+
+### Privy TEE Wallets with Session Signers
+
+Privy embedded wallets run inside a **Trusted Execution Environment**. The private key never leaves the TEE — not even Privy can extract it. Server-side signing works via **session signers** (key quorums):
+
+1. **Frontend** calls `addSessionSigners()` with the app's key quorum ID when the user clicks "Enable Trading"
+2. User sees a Privy consent dialog and approves
+3. **Backend** can now request signing via `signTransaction()` with the authorization private key
+
+This is semi-custodial: the user explicitly grants and can revoke signing permission at any time.
+
+### `signTransaction` vs `signAndSendTransaction`
+
+We use Privy's **`signTransaction`** (sign-only) instead of `signAndSendTransaction` (sign + broadcast) for position creation. This is critical because:
+
+- **`signAndSendTransaction`** broadcasts via Privy's RPC, which may have different blockhash state than our RPC, causing "Blockhash not found" errors
+- **`signTransaction`** just signs the transaction bytes and returns them. We then add the fee payer's signature and broadcast via our own RPC, ensuring blockhash consistency
+
+The flow for position creation:
+1. Build transaction with our RPC's blockhash, fee payer as fee payer
+2. Privy TEE signs for the user and MM (sign-only, no broadcast)
+3. Add fee payer's co-signature locally
+4. Broadcast via our own RPC (same one we got the blockhash from)
 
 ## Vault Program Accounts
 
@@ -133,13 +148,14 @@ Derived value: `free_balance = gross_balance - locked_collateral`
 | `user_stake` | u64 | User's bet amount (USDC 6 decimals) |
 | `user_collateral_locked` | u64 | Always equals `user_stake` |
 | `mm_risk` | u64 | Potential payout to user if they win |
-| `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
 | `total_payout` | u64 | `user_stake + mm_risk` |
+| `mm_collateral_locked` | u64 | ILP-calculated incremental exposure |
 | `status` | enum | `Active`, `SettledWin`, `SettledLoss`, `Cancelled` |
 | `settlement_authority` | Pubkey | Snapshotted from config at creation |
 | `created_at` | i64 | Unix timestamp |
 | `num_legs` | u8 | Number of parlay legs (1-5) |
 | `legs` | [ParlayLeg; 5] | Market ticker (64 bytes) + side (0=Yes, 1=No) |
+| `fee_bps` | u16 | Protocol fee in basis points, snapshotted from config at position creation |
 
 ## Instructions
 
@@ -205,7 +221,7 @@ Settlement transfers funds between vaults and deducts a protocol fee on profit:
 
 ### Fee Calculation
 
-Identical to the escrow flow — fee is calculated on **profit only**:
+The fee is calculated **on profit only** (not on the total payout):
 
 ```
 profit = user_won ? mm_risk : user_stake
@@ -213,7 +229,7 @@ fee    = profit * fee_bps / 10_000
 winner_receives = profit - fee
 ```
 
-The fee is transferred to the `fee_vault_token_account` in the same `settle_position` instruction.
+`fee_bps` is stored in the Config PDA and can be updated by the admin (e.g., `100` = 1%). The rate is **snapshotted onto each position at creation time** — settlement always uses the rate that was active when the position was created, not the current config value. The fee is transferred to the `fee_vault_token_account` in the same `settle_position` instruction.
 
 ### Collateral Release
 
@@ -222,6 +238,10 @@ On settlement or cancellation:
 - MM's `locked_collateral` decreases by `mm_collateral_locked`
 
 The `gross_balance` changes only reflect actual token transfers — winner gains, loser loses.
+
+### Invalid Leg Cancellation
+
+If any leg in a parlay resolves as **invalid** (e.g., the event is voided or the market is delisted), the entire position is cancelled rather than settled. Both parties' collateral is unlocked — no one wins or loses on an invalid market. Invalid legs are tracked with a `push` outcome.
 
 ## Background Services
 
@@ -256,8 +276,17 @@ Two background services manage the vault position lifecycle:
 - **Non-custodial** — Totalis never holds user funds. All collateral is locked in on-chain Solana vault PDAs controlled by the program.
 - **Capital efficient** — Portfolio margining via ILP allows MMs to operate with less locked capital.
 - **Atomic execution** — Position creation is a single transaction with no intermediate failure states.
-- **Gas-sponsored** — The fee payer covers gas for most operations. Owners need SOL only for deposit_to_vault and withdraw_from_vault.
+- **Gas-sponsored** — The fee payer covers gas for most operations. Owners need SOL only for `deposit_to_vault` and `withdraw_from_vault`.
 - **TEE-secured signing** — Private keys never leave the Privy Trusted Execution Environment.
-- **Persistent vaults** — Participants maintain one vault across all bets, reducing account overhead.
+- **Persistent vaults** — Participants maintain one vault across all bets, reducing account overhead and rent costs.
 - **Role-separated** — Admin, fee payer, settlement authority, and fee vault owner are distinct keys with different security postures.
 - **Transparent** — All vaults, positions, and settlements are verifiable on the Solana blockchain.
+
+## Market Validation
+
+When an RFQ is submitted, two checks are performed:
+
+1. **Market exists in cache** — ensures we have metadata for the ticker
+2. **Market is active on Kalshi** — live API check confirms the market hasn't closed
+
+All other filtering (resolution window, volume, category) is done at display time in the frontend. If a market is shown in the UI, it's valid to bet on.
