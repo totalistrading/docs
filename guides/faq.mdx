@@ -9,13 +9,7 @@ Totalis is the derivatives layer for prediction markets. We let you take bets fr
 
 Our first product is **custom parlays on prediction markets**. You pick outcomes across multiple markets, combine them into a single leveraged bet, and market makers compete to give you the best payout odds. All trades are facilitated through our infrastructure — a request-for-quote (RFQ) system for price discovery and non-custodial Solana vault settlement.
 
-We currently support Kalshi as a market venue, with Polymarket and other prediction market platforms coming soon.
-
-## Can't I just do this on Kalshi?
-
-Kalshi only offers combos on specific sports markets with very limited options. This is because Kalshi has to create an orderbook for every single combination of their combos, which is highly inefficient.
-
-Totalis takes a different approach — we sit on top of prediction markets as a derivatives layer and use an RFQ system to price any combination of outcomes. This means you can construct parlays on markets across sports, crypto, weather, entertainment, and economic events, and eventually combine bets across multiple venues in a single parlay.
+We currently support Kalshi and Polymarket as underlying market venues, with other prediction market platforms coming soon.
 
 ## What markets does Totalis offer?
 
@@ -23,7 +17,7 @@ We currently offer markets that:
 
 - Are recurring
 
-- Have reliable liquidity on Kalshi
+- Have reliable liquidity on the underlying platform
 
 - Settle within one week
 
@@ -59,13 +53,19 @@ Collateral is locked only for the duration of the position and settles automatic
 
 For full details, see the [Vault Architecture guide](/guides/vault-architecture).
 
-## What happens if a market gets cancelled on Kalshi?
+## What happens if a market gets cancelled on the underlying venue?
 
-If a Kalshi market is cancelled or delisted before all legs in a parlay have resolved, the vault-settlement-service detects the invalid leg and executes `cancel_position`, which unlocks both the user's and market maker's collateral in their respective vaults. No party loses funds due to an external market cancellation.
+If a market on the underlying venue is cancelled or delisted before all legs in a parlay have resolved, the vault-settlement-service detects the invalid leg and executes `cancel_position`, which unlocks both the user's and market maker's collateral in their respective vaults. No party loses funds due to an external market cancellation.
 
-## Will you add markets from other prediction markets like Polymarket? Can I make cross-platform parlays?
+## Will you add markets from other prediction markets? Can I make cross-platform parlays?
 
-Yes. Totalis is built as a venue-agnostic derivatives layer — our infrastructure is designed to aggregate markets across prediction market platforms. Polymarket support is coming soon, and the goal is to let you combine outcomes from any supported venue into a single parlay. Cross-platform parlays (e.g., a Kalshi leg + a Polymarket leg in the same bet) are on the roadmap.
+Yes. Totalis is built as a venue-agnostic derivatives layer — our infrastructure is designed to aggregate markets across prediction market platforms. 
+
+## Can't I just do this on Kalshi?
+
+Kalshi only offers combos on specific sports markets with very limited options. This is because Kalshi has to create an orderbook for every single combination of their combos, which is highly inefficient.
+
+Totalis takes a different approach — we sit on top of prediction markets as a derivatives layer and use an RFQ system to price any combination of outcomes. This means you can construct parlays on markets across sports, crypto, weather, entertainment, and economic events, and eventually combine bets across multiple venues in a single parlay.
 
 ## Are you an exchange?
 
