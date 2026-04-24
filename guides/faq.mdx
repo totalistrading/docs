@@ -77,74 +77,11 @@ Totalis evaluates risk at the **portfolio level**, not trade-by-trade. We comput
 
 We ran a simulated test quoting random combinations of 3–5 leg parlays across 1000 markets, and found that the real worst-case collateral required is 30–40% less than the collateral needed if each trade were treated in isolation.
 
-## How does a counterparty hedge its position using the underlying markets of a parlay?
-
-Suppose a user buys a parlay:
-
-- BTC > $80k this week
-- Fed cuts rates this month
-- Team A wins tomorrow
-
-Let:
-
-- $X_1$ = BTC > $80k
-- $X_2$ = Fed cuts rates
-- $X_3$ = Team A wins
-
-Parlay payoff:
-
-$$\text{Payoff} = N \cdot X_1 X_2 X_3$$
-
-The market maker is **short this payoff**.
-
-Suppose these are the implied probabilities of the underlying markets:
-
-- $p_1 = 0.40$ (BTC > $80k)
-- $p_2 = 0.30$ (Fed cuts)
-- $p_3 = 0.60$ (Team A wins)
-
-Expected parlay probability:
-
-$$P_{\text{parlay}} \approx p_1 \cdot p_2 \cdot p_3 = 0.072$$
-
-We can now approximate how sensitive the parlay is to each leg.
-
-For leg 1 (BTC):
-
-$$\Delta_1 \approx N \cdot p_2 \cdot p_3 = N \cdot (0.30 \cdot 0.60) = 0.18N$$
-
-For leg 2 (Fed cuts):
-
-$$\Delta_2 \approx N \cdot p_1 \cdot p_3 = N \cdot (0.40 \cdot 0.60) = 0.24N$$
-
-For leg 3 (Team A):
-
-$$\Delta_3 \approx N \cdot p_1 \cdot p_2 = N \cdot (0.40 \cdot 0.30) = 0.12N$$
-
-These deltas tell you: "If this leg moves, how much does my expected loss change?"
-
-So the market maker hedges by **buying YES exposure** in each underlying market:
-
-- Buy ~0.18N of BTC > $80k
-- Buy ~0.24N of Fed cuts
-- Buy ~0.12N of Team A wins
-
-This hedge neutralizes **first-order risk**.
-
-For the joint outcome, the **non-linear (gamma-like) risk** of the parlay is harder to eliminate, and market makers usually price it into the quote provided for the parlay.
-
 ## Is Totalis available to U.S. persons? What's the path to U.S. regulation?
 
 Totalis currently operates offshore and is not available to U.S. persons.
 
 We are building with a clear path toward U.S. regulatory compliance. As the product matures, we intend to pursue the appropriate registrations with the CFTC, including licenses required to operate a regulated event derivatives platform. Our long-term goal is to become a fully compliant, U.S.-regulated venue for structured prediction market products.
-
-For reference, the key CFTC-regulated entity types are:
-
-- **DCM — Designated Contract Market.** A regulated exchange that can list and offer trading of futures and event contracts.
-- **DCO — Derivatives Clearing Organization.** Handles clearing and settlement, including margin, collateral, and counterparty risk.
-- **FCM — Futures Commission Merchant.** A broker that interfaces with customers: holds customer funds, submits trades to exchanges, and handles margin on behalf of users.
-- **IB — Introducing Broker.** Brings in customers but does not custody funds. Refers users to an FCM and can market and distribute access, with a lower regulatory burden than an FCM.
 
 ## What happens if a market gets cancelled on the underlying venue?
 
