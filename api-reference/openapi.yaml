@@ -1,0 +1,3526 @@
+openapi: 3.0.3
+info:
+  title: Totalis RFQ API
+  version: 2.1.0
+  description: |
+    REST + WebSocket contract for the Totalis parlay RFQ platform.
+    Wire format is snake_case. Frontend API client transforms to camelCase at the boundary.
+
+    **Architecture Update (v2.1)**: The system uses persistent participant vaults.
+    Positions are created atomically in a single transaction.
+
+    **Authentication**: PrivyJWT (web) or X-API-Key (programmatic). Any authenticated
+    user can both place parlays and market-make - there is no separate MM role.
+
+    **Rate limiting**: 100 req/min anonymous, 300 req/min authenticated.
+    All responses include X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset headers.
+    Request body limit: 256KB.
+
+    **Pagination**: All list endpoints use opaque cursor-based pagination.
+    Cursors are server-generated strings - clients must not parse or construct them.
+    Pass the `cursor` value from a previous response's `meta.cursor` to fetch the next page.
+
+    **Validation**: All numeric inputs are validated for NaN/Inf. Specific constraints
+    (min/max) are documented per-field in the request schemas.
+
+servers:
+  - url: https://api.totalis.com
+    description: Production
+  - url: http://localhost:8080
+    description: Development
+
+security: []
+
+components:
+  securitySchemes:
+    PrivyJWT:
+      type: http
+      scheme: bearer
+      description: Privy JWT token (web frontend)
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Programmatic / WebSocket API key
+    AdminKey:
+      type: apiKey
+      in: header
+      name: X-Admin-Key
+      description: Admin-only endpoints
+
+  parameters:
+    CursorParam:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque pagination cursor from a previous response's meta.cursor. Do not construct manually.
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+      description: Page size
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema:
+        type: string
+        format: uuid
+      description: Client-generated UUID. Cached responses returned within 24h TTL.
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Conflict:
+      description: Resource conflict (duplicate, already taken, etc.)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+
+  schemas:
+    # -- Envelopes ----------------------------------------------------------
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorBody"
+
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - RATE_LIMITED
+            - PAYLOAD_TOO_LARGE
+            - INTERNAL_ERROR
+        message:
+          type: string
+        details:
+          type: object
+        retry_after:
+          type: integer
+          nullable: true
+          description: Seconds until retry (set on 429)
+
+    PaginationMeta:
+      type: object
+      properties:
+        cursor:
+          type: string
+          nullable: true
+        has_more:
+          type: boolean
+
+    # -- Domain objects -----------------------------------------------------
+    Venue:
+      type: string
+      enum: [kalshi, polymarket]
+
+    Side:
+      type: string
+      enum: ["yes", "no"]
+
+    LegOutcome:
+      type: string
+      enum: [win, loss, push, pending]
+
+    WinnerSide:
+      type: string
+      enum: [user, mm]
+
+    RfqStatus:
+      type: string
+      enum: [open, quoted, accepted, confirmed, executed, cancelled, expired, settled]
+
+    QuoteStatus:
+      type: string
+      enum: [pending, accepted, confirmed, executed, rejected, expired, withdrawn]
+
+    # -- Vault schemas (new) ------------------------------------------------
+    VaultOwnerType:
+      type: string
+      enum: [user, mm]
+      description: Owner type for vault accounts
+
+    Vault:
+      type: object
+      description: |
+        Persistent vault account for a participant. Derived from on-chain state.
+        Seeds: ["vault", owner_wallet]
+
+        NOTE: gross_balance and locked_collateral are cached in the database and
+        updated atomically alongside position state changes (create, settle, cancel).
+        free_balance is computed as (gross_balance - locked_collateral).
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          description: Privy DID of the owner
+        owner_type:
+          $ref: "#/components/schemas/VaultOwnerType"
+        owner_wallet:
+          type: string
+          description: Solana wallet address (base58)
+        vault_pda:
+          type: string
+          description: On-chain vault PDA address
+        vault_token_account:
+          type: string
+          description: Associated USDC token account
+        gross_balance:
+          type: number
+          description: Total USDC in vault (on-chain, lamports converted to dollars)
+        locked_collateral:
+          type: number
+          description: USDC locked across all active positions
+        free_balance:
+          type: number
+          description: Available USDC (gross_balance - locked_collateral)
+        init_tx:
+          type: string
+          description: Transaction signature that initialized this vault
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # -- Position Status (from on-chain PositionStatus + DB intermediate states)
+    PositionStatus:
+      type: string
+      description: |
+        Position lifecycle status. On-chain states: Active, SettledWin, SettledLoss, Cancelled, Expired.
+        DB adds intermediate states for async processing: pending, processing, settling, cancelling, error.
+        Two-step expiry path: active → expired_pending_mm_release → expired (with reconciling_mm_release as short-lived sentinel).
+      enum:
+        - pending        # Created in DB, awaiting on-chain position creation
+        - processing     # Claimed by worker, creation in progress
+        - active         # On-chain position created and funded
+        - settling       # Settlement in progress (claimed by settlement worker)
+        - cancelling     # Cancellation in progress
+        - settled_win    # User won, payout distributed
+        - settled_loss   # MM won, payout distributed
+        - cancelled      # Position cancelled, funds returned
+        - reconciling_mm_release      # SA reconciler claimed for cleanup; MM collateral still locked. Transitions to expired_pending_mm_release on failure or expired on success.
+        - expired_pending_mm_release  # User collateral released; MM-side pending SA cleanup. MM capital locked on-chain.
+        - expired        # Both sides released (permissionless expiry + SA cleanup complete)
+        - error          # Exhausted retries (retry_count >= MAX_RETRIES), requires manual intervention
+
+    VaultPosition:
+      type: object
+      description: |
+        Position within the vault system. Created atomically in a single transaction.
+        Seeds: ["position", position_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+          description: Associated RFQ ticket ID
+        position_id:
+          type: string
+          description: 16-byte position ID (hex encoded)
+        position_pda:
+          type: string
+          nullable: true
+          description: On-chain position PDA (set after on-chain creation)
+        user_vault_pda:
+          type: string
+          nullable: true
+        mm_vault_pda:
+          type: string
+          nullable: true
+        user_wallet:
+          type: string
+          nullable: true
+        mm_wallet:
+          type: string
+          nullable: true
+        user_stake:
+          type: number
+          description: User's bet amount (USDC)
+        mm_risk:
+          type: number
+          description: Maximum payout owed to user if they win
+        mm_collateral_locked:
+          type: number
+          nullable: true
+          description: Actual MM collateral locked via ILP (may be less than mm_risk)
+        total_payout:
+          type: number
+          description: Total payout amount (user_stake + mm_risk)
+        status:
+          $ref: "#/components/schemas/PositionStatus"
+        create_position_tx:
+          type: string
+          nullable: true
+          description: Transaction that created the on-chain position
+        settle_tx:
+          type: string
+          nullable: true
+          description: Settlement transaction signature
+        cancel_tx:
+          type: string
+          nullable: true
+          description: Cancellation transaction signature
+        close_tx:
+          type: string
+          nullable: true
+          description: Position close transaction signature
+        error:
+          type: string
+          nullable: true
+          description: Last error message if processing failed
+        retry_count:
+          type: integer
+          description: Number of retry attempts
+        created_at:
+          type: string
+          format: date-time
+        settled_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    # -- Existing schemas (updated) -----------------------------------------
+    Market:
+      type: object
+      properties:
+        ticker:
+          type: string
+        event_ticker:
+          type: string
+        series_ticker:
+          type: string
+        title:
+          type: string
+        subtitle:
+          type: string
+        yes_sub_title:
+          type: string
+          nullable: true
+        no_sub_title:
+          type: string
+          nullable: true
+        category:
+          type: string
+        sports_subcategory:
+          type: string
+          nullable: true
+        venue:
+          $ref: "#/components/schemas/Venue"
+        status:
+          type: string
+        yes_bid:
+          type: number
+        yes_ask:
+          type: number
+        no_bid:
+          type: number
+        no_ask:
+          type: number
+        last_price:
+          type: number
+        volume:
+          type: integer
+        volume_24h:
+          type: integer
+        open_interest:
+          type: integer
+        venue_url:
+          type: string
+          nullable: true
+          description: "Canonical market URL regardless of venue (Kalshi or Polymarket)"
+        open_time:
+          type: string
+          format: date-time
+        close_time:
+          type: string
+          format: date-time
+        expiration_time:
+          type: string
+          format: date-time
+
+    MarketEvent:
+      type: object
+      properties:
+        event_ticker:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+        venue:
+          $ref: "#/components/schemas/Venue"
+        image_url:
+          type: string
+          nullable: true
+        markets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Market"
+
+    Leg:
+      type: object
+      properties:
+        leg_index:
+          type: integer
+          description: "Zero-based ordering index for the leg within the RFQ"
+        market_ticker:
+          type: string
+        event_ticker:
+          type: string
+        side:
+          $ref: "#/components/schemas/Side"
+        venue:
+          $ref: "#/components/schemas/Venue"
+        market_title:
+          type: string
+        event_title:
+          type: string
+        current_yes_price:
+          type: number
+          description: "Yes ask price at RFQ creation time, cents (0-100)"
+        current_no_price:
+          type: number
+          description: "No ask price at RFQ creation time, cents (0-100)"
+        outcome:
+          $ref: "#/components/schemas/LegOutcome"
+
+    Rfq:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/RfqStatus"
+        bet_amount:
+          type: number
+        implied_probability:
+          type: number
+        legs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Leg"
+        quotes:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/Quote"
+          description: "null = not requested (fetched without include=quotes). [] = requested but no quotes yet."
+        accepted_quote_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Set once status >= accepted"
+        market_maker_id:
+          type: string
+          nullable: true
+          description: "Set once status >= accepted"
+        # Vault-based position fields
+        position_pda:
+          type: string
+          nullable: true
+          description: "On-chain position address. Set once status >= confirmed."
+        position_status:
+          nullable: true
+          description: "Position status from vault_positions table"
+          allOf:
+            - $ref: "#/components/schemas/PositionStatus"
+        fee_amount:
+          type: number
+          nullable: true
+          description: "Set on settled RFQs only"
+        settlement:
+          nullable: true
+          description: "Set on settled RFQs only"
+          allOf:
+            - $ref: "#/components/schemas/Settlement"
+        settled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Set on settled RFQs only"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    Quote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rfq_id:
+          type: string
+          format: uuid
+        payout_odds:
+          type: number
+        user_cost:
+          type: number
+        mm_cost:
+          type: number
+        total_payout:
+          type: number
+        leg_prices:
+          type: array
+          items:
+            type: object
+            properties:
+              market_ticker:
+                type: string
+              price:
+                type: number
+          description: "Per-leg price snapshot. price is cents (0-100)."
+        status:
+          $ref: "#/components/schemas/QuoteStatus"
+        valid_until:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    QuoteMmView:
+      description: Quote with MM-only fields included
+      allOf:
+        - $ref: "#/components/schemas/Quote"
+        - type: object
+          properties:
+            market_maker_id:
+              type: string
+            mm_wallet_address:
+              type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Privy DID (did:privy:...) - internal identifier, not exposed on public endpoints"
+        username:
+          type: string
+          description: "Display name. Auto-set to wallet address on first login; user can update to 3-20 char alphanumeric via PUT /user/username."
+        email:
+          type: string
+          nullable: true
+        wallet_address:
+          type: string
+          nullable: true
+        approved:
+          type: boolean
+          description: "Set to true when user redeems a valid invite code or is admin-approved"
+        waitlisted:
+          type: boolean
+          description: "Always present. true when approved=false and user is on the waitlist; false otherwise."
+        auto_redeemed:
+          type: boolean
+          description: "Only present when the ?ref param successfully redeemed an invite code in this exact request."
+        airdrop:
+          type: object
+          description: "Only present alongside auto_redeemed: true."
+          properties:
+            success:
+              type: boolean
+            amount:
+              type: integer
+              description: "USDC cents"
+        created_at:
+          type: string
+          format: date-time
+
+    UserStats:
+      type: object
+      properties:
+        total_parlays:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        total_wagered:
+          type: number
+        realized_pnl:
+          type: number
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Null when the user has never settled a trade (no rfq.user_stats row yet)."
+
+    RfqCounts:
+      type: object
+      properties:
+        open:
+          type: integer
+        quoted:
+          type: integer
+        accepted:
+          type: integer
+        confirmed:
+          type: integer
+        executed:
+          type: integer
+          description: "Positions on-chain but not yet resolved. Distinct from total_settled — settled means market resolution + payout distributed."
+        total_settled:
+          type: integer
+        total_cancelled:
+          type: integer
+        total_expired:
+          type: integer
+
+    PortfolioBalance:
+      type: object
+      description: User's vault balance (DB-cached, no RPC). Null when the user has no vault.
+      properties:
+        gross_balance:
+          type: number
+        locked_collateral:
+          type: number
+        free_balance:
+          type: number
+        vault_pda:
+          type: string
+        vault_token_account:
+          type: string
+
+    PortfolioSummary:
+      type: object
+      description: Derived portfolio-level aggregates from active positions.
+      properties:
+        active_count:
+          type: integer
+          description: Number of active (non-terminal) RFQs
+        active_bet_total:
+          type: number
+          description: Sum of bet_amount across active RFQs
+        portfolio_value:
+          type: number
+          description: Gross vault balance (deposited USDC). Does not include unrealized P&L.
+
+    PortfolioData:
+      type: object
+      description: Consolidated portfolio response from GET /user/portfolio.
+      properties:
+        balance:
+          nullable: true
+          description: Null when user has no vault (never traded)
+          allOf:
+            - $ref: "#/components/schemas/PortfolioBalance"
+        stats:
+          $ref: "#/components/schemas/UserStats"
+        counts:
+          $ref: "#/components/schemas/RfqCounts"
+        summary:
+          $ref: "#/components/schemas/PortfolioSummary"
+
+    UserVaultResponse:
+      type: object
+      description: Vault state with active position summaries (GET /user/vault response).
+      properties:
+        vault_pda:
+          type: string
+        vault_token_account:
+          type: string
+        gross_balance:
+          type: number
+        locked_collateral:
+          type: number
+        free_balance:
+          type: number
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VaultPositionSummary"
+
+    VaultPositionSummary:
+      type: object
+      description: Lightweight position summary for the vault response.
+      properties:
+        position_id:
+          type: string
+          description: 16-byte position ID (hex encoded)
+        rfq_id:
+          type: string
+          format: uuid
+        user_stake:
+          type: number
+        mm_risk:
+          type: number
+        total_payout:
+          type: number
+        status:
+          $ref: "#/components/schemas/PositionStatus"
+        created_at:
+          type: string
+          format: date-time
+
+    VaultTransactionResult:
+      type: object
+      description: Response for vault deposit/withdraw operations.
+      properties:
+        tx_signature:
+          type: string
+          description: Solana transaction signature
+        amount:
+          type: number
+          description: USDC amount deposited/withdrawn
+
+    Wallet:
+      type: object
+      properties:
+        address:
+          type: string
+          nullable: true
+          description: "Solana wallet address. Null if no wallet linked."
+        sol_balance:
+          type: number
+        usdc_balance:
+          type: number
+        locked_amount:
+          type: number
+          description: "USDC locked in pre-funded RFQs (escrow flow). TODO: Update to include vault locked_collateral when vault flow is fully live."
+        total_usdc_airdropped:
+          type: number
+          description: "Lifetime devnet USDC received via airdrop"
+        airdrop_remaining:
+          type: number
+          description: "USDC remaining before hitting 1000 lifetime cap"
+
+    DelegationStatus:
+      type: object
+      properties:
+        ready:
+          type: boolean
+          description: "True if a wallet is linked and delegation can proceed"
+        delegated:
+          type: boolean
+          description: "True if TEE wallet delegation is active (server can sign)"
+        address:
+          type: string
+          description: "Solana wallet address (base58). Empty string if no wallet linked."
+        wallet_id:
+          type: string
+          description: "Privy embedded wallet ID (used for delegation API calls)"
+
+    ApiKeyFull:
+      type: object
+      description: Returned on creation only (full key visible once)
+      properties:
+        key:
+          type: string
+        key_prefix:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    ApiKeySummary:
+      type: object
+      properties:
+        key_prefix:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, revoked, expired]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        request_count:
+          type: integer
+
+    InviteCode:
+      type: object
+      properties:
+        code:
+          type: string
+        redeemed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    Suggestion:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        background_image_url:
+          type: string
+          nullable: true
+        legs:
+          type: array
+          items:
+            type: object
+            properties:
+              market_ticker:
+                type: string
+              side:
+                $ref: "#/components/schemas/Side"
+              venue:
+                $ref: "#/components/schemas/Venue"
+        implied_probability:
+          type: number
+
+    ExclusionGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        scope:
+          type: string
+          enum: [event, series]
+        tickers:
+          type: array
+          items:
+            type: string
+        description:
+          type: string
+
+    PnlPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        pnl:
+          type: number
+
+    MmDashboardSummary:
+      type: object
+      properties:
+        total_pnl:
+          type: number
+        total_exposure:
+          type: number
+        active_positions:
+          type: integer
+        pending_quotes:
+          type: integer
+        win_rate:
+          type: number
+        total_trades:
+          type: integer
+        avg_payout_odds:
+          type: number
+
+    MmPosition:
+      type: object
+      description: "MM position view. Now sourced from vault_positions table."
+      properties:
+        position_pda:
+          type: string
+          description: "On-chain position PDA"
+        rfq_id:
+          type: string
+          format: uuid
+        user_stake:
+          type: number
+          description: "User's bet amount (was user_deposit)"
+        mm_risk:
+          type: number
+          description: "MM's maximum risk (was mm_deposit)"
+        mm_collateral_locked:
+          type: number
+          nullable: true
+          description: "Actual collateral locked via ILP"
+        total_payout:
+          type: number
+        status:
+          $ref: "#/components/schemas/PositionStatus"
+        legs:
+          type: array
+          items:
+            type: object
+            properties:
+              market_title:
+                type: string
+              side:
+                $ref: "#/components/schemas/Side"
+              outcome:
+                $ref: "#/components/schemas/LegOutcome"
+        created_at:
+          type: string
+          format: date-time
+
+    Settlement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rfq_id:
+          type: string
+          format: uuid
+        winner:
+          $ref: "#/components/schemas/WinnerSide"
+        payout:
+          type: number
+          description: |
+            Full pot transferred to the winner — equals user_stake + mm_risk
+            (i.e. bet_amount * payout_odds). NOT just the MM-side movement.
+            For MM PnL on a loss, use -(payout - user_stake) = -mm_risk.
+        fee_amount:
+          type: number
+          description: "Protocol fee deducted from the winner's payout."
+        settle_tx:
+          type: string
+        settled_at:
+          type: string
+          format: date-time
+
+    Fee:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rfq_id:
+          type: string
+          format: uuid
+        quote_id:
+          type: string
+          format: uuid
+        user_stake:
+          type: number
+          description: "User's bet amount (was user_deposit)"
+        mm_risk:
+          type: number
+          description: "MM's maximum risk (was mm_deposit)"
+        total_payout:
+          type: number
+        profit:
+          type: number
+        fee_bps:
+          type: integer
+        fee_amount:
+          type: number
+        winner:
+          $ref: "#/components/schemas/WinnerSide"
+        settle_tx:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AdminApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        key_prefix:
+          type: string
+        entity_id:
+          type: string
+          description: Privy DID of the key owner
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, revoked, expired]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        request_count:
+          type: integer
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+        revoked_reason:
+          type: string
+          nullable: true
+
+    FeeRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rfq_id:
+          type: string
+          format: uuid
+          description: "RFQ ticket ID (DB column: parlay_ticket_id)"
+        winner:
+          $ref: "#/components/schemas/WinnerSide"
+        user_stake:
+          type: number
+          description: "User's bet amount (USD)"
+        mm_risk:
+          type: number
+          description: "MM's maximum risk (USD)"
+        total_payout:
+          type: number
+          description: USD
+        fee_amount:
+          type: number
+          description: USD
+        settle_tx:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RfqEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Auto-incrementing event ID (BIGSERIAL)
+        entity_type:
+          type: string
+          enum: [ticket, quote, position]
+          description: "Entity type for audit events"
+        entity_id:
+          type: string
+          format: uuid
+        old_status:
+          type: string
+          nullable: true
+        new_status:
+          type: string
+        triggered_by:
+          type: string
+          description: "e.g. system, user, admin, timeout"
+        context:
+          type: object
+          additionalProperties: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    MmRfqLeg:
+      type: object
+      description: Subset of RfqLeg for MM views - omits display-only fields, adds price snapshot for quoting.
+      required: [leg_index, market_ticker, event_ticker, side, venue, market_title, current_yes_price, current_no_price]
+      properties:
+        leg_index:
+          type: integer
+        market_ticker:
+          type: string
+        event_ticker:
+          type: string
+        side:
+          type: string
+          enum: [yes, no]
+        venue:
+          $ref: "#/components/schemas/Venue"
+        market_title:
+          type: string
+        current_yes_price:
+          type: number
+          description: "Yes/No price at RFQ creation time, cents (0-100)"
+        current_no_price:
+          type: number
+          description: "Yes/No price at RFQ creation time, cents (0-100)"
+
+    MmRfq:
+      type: object
+      description: "Open RFQ visible to market makers."
+      required: [id, user_id, status, bet_amount, implied_probability, expires_at, created_at, legs]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          description: "Privy DID of the submitting user. Intentionally visible to MMs."
+        status:
+          type: string
+          enum: [open]
+          description: "Always open - MMs only see RFQs available for quoting"
+        bet_amount:
+          type: number
+          description: USD
+        implied_probability:
+          type: number
+          description: "Decimal probability (0-1), e.g. 0.18 = 18%"
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        legs:
+          type: array
+          items:
+            $ref: "#/components/schemas/MmRfqLeg"
+
+    ServiceHealth:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy, unknown]
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        last_error_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_count:
+          type: integer
+        consecutive_errors:
+          type: integer
+        total_runs:
+          type: integer
+        metrics:
+          nullable: true
+          type: object
+          properties:
+            last_cycle_duration_ms:
+              type: integer
+              nullable: true
+            last_cycle_queries:
+              type: integer
+              nullable: true
+            avg_cycle_duration_ms:
+              type: integer
+              nullable: true
+            total_cycles_with_metrics:
+              type: integer
+
+    LeaderboardEntry:
+      type: object
+      description: "Public leaderboard row. user_id is intentionally excluded to protect privacy."
+      properties:
+        rank:
+          type: integer
+        username:
+          type: string
+        total_trades:
+          type: integer
+        win_rate:
+          type: number
+        total_pnl:
+          type: number
+        is_current_user:
+          type: boolean
+          description: "True if the authenticated caller matches this entry (requires auth header)"
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+  # =========================================================================
+  # Public
+  # =========================================================================
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Public]
+      summary: Minimal liveness check - for load balancers and uptime monitors
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version, services, timestamp]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  services:
+                    type: object
+                    description: Four externally-observable subsystems. Background service health is in GET /status.
+                    properties:
+                      database:
+                        type: string
+                        enum: [ok, degraded, unhealthy]
+                      solana_rpc:
+                        type: string
+                        enum: [ok, degraded, unhealthy]
+                      market_sync:
+                        type: string
+                        enum: [ok, degraded, unhealthy]
+                      settlement:
+                        type: string
+                        enum: [ok, degraded, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /status:
+    get:
+      operationId: getStatus
+      tags: [Admin]
+      summary: Full internal observability - DB pool, background services, sync state, WS stats
+      security:
+        - AdminKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service_health, version, timestamp]
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                    description: Simple healthy/degraded based on DB availability
+                  service_health:
+                    type: string
+                    enum: [healthy, degraded, unhealthy, unknown]
+                    description: Overall status across all background services
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  db_pool:
+                    type: object
+                    properties:
+                      total_count: { type: integer }
+                      idle_count: { type: integer }
+                      waiting_count: { type: integer }
+                      max_size: { type: integer }
+                  db_bg_pool:
+                    type: object
+                    properties:
+                      total_count: { type: integer }
+                      idle_count: { type: integer }
+                      waiting_count: { type: integer }
+                      max_size: { type: integer }
+                  sync:
+                    type: object
+                    properties:
+                      running:
+                        type: boolean
+                      last_run:
+                        nullable: true
+                        type: object
+                        properties:
+                          started_at: { type: string, format: date-time }
+                          completed_at: { type: string, format: date-time }
+                          duration_ms: { type: integer }
+                          series_succeeded: { type: integer }
+                          series_failed: { type: integer }
+                          total_markets_synced: { type: integer }
+                  websocket:
+                    type: object
+                    additionalProperties: true
+                  services:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ServiceHealth"
+                  fee_payer:
+                    type: object
+                    properties:
+                      sol:
+                        type: number
+                        nullable: true
+                      status:
+                        type: string
+                      rpc_error:
+                        type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /status/sync:
+    get:
+      operationId: getStatusSync
+      tags: [Public]
+      summary: Recent market sync log entries
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                  last_run:
+                    nullable: true
+                    type: object
+                    additionalProperties: true
+                  recent_logs:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  # =========================================================================
+  # Markets
+  # =========================================================================
+  /markets:
+    get:
+      operationId: listMarkets
+      tags: [Markets]
+      summary: List markets grouped by event
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [politics, sports, crypto, economics, entertainment, weather, tech, science]
+        - name: sports_subcategory
+          in: query
+          schema:
+            type: string
+            enum: [nba, nfl, mlb, nhl, soccer, mma, tennis]
+        - name: date_filter
+          in: query
+          description: "Time bucket filter. If omitted, a default 7-day horizon is applied. Pass 'all' to retrieve all active markets regardless of close date."
+          schema:
+            type: string
+            enum: [1h, 1h-1d, 1d-7d, today, this_week, this_month, all]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CursorParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "s-maxage=60, stale-while-revalidate=300"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      events:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/MarketEvent"
+                  meta:
+                    allOf:
+                      - $ref: "#/components/schemas/PaginationMeta"
+                      - type: object
+                        properties:
+                          total_events:
+                            type: integer
+
+  /markets/suggestions:
+    get:
+      operationId: getMarketSuggestions
+      tags: [Markets]
+      summary: Pre-built parlay suggestions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      suggestions:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Suggestion"
+
+  /markets/exclusion-groups:
+    get:
+      operationId: getExclusionGroups
+      tags: [Markets]
+      summary: Leg conflict rules
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      exclusion_groups:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ExclusionGroup"
+                      conflict_mode:
+                        type: string
+
+  /markets/{ticker}:
+    get:
+      operationId: getMarket
+      tags: [Markets]
+      summary: Get single market by ticker
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Market"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # =========================================================================
+  # User
+  # =========================================================================
+  /user/me:
+    get:
+      operationId: getOrCreateUser
+      tags: [User]
+      summary: Get or auto-create user profile
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: ref
+          in: query
+          schema:
+            type: string
+          description: Referral code to auto-redeem on first login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+
+  /user/username:
+    put:
+      operationId: updateUsername
+      tags: [User]
+      summary: Update display name
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 20
+                  pattern: "^[a-zA-Z0-9_]+$"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /user/username/check:
+    get:
+      operationId: checkUsername
+      tags: [User]
+      summary: Check username availability
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      available:
+                        type: boolean
+
+  /user/wallet:
+    get:
+      operationId: getWallet
+      tags: [User]
+      summary: Get wallet balances
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Wallet"
+
+  /user/wallet/delegation-status:
+    get:
+      operationId: getDelegationStatus
+      tags: [User]
+      summary: Check TEE wallet delegation status
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DelegationStatus"
+
+  /user/wallet/blockhash:
+    get:
+      operationId: getBlockhash
+      tags: [User]
+      summary: Latest Solana blockhash for client-side transaction construction
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [blockhash, last_valid_block_height]
+                    properties:
+                      blockhash:
+                        type: string
+                      last_valid_block_height:
+                        type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /user/wallet/submit-tx:
+    post:
+      operationId: submitTransaction
+      tags: [User]
+      summary: Submit a client-signed serialized Solana transaction
+      description: "Rate-limited: 10 requests/min. Used for delegation and other user-signed transactions."
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transaction]
+              properties:
+                transaction:
+                  type: string
+                  description: Base64-encoded serialized Solana transaction
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [signature]
+                    properties:
+                      signature:
+                        type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /user/wallet/airdrop-usdc:
+    post:
+      operationId: airdropUsdc
+      tags: [User]
+      summary: Mint devnet USDC (1000 lifetime cap)
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  default: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      usdc_balance:
+                        type: number
+                      tx_signature:
+                        type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /user/wallet/enable-trading:
+    post:
+      operationId: enableTrading
+      tags: [User]
+      summary: Enable TEE wallet delegation for server-side signing
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/DelegationStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /user/stats:
+    get:
+      operationId: getUserStats
+      tags: [User]
+      summary: Pre-computed user aggregates
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/UserStats"
+
+  /user/rfq-counts:
+    get:
+      operationId: getUserRfqCounts
+      tags: [User]
+      summary: Status breakdown for portfolio tabs
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RfqCounts"
+
+  /user/pnl-chart:
+    get:
+      operationId: getUserPnlChart
+      tags: [User]
+      summary: P&L timeseries for portfolio chart
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1D, 1W, 1M, ALL]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      points:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PnlPoint"
+
+  # =========================================================================
+  # Portfolio
+  # =========================================================================
+  /user/portfolio:
+    get:
+      operationId: getUserPortfolio
+      tags: [User]
+      summary: Consolidated portfolio (balance, stats, counts, summary)
+      description: |
+        Returns the user's full portfolio in a single batched query: vault balance,
+        trading stats, RFQ status counts, and active-bet summary. Balance is null
+        when the user has no vault (never traded).
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/PortfolioData"
+
+  # =========================================================================
+  # Vault
+  # =========================================================================
+  /user/vault:
+    get:
+      operationId: getUserVault
+      tags: [Vault]
+      summary: Get user vault state and active positions
+      description: |
+        Returns the user's vault balance and active positions. Returns data: null
+        (200 OK) if the user has no vault yet (vault is created on first trade).
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK — vault state or null if no vault exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    nullable: true
+                    allOf:
+                      - $ref: "#/components/schemas/UserVaultResponse"
+
+  /user/vault/deposit:
+    post:
+      operationId: depositToVault
+      tags: [Vault]
+      summary: Deposit USDC into vault
+      description: |
+        Deposits USDC into the user's on-chain vault. Requires a linked wallet and
+        an existing vault (created on first trade). Solana integration must be enabled.
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  minimum: 0
+                  exclusiveMinimum: true
+                  maximum: 1000000
+                  description: USDC amount to deposit (max 1,000,000)
+      responses:
+        "200":
+          description: Deposit submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/VaultTransactionResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: No vault found (vault is created on first trade)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Solana integration not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /user/vault/withdraw:
+    post:
+      operationId: withdrawFromVault
+      tags: [Vault]
+      summary: Withdraw USDC from vault
+      description: |
+        Withdraws USDC from the user's on-chain vault. Includes a best-effort
+        free_balance check (on-chain program enforces the real constraint).
+        Requires a linked wallet and an existing vault.
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  minimum: 0
+                  exclusiveMinimum: true
+                  maximum: 1000000
+                  description: USDC amount to withdraw (max 1,000,000)
+      responses:
+        "200":
+          description: Withdrawal submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/VaultTransactionResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: No vault found (vault is created on first trade)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Solana integration not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  # =========================================================================
+  # API Keys
+  # =========================================================================
+  /user/api-keys:
+    post:
+      operationId: createApiKey
+      tags: [API Keys]
+      summary: Create API key
+      security:
+        - PrivyJWT: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created (full key shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ApiKeyFull"
+
+    get:
+      operationId: listApiKeys
+      tags: [API Keys]
+      summary: List API keys
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      keys:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ApiKeySummary"
+
+  /user/api-keys/{prefix}:
+    delete:
+      operationId: revokeApiKey
+      tags: [API Keys]
+      summary: Revoke an API key
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: prefix
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked
+
+  # =========================================================================
+  # RFQs
+  # =========================================================================
+  /rfqs:
+    post:
+      operationId: createRfq
+      tags: [RFQs]
+      summary: Create a new parlay RFQ
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [legs, bet_amount]
+              properties:
+                legs:
+                  type: array
+                  minItems: 2
+                  maxItems: 5
+                  items:
+                    type: object
+                    required: [market_ticker, side, venue]
+                    properties:
+                      market_ticker:
+                        type: string
+                      side:
+                        $ref: "#/components/schemas/Side"
+                      venue:
+                        $ref: "#/components/schemas/Venue"
+                bet_amount:
+                  type: number
+                  minimum: 1
+                  maximum: 50000
+                  description: "USDC amount. Max 50,000. Must not be NaN/Inf."
+                expires_in_seconds:
+                  type: integer
+                  default: 300
+                  minimum: 30
+                  maximum: 86400
+                  description: "RFQ lifetime in seconds. Floor 30s, cap 24h."
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Rfq"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+    get:
+      operationId: listRfqs
+      tags: [RFQs]
+      summary: List user's RFQs
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/RfqStatus"
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [quotes]
+          description: Include quotes array (otherwise null)
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      rfqs:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Rfq"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /rfqs/{id}:
+    get:
+      operationId: getRfq
+      tags: [RFQs]
+      summary: Get RFQ by ID (quotes always populated)
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Rfq"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /rfqs/{id}/cancel:
+    post:
+      operationId: cancelRfq
+      tags: [RFQs]
+      summary: Cancel an open/quoted RFQ
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Cancelled
+
+  /rfqs/{id}/quotes:
+    get:
+      operationId: listRfqQuotes
+      tags: [RFQs]
+      summary: List quotes for an RFQ
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      quotes:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Quote"
+
+  /rfqs/{id}/best-quote:
+    get:
+      operationId: getBestQuote
+      tags: [RFQs]
+      summary: Get best (highest payout) quote for an RFQ
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      best_quote:
+                        $ref: "#/components/schemas/Quote"
+
+  /rfqs/{id}/quotes/{quoteId}/accept:
+    post:
+      operationId: acceptQuote
+      tags: [RFQs]
+      summary: Accept a pending quote
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: accepted
+                      quote_id:
+                        type: string
+                        format: uuid
+                      confirmation_deadline:
+                        type: string
+                        format: date-time
+
+  /rfqs/{id}/quotes/{quoteId}/reject:
+    post:
+      operationId: rejectQuote
+      tags: [RFQs]
+      summary: Reject a pending quote
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: rejected
+                      quote_id:
+                        type: string
+                        format: uuid
+
+  # =========================================================================
+  # Market Maker
+  # =========================================================================
+  /mm/rfqs:
+    get:
+      operationId: listOpenRfqs
+      tags: [Market Maker]
+      summary: Open RFQs available for quoting
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: event_ticker
+          in: query
+          schema:
+            type: string
+        - name: min_bet
+          in: query
+          schema:
+            type: number
+        - name: max_bet
+          in: query
+          schema:
+            type: number
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      rfqs:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/MmRfq"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /mm/quotes:
+    post:
+      operationId: submitQuote
+      tags: [Market Maker]
+      summary: Submit a quote on an RFQ
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rfq_id, payout_odds]
+              properties:
+                rfq_id:
+                  type: string
+                  format: uuid
+                payout_odds:
+                  type: number
+                  minimum: 1.01
+                  maximum: 1000.0
+                  description: "Multiplier (1.01–1000x). Must not be NaN/Inf."
+                valid_for_seconds:
+                  type: integer
+                  minimum: 10
+                  maximum: 3600
+                  description: "Quote validity window. 10s–1h. Optional, defaults to 60s."
+                leg_prices:
+                  type: array
+                  items:
+                    type: object
+                    required: [market_ticker, price]
+                    properties:
+                      market_ticker:
+                        type: string
+                      price:
+                        type: number
+                        minimum: 0
+                        maximum: 100
+                        description: Cents (0-100)
+                  description: "Optional per-leg price snapshot."
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/QuoteMmView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    get:
+      operationId: listMmQuotes
+      tags: [Market Maker]
+      summary: List MM's quotes
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/QuoteStatus"
+        - name: rfq_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      quotes:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/QuoteMmView"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /mm/quotes/{quoteId}/confirm:
+    post:
+      operationId: confirmQuote
+      tags: [Market Maker]
+      summary: Confirm accepted quote, triggers vault position creation
+      description: |
+        When MM confirms, a vault position record is created in pending state.
+        The vault-job-service then processes it asynchronously to create the
+        on-chain position atomically (single TX with both user and MM deposits).
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: confirmed
+                      quote_id:
+                        type: string
+                        format: uuid
+                      execution_id:
+                        type: string
+                        format: uuid
+
+  /mm/quotes/{quoteId}/withdraw:
+    post:
+      operationId: withdrawQuote
+      tags: [Market Maker]
+      summary: Withdraw a pending quote
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: withdrawn
+
+  /mm/dashboard/summary:
+    get:
+      operationId: getMmSummary
+      tags: [Market Maker]
+      summary: MM dashboard summary
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MmDashboardSummary"
+
+  /mm/dashboard/pnl:
+    get:
+      operationId: getMmPnl
+      tags: [Market Maker]
+      summary: MM P&L timeseries
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      timeseries:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date:
+                              type: string
+                              format: date
+                            daily_pnl:
+                              type: number
+                            cumulative:
+                              type: number
+
+  /mm/dashboard/positions:
+    get:
+      operationId: getMmPositions
+      tags: [Market Maker]
+      summary: MM active vault positions
+      description: |
+        Returns active positions from the vault_positions table.
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      positions:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/MmPosition"
+
+  /mm/dashboard/history:
+    get:
+      operationId: getMmHistory
+      tags: [Market Maker]
+      summary: MM settlement history
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      parameters:
+        - name: winner
+          in: query
+          schema:
+            $ref: "#/components/schemas/WinnerSide"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      settlements:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Settlement"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  # =========================================================================
+  # Leaderboard
+  # =========================================================================
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [Leaderboard]
+      summary: Public leaderboard
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, all]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      leaderboard:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/LeaderboardEntry"
+                      period:
+                        type: string
+                      total_users:
+                        type: integer
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  # =========================================================================
+  # Invite Codes
+  # =========================================================================
+  /user/redeem-invite:
+    post:
+      operationId: redeemInvite
+      tags: [Invites]
+      summary: Redeem an invite code
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      approved:
+                        type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /user/waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [Invites]
+      summary: Join waitlist
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "204":
+          description: Added to waitlist
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /user/invite-codes:
+    get:
+      operationId: listInviteCodes
+      tags: [Invites]
+      summary: List user's invite codes
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      codes:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/InviteCode"
+                      remaining:
+                        type: integer
+
+    post:
+      operationId: generateInviteCode
+      tags: [Invites]
+      summary: Generate invite code (max 2 per user)
+      security:
+        - PrivyJWT: []
+        - ApiKey: []
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InviteCode"
+
+  # =========================================================================
+  # Admin
+  # =========================================================================
+  /admin/api-keys:
+    post:
+      operationId: adminCreateApiKey
+      tags: [Admin]
+      summary: Create an API key for a user
+      security:
+        - AdminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entity_id, name]
+              properties:
+                entity_id:
+                  type: string
+                  description: Privy DID of the target user
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                        description: Full key - shown once only
+                      key_prefix:
+                        type: string
+                      name:
+                        type: string
+                      created_at:
+                        type: string
+                        format: date-time
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      operationId: adminListApiKeys
+      tags: [Admin]
+      summary: List API keys
+      security:
+        - AdminKey: []
+      parameters:
+        - name: entity_id
+          in: query
+          description: Filter by Privy DID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      keys:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AdminApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/api-keys/{prefix}:
+    get:
+      operationId: adminGetApiKey
+      tags: [Admin]
+      summary: Get API key detail by prefix
+      security:
+        - AdminKey: []
+      parameters:
+        - name: prefix
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/AdminApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: adminRevokeApiKey
+      tags: [Admin]
+      summary: Revoke an API key
+      security:
+        - AdminKey: []
+      parameters:
+        - name: prefix
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "204":
+          description: Revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/fees:
+    get:
+      operationId: listFees
+      tags: [Admin]
+      summary: List fee records
+      security:
+        - AdminKey: []
+      parameters:
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: winner
+          in: query
+          schema:
+            $ref: "#/components/schemas/WinnerSide"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fees:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Fee"
+                      total_count:
+                        type: integer
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/fees/summary:
+    get:
+      operationId: getFeeSummary
+      tags: [Admin]
+      summary: Aggregate fee stats
+      security:
+        - AdminKey: []
+      parameters:
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total_fees:
+                        type: number
+                      total_count:
+                        type: integer
+                      user_wins_count:
+                        type: integer
+                      mm_wins_count:
+                        type: integer
+                      avg_fee:
+                        type: number
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/fees/{ticketId}:
+    get:
+      operationId: getFeeByTicket
+      tags: [Admin]
+      summary: Fee record for a specific RFQ
+      security:
+        - AdminKey: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fee:
+                        $ref: "#/components/schemas/FeeRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/settlements/run:
+    post:
+      operationId: runSettlement
+      tags: [Admin]
+      summary: Ingest market results and trigger settlement
+      security:
+        - AdminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [results]
+              properties:
+                results:
+                  type: array
+                  items:
+                    type: object
+                    required: [ticker, venue, result]
+                    properties:
+                      ticker:
+                        type: string
+                      venue:
+                        $ref: "#/components/schemas/Venue"
+                      result:
+                        type: string
+                        enum: ["yes", "no", "invalid"]
+                      resolved_at:
+                        type: string
+                        format: date-time
+                      source:
+                        type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      upserted:
+                        type: integer
+                      tickers:
+                        type: array
+                        items:
+                          type: string
+                      summary:
+                        type: object
+                        properties:
+                          settled:
+                            type: integer
+                          skipped:
+                            type: integer
+                          errors:
+                            type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/positions:
+    get:
+      operationId: listPositions
+      tags: [Admin]
+      summary: List vault positions
+      security:
+        - AdminKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/PositionStatus"
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/CursorParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      positions:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VaultPosition"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/positions/{pda}:
+    get:
+      operationId: getPosition
+      tags: [Admin]
+      summary: Get position detail by on-chain PDA
+      security:
+        - AdminKey: []
+      parameters:
+        - name: pda
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/VaultPosition"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/positions/{pda}/settle:
+    post:
+      operationId: manualSettlePosition
+      tags: [Admin]
+      summary: Manually settle a vault position
+      security:
+        - AdminKey: []
+      parameters:
+        - name: pda
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [winner]
+              properties:
+                winner:
+                  $ref: "#/components/schemas/WinnerSide"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: settled_win
+                      winner:
+                        $ref: "#/components/schemas/WinnerSide"
+                      tx_signature:
+                        type: string
+                      close_tx:
+                        type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/positions/{pda}/cancel:
+    post:
+      operationId: cancelPosition
+      tags: [Admin]
+      summary: Cancel a vault position
+      security:
+        - AdminKey: []
+      parameters:
+        - name: pda
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: cancelled
+                      reason:
+                        type: string
+                      cancel_tx:
+                        type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/rfqs/{id}/events:
+    get:
+      operationId: getRfqEvents
+      tags: [Admin]
+      summary: Full audit log of state transitions for an RFQ
+      description: "Covers the ticket, associated quotes, and position events. Use for support, debugging stuck positions, and compliance."
+      security:
+        - AdminKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      events:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/RfqEvent"
+                      count:
+                        type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/invite-codes/generate:
+    post:
+      operationId: adminGenerateInviteCodes
+      tags: [Admin]
+      summary: Bulk generate invite codes
+      security:
+        - AdminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count:
+                  type: integer
+                label:
+                  type: string
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      codes:
+                        type: array
+                        items:
+                          type: string
+                      count:
+                        type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/invite-codes:
+    get:
+      operationId: adminListInviteCodes
+      tags: [Admin]
+      summary: List all invite codes
+      security:
+        - AdminKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [available, redeemed]
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      codes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                            source:
+                              type: string
+                            source_label:
+                              type: string
+                              nullable: true
+                            redeemed_by:
+                              type: string
+                              nullable: true
+                            created_at:
+                              type: string
+                              format: date-time
+                      count:
+                        type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/waitlist:
+    get:
+      operationId: adminListWaitlist
+      tags: [Admin]
+      summary: List waitlisted users
+      security:
+        - AdminKey: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      waitlist:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            privy_id:
+                              type: string
+                            email:
+                              type: string
+                              nullable: true
+                            created_at:
+                              type: string
+                              format: date-time
+                      count:
+                        type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/waitlist/{privyId}/approve:
+    post:
+      operationId: approveWaitlistUser
+      tags: [Admin]
+      summary: Approve a waitlisted user
+      security:
+        - AdminKey: []
+      parameters:
+        - name: privyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: approved
+                      privy_id:
+                        type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/airdrop-usdc:
+    post:
+      operationId: adminAirdropUsdc
+      tags: [Admin]
+      summary: Airdrop USDC to a user (admin override)
+      security:
+        - AdminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, amount]
+              properties:
+                user_id:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      usdc_balance:
+                        type: number
+                      tx_signature:
+                        type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+# ---------------------------------------------------------------------------
+# WebSocket Contract (informational - not expressible in OpenAPI 3.0)
+# See plan/06-api-contract-vault.md for the full WS contract including:
+# - Channel authorization rules
+# - Per-channel sequence numbers (seq field on all events)
+# - Full event taxonomy with payload shapes
+# - Resync protocol for reconnection recovery
+# ---------------------------------------------------------------------------
+#
+# Endpoint: ws://localhost:8080/ws (dev) | wss://api.totalis.com/ws (prod)
+#
+# Authentication (both methods supported):
+#   { "type": "auth", "api_key": "<your_api_key>" }
+#   { "type": "auth", "token": "<privy_jwt>" }
+#
+# Channels:
+#   rfqs:open          - All open RFQs (market makers)
+#   rfq:{rfq_id}       - Updates on a specific RFQ (RFQ creator only)
+#   mm:quotes:{mm_id}  - Quote status updates for a specific MM
+#
+# Server → Client event types (colon-delimited, not underscore):
+#   auth:success, auth:error
+#   subscribed, unsubscribed
+#   rfq:created, rfq:status, rfq:cancelled, rfq:expired
+#   quote:submitted, quote:accepted, quote:confirmed, quote:executed
+#   quote:rejected, quote:expired, quote:withdrawn
+#
+#   Position lifecycle events:
+#   position:created    - Position created on-chain (status: active)
+#   position:settled    - Position settled (status: settled_win | settled_loss)
+#   position:cancelled  - Position cancelled (status: cancelled)
+#   position:failed     - Single creation attempt failed (retryable, status stays pending)
+#   position:error      - Retries exhausted (terminal, status: error, needs manual intervention)
+#
+#   pong, error
+#
+# All server events include: type, seq, channel, timestamp
+# seq is per-channel monotonically increasing - used for dedup and ordering.
