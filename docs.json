@@ -21,7 +21,8 @@
               "guides/authentication",
               "guides/lifecycle",
               "guides/vault-architecture",
-              "guides/websocket"
+              "guides/websocket",
+              "terms-of-service"
             ]
           }
         ]
