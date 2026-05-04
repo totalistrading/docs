@@ -114,7 +114,18 @@
     "socials": {
       "x": "https://x.com/totalistrading",
       "github": "https://github.com/totalistrading"
-    }
+    },
+    "links": [
+      {
+        "header": "Legal",
+        "items": [
+          {
+            "label": "Terms of Service",
+            "href": "/terms-of-service"
+          }
+        ]
+      }
+    ]
   },
   "openapi": ["/api-reference/openapi.json"],
   "seo": {
