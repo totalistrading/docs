@@ -24,6 +24,14 @@
               "guides/websocket",
               "terms-of-service"
             ]
+          },
+          {
+            "group": "Vault v2.1 Specification",
+            "pages": [
+              "guides/vault-api-contract",
+              "guides/vault-openapi-reference",
+              "guides/vault-backend-schema"
+            ]
           }
         ]
       },
