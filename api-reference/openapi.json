@@ -330,7 +330,7 @@
       "post": {
         "operationId": "submitQuote",
         "summary": "Submit Quote",
-        "description": "Submit a quote on an open RFQ. `payout_odds` is the multiplier applied to the bettor's `bet_amount` to compute the total payout if the parlay wins; the MM's max risk is `bet_amount * (payout_odds - 1)`. `leg_prices` is an optional per-leg price snapshot where `leg_odds` is in cents (0-100). `Idempotency-Key` is honored for safe retries.",
+        "description": "Submit a quote on an open RFQ. `payout_odds` is the multiplier applied to the bettor's `bet_amount` to compute the total payout if the parlay wins; the MM's max risk is `bet_amount * (payout_odds - 1)`. `leg_prices` is an optional per-leg price snapshot where `leg_odds` is a decimal (0-1). `Idempotency-Key` is honored for safe retries.",
         "tags": ["Market Maker"],
         "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
         "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
@@ -344,8 +344,8 @@
                 "payout_odds": 4.0,
                 "valid_for_seconds": 60,
                 "leg_prices": [
-                  { "leg_id": "9c0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 50 },
-                  { "leg_id": "5a0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 50 }
+                  { "leg_id": "9c0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 0.50 },
+                  { "leg_id": "5a0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 0.50 }
                 ]
               }
             }
@@ -523,7 +523,7 @@
                       "properties": {
                         "events": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/MarketEvent" }
+                          "items": { "$ref": "#/components/schemas/EventGroup" }
                         }
                       }
                     },
@@ -1182,7 +1182,7 @@
           "expiration_time": { "type": "string", "format": "date-time" }
         }
       },
-      "MarketEvent": {
+      "EventGroup": {
         "type": "object",
         "required": ["event_ticker", "series_ticker", "category", "total_markets", "markets"],
         "properties": {
@@ -1214,9 +1214,8 @@
       },
       "Leg": {
         "type": "object",
-        "required": ["leg_index", "market_ticker", "event_ticker", "side", "venue", "market_title"],
+        "required": ["market_ticker", "event_ticker", "side", "venue", "market_title"],
         "properties": {
-          "leg_index": { "type": "integer", "description": "Zero-based ordering of the leg within the RFQ." },
           "market_ticker": { "type": "string" },
           "event_ticker": { "type": "string" },
           "side": { "$ref": "#/components/schemas/Side" },
@@ -1228,8 +1227,8 @@
           "venue_url": { "type": "string", "nullable": true, "description": "Canonical URL of the leg's market on its venue." },
           "image_url": { "type": "string", "nullable": true, "description": "Image URL for the leg's market." },
           "expected_expiration_time": { "type": "string", "format": "date-time", "nullable": true, "description": "Expected market resolution time for the leg." },
-          "current_yes_price": { "type": "number", "description": "Yes ask price at RFQ creation, cents (0-100)." },
-          "current_no_price": { "type": "number", "description": "No ask price at RFQ creation, cents (0-100)." },
+          "current_yes_price": { "type": "number", "description": "Yes ask price at RFQ creation, decimal (0-1)." },
+          "current_no_price": { "type": "number", "description": "No ask price at RFQ creation, decimal (0-1)." },
           "outcome": { "$ref": "#/components/schemas/LegOutcome" }
         }
       },
@@ -1288,16 +1287,15 @@
       "MmRfqLeg": {
         "type": "object",
         "description": "Subset of a leg surfaced to market makers — drops display-only fields, keeps the price snapshot needed for quoting.",
-        "required": ["leg_index", "market_ticker", "event_ticker", "side", "venue", "market_title", "current_yes_price", "current_no_price"],
+        "required": ["market_ticker", "event_ticker", "side", "venue", "market_title", "current_yes_price", "current_no_price"],
         "properties": {
-          "leg_index": { "type": "integer" },
           "market_ticker": { "type": "string" },
           "event_ticker": { "type": "string" },
           "side": { "$ref": "#/components/schemas/Side" },
           "venue": { "$ref": "#/components/schemas/Venue" },
           "market_title": { "type": "string" },
-          "current_yes_price": { "type": "number", "description": "Yes price at RFQ creation, cents (0-100)." },
-          "current_no_price": { "type": "number", "description": "No price at RFQ creation, cents (0-100)." }
+          "current_yes_price": { "type": "number", "description": "Yes price at RFQ creation, decimal (0-1)." },
+          "current_no_price": { "type": "number", "description": "No price at RFQ creation, decimal (0-1)." }
         }
       },
       "MmRfq": {
@@ -1329,13 +1327,13 @@
           "total_payout": { "type": "number", "description": "Total payout on a win = `user_cost + mm_cost`." },
           "leg_prices": {
             "type": "array",
-            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is in cents (0–100).\n\n**Field-name asymmetry**: the value is sent as `odds` on `SubmitQuoteRequest.leg_prices[]` and returned as `leg_odds` here. Clients that round-trip a quote must rename the field on read.",
+            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is a decimal (0-1).",
             "items": {
               "type": "object",
               "required": ["leg_id", "leg_odds"],
               "properties": {
                 "leg_id": { "type": "string", "format": "uuid" },
-                "leg_odds": { "type": "number", "description": "Implied per-leg price in cents (0–100). Same value as `SubmitQuoteRequest.leg_prices[].odds`." }
+                "leg_odds": { "type": "number", "description": "Implied per-leg price, decimal (0-1)." }
               }
             }
           },
@@ -1422,13 +1420,13 @@
           },
           "leg_prices": {
             "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, leg_odds }` where `leg_odds` is in cents (0-100).",
+            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, leg_odds }` where `leg_odds` is a decimal (0-1).",
             "items": {
               "type": "object",
               "required": ["leg_id", "leg_odds"],
               "properties": {
                 "leg_id": { "type": "string", "format": "uuid" },
-                "leg_odds": { "type": "number", "minimum": 0, "maximum": 100, "description": "Implied per-leg price in cents (0-100)." }
+                "leg_odds": { "type": "number", "minimum": 0, "maximum": 1, "description": "Implied per-leg price, decimal (0-1)." }
               }
             }
           }
