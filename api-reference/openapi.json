@@ -1003,7 +1003,7 @@
       "IdempotencyKey": {
         "name": "Idempotency-Key",
         "in": "header",
-        "description": "Client-generated UUID. Cached 2xx responses are replayed within a 24h TTL when the same key + body is presented.",
+        "description": "Client-generated UUID. Successful (2xx) responses are cached for 24h and replayed on retry with the same key. The request body is not part of the cache key — use a fresh UUID whenever the payload differs (e.g. updated odds), otherwise the original response is replayed. Non-2xx responses are not cached.",
         "schema": { "type": "string", "format": "uuid" }
       }
     },
