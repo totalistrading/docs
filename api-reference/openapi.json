@@ -551,7 +551,8 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -1213,6 +1214,7 @@
       },
       "Leg": {
         "type": "object",
+        "required": ["leg_index", "market_ticker", "event_ticker", "side", "venue", "market_title"],
         "properties": {
           "leg_index": { "type": "integer", "description": "Zero-based ordering of the leg within the RFQ." },
           "market_ticker": { "type": "string" },
@@ -1233,6 +1235,17 @@
       },
       "Rfq": {
         "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "legs",
+          "bet_amount",
+          "implied_probability",
+          "created_at",
+          "updated_at",
+          "expires_at"
+        ],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "user_id": { "type": "string", "description": "Privy DID of the bettor." },
@@ -1316,13 +1329,13 @@
           "total_payout": { "type": "number", "description": "Total payout on a win = `user_cost + mm_cost`." },
           "leg_prices": {
             "type": "array",
-            "description": "Per-leg price snapshot. `leg_odds` is in cents (0–100).",
+            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is in cents (0–100).\n\n**Field-name asymmetry**: the value is sent as `odds` on `SubmitQuoteRequest.leg_prices[]` and returned as `leg_odds` here. Clients that round-trip a quote must rename the field on read.",
             "items": {
               "type": "object",
               "required": ["leg_id", "leg_odds"],
               "properties": {
                 "leg_id": { "type": "string", "format": "uuid" },
-                "leg_odds": { "type": "number" }
+                "leg_odds": { "type": "number", "description": "Implied per-leg price in cents (0–100). Same value as `SubmitQuoteRequest.leg_prices[].odds`." }
               }
             }
           },
@@ -1409,13 +1422,13 @@
           },
           "leg_prices": {
             "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is in cents (0-100). Note the request uses `odds`; the response (`Quote.leg_prices`) returns the same value under `leg_odds`.",
+            "description": "Optional per-leg price snapshot the market maker captured at submit time. Each entry is `{ leg_id, odds }` where `odds` is in cents (0–100).\n\n**Field-name asymmetry — read carefully.** The request uses `odds`; the same value is surfaced on the response (`Quote.leg_prices[].leg_odds`) under the key **`leg_odds`**. This is intentional today and reflects the underlying `rfq.quote_leg_prices.implied_price` column; clients that round-trip a quote must rename the field on read. Tracked for unification in a future backend release.",
             "items": {
               "type": "object",
               "required": ["leg_id", "odds"],
               "properties": {
                 "leg_id": { "type": "string", "format": "uuid" },
-                "odds": { "type": "number", "minimum": 0, "maximum": 100 }
+                "odds": { "type": "number", "minimum": 0, "maximum": 100, "description": "Implied per-leg price in cents (0–100)." }
               }
             }
           }
@@ -1433,7 +1446,7 @@
               "confirmation_deadline": {
                 "type": "string",
                 "format": "date-time",
-                "description": "Deadline by which the market maker must confirm. After this point the system reverts the RFQ and the quote moves to `rejected`."
+                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
               }
             }
           }

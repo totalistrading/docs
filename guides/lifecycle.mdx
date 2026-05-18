@@ -9,9 +9,17 @@ An RFQ (Request for Quote) goes through several stages from creation to on-chain
 
 ```
 open → quoted → accepted → confirmed → executed → settled
-  ↓       ↓        ↓
-expired  cancelled  (MM fails to confirm in time → cancelled)
+  ↓       ↓        │
+  │       │        ├─ MM misses deadline, RFQ still within expires_at → open  (quote → withdrawn)
+  │       │        └─ MM misses deadline, RFQ past expires_at        → expired (quote → expired)
+expired  cancelled
 ```
+
+A few status nuances worth knowing:
+
+- **`rejected` (quotes)** never comes from a missed confirmation. It's set on sibling pending quotes when the user accepts a different one on the same RFQ, and on the target quote of `POST /rfqs/{id}/quotes/{quoteId}/reject`.
+- **`withdrawn` (quotes)** covers MM-initiated cancellation of a pending quote, and is also what the system writes back onto the previously-accepted quote when the MM misses confirmation and the RFQ reopens.
+- **`expired` (quotes)** is used for pending quotes whose own `valid_until` lapses, and for the accepted quote when the RFQ itself expires.
 
 ## Step-by-Step Flow
 
@@ -63,7 +71,7 @@ expired  cancelled  (MM fails to confirm in time → cancelled)
     POST /rfqs/<rfq-id>/quotes/<quote-id>/accept
     ```
 
-    This rejects all other pending quotes and returns a `confirmation_deadline` — the timestamp by which the market maker must confirm. If the MM does not confirm in time, the RFQ is reverted and the quote moves to `rejected`.
+    Any other pending quotes on the same RFQ move to `rejected`. The response returns a `confirmation_deadline` — the timestamp by which the market maker must confirm.
 
     **Status: `accepted`**
   </Step>
@@ -75,7 +83,12 @@ expired  cancelled  (MM fails to confirm in time → cancelled)
     POST /mm/quotes/<quote-id>/confirm
     ```
 
-    **Status: `confirmed`**
+    If the MM misses the deadline, the RFQ expiry sweep handles it based on the RFQ's own `expires_at`:
+
+    - **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote it again) and the accepted quote becomes `withdrawn`.
+    - **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.
+
+    **Status (on successful confirm): `confirmed`**
   </Step>
 
   <Step title="On-Chain Vault Position Creation">
@@ -118,4 +131,4 @@ Two background services manage the vault position lifecycle:
 | Payout odds | 1.01× – 1000× |
 | RFQ expiration | 30 s – 24 h (default 300 s) |
 | Quote validity | 10 s – 1 h (default 60 s) |
-| MM confirmation window | Returned in the `Accept Quote` response as `confirmation_deadline` |
+| MM confirmation window | Server-controlled; returned on the `Accept Quote` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
