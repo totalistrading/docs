@@ -1,5 +1,5 @@
 ---
 title: 'Cancel RFQ'
-description: 'Cancel an open or quoted RFQ on Totalis. Cannot cancel accepted, confirmed, or executed RFQs'
-openapi: 'DELETE /rfqs/{id}'
+description: 'Cancel an open or quoted RFQ on Totalis. Returns 204 on success; RFQs that are already accepted, confirmed, executed, settled, expired, or cancelled return 409 Conflict.'
+openapi: 'POST /rfqs/{id}/cancel'
 ---

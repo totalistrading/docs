@@ -1,5 +1,5 @@
 ---
 title: 'Submit Transaction'
-description: 'Submit a signed Solana transaction via Totalis. Accepts base64-encoded transactions for browser clients'
+description: 'Submit a client-signed serialized Solana transaction (base64). Used by browser flows that do not have direct RPC access. Rate-limited to 10 requests/minute.'
 openapi: 'POST /user/wallet/submit-tx'
 ---

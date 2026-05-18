@@ -1,9 +1,14 @@
 ---
 title: 'Authentication'
-description: 'How to generate and use API keys for the Totalis REST API and WebSocket, including key format and authentication headers'
+description: 'How to authenticate against the Totalis REST API and WebSocket — API keys for programmatic clients and Privy JWTs for the web dashboard.'
 ---
 
-The Totalis API uses API keys for authentication. API keys work for both REST API calls and WebSocket connections.
+The Totalis API accepts two authentication schemes:
+
+- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header. Works on both REST and WebSocket.
+- **Privy JWT** — used by the web dashboard. Sent as `Authorization: Bearer <jwt>`. The session signer underpinning the JWT also signs vault transactions in the browser.
+
+Either scheme is accepted on every authenticated endpoint, with one exception: `POST /user/api-keys` (create a new API key) requires a Privy JWT. You cannot mint new API keys with an existing API key.
 
 ## Getting Your API Key
 
@@ -20,11 +25,11 @@ Generate an API key from the [Totalis Dashboard](https://app.totalis.trade):
 
 ## Using Your API Key
 
-Send your API key in the `TOTALIS_API_KEY` header with every request:
+Send your API key in the `X-API-Key` header with every request:
 
 ```bash
 curl -X GET https://api.totalis.trade/rfqs \
-  -H "TOTALIS_API_KEY: api_live_abc123def456ghi789"
+  -H "X-API-Key: <your-api-key>"
 ```
 
 For WebSocket connections, authenticate after connecting:
@@ -32,28 +37,22 @@ For WebSocket connections, authenticate after connecting:
 ```json
 {
   "type": "auth",
-  "api_key": "api_live_abc123def456ghi789"
+  "api_key": "<your-api-key>"
 }
 ```
 
-## Key Format
-
-| Component | Example | Description |
-|-----------|---------|-------------|
-| Prefix | `api_live_` | Environment indicator (`live` or `test`) |
-| Secret | `abc123def456...` | Random secret portion |
-| Full key | `api_live_abc123def456ghi789` | Complete key for authentication |
-
 ## Managing API Keys
 
-You can list your existing API keys programmatically:
+You can list, create, and revoke API keys programmatically:
 
 - **List keys** — `GET /user/api-keys`
+- **Create key** — `POST /user/api-keys` (requires Privy JWT)
+- **Revoke key** — `DELETE /user/api-keys/{prefix}`
 
-To create or revoke keys, use the [Totalis Dashboard](https://app.totalis.trade).
+You can also manage keys from the [Totalis Dashboard](https://app.totalis.trade).
 
 ## Key Lifecycle
 
-- **Active** — Key is valid and can be used for authentication
-- **Revoked** — Key has been manually revoked and will be rejected
-- **Expired** — Key has passed its expiration date
+- **Active** — Key is valid and can be used for authentication.
+- **Revoked** — Key has been manually revoked and will be rejected.
+- **Expired** — Key has passed its expiration date.

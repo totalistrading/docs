@@ -19,7 +19,7 @@ After connecting, send an auth message with your API key:
 ```json
 {
   "type": "auth",
-  "api_key": "api_live_xxxxxxxxxxxxxxxxxxxxx"
+  "api_key": "<your-api-key>"
 }
 ```
 
@@ -112,7 +112,7 @@ ws.onopen = () => {
   // Authenticate
   ws.send(JSON.stringify({
     type: 'auth',
-    api_key: 'api_live_xxxxxxxxxxxxxxxxxxxxx'
+    api_key: '<your-api-key>'
   }));
 };
 
@@ -132,8 +132,8 @@ ws.onmessage = (event) => {
       break;
 
     case 'quote:accepted':
-      console.log('Quote accepted, confirming...');
-      // Confirm the quote within 5 seconds
+      console.log('Quote accepted, confirming before', msg.data.confirmation_deadline);
+      // Confirm before confirmation_deadline (server-controlled)
       break;
   }
 };

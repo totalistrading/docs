@@ -1,5 +1,5 @@
 ---
 title: 'Confirm Quote'
-description: 'Confirm an accepted quote on Totalis to trigger on-chain Solana vault position creation'
-openapi: 'PUT /mm/quotes/{quoteId}/confirm'
+description: 'Confirm an accepted quote on Totalis. Queues an atomic Solana transaction that locks the bettor stake and the MM collateral in their persistent vaults.'
+openapi: 'POST /mm/quotes/{quoteId}/confirm'
 ---
