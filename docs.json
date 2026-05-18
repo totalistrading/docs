@@ -69,19 +69,18 @@
               "api-reference/user/get-profile",
               "api-reference/user/update-username",
               "api-reference/user/check-username",
-              "api-reference/user/list-api-keys",
               "api-reference/user/get-wallet",
               "api-reference/user/airdrop-sol",
-              "api-reference/user/airdrop-usdc",
               "api-reference/user/get-blockhash",
               "api-reference/user/submit-tx"
             ]
           },
           {
-            "group": "Status",
+            "group": "API Keys",
             "pages": [
-              "api-reference/status/health",
-              "api-reference/status/sync"
+              "api-reference/user/list-api-keys",
+              "api-reference/user/create-api-key",
+              "api-reference/user/revoke-api-key"
             ]
           }
         ]
