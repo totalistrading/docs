@@ -1414,9 +1414,9 @@
           "valid_for_seconds": {
             "type": "integer",
             "minimum": 10,
-            "maximum": 3600,
+            "maximum": 600,
             "default": 60,
-            "description": "Quote validity window. 10s – 1h. Defaults to 60s."
+            "description": "Quote validity window. 10s – 10min. Defaults to 60s."
           },
           "leg_prices": {
             "type": "array",
