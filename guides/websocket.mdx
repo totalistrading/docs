@@ -85,7 +85,7 @@ Position events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a spec
 | Event | Description | Data |
 |-------|-------------|------|
 | `position:created` | Position PDA created, collateral locked in vaults | `{ rfq_id, position_pda, timestamp }` |
-| `position:settled` | Position settled with outcome | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
+| `position:settled` | Position settled with outcome | `{ rfq_id, position_pda, outcome, tx_signature, quote_id, timestamp }` |
 | `position:cancelled` | Position cancelled, collateral unlocked | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error | `{ rfq_id, error, timestamp }` |
 
