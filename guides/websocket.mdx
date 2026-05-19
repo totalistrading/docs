@@ -80,7 +80,7 @@ After authenticating, subscribe to channels to receive events:
 
 ### Position Events
 
-Position events are delivered on the `rfq:{rfq_id}` channel (RFQ owner only). `position:created`, `position:failed`, and `position:error` are also sent to the MM's `mm:quotes:{mm_id}` channel. `position:settled` and `position:cancelled` are currently only sent to the RFQ owner.
+Position events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a specific RFQ's channel to receive its position lifecycle updates. Status and error events are also sent to the MM's `mm:quotes:{mm_id}` channel.
 
 | Event | Description | Data |
 |-------|-------------|------|

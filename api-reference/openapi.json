@@ -330,7 +330,7 @@
       "post": {
         "operationId": "submitQuote",
         "summary": "Submit Quote",
-        "description": "Submit a quote on an open RFQ. `payout_odds` is the multiplier applied to the bettor's `bet_amount` to compute the total payout if the parlay wins; the MM's max risk is `bet_amount * (payout_odds - 1)`. `leg_prices` is an optional per-leg price snapshot where `leg_odds` is in cents (0-100). `Idempotency-Key` is honored for safe retries.",
+        "description": "Submit a quote on an open RFQ. `payout_odds` is the multiplier applied to the bettor's `bet_amount` to compute the total payout if the parlay wins; the MM's max risk is `bet_amount * (payout_odds - 1)`. `leg_prices` is an optional per-leg price snapshot where `leg_odds` is a decimal (0-1). `Idempotency-Key` is honored for safe retries.",
         "tags": ["Market Maker"],
         "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
         "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
@@ -344,8 +344,8 @@
                 "payout_odds": 4.0,
                 "valid_for_seconds": 60,
                 "leg_prices": [
-                  { "leg_id": "9c0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 50 },
-                  { "leg_id": "5a0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 50 }
+                  { "leg_id": "9c0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 0.50 },
+                  { "leg_id": "5a0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "leg_odds": 0.50 }
                 ]
               }
             }
@@ -1327,13 +1327,13 @@
           "total_payout": { "type": "number", "description": "Total payout on a win = `user_cost + mm_cost`." },
           "leg_prices": {
             "type": "array",
-            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is in cents (0-100).",
+            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is a decimal (0-1).",
             "items": {
               "type": "object",
               "required": ["leg_id", "leg_odds"],
               "properties": {
                 "leg_id": { "type": "string", "format": "uuid" },
-                "leg_odds": { "type": "number", "description": "Implied per-leg price, cents (0-100)." }
+                "leg_odds": { "type": "number", "description": "Implied per-leg price, decimal (0-1)." }
               }
             }
           },
@@ -1414,19 +1414,19 @@
           "valid_for_seconds": {
             "type": "integer",
             "minimum": 10,
-            "maximum": 600,
+            "maximum": 3600,
             "default": 60,
-            "description": "Quote validity window. 10s – 10min. Defaults to 60s."
+            "description": "Quote validity window. 10s – 1h. Defaults to 60s."
           },
           "leg_prices": {
             "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, leg_odds }` where `leg_odds` is in cents (0-100).",
+            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, leg_odds }` where `leg_odds` is a decimal (0-1).",
             "items": {
               "type": "object",
               "required": ["leg_id", "leg_odds"],
               "properties": {
                 "leg_id": { "type": "string", "format": "uuid" },
-                "leg_odds": { "type": "number", "minimum": 0, "maximum": 100, "description": "Implied per-leg price, cents (0-100)." }
+                "leg_odds": { "type": "number", "minimum": 0, "maximum": 1, "description": "Implied per-leg price, decimal (0-1)." }
               }
             }
           }
