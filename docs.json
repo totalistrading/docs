@@ -22,6 +22,7 @@
               "guides/lifecycle",
               "guides/vault-architecture",
               "guides/websocket",
+              "guides/market-maker",
               "terms-of-service"
             ]
           }

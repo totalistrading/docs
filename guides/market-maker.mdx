@@ -1,0 +1,45 @@
+---
+title: 'How to Become a Market Maker'
+description: 'Get started as a market maker on Totalis — monitor incoming parlay RFQs in real-time, submit competitive quotes, and earn the spread.'
+---
+
+Market makers on Totalis monitor incoming parlay RFQs, submit competitive quotes, and earn the spread when users accept. There is no separate market maker role — any authenticated user can quote on open RFQs.
+
+<Note>
+  Interested in becoming a liquidity provider on Totalis? Reach out to [founders@totalis.trade](mailto:founders@totalis.trade).
+</Note>
+
+## How It Works
+
+<Steps>
+  <Step title="Connect via WebSocket">
+    Subscribe to the `rfqs:open` channel to receive new parlay requests instantly.
+  </Step>
+  <Step title="Submit Quotes">
+    Analyze the legs and submit your payout odds before the RFQ expires.
+  </Step>
+  <Step title="Confirm Trades">
+    When a user accepts your quote, confirm before the deadline to lock in the trade via onchain Solana vaults.
+  </Step>
+</Steps>
+
+## Get Set Up
+
+<CardGroup cols={2}>
+  <Card title="Get an API Key" icon="key" href="/guides/authentication">
+    Generate an API key from the Totalis Dashboard to authenticate REST and WebSocket requests.
+  </Card>
+  <Card title="Connect via WebSocket" icon="bolt" href="/guides/websocket">
+    Set up a WebSocket connection to `wss://api.totalis.trade/ws` and subscribe to `rfqs:open` for real-time RFQ events.
+  </Card>
+  <Card title="RFQ Rate Limits" icon="gauge-high" href="/api-reference/introduction">
+    Authenticated clients get 300 req/min across REST endpoints, with `X-RateLimit-*` headers on every response.
+  </Card>
+  <Card title="Market Maker Endpoints" icon="chart-line" href="/api-reference/mm/list-rfqs">
+    Browse the REST endpoints for listing open RFQs, submitting quotes, and confirming trades.
+  </Card>
+</CardGroup>
+
+## Become a Liquidity Provider
+
+If you're interested in providing liquidity on Totalis at scale, contact us at [founders@totalis.trade](mailto:founders@totalis.trade) to discuss onboarding, integration support, and partnership terms.
