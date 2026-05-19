@@ -1,6 +1,6 @@
 ---
 title: 'RFQ Lifecycle'
-description: 'Complete Totalis parlay lifecycle — from RFQ creation through market maker quoting, acceptance, on-chain Solana vault position creation, and settlement'
+description: 'Complete Totalis parlay lifecycle — from RFQ creation through market maker quoting, acceptance, on-chain Solana vault position creation, and settlement.'
 ---
 
 An RFQ (Request for Quote) goes through several stages from creation to on-chain settlement. This guide walks through the complete flow.
@@ -9,35 +9,43 @@ An RFQ (Request for Quote) goes through several stages from creation to on-chain
 
 ```
 open → quoted → accepted → confirmed → executed → settled
-  ↓       ↓        ↓
-expired  cancelled  (MM fails to confirm → cancelled)
+  ↓       ↓        │
+  │       │        ├─ MM misses deadline, RFQ still within expires_at → open  (quote → withdrawn)
+  │       │        └─ MM misses deadline, RFQ past expires_at        → expired (quote → expired)
+expired  cancelled
 ```
+
+A few status nuances worth knowing:
+
+- **`rejected` (quotes)** never comes from a missed confirmation. It's set on sibling pending quotes when the user accepts a different one on the same RFQ, and on the target quote of `POST /rfqs/{id}/quotes/{quoteId}/reject`.
+- **`withdrawn` (quotes)** covers MM-initiated cancellation of a pending quote, and is also what the system writes back onto the previously-accepted quote when the MM misses confirmation and the RFQ reopens.
+- **`expired` (quotes)** is used for pending quotes whose own `valid_until` lapses, and for the accepted quote when the RFQ itself expires.
 
 ## Step-by-Step Flow
 
 <Steps>
   <Step title="User Creates RFQ">
-    The user submits a parlay bet request with 2-5 legs, each referencing a Kalshi market ticker and a side (yes/no).
+    The user submits a parlay bet request with 2–5 legs. Each leg references a market ticker on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`).
 
     ```bash
     POST /rfqs
     {
       "legs": [
-        { "kalshi_market_ticker": "KXBTC-25FEB07-T100000", "side": "yes" },
-        { "kalshi_market_ticker": "KXETH-25FEB07-T3500", "side": "no" }
+        { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
+        { "market_ticker": "0x4d2…",                "side": "no",  "venue": "polymarket" }
       ],
-      "bet_amount": 100,
+      "bet_amount": 25,
       "expires_in_seconds": 300
     }
     ```
 
-    The system validates that each market exists in our cache and is still active on Kalshi, then broadcasts the RFQ to all connected market makers via WebSocket.
+    The system validates that each market exists in the cache, enforces leg-exclusion rules (see [Get Exclusion Groups](/api-reference/markets/exclusion-groups)), and records the RFQ as `open` so market makers can quote against it.
 
     **Status: `open`**
   </Step>
 
   <Step title="Market Makers Submit Quotes">
-    Market makers see the RFQ on the `rfqs:open` WebSocket channel and submit quotes with their payout odds.
+    Market makers poll [List Open RFQs](/api-reference/mm/list-rfqs) or subscribe to the `rfqs:open` WebSocket channel and submit quotes with their payout odds.
 
     ```bash
     POST /mm/quotes
@@ -49,54 +57,59 @@ expired  cancelled  (MM fails to confirm → cancelled)
     ```
 
     The payout is calculated as:
-    - **total_cost** = bet_amount (e.g., $100)
-    - **total_payout** = bet_amount x payout_odds (e.g., $400)
-    - **mm_payout** (MM's risk) = total_payout - total_cost (e.g., $300)
+    - **user_cost** = bet_amount (e.g. $25)
+    - **total_payout** = bet_amount × payout_odds (e.g. $100)
+    - **mm_cost** (MM's max risk) = total_payout − user_cost (e.g. $75)
 
     **Status: `quoted`**
   </Step>
 
   <Step title="User Accepts Best Quote">
-    The user reviews quotes (sorted by best payout odds) and accepts one.
+    The user reviews quotes and accepts one.
 
     ```bash
-    PUT /rfqs/<rfq-id>/quotes/<quote-id>/accept
+    POST /rfqs/<rfq-id>/quotes/<quote-id>/accept
     ```
 
-    This rejects all other pending quotes and gives the market maker a **5-second confirmation deadline**.
+    Any other pending quotes on the same RFQ move to `rejected`. The response returns a `confirmation_deadline` — the timestamp by which the market maker must confirm.
 
     **Status: `accepted`**
   </Step>
 
   <Step title="Market Maker Confirms">
-    The market maker must confirm within 5 seconds, triggering the on-chain vault position creation.
+    The market maker confirms before the deadline. Confirmation enqueues vault position creation.
 
     ```bash
-    PUT /mm/quotes/<quote-id>/confirm
+    POST /mm/quotes/<quote-id>/confirm
     ```
 
-    **Status: `confirmed`**
+    If the MM misses the deadline, the RFQ expiry sweep handles it based on the RFQ's own `expires_at`:
+
+    - **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote it again) and the accepted quote becomes `withdrawn`.
+    - **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.
+
+    **Status (on successful confirm): `confirmed`**
   </Step>
 
   <Step title="On-Chain Vault Position Creation">
-    The system executes a single atomic Solana transaction via the `parlay_vaults` program. The fee payer covers gas so users and MMs only need USDC in their vaults. User/MM signatures are obtained via Privy TEE wallets.
+    The vault job service executes a single atomic Solana transaction via the `parlay_vaults` program. The fee payer covers gas so users and MMs only need USDC in their vaults. User/MM signatures are obtained via Privy session signers.
 
-    **`create_position`** — Both the user's stake and the MM's collateral are locked atomically in their persistent vaults. The MM's collateral is calculated via ILP (Integer Linear Programming) to reflect incremental worst-case exposure across their portfolio, not the full risk amount.
+    **`create_position`** — both the user's stake and the MM's collateral are locked atomically in their persistent vaults. The MM's collateral is calculated via ILP (Integer Linear Programming) to reflect incremental worst-case exposure across the maker's portfolio, not the full risk amount.
 
-    The transaction signature and position PDA address are stored in the database and displayed in the UI with links to Solana Explorer.
+    The transaction signature and position PDA are stored in the database and displayed in the UI with links to Solana Explorer.
 
     <Card title="Vault Architecture" icon="link" href="/guides/vault-architecture">
-      Learn more about the vault architecture, Privy TEE wallet integration, and gas-sponsored transactions.
+      Learn more about the vault architecture, Privy session-signer integration, and gas-sponsored transactions.
     </Card>
 
     **Status: `executed`**
   </Step>
 
   <Step title="Settlement">
-    A background service polls Kalshi every 30 seconds to check if all leg markets have settled. Settlement transfers funds between vaults and deducts a protocol fee on profit:
+    A background service polls venue resolution feeds and settles positions once all leg markets have resolved. Settlement transfers funds between vaults and deducts a protocol fee on profit:
 
-    - **All legs win** — MM's risk amount (minus fee) is transferred from the MM vault to the user vault (`settled_win`)
-    - **Any leg loses** — User's stake (minus fee) is transferred from the user vault to the MM vault (`settled_loss`)
+    - **All legs win** — MM's risk amount (minus fee) is transferred from the MM vault to the user vault (`settled_win`).
+    - **Any leg loses** — User's stake (minus fee) is transferred from the user vault to the MM vault (`settled_loss`).
 
     **Status: `settled`**
   </Step>
@@ -106,16 +119,16 @@ expired  cancelled  (MM fails to confirm → cancelled)
 
 Two background services manage the vault position lifecycle:
 
-- **vault-job-service** (every 5s) — Processes pending positions: resolves Privy wallets, calculates ILP exposure, executes `create_position`
-- **vault-settlement-service** (every 30s) — Polls market results, settles or cancels active positions based on outcomes
+- **vault-job-service** — processes pending positions: resolves Privy wallets, calculates ILP exposure, executes `create_position`.
+- **vault-settlement-service** — polls market results, settles or cancels active positions based on outcomes.
 
 ## Validation Rules
 
 | Parameter | Constraint |
 |-----------|-----------|
-| Legs per parlay | 2-5 |
-| Bet amount | $1 - $100 USDC |
-| Payout odds | 1.01x - 1000x |
-| RFQ expiration | 60 - 3600 seconds |
-| Quote validity | Configurable (default 60s) |
-| MM confirmation window | 5 seconds |
+| Legs per parlay | 2–5 |
+| Bet amount | 1–100 USDC |
+| Payout odds | 1.01× – 1000× |
+| RFQ expiration | 30 s – 24 h (default 300 s) |
+| Quote validity | 10 s – 1 h (default 60 s) |
+| MM confirmation window | Server-controlled; returned on the `Accept Quote` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
