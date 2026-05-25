@@ -132,7 +132,7 @@ Two background services manage the vault position lifecycle:
 |-----------|-----------|
 | Legs per parlay | 2–5 |
 | Bet amount | 1–100 USDC |
-| Payout odds | 1.01× – 1000× |
+| Payout odds | 1.0001× – 1000× |
 | RFQ expiration | 30 s – 24 h (default 300 s) |
 | Quote validity | 10 s – 1 h (default 60 s) |
 | MM confirmation window | Server-controlled; returned on the `Accept Quote` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
