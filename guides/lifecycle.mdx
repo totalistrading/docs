@@ -25,7 +25,11 @@ A few status nuances worth knowing:
 
 <Steps>
   <Step title="User Creates RFQ">
-    The user submits a parlay bet request with 2–5 legs. Each leg references a market ticker on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`).
+    The user submits a parlay bet request with 2–5 legs. Each leg references a market on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`).
+
+    `market_ticker` is venue-polymorphic — see [Create RFQ](/api-reference/rfqs/create) for the full field reference:
+    - **Kalshi**: the Kalshi market ticker (e.g. `KXBTC-25FEB07-T100000`).
+    - **Polymarket**: the `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`). Not the gamma id, question id, or market slug. Both yes and no sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`; CLOB token ids are not part of the RFQ surface.
 
     ```bash
     POST /rfqs

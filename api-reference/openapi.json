@@ -281,7 +281,7 @@
           {
             "name": "event_ticker",
             "in": "query",
-            "description": "Filter by event ticker (matches any leg).",
+            "description": "Filter by event identifier (matches any leg). **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (or `market_slug` fallback). Matches the `Leg.event_ticker` field on returned RFQs.",
             "schema": { "type": "string" }
           },
           {
@@ -1142,9 +1142,18 @@
       "Market": {
         "type": "object",
         "properties": {
-          "ticker": { "type": "string" },
-          "event_ticker": { "type": "string" },
-          "series_ticker": { "type": "string" },
+          "ticker": {
+            "type": "string",
+            "description": "Unique market identifier on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned by this API."
+          },
+          "event_ticker": {
+            "type": "string",
+            "description": "Event identifier the market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+          },
+          "series_ticker": {
+            "type": "string",
+            "description": "Series identifier the event belongs to. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug` — Polymarket has no native series concept, so we key whitelisting on the market slug."
+          },
           "title": { "type": "string" },
           "subtitle": { "type": "string", "nullable": true },
           "yes_sub_title": { "type": "string", "nullable": true },
@@ -1186,8 +1195,14 @@
         "type": "object",
         "required": ["event_ticker", "series_ticker", "category", "total_markets", "markets"],
         "properties": {
-          "event_ticker": { "type": "string" },
-          "series_ticker": { "type": "string" },
+          "event_ticker": {
+            "type": "string",
+            "description": "Event identifier. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+          },
+          "series_ticker": {
+            "type": "string",
+            "description": "Series identifier. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug`."
+          },
           "series_title": { "type": "string", "nullable": true },
           "event_title": { "type": "string", "nullable": true },
           "event_sub_title": { "type": "string", "nullable": true },
@@ -1207,6 +1222,7 @@
           "scope": { "type": "string", "enum": ["event", "series"] },
           "tickers": {
             "type": "array",
+            "description": "Identifiers belonging to this exclusion group. When `scope=event`, these are event identifiers (Kalshi event ticker like `KXBTC-25FEB07`, or Polymarket Gamma `event_slug`). When `scope=series`, these are series identifiers (Kalshi series ticker like `KXBTC`, or Polymarket Gamma `market_slug`). Values are compared against `Leg.event_ticker` / `Market.series_ticker` to detect conflicts.",
             "items": { "type": "string" }
           },
           "description": { "type": "string" }
@@ -1216,8 +1232,14 @@
         "type": "object",
         "required": ["market_ticker", "event_ticker", "side", "venue", "market_title"],
         "properties": {
-          "market_ticker": { "type": "string" },
-          "event_ticker": { "type": "string" },
+          "market_ticker": {
+            "type": "string",
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
+          },
+          "event_ticker": {
+            "type": "string",
+            "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+          },
           "side": { "$ref": "#/components/schemas/Side" },
           "venue": { "$ref": "#/components/schemas/Venue" },
           "market_title": { "type": "string" },
@@ -1289,8 +1311,14 @@
         "description": "Subset of a leg surfaced to market makers — drops display-only fields, keeps the price snapshot needed for quoting.",
         "required": ["market_ticker", "event_ticker", "side", "venue", "market_title", "current_yes_price", "current_no_price"],
         "properties": {
-          "market_ticker": { "type": "string" },
-          "event_ticker": { "type": "string" },
+          "market_ticker": {
+            "type": "string",
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
+          },
+          "event_ticker": {
+            "type": "string",
+            "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+          },
           "side": { "$ref": "#/components/schemas/Side" },
           "venue": { "$ref": "#/components/schemas/Venue" },
           "market_title": { "type": "string" },
@@ -1369,7 +1397,10 @@
               "type": "object",
               "required": ["market_ticker", "side", "venue"],
               "properties": {
-                "market_ticker": { "type": "string", "description": "Ticker of the underlying market on its venue." },
+                "market_ticker": {
+                  "type": "string",
+                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) — there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
+                },
                 "side": { "$ref": "#/components/schemas/Side" },
                 "venue": { "$ref": "#/components/schemas/Venue" }
               }
