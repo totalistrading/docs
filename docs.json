@@ -23,7 +23,8 @@
               "guides/vault-architecture",
               "guides/websocket",
               "guides/market-maker",
-              "terms-of-service"
+              "terms-of-service",
+              "privacy-policy"
             ]
           }
         ]
@@ -122,6 +123,10 @@
           {
             "label": "Terms of Service",
             "href": "/terms-of-service"
+          },
+          {
+            "label": "Privacy Policy",
+            "href": "/privacy-policy"
           }
         ]
       }
