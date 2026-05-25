@@ -1291,7 +1291,7 @@
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "rfq_id": { "type": "string", "format": "uuid" },
-          "payout_odds": { "type": "number", "minimum": 1.01, "maximum": 1000, "description": "Multiplier on `bet_amount` that produces the total payout if the parlay wins." },
+          "payout_odds": { "type": "number", "minimum": 1.00, "maximum": 1000, "description": "Multiplier on `bet_amount` that produces the total payout if the parlay wins." },
           "user_cost": { "type": "number", "description": "Bettor's cost (same as RFQ `bet_amount`)." },
           "mm_cost": { "type": "number", "description": "Market maker's max risk = `total_payout - user_cost`." },
           "total_payout": { "type": "number", "description": "Total payout on a win = `user_cost + mm_cost`." },
@@ -1380,9 +1380,9 @@
           "rfq_id": { "type": "string", "format": "uuid", "description": "RFQ to quote." },
           "payout_odds": {
             "type": "number",
-            "minimum": 1.01,
+            "minimum": 1.00,
             "maximum": 1000,
-            "description": "Multiplier (1.01x – 1000x). Must be a finite number."
+            "description": "Multiplier (1.00x – 1000x). Must be a finite number."
           },
           "valid_for_seconds": {
             "type": "integer",
