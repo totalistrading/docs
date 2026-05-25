@@ -824,64 +824,6 @@
         }
       }
     },
-    "/user/wallet/airdrop": {
-      "post": {
-        "operationId": "airdropSol",
-        "summary": "Airdrop SOL",
-        "description": "Airdrop devnet SOL to the user's embedded wallet for testing. Devnet-only — the handler returns `404` in production. Amount must be a positive number up to 2 SOL; defaults to 1.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "amount": {
-                    "type": "number",
-                    "minimum": 0,
-                    "exclusiveMinimum": true,
-                    "maximum": 2,
-                    "default": 1,
-                    "description": "SOL amount (0 < amount ≤ 2). Defaults to 1."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Airdrop completed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "required": ["address", "tx_signature", "amount"],
-                      "properties": {
-                        "address": { "type": "string", "description": "Recipient wallet address (base58)." },
-                        "tx_signature": { "type": "string", "description": "Solana transaction signature." },
-                        "amount": { "type": "number", "description": "SOL amount airdropped." }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": {
-            "description": "Not found in production (devnet-only endpoint).",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
-          }
-        }
-      }
-    },
     "/user/wallet/blockhash": {
       "get": {
         "operationId": "getBlockhash",
