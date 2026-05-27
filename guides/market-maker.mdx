@@ -19,6 +19,22 @@ Market makers on Totalis monitor incoming parlay RFQs, submit competitive quotes
   </Step>
 </Steps>
 
+## Core Quoting Loop
+
+For most market makers, the public integration surface should stay small:
+
+| Step | Endpoint |
+| --- | --- |
+| Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
+| Check invalid leg combinations | [`GET /markets/exclusion-groups`](/api-reference/markets/exclusion-groups) |
+| Receive new RFQs | [`rfqs:open` WebSocket channel](/guides/websocket) or [`GET /mm/rfqs`](/api-reference/mm/list-rfqs) |
+| Submit a quote | [`POST /mm/quotes`](/api-reference/mm/submit-quote) |
+| Track your quotes | [`GET /mm/quotes`](/api-reference/mm/list-quotes) |
+| Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
+| Pull stale risk | [`POST /mm/quotes/{quoteId}/withdraw`](/api-reference/mm/withdraw-quote) |
+
+Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
+
 ## Get Set Up
 
 <CardGroup cols={2}>
@@ -32,7 +48,7 @@ Market makers on Totalis monitor incoming parlay RFQs, submit competitive quotes
     Authenticated clients get 300 req/min across REST endpoints, with `X-RateLimit-*` headers on every response.
   </Card>
   <Card title="Market Maker Endpoints" icon="chart-line" href="/api-reference/mm/list-rfqs">
-    Browse the REST endpoints for listing open RFQs, submitting and withdrawing quotes, confirming trades, and monitoring dashboard analytics.
+    Browse the REST endpoints for listing open RFQs, submitting and withdrawing quotes, and confirming trades.
   </Card>
 </CardGroup>
 
