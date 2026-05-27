@@ -55,7 +55,13 @@
               "api-reference/mm/list-rfqs",
               "api-reference/mm/submit-quote",
               "api-reference/mm/list-quotes",
-              "api-reference/mm/confirm-quote"
+              "api-reference/mm/confirm-quote",
+              "api-reference/mm/withdraw-quote",
+              "api-reference/mm/dashboard-summary",
+              "api-reference/mm/dashboard-pnl",
+              "api-reference/mm/dashboard-exposure",
+              "api-reference/mm/dashboard-positions",
+              "api-reference/mm/dashboard-history"
             ]
           },
           {

@@ -12,7 +12,7 @@
   "security": [{ "ApiKey": [] }],
   "tags": [
     { "name": "RFQs", "description": "User-facing endpoints for creating and managing RFQs (Requests for Quote)." },
-    { "name": "Market Maker", "description": "Market maker endpoints for quoting and confirming trades." },
+    { "name": "Market Maker", "description": "Market maker endpoints for quoting, confirming trades, and monitoring MM dashboard analytics." },
     { "name": "Markets", "description": "Cached Kalshi and Polymarket market data." },
     { "name": "User", "description": "User profile, wallet, and devnet helpers." },
     { "name": "API Keys", "description": "Manage programmatic access keys for the authenticated user." }
@@ -322,7 +322,9 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -366,7 +368,12 @@
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
-          "409": { "$ref": "#/components/responses/Conflict" }
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
         }
       },
       "get": {
@@ -414,7 +421,10 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -444,8 +454,267 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" }
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/mm/quotes/{quoteId}/withdraw": {
+      "post": {
+        "operationId": "withdrawQuote",
+        "summary": "Withdraw Quote",
+        "description": "Withdraw one of your pending quotes before the bettor accepts it. Only `pending` quotes can be withdrawn; accepted, confirmed, executed, expired, rejected, or already-withdrawn quotes return a conflict.",
+        "tags": ["Market Maker"],
+        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "parameters": [
+          {
+            "name": "quoteId",
+            "in": "path",
+            "required": true,
+            "description": "Quote UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote withdrawn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["status"],
+                      "properties": {
+                        "status": { "type": "string", "example": "withdrawn" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/mm/dashboard/summary": {
+      "get": {
+        "operationId": "getMmSummary",
+        "summary": "Dashboard Summary",
+        "description": "Fetch the authenticated market maker's dashboard summary: realized PnL, active exposure, quote counts, win rate, wallet balance, and maker-side vault balances. Wallet and vault balance fields are nullable when an upstream lookup is unavailable.",
+        "tags": ["Market Maker"],
+        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "responses": {
+          "200": {
+            "description": "Market maker dashboard summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/MmDashboardSummary" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/mm/dashboard/pnl": {
+      "get": {
+        "operationId": "getMmPnl",
+        "summary": "Dashboard PnL Timeseries",
+        "description": "Fetch daily market-maker PnL with a running cumulative total. The `days` query is clamped server-side to the range 1-365 and defaults to 30.",
+        "tags": ["Market Maker"],
+        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Number of trailing days to include. Clamped to 1-365.",
+            "schema": { "type": "integer", "default": 30, "minimum": 1, "maximum": 365 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market maker PnL timeseries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["timeseries"],
+                      "properties": {
+                        "timeseries": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": ["date", "daily_pnl", "cumulative"],
+                            "properties": {
+                              "date": { "type": "string", "format": "date" },
+                              "daily_pnl": { "type": "number" },
+                              "cumulative": { "type": "number" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/mm/dashboard/exposure": {
+      "get": {
+        "operationId": "getMmExposure",
+        "summary": "Dashboard Exposure",
+        "description": "Fetch a portfolio-level exposure snapshot plus a page of underlying markets contributing conditional maker exposure. Market rows are sorted by gross conditional exposure descending and are for concentration analysis; they are not additive back to portfolio gross exposure.",
+        "tags": ["Market Maker"],
+        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size for market exposure rows.",
+            "schema": { "type": "integer", "default": 25, "minimum": 1, "maximum": 100 }
+          },
+          { "$ref": "#/components/parameters/OffsetParam" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfolio and market exposure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/MmDashboardExposure" },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/mm/dashboard/positions": {
+      "get": {
+        "operationId": "getMmPositions",
+        "summary": "Dashboard Positions",
+        "description": "List the authenticated market maker's active vault positions with leg snapshots and collateral fields. Uses offset-based pagination.",
+        "tags": ["Market Maker"],
+        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/LimitParam" },
+          { "$ref": "#/components/parameters/OffsetParam" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active market-maker positions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["positions"],
+                      "properties": {
+                        "positions": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/MmPosition" }
+                        }
+                      }
+                    },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/mm/dashboard/history": {
+      "get": {
+        "operationId": "getMmHistory",
+        "summary": "Dashboard Settlement History",
+        "description": "List settled market-maker positions with payout, fee, and collateral fields. Supports optional winner filtering and opaque cursor pagination.",
+        "tags": ["Market Maker"],
+        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "parameters": [
+          {
+            "name": "winner",
+            "in": "query",
+            "description": "Filter settlements by winner.",
+            "schema": { "$ref": "#/components/schemas/WinnerSide" }
+          },
+          { "$ref": "#/components/parameters/LimitParam" },
+          { "$ref": "#/components/parameters/CursorParam" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market-maker settlement history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["settlements"],
+                      "properties": {
+                        "settlements": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/MmSettlement" }
+                        }
+                      }
+                    },
+                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -936,6 +1205,12 @@
         "description": "Page size.",
         "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 }
       },
+      "OffsetParam": {
+        "name": "offset",
+        "in": "query",
+        "description": "Number of items to skip for offset-based pagination.",
+        "schema": { "type": "integer", "default": 0, "minimum": 0 }
+      },
       "MmLimitParam": {
         "name": "limit",
         "in": "query",
@@ -963,6 +1238,10 @@
           }
         }
       },
+      "Forbidden": {
+        "description": "Authenticated caller is not allowed to perform this action",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
       "NotFound": {
         "description": "Resource not found",
         "content": {
@@ -982,6 +1261,10 @@
       },
       "InternalError": {
         "description": "Internal server error",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+      },
+      "ServiceUnavailable": {
+        "description": "Temporary upstream or infrastructure failure",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
       }
     },
@@ -1023,7 +1306,11 @@
         "type": "object",
         "properties": {
           "cursor": { "type": "string", "nullable": true, "description": "Opaque cursor for the next page; null on the final page." },
-          "has_more": { "type": "boolean" }
+          "has_more": { "type": "boolean" },
+          "limit": { "type": "integer", "description": "Maximum number of items requested for this page." },
+          "offset": { "type": "integer", "description": "Number of items skipped before this page." },
+          "total": { "type": "integer", "description": "Total number of items available across all pages, when returned." },
+          "total_events": { "type": "integer", "description": "Total number of market events matching the current query, when returned." }
         }
       },
       "Venue": {
@@ -1035,6 +1322,11 @@
         "type": "string",
         "enum": ["yes", "no"],
         "description": "Bet side."
+      },
+      "WinnerSide": {
+        "type": "string",
+        "enum": ["user", "mm"],
+        "description": "Winner of a settled parlay position."
       },
       "LegOutcome": {
         "type": "string",
@@ -1251,8 +1543,12 @@
       "MmRfqLeg": {
         "type": "object",
         "description": "Subset of a leg surfaced to market makers — drops display-only fields, keeps the price snapshot needed for quoting.",
-        "required": ["market_ticker", "event_ticker", "side", "venue", "market_title", "current_yes_price", "current_no_price"],
+        "required": ["leg_index", "market_ticker", "event_ticker", "side", "venue", "market_title", "current_yes_price", "current_no_price"],
         "properties": {
+          "leg_index": {
+            "type": "integer",
+            "description": "Zero-based leg position within the RFQ."
+          },
           "market_ticker": {
             "type": "string",
             "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
@@ -1284,6 +1580,180 @@
             "type": "array",
             "items": { "$ref": "#/components/schemas/MmRfqLeg" }
           }
+        }
+      },
+      "MmDashboardSummary": {
+        "type": "object",
+        "description": "Flat summary surfaced on the MM dashboard. Combines realized analytics with wallet and maker-side vault balances.",
+        "required": [
+          "total_pnl",
+          "total_exposure",
+          "active_positions",
+          "pending_quotes",
+          "win_rate",
+          "total_trades",
+          "wallet_usdc_balance",
+          "wallet_address",
+          "vault_gross_balance",
+          "vault_locked_collateral",
+          "vault_free_balance"
+        ],
+        "properties": {
+          "total_pnl": { "type": "number", "description": "Total realized market-maker PnL." },
+          "total_exposure": { "type": "number", "description": "Current active maker exposure." },
+          "active_positions": { "type": "integer" },
+          "pending_quotes": { "type": "integer" },
+          "win_rate": { "type": "number", "description": "Settled MM win rate as a decimal." },
+          "total_trades": { "type": "integer", "description": "Settled trade count." },
+          "avg_payout_odds": { "type": "number", "description": "Average payout odds across filled quotes. Omitted until at least one filled quote exists." },
+          "wallet_usdc_balance": {
+            "type": "number",
+            "nullable": true,
+            "description": "On-chain USDC balance for the caller's Privy wallet. Null when no wallet address exists yet or the balance lookup timed out."
+          },
+          "wallet_address": {
+            "type": "string",
+            "nullable": true,
+            "description": "Caller wallet pubkey from the user row. Null when no wallet has been recorded yet."
+          },
+          "vault_gross_balance": {
+            "type": "number",
+            "nullable": true,
+            "description": "Maker-side vault gross balance. Zero when no vault row exists yet; null when the lookup failed."
+          },
+          "vault_locked_collateral": {
+            "type": "number",
+            "nullable": true,
+            "description": "Maker-side collateral locked across active positions. Zero/null semantics match `vault_gross_balance`."
+          },
+          "vault_free_balance": {
+            "type": "number",
+            "nullable": true,
+            "description": "Maker-side withdrawable balance. Zero/null semantics match `vault_gross_balance`."
+          }
+        }
+      },
+      "MmExposurePortfolio": {
+        "type": "object",
+        "description": "Portfolio-level MM exposure snapshot.",
+        "required": [
+          "gross_exposure",
+          "worst_case_exposure",
+          "netting_savings",
+          "netting_savings_pct",
+          "active_positions",
+          "active_markets",
+          "risk_model",
+          "compute_time_ms",
+          "computed_at"
+        ],
+        "properties": {
+          "gross_exposure": { "type": "number", "description": "Distinct-position sum of maker max risk before netting." },
+          "worst_case_exposure": { "type": "number", "description": "Worst-case exposure after solver netting, or gross exposure when falling back." },
+          "netting_savings": { "type": "number" },
+          "netting_savings_pct": { "type": "number" },
+          "active_positions": { "type": "integer" },
+          "active_markets": { "type": "integer" },
+          "risk_model": { "type": "string", "enum": ["solver", "gross_fallback"] },
+          "compute_time_ms": { "type": "number", "nullable": true },
+          "computed_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MmMarketExposure": {
+        "type": "object",
+        "description": "Conditional exposure for one underlying market. Rows are concentration-risk views and are not additive back to portfolio gross exposure.",
+        "required": [
+          "venue",
+          "market_ticker",
+          "event_ticker",
+          "market_title",
+          "yes_sub_title",
+          "no_sub_title",
+          "yes_exposure",
+          "no_exposure",
+          "gross_exposure",
+          "net_exposure",
+          "position_count",
+          "worst_case_side"
+        ],
+        "properties": {
+          "venue": { "$ref": "#/components/schemas/Venue" },
+          "market_ticker": { "type": "string" },
+          "event_ticker": { "type": "string" },
+          "market_title": { "type": "string", "nullable": true },
+          "yes_sub_title": { "type": "string", "nullable": true },
+          "no_sub_title": { "type": "string", "nullable": true },
+          "yes_exposure": { "type": "number" },
+          "no_exposure": { "type": "number" },
+          "gross_exposure": { "type": "number" },
+          "net_exposure": { "type": "number" },
+          "position_count": { "type": "integer" },
+          "worst_case_side": {
+            "type": "string",
+            "enum": ["yes", "no"],
+            "nullable": true,
+            "description": "Side that contributes to portfolio worst-case exposure for this market, when known."
+          }
+        }
+      },
+      "MmDashboardExposure": {
+        "type": "object",
+        "required": ["portfolio", "markets"],
+        "properties": {
+          "portfolio": { "$ref": "#/components/schemas/MmExposurePortfolio" },
+          "markets": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MmMarketExposure" }
+          }
+        }
+      },
+      "MmPosition": {
+        "type": "object",
+        "description": "Active MM position view sourced from vault positions.",
+        "required": ["position_pda", "rfq_id", "user_id", "market_maker_id", "user_stake", "mm_risk", "mm_collateral_locked", "total_payout", "status", "legs", "created_at"],
+        "properties": {
+          "position_pda": { "type": "string", "description": "On-chain position PDA." },
+          "rfq_id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string", "description": "Bettor Privy DID." },
+          "market_maker_id": { "type": "string", "description": "Market maker Privy DID." },
+          "user_stake": { "type": "number", "description": "Bettor stake." },
+          "mm_risk": { "type": "number", "description": "Maker maximum risk." },
+          "mm_collateral_locked": { "type": "number", "nullable": true, "description": "Actual maker collateral locked by the vault position." },
+          "total_payout": { "type": "number" },
+          "status": { "$ref": "#/components/schemas/PositionStatus" },
+          "legs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "market_title": { "type": "string" },
+                "side": { "$ref": "#/components/schemas/Side" },
+                "outcome": { "$ref": "#/components/schemas/LegOutcome" },
+                "yes_sub_title": { "type": "string", "nullable": true },
+                "no_sub_title": { "type": "string", "nullable": true }
+              }
+            }
+          },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MmSettlement": {
+        "type": "object",
+        "description": "Settled MM position with payout, fee, and collateral context.",
+        "required": ["id", "rfq_id", "user_id", "market_maker_id", "winner", "payout", "user_stake", "mm_risk", "mm_collateral_locked", "fee_amount", "settle_tx", "settled_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "rfq_id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string", "description": "Bettor Privy DID." },
+          "market_maker_id": { "type": "string", "description": "Market maker Privy DID." },
+          "winner": { "$ref": "#/components/schemas/WinnerSide" },
+          "payout": { "type": "number", "description": "Full pot transferred to the winner: `user_stake + mm_risk`." },
+          "user_stake": { "type": "number", "description": "Bettor stake at settle time. MM win PnL is `user_stake - fee_amount`." },
+          "mm_risk": { "type": "number", "description": "Maker maximum risk at settle time. MM loss PnL is `-mm_risk`." },
+          "mm_collateral_locked": { "type": "number", "nullable": true, "description": "Actual maker collateral locked for the settled vault position. Null for legacy rows without a vault position." },
+          "fee_amount": { "type": "number", "description": "Protocol fee deducted from the winner's payout." },
+          "settle_tx": { "type": "string" },
+          "settled_at": { "type": "string", "format": "date-time" }
         }
       },
       "Quote": {
@@ -1517,7 +1987,7 @@
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "rfq_id": { "type": "string", "format": "uuid" },
-          "winner": { "type": "string", "enum": ["user", "mm"] },
+          "winner": { "$ref": "#/components/schemas/WinnerSide" },
           "payout": {
             "type": "number",
             "description": "Full pot transferred to the winner — equals `user_stake + mm_risk` (i.e. `bet_amount * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
