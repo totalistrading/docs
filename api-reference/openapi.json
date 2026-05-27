@@ -613,7 +613,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": ["data", "meta"],
                   "properties": {
                     "data": { "$ref": "#/components/schemas/MmDashboardExposure" },
                     "meta": { "$ref": "#/components/schemas/PaginationMeta" }
@@ -646,7 +646,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": ["data", "meta"],
                   "properties": {
                     "data": {
                       "type": "object",
@@ -694,7 +694,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
+                  "required": ["data", "meta"],
                   "properties": {
                     "data": {
                       "type": "object",
@@ -1309,8 +1309,7 @@
           "has_more": { "type": "boolean" },
           "limit": { "type": "integer", "description": "Maximum number of items requested for this page." },
           "offset": { "type": "integer", "description": "Number of items skipped before this page." },
-          "total": { "type": "integer", "description": "Total number of items available across all pages, when returned." },
-          "total_events": { "type": "integer", "description": "Total number of market events matching the current query, when returned." }
+          "total": { "type": "integer", "description": "Total number of items available across all pages, when returned." }
         }
       },
       "Venue": {
@@ -1725,6 +1724,7 @@
             "type": "array",
             "items": {
               "type": "object",
+              "required": ["side", "outcome"],
               "properties": {
                 "market_title": { "type": "string" },
                 "side": { "$ref": "#/components/schemas/Side" },
