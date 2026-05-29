@@ -27,7 +27,8 @@ For most market makers, the public integration surface should stay small:
 | --- | --- |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
 | Check invalid leg combinations | [`GET /markets/exclusion-groups`](/api-reference/markets/exclusion-groups) |
-| Receive live quote requests | [`quote_requests:open` WebSocket channel](/guides/websocket) or [`GET /mm/quote-requests`](/api-reference/mm/list-quote-requests) |
+| Receive live quote requests | [`quote_requests:open` WebSocket channel](/guides/websocket) |
+| Catch up after startup or reconnect | [`GET /mm/quote-requests`](/api-reference/mm/list-quote-requests) |
 | Submit a draft quote | [`POST /mm/quote-requests/{id}/quotes`](/api-reference/mm/submit-quote-request-quote) |
 | Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
 | Track your quotes | [`GET /mm/quotes`](/api-reference/mm/list-quotes) |

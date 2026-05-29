@@ -7,7 +7,7 @@ description: 'List active draft quote requests available for market maker pricin
 GET /mm/quote-requests
 ```
 
-Returns active pre-trade quote requests. Use this as a catchup path after reconnecting to the WebSocket. The realtime path is the `quote_requests:open` channel.
+Returns active pre-trade quote requests. This endpoint is not the primary quote request feed; use it as a catchup path on process startup or after reconnecting to the WebSocket. The realtime path is the `quote_requests:open` channel.
 
 ```json
 {

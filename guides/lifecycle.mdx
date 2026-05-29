@@ -48,7 +48,7 @@ A few status nuances worth knowing:
   </Step>
 
   <Step title="Market Makers Submit Draft Quotes">
-    Market makers poll [List Quote Requests](/api-reference/mm/list-quote-requests) or subscribe to the `quote_requests:open` WebSocket channel and submit draft quotes with their payout odds.
+    Market makers subscribe to the `quote_requests:open` WebSocket channel and submit draft quotes with their payout odds. [List Quote Requests](/api-reference/mm/list-quote-requests) is only a catchup/recovery endpoint for startup or reconnect gaps.
 
     ```bash
     POST /mm/quote-requests/<quote-request-id>/quotes

@@ -12,7 +12,7 @@ Live quote requests are the pre-trade price discovery layer for the parlay build
     The app calls `POST /quote-requests` for the first valid slip and `PATCH /quote-requests/{id}` whenever the legs or bet amount change. Every change increments `version` and `request_hash`, so stale MM quotes cannot be shown or committed.
   </Step>
   <Step title="Market Makers Receive It">
-    MMs subscribe to `quote_requests:open` or call `GET /mm/quote-requests` for catchup. Events use `quote_request:created` and `quote_request:updated`.
+    MMs subscribe to `quote_requests:open` for live delivery. Use `GET /mm/quote-requests` only to catch up after startup or reconnect. Events use `quote_request:created` and `quote_request:updated`.
   </Step>
   <Step title="Market Makers Submit Draft Quotes">
     MMs call `POST /mm/quote-requests/{id}/quotes` with the exact `request_version` and `request_hash` they priced. The backend stores one active draft quote per MM per request version.
