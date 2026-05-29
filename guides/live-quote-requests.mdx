@@ -19,6 +19,13 @@ Live quote requests are the pre-trade price discovery layer for the parlay build
   </Step>
   <Step title="User Commits the Best Quote">
     The app calls `POST /quote-requests/{id}/commit-best` with the version it displayed. The server selects the best still-valid quote, creates the real RFQ and accepted quote atomically, and sends `quote:accepted` to the selected MM.
+
+    ```json
+    {
+      "expected_version": 3,
+      "min_payout_odds_seen": 4.25
+    }
+    ```
   </Step>
   <Step title="Existing Confirm/Vault Flow Continues">
     The selected MM confirms with `POST /mm/quotes/{quoteId}/confirm`. From this point forward, the normal RFQ, quote, vault, execution, and settlement lifecycle applies.
@@ -43,7 +50,7 @@ Live quote requests are the pre-trade price discovery layer for the parlay build
       "side": "yes",
       "venue": "kalshi",
       "current_yes_price": 0.42,
-      "current_no_price": 0.59
+      "current_no_price": 0.58
     }
   ]
 }
@@ -72,6 +79,17 @@ Draft quotes should be short lived. If you receive a later `quote_request:update
 ## Commit Semantics
 
 The frontend never chooses the counterparty by trusting its local screen state. On submit, the server rechecks ownership, request version, market validity, user balance, quote expiry, and MM collateral, then commits the best valid quote. The committed quote becomes a normal accepted RFQ quote, and the selected MM receives:
+
+```bash
+POST /quote-requests/<quote-request-id>/commit-best
+```
+
+```json
+{
+  "expected_version": 3,
+  "min_payout_odds_seen": 4.25
+}
+```
 
 ```json
 {

@@ -56,7 +56,11 @@ A few status nuances worth knowing:
       "request_version": 3,
       "request_hash": "sha256...",
       "payout_odds": 4.0,
-      "valid_for_seconds": 15
+      "valid_for_seconds": 15,
+      "leg_prices": [
+        { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "odds": 0.42 },
+        { "leg_id": "6e854379-57bb-487a-aec3-197fdd861fc8", "odds": 0.58 }
+      ]
     }
     ```
 
@@ -73,6 +77,10 @@ A few status nuances worth knowing:
 
     ```bash
     POST /quote-requests/<quote-request-id>/commit-best
+    {
+      "expected_version": 3,
+      "min_payout_odds_seen": 4.0
+    }
     ```
 
     The response returns the real `rfq_id`, `quote_id`, selected `mm_id`, payout odds, and `confirmation_deadline` — the timestamp by which the market maker must confirm.
@@ -135,4 +143,4 @@ Two background services manage the vault position lifecycle:
 | Payout odds | 1.0001× – 1000× |
 | RFQ expiration | 30 s – 24 h (default 300 s) |
 | Quote validity | 10 s – 1 h (default 60 s) |
-| MM confirmation window | Server-controlled; returned on the `Accept Quote` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
+| MM confirmation window | Server-controlled; returned on the `commit-best` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
