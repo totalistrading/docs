@@ -1,0 +1,87 @@
+---
+title: 'Live Quote Requests'
+description: 'How Totalis streams draft parlay quote requests to market makers before a user commits to a trade.'
+---
+
+Live quote requests are the pre-trade price discovery layer for the parlay builder. They are not real RFQs yet and do not lock user funds. When a user has a valid slip, the API publishes a short-lived, versioned quote request to all market makers. Market makers submit draft quotes, the frontend shows the best active payout, and the user commits the best quote when they submit.
+
+## Flow
+
+<Steps>
+  <Step title="Frontend Creates or Updates a Quote Request">
+    The app calls `POST /quote-requests` for the first valid slip and `PATCH /quote-requests/{id}` whenever the legs or bet amount change. Every change increments `version` and `request_hash`, so stale MM quotes cannot be shown or committed.
+  </Step>
+  <Step title="Market Makers Receive It">
+    MMs subscribe to `quote_requests:open` or call `GET /mm/quote-requests` for catchup. Events use `quote_request:created` and `quote_request:updated`.
+  </Step>
+  <Step title="Market Makers Submit Draft Quotes">
+    MMs call `POST /mm/quote-requests/{id}/quotes` with the exact `request_version` and `request_hash` they priced. The backend stores one active draft quote per MM per request version.
+  </Step>
+  <Step title="User Commits the Best Quote">
+    The app calls `POST /quote-requests/{id}/commit-best` with the version it displayed. The server selects the best still-valid quote, creates the real RFQ and accepted quote atomically, and sends `quote:accepted` to the selected MM.
+  </Step>
+  <Step title="Existing Confirm/Vault Flow Continues">
+    The selected MM confirms with `POST /mm/quotes/{quoteId}/confirm`. From this point forward, the normal RFQ, quote, vault, execution, and settlement lifecycle applies.
+  </Step>
+</Steps>
+
+## MM Draft Quote Request
+
+```json
+{
+  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "user_id": "did:privy:...",
+  "version": 3,
+  "request_hash": "sha256...",
+  "status": "active",
+  "bet_amount": 25,
+  "expires_at": "2026-05-29T18:45:30.000Z",
+  "legs": [
+    {
+      "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+      "market_ticker": "KXBTC-25FEB07-T100000",
+      "side": "yes",
+      "venue": "kalshi",
+      "current_yes_price": 0.42,
+      "current_no_price": 0.59
+    }
+  ]
+}
+```
+
+## Submit a Draft Quote
+
+```bash
+POST /mm/quote-requests/<quote-request-id>/quotes
+```
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256...",
+  "payout_odds": 4.25,
+  "valid_for_seconds": 15,
+  "leg_prices": [
+    { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "odds": 0.42 }
+  ]
+}
+```
+
+Draft quotes should be short lived. If you receive a later `quote_request:updated` event for the same `id`, discard quotes for older versions and price the new version.
+
+## Commit Semantics
+
+The frontend never chooses the counterparty by trusting its local screen state. On submit, the server rechecks ownership, request version, market validity, user balance, quote expiry, and MM collateral, then commits the best valid quote. The committed quote becomes a normal accepted RFQ quote, and the selected MM receives:
+
+```json
+{
+  "type": "quote:accepted",
+  "data": {
+    "quote_id": "real-rfq-quote-uuid",
+    "rfq_id": "real-rfq-uuid",
+    "confirmation_deadline": "2026-05-29T18:45:35.000Z"
+  }
+}
+```
+
+At that point, use the existing confirm endpoint.

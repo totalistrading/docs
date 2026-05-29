@@ -1,0 +1,29 @@
+---
+title: 'List Quote Requests'
+description: 'List active draft quote requests available for market maker pricing.'
+---
+
+```bash
+GET /mm/quote-requests
+```
+
+Returns active pre-trade quote requests. Use this as a catchup path after reconnecting to the WebSocket. The realtime path is the `quote_requests:open` channel.
+
+```json
+{
+  "data": {
+    "quote_requests": [
+      {
+        "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+        "version": 3,
+        "request_hash": "sha256...",
+        "status": "active",
+        "bet_amount": 25,
+        "expires_at": "2026-05-29T18:45:30.000Z",
+        "legs": []
+      }
+    ]
+  },
+  "meta": { "cursor": null, "has_more": false }
+}
+```
