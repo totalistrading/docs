@@ -53,7 +53,7 @@ After authenticating, subscribe to channels to receive events:
 |---------|----------|-------------|
 | `quote_requests:open` | Market makers | Live pre-trade quote requests from parlay builders; includes request create/update events, not submitted quote details |
 | `rfqs:open` | Market makers | Legacy/open RFQs |
-| `quote_request:{quote_request_id}` | Quote request owner | Draft quote updates for a specific live quote request, including best-quote refreshes |
+| `quote_request:{quote_request_id}` | Quote request owner | Owner-only draft quote updates for a specific live quote request, including best-quote refreshes |
 | `rfq:{rfq_id}` | RFQ owner | Updates for a specific RFQ |
 | `mm:quotes:{mm_id}` | Market maker | Updates on your own quotes |
 
@@ -74,9 +74,9 @@ After authenticating, subscribe to channels to receive events:
 |-------|-------------|------|
 | `quote_request:created` | New live quote request | Full quote request object |
 | `quote_request:updated` | Quote request version changed | Full quote request object |
-| `quote_request:quote_submitted` | MM submitted a draft quote; delivered only on `quote_request:{quote_request_id}`, not `quote_requests:open` | Draft quote object |
-| `quote_request:committed` | User committed the best quote into a real RFQ | `{ quote_request_id, rfq_id, quote_id }` |
-| `quote_request:cancelled` | Quote request cancelled or abandoned | `{ quote_request_id }` |
+| `quote_request:quote_submitted` | MM submitted a draft quote; delivered to the request owner on `quote_request:{quote_request_id}`, not `quote_requests:open` | Draft quote object |
+| `quote_request:committed` | User committed the best quote into a real RFQ; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id, rfq_id, quote_id }` |
+| `quote_request:cancelled` | Quote request cancelled or abandoned; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id }` |
 
 ### Quote Events
 
@@ -141,15 +141,7 @@ ws.onmessage = (event) => {
     case 'quote_request:created':
     case 'quote_request:updated':
       console.log('Quote request:', msg.data);
-      ws.send(JSON.stringify({
-        type: 'subscribe',
-        channel: `quote_request:${msg.data.id}`
-      }));
       // Analyze and submit POST /mm/quote-requests/{id}/quotes
-      break;
-
-    case 'quote_request:quote_submitted':
-      console.log('Draft quote stored:', msg.data);
       break;
 
     case 'quote:accepted':
