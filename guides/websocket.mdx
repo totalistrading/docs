@@ -3,7 +3,7 @@ title: 'WebSocket'
 description: 'Connect to the Totalis WebSocket for real-time RFQ and quote updates with authentication and channel subscriptions'
 ---
 
-The Totalis API provides a WebSocket endpoint for real-time updates on RFQs and quotes. This is essential for market makers who need to react quickly to new RFQs and for users tracking their active bets.
+The Totalis API provides a WebSocket endpoint for real-time updates on live quote requests, RFQs, and quotes. This is essential for market makers who need to react quickly to parlay-slip quote requests and for users tracking their active bets.
 
 ## Connecting
 
@@ -141,7 +141,15 @@ ws.onmessage = (event) => {
     case 'quote_request:created':
     case 'quote_request:updated':
       console.log('Quote request:', msg.data);
+      ws.send(JSON.stringify({
+        type: 'subscribe',
+        channel: `quote_request:${msg.data.id}`
+      }));
       // Analyze and submit POST /mm/quote-requests/{id}/quotes
+      break;
+
+    case 'quote_request:quote_submitted':
+      console.log('Draft quote stored:', msg.data);
       break;
 
     case 'quote:accepted':

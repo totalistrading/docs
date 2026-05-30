@@ -78,7 +78,9 @@ Draft quotes should be short lived. If you receive a later `quote_request:update
 
 ## Commit Semantics
 
-The frontend never chooses the counterparty by trusting its local screen state. On submit, the server rechecks ownership, request version, market validity, user balance, quote expiry, and MM collateral, then commits the best valid quote. The committed quote becomes a normal accepted RFQ quote, and the selected MM receives:
+The frontend never chooses the counterparty by trusting its local screen state. On submit, the server rechecks ownership, request version, market validity, user balance, quote expiry, and MM collateral, then commits the best valid quote.
+
+The frontend sends:
 
 ```bash
 POST /quote-requests/<quote-request-id>/commit-best
@@ -90,6 +92,8 @@ POST /quote-requests/<quote-request-id>/commit-best
   "min_payout_odds_seen": 4.25
 }
 ```
+
+If commit succeeds, the committed quote becomes a normal accepted RFQ quote. The selected MM receives this websocket event on `mm:quotes:{mm_id}`:
 
 ```json
 {
