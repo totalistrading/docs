@@ -33,7 +33,7 @@ For most market makers, the public integration surface should stay small:
 | Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
 | Track your quotes | [`GET /mm/quotes`](/api-reference/mm/list-quotes) |
 | Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
-| Pull stale risk | [`POST /mm/quotes/{quoteId}/withdraw`](/api-reference/mm/withdraw-quote) |
+| Pull stale classic RFQ quote risk | [`POST /mm/quotes/{quoteId}/withdraw`](/api-reference/mm/withdraw-quote) |
 
 Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 

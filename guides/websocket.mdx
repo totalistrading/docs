@@ -53,7 +53,7 @@ After authenticating, subscribe to channels to receive events:
 |---------|----------|-------------|
 | `quote_requests:open` | Market makers | Live pre-trade quote requests from parlay builders; includes request create/update events, not submitted quote details |
 | `rfqs:open` | Market makers | Legacy/open RFQs |
-| `quote_request:{quote_request_id}` | Quote request owner | Owner-only draft quote updates for a specific live quote request, including best-quote refreshes |
+| `quote_request:{quote_request_id}` | Quote request owner | Owner-only draft quote updates for a specific live quote request |
 | `rfq:{rfq_id}` | RFQ owner | Updates for a specific RFQ |
 | `mm:quotes:{mm_id}` | Market maker | Updates on your own quotes |
 
@@ -77,6 +77,11 @@ After authenticating, subscribe to channels to receive events:
 | `quote_request:quote_submitted` | MM submitted a draft quote; delivered to the request owner on `quote_request:{quote_request_id}`, not `quote_requests:open` | Draft quote object |
 | `quote_request:committed` | User committed the best quote into a real RFQ; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id, rfq_id, quote_id }` |
 | `quote_request:cancelled` | Quote request cancelled or abandoned; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id }` |
+
+Draft quote requests do not currently emit `quote_request:quote_withdrawn`,
+`quote_request:quote_expired`, or `quote_request:best_changed`. Clients should
+use each draft quote's `valid_until` and refresh with
+`GET /quote-requests/{id}/quotes`.
 
 ### Quote Events
 

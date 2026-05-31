@@ -76,6 +76,14 @@ POST /mm/quote-requests/<quote-request-id>/quotes
 
 Draft quotes should be short lived. If you receive a later `quote_request:updated` event for the same `id`, discard quotes for older versions and price the new version.
 
+Draft quote withdrawal is not exposed for quote requests. To revise a live
+draft quote, submit a replacement quote for the same `request_version` and
+`request_hash`; it replaces that MM's previous draft quote for that request
+version. To stop quoting, let the draft quote expire by choosing a short
+`valid_for_seconds` window. The backend does not currently emit
+`quote_request:quote_withdrawn`, `quote_request:quote_expired`, or
+`quote_request:best_changed` events for draft quotes.
+
 ## Commit Semantics
 
 The frontend never chooses the counterparty by trusting its local screen state. On submit, the server rechecks ownership, request version, market validity, user balance, quote expiry, and MM collateral, then commits the best valid quote.
