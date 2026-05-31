@@ -3,7 +3,7 @@ title: 'WebSocket'
 description: 'Connect to the Totalis WebSocket for real-time RFQ and quote updates with authentication and channel subscriptions'
 ---
 
-The Totalis API provides a WebSocket endpoint for real-time updates on RFQs and quotes. This is essential for market makers who need to react quickly to new RFQs and for users tracking their active bets.
+The Totalis API provides a WebSocket endpoint for real-time updates on live quote requests, RFQs, and quotes. This is essential for market makers who need to react quickly to parlay-slip quote requests and for users tracking their active bets.
 
 ## Connecting
 
@@ -44,14 +44,16 @@ or:
 After authenticating, subscribe to channels to receive events:
 
 ```json
-{ "type": "subscribe", "channel": "rfqs:open" }
+{ "type": "subscribe", "channel": "quote_requests:open" }
 ```
 
 ### Available Channels
 
 | Channel | Audience | Description |
 |---------|----------|-------------|
-| `rfqs:open` | Market makers | All new and open RFQs |
+| `quote_requests:open` | Market makers | Live pre-trade quote requests from parlay builders; includes request create/update events, not submitted quote details |
+| `rfqs:open` | Market makers | Legacy/open RFQs |
+| `quote_request:{quote_request_id}` | Quote request owner | Owner-only draft quote updates for a specific live quote request |
 | `rfq:{rfq_id}` | RFQ owner | Updates for a specific RFQ |
 | `mm:quotes:{mm_id}` | Market maker | Updates on your own quotes |
 
@@ -65,6 +67,19 @@ After authenticating, subscribe to channels to receive events:
 | `rfq:cancelled` | RFQ cancelled | `{ rfq_id, reason }` |
 | `rfq:status` | RFQ status changed | `{ rfq_id, status, updated_at, accepted_quote_id }` |
 | `rfq:expired` | RFQ expired | `{ rfq_id }` |
+
+### Quote Request Events
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `quote_request:created` | New live quote request | Full quote request object |
+| `quote_request:updated` | Quote request version changed | Full quote request object |
+| `quote_request:quote_submitted` | MM submitted a draft quote; delivered to the request owner on `quote_request:{quote_request_id}`, not `quote_requests:open` | Draft quote object |
+| `quote_request:quote_withdrawn` | MM withdrew a draft quote; delivered to the request owner on `quote_request:{quote_request_id}` | `{ quote_request_id, request_version, request_hash, market_maker_id, quote_id }` |
+| `quote_request:quote_expired` | Draft quote expired and was removed from the active quote book; delivered to the request owner on `quote_request:{quote_request_id}` | `{ quote_request_id, request_version, request_hash, market_maker_id, quote_id }` |
+| `quote_request:best_changed` | Best active draft quote changed; delivered to the request owner on `quote_request:{quote_request_id}` | `{ quote_request_id, request_version, request_hash, best_quote, quote_count }` |
+| `quote_request:committed` | User committed the best quote into a real RFQ; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id, rfq_id, quote_id }` |
+| `quote_request:cancelled` | Quote request cancelled or abandoned; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id }` |
 
 ### Quote Events
 
@@ -121,14 +136,15 @@ ws.onmessage = (event) => {
 
   switch (msg.type) {
     case 'auth:success':
-      // Subscribe to open RFQs
-      ws.send(JSON.stringify({ type: 'subscribe', channel: 'rfqs:open' }));
+      // Subscribe to live quote requests
+      ws.send(JSON.stringify({ type: 'subscribe', channel: 'quote_requests:open' }));
       ws.send(JSON.stringify({ type: 'subscribe', channel: `mm:quotes:${msg.user_id}` }));
       break;
 
-    case 'rfq:created':
-      console.log('New RFQ:', msg.data);
-      // Analyze and potentially submit a quote
+    case 'quote_request:created':
+    case 'quote_request:updated':
+      console.log('Quote request:', msg.data);
+      // Analyze and submit POST /mm/quote-requests/{id}/quotes
       break;
 
     case 'quote:accepted':

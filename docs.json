@@ -22,6 +22,7 @@
               "guides/lifecycle",
               "guides/vault-architecture",
               "guides/websocket",
+              "guides/live-quote-requests",
               "guides/market-maker",
               "terms-of-service",
               "privacy-policy"
@@ -53,6 +54,9 @@
             "group": "Market Maker",
             "pages": [
               "api-reference/mm/list-rfqs",
+              "api-reference/mm/list-quote-requests",
+              "api-reference/mm/submit-quote-request-quote",
+              "api-reference/mm/withdraw-quote-request-quote",
               "api-reference/mm/submit-quote",
               "api-reference/mm/list-quotes",
               "api-reference/mm/confirm-quote",

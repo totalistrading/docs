@@ -1,0 +1,24 @@
+---
+title: 'Submit Quote Request Quote'
+description: 'Submit a draft market maker quote for a live quote request.'
+---
+
+```bash
+POST /mm/quote-requests/{id}/quotes
+```
+
+Draft quotes must include the exact `request_version` and `request_hash` from the quote request event you priced. The backend rejects stale versions so quotes from older slip states cannot be displayed or committed.
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256...",
+  "payout_odds": 4.25,
+  "valid_for_seconds": 15,
+  "leg_prices": [
+    { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "odds": 0.42 }
+  ]
+}
+```
+
+Successful responses return the active draft quote. If the user commits your quote, you receive the normal `quote:accepted` event with a real RFQ `quote_id`; confirm that quote with `POST /mm/quotes/{quoteId}/confirm`.

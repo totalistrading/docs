@@ -1,0 +1,23 @@
+---
+title: 'Withdraw Quote Request Quote'
+description: 'Withdraw one of your active draft quotes from a live quote request.'
+---
+
+```bash
+POST /mm/quote-requests/{id}/quotes/withdraw
+```
+
+Use this endpoint to retract your draft quote before the user commits it. The
+body must include the exact `request_version` and `request_hash` you quoted.
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256..."
+}
+```
+
+Successful responses return the withdrawn draft quote and emit
+`quote_request:quote_withdrawn` followed by `quote_request:best_changed` to the
+request owner. If the draft quote already expired, the API returns a conflict
+and emits `quote_request:quote_expired` plus `quote_request:best_changed`.

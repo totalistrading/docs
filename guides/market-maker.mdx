@@ -3,19 +3,19 @@ title: 'How to Become a Market Maker'
 description: 'Get started as a market maker on Totalis — monitor incoming parlay RFQs in real-time, submit competitive quotes, and earn the spread.'
 ---
 
-Market makers on Totalis monitor incoming parlay RFQs, submit competitive quotes, and earn the spread when users accept. There is no separate market maker role — any authenticated user can quote on open RFQs.
+Market makers on Totalis monitor incoming parlay quote requests, submit competitive prices, and earn the spread when users commit and confirm trades. There is no separate market maker role — any authenticated user with an API key can quote.
 
 ## How It Works
 
 <Steps>
   <Step title="Connect via WebSocket">
-    Subscribe to the `rfqs:open` channel to receive new parlay requests instantly.
+    Subscribe to `quote_requests:open` to receive live builder quote requests instantly. Keep `rfqs:open` too if you support the legacy RFQ flow.
   </Step>
-  <Step title="Submit Quotes">
-    Analyze the legs and submit your payout odds before the RFQ expires.
+  <Step title="Submit Draft Quotes">
+    Analyze the legs and submit payout odds for the exact `version` and `request_hash` you received.
   </Step>
   <Step title="Confirm Trades">
-    When a user accepts your quote, confirm before the deadline to lock in the trade via onchain Solana vaults.
+    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. Confirm before the deadline to lock in the trade via onchain Solana vaults.
   </Step>
 </Steps>
 
@@ -27,11 +27,14 @@ For most market makers, the public integration surface should stay small:
 | --- | --- |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
 | Check invalid leg combinations | [`GET /markets/exclusion-groups`](/api-reference/markets/exclusion-groups) |
-| Receive new RFQs | [`rfqs:open` WebSocket channel](/guides/websocket) or [`GET /mm/rfqs`](/api-reference/mm/list-rfqs) |
-| Submit a quote | [`POST /mm/quotes`](/api-reference/mm/submit-quote) |
+| Receive live quote requests | [`quote_requests:open` WebSocket channel](/guides/websocket) |
+| Catch up after startup or reconnect | [`GET /mm/quote-requests`](/api-reference/mm/list-quote-requests) |
+| Submit a draft quote | [`POST /mm/quote-requests/{id}/quotes`](/api-reference/mm/submit-quote-request-quote) |
+| Withdraw a draft quote | [`POST /mm/quote-requests/{id}/quotes/withdraw`](/api-reference/mm/withdraw-quote-request-quote) |
+| Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
 | Track your quotes | [`GET /mm/quotes`](/api-reference/mm/list-quotes) |
 | Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
-| Pull stale risk | [`POST /mm/quotes/{quoteId}/withdraw`](/api-reference/mm/withdraw-quote) |
+| Pull stale classic RFQ quote risk | [`POST /mm/quotes/{quoteId}/withdraw`](/api-reference/mm/withdraw-quote) |
 
 Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 
@@ -42,13 +45,13 @@ Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC
     Generate an API key from the Totalis Dashboard to authenticate REST and WebSocket requests.
   </Card>
   <Card title="Connect via WebSocket" icon="bolt" href="/guides/websocket">
-    Set up a WebSocket connection to `wss://api.totalis.trade/ws` and subscribe to `rfqs:open` for real-time RFQ events.
+    Set up a WebSocket connection to `wss://api.totalis.trade/ws` and subscribe to `quote_requests:open` for live quote requests.
   </Card>
   <Card title="RFQ Rate Limits" icon="gauge-high" href="/api-reference/introduction">
     Authenticated clients get 300 req/min across REST endpoints, with `X-RateLimit-*` headers on every response.
   </Card>
-  <Card title="Market Maker Endpoints" icon="chart-line" href="/api-reference/mm/list-rfqs">
-    Browse the REST endpoints for listing open RFQs, submitting and withdrawing quotes, and confirming trades.
+  <Card title="Live Quote Requests" icon="chart-line" href="/guides/live-quote-requests">
+    Learn the versioned draft quote flow before a user commits to a real RFQ.
   </Card>
 </CardGroup>
 

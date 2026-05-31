@@ -3,7 +3,7 @@ title: 'RFQ Lifecycle'
 description: 'Complete Totalis parlay lifecycle — from RFQ creation through market maker quoting, acceptance, on-chain Solana vault position creation, and settlement.'
 ---
 
-An RFQ (Request for Quote) goes through several stages from creation to on-chain settlement. This guide walks through the complete flow.
+An RFQ (Request for Quote) goes through several stages from creation to on-chain settlement. In the current app flow, the frontend first opens a live quote request while the user builds the slip; only when the user submits does Totalis atomically create a real RFQ with the selected quote already accepted.
 
 ## Status Flow
 
@@ -24,39 +24,43 @@ A few status nuances worth knowing:
 ## Step-by-Step Flow
 
 <Steps>
-  <Step title="User Creates RFQ">
-    The user submits a parlay bet request with 2–5 legs. Each leg references a market on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`).
+  <Step title="User Builds a Live Quote Request">
+    The user adds 2–5 legs to the parlay builder. Each leg references a market on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`). The frontend creates or updates a short-lived quote request instead of immediately creating a real RFQ.
 
     `market_ticker` is venue-polymorphic — see [Create RFQ](/api-reference/rfqs/create) for the full field reference:
     - **Kalshi**: the Kalshi market ticker (e.g. `KXBTC-25FEB07-T100000`).
     - **Polymarket**: the `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`). Not the gamma id, question id, or market slug. Both yes and no sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`; CLOB token ids are not part of the RFQ surface.
 
     ```bash
-    POST /rfqs
+    POST /quote-requests
     {
       "legs": [
         { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
         { "market_ticker": "0x4d2…",                "side": "no",  "venue": "polymarket" }
       ],
-      "bet_amount": 25,
-      "expires_in_seconds": 300
+      "bet_amount": 25
     }
     ```
 
-    The system validates that each market exists in the cache, enforces leg-exclusion rules (see [Get Exclusion Groups](/api-reference/markets/exclusion-groups)), and records the RFQ as `open` so market makers can quote against it.
+    The system validates that each market exists in the cache, enforces leg-exclusion rules (see [Get Exclusion Groups](/api-reference/markets/exclusion-groups)), versions the request, and broadcasts it on `quote_requests:open` so market makers can quote against it.
 
-    **Status: `open`**
+    **Quote request status: `active`**
   </Step>
 
-  <Step title="Market Makers Submit Quotes">
-    Market makers poll [List Open RFQs](/api-reference/mm/list-rfqs) or subscribe to the `rfqs:open` WebSocket channel and submit quotes with their payout odds.
+  <Step title="Market Makers Submit Draft Quotes">
+    Market makers subscribe to the `quote_requests:open` WebSocket channel and submit draft quotes with their payout odds. [List Quote Requests](/api-reference/mm/list-quote-requests) is only a catchup/recovery endpoint for startup or reconnect gaps.
 
     ```bash
-    POST /mm/quotes
+    POST /mm/quote-requests/<quote-request-id>/quotes
     {
-      "rfq_id": "<rfq-uuid>",
+      "request_version": 3,
+      "request_hash": "sha256...",
       "payout_odds": 4.0,
-      "valid_for_seconds": 60
+      "valid_for_seconds": 15,
+      "leg_prices": [
+        { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "odds": 0.42 },
+        { "leg_id": "6e854379-57bb-487a-aec3-197fdd861fc8", "odds": 0.58 }
+      ]
     }
     ```
 
@@ -65,17 +69,21 @@ A few status nuances worth knowing:
     - **total_payout** = bet_amount × payout_odds (e.g. $100)
     - **mm_cost** (MM's max risk) = total_payout − user_cost (e.g. $75)
 
-    **Status: `quoted`**
+    **Quote request status: `active`**
   </Step>
 
-  <Step title="User Accepts Best Quote">
-    The user reviews quotes and accepts one.
+  <Step title="User Commits the Best Quote">
+    The frontend shows the best active draft quote. When the user submits, the server selects the best still-valid quote for the displayed version and creates the real RFQ plus accepted quote atomically.
 
     ```bash
-    POST /rfqs/<rfq-id>/quotes/<quote-id>/accept
+    POST /quote-requests/<quote-request-id>/commit-best
+    {
+      "expected_version": 3,
+      "min_payout_odds_seen": 4.0
+    }
     ```
 
-    Any other pending quotes on the same RFQ move to `rejected`. The response returns a `confirmation_deadline` — the timestamp by which the market maker must confirm.
+    The response returns the real `rfq_id`, `quote_id`, selected `mm_id`, payout odds, and `confirmation_deadline` — the timestamp by which the market maker must confirm.
 
     **Status: `accepted`**
   </Step>
@@ -133,6 +141,7 @@ Two background services manage the vault position lifecycle:
 | Legs per parlay | 2–5 |
 | Bet amount | 1–100 USDC |
 | Payout odds | 1.0001× – 1000× |
-| RFQ expiration | 30 s – 24 h (default 300 s) |
+| Quote request expiry | Server-set; visible as `expires_at` on the quote request object |
+| RFQ expiration | 30 s – 24 h (default 300 s); applies to real RFQs created at `commit-best` |
 | Quote validity | 10 s – 1 h (default 60 s) |
-| MM confirmation window | Server-controlled; returned on the `Accept Quote` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
+| MM confirmation window | Server-controlled; returned on the `commit-best` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
