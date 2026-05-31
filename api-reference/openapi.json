@@ -864,7 +864,7 @@
       "get": {
         "operationId": "getWallet",
         "summary": "Get Wallet",
-        "description": "Get the authenticated user's embedded Solana wallet address and on-chain balances, plus a few derived fields used by the dashboard (`locked_amount` aggregates every USDC the caller has committed across active RFQs and vault positions; `airdrop_remaining` reflects the per-user lifetime devnet airdrop cap).",
+        "description": "Get the authenticated user's embedded Solana wallet address, wallet/vault balances, and the aggregated `locked_amount` across active RFQs and vault positions.",
         "tags": ["User"],
         "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
         "responses": {
@@ -1548,20 +1548,17 @@
           "address": { "type": "string", "nullable": true, "description": "Solana wallet address (base58). Null if no wallet is linked yet." },
           "sol_balance": { "type": "number" },
           "usdc_balance": { "type": "number" },
+          "vault_balance": {
+            "type": "number",
+            "description": "Gross USDC balance currently held in the caller's Totalis vault. Resolved by the returned `address`; returns 0 when no vault row exists for that wallet. Includes both free vault cash and locked collateral. Add to `usdc_balance` for total on-chain USDC across wallet and vault; subtract `locked_amount` from that total for an available-cash view."
+          },
           "locked_amount": {
             "type": "number",
-            "description": "Every USDC the caller has committed across roles: in-flight RFQs, bettor-side vault position stakes, and maker-side `locked_collateral`. Use this single field rather than re-summing on the client."
-          },
-          "total_usdc_airdropped": { "type": "number", "description": "Lifetime USDC received via welcome airdrops." },
-          "airdrop_remaining": { "type": "number", "description": "USDC remaining before hitting the per-user lifetime airdrop cap (currently 10 USDC)." },
-          "welcome_airdrop_pending_amount": {
-            "type": "number",
-            "nullable": true,
-            "description": "Deferred welcome airdrop staged at approval but not yet minted. Cleared atomically by `POST /user/wallet/enable-trading`."
+            "description": "Every USDC the caller has committed across roles: in-flight RFQs, bettor-side vault position stakes, and maker-side `locked_collateral`. Because `vault_balance` is gross, vault locked collateral is intentionally represented in both `vault_balance` and `locked_amount`; compute available cash as `usdc_balance + vault_balance - locked_amount` and do not add `/user/vault.locked_collateral` again."
           },
           "has_traded": {
             "type": "boolean",
-            "description": "True once any of the caller's parlays has reached `executed` or `settled`. Drives the Withdraw button gate; `POST /user/wallet/withdraw` returns 409 when false."
+            "description": "True once any of the caller's parlays has reached `executed` or `settled`. Informational account state; withdrawals are allowed regardless of this value."
           }
         }
       },
