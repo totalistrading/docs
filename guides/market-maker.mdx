@@ -30,6 +30,7 @@ For most market makers, the public integration surface should stay small:
 | Receive live quote requests | [`quote_requests:open` WebSocket channel](/guides/websocket) |
 | Catch up after startup or reconnect | [`GET /mm/quote-requests`](/api-reference/mm/list-quote-requests) |
 | Submit a draft quote | [`POST /mm/quote-requests/{id}/quotes`](/api-reference/mm/submit-quote-request-quote) |
+| Withdraw a draft quote | [`POST /mm/quote-requests/{id}/quotes/withdraw`](/api-reference/mm/withdraw-quote-request-quote) |
 | Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
 | Track your quotes | [`GET /mm/quotes`](/api-reference/mm/list-quotes) |
 | Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
