@@ -1,161 +1,116 @@
 ---
 title: 'WebSocket'
-description: 'Connect to the Totalis WebSocket for real-time RFQ and quote updates with authentication and channel subscriptions'
+description: 'Real-time trade confirmations and position updates via WebSocket.'
 ---
 
-The Totalis API provides a WebSocket endpoint for real-time updates on live quote requests, RFQs, and quotes. This is essential for market makers who need to react quickly to parlay-slip quote requests and for users tracking their active bets.
+The Totalis WebSocket delivers real-time notifications for trade confirmations, position settlements, and quote lifecycle events.
+
+<Note>
+  **Live quote request streaming uses SSE, not WebSocket.** Market makers receive quote requests via the [Quote Service SSE stream](/api-reference/quote-service-mm/stream). Users receive live pricing via the [user SSE stream](/api-reference/quote-service/stream). The WebSocket is used for post-trade events like `quote:accepted` and `position:settled`.
+</Note>
 
 ## Connecting
 
 ```
-ws://localhost:3000/ws        # Development
-wss://api.totalis.trade/ws      # Production
+wss://api.totalis.trade/ws
 ```
 
 ## Authentication
 
-After connecting, send an auth message with your API key:
+Send an auth message with your API key immediately after connecting:
 
 ```json
-{
-  "type": "auth",
-  "api_key": "<your-api-key>"
-}
+{ "type": "auth", "api_key": "<your-api-key>" }
 ```
 
-You'll receive either:
-
+Success:
 ```json
-{ "type": "auth:success", "user_id": "user_abc123", "user_type": "user" }
+{ "type": "auth:success", "user_id": "did:privy:abc123", "user_type": "user" }
 ```
 
-or:
-
+Error:
 ```json
 { "type": "auth:error", "message": "Invalid API key" }
 ```
-
-<Note>
-  WebSocket connections require API key authentication. Generate your key from the [Totalis Dashboard](https://app.totalis.trade).
-</Note>
 
 ## Subscribing to Channels
 
 After authenticating, subscribe to channels to receive events:
 
 ```json
-{ "type": "subscribe", "channel": "quote_requests:open" }
+{ "type": "subscribe", "channel": "mm:quotes:<your-mm-id>" }
 ```
 
-### Available Channels
-
-| Channel | Audience | Description |
-|---------|----------|-------------|
-| `quote_requests:open` | Market makers | Live pre-trade quote requests from parlay builders; includes request create/update events, not submitted quote details |
-| `rfqs:open` | Market makers | Legacy/open RFQs |
-| `quote_request:{quote_request_id}` | Quote request owner | Owner-only draft quote updates for a specific live quote request |
-| `rfq:{rfq_id}` | RFQ owner | Updates for a specific RFQ |
-| `mm:quotes:{mm_id}` | Market maker | Updates on your own quotes |
+| Channel | Description |
+|---------|-------------|
+| `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, confirmed, expired, withdrawn) |
+| `rfq:{rfq_id}` | Position and status updates for a specific trade |
 
 ## Events
-
-### RFQ Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `rfq:created` | New RFQ created | Full RFQ object |
-| `rfq:cancelled` | RFQ cancelled | `{ rfq_id, reason }` |
-| `rfq:status` | RFQ status changed | `{ rfq_id, status, updated_at, accepted_quote_id }` |
-| `rfq:expired` | RFQ expired | `{ rfq_id }` |
-
-### Quote Request Events
-
-| Event | Description | Data |
-|-------|-------------|------|
-| `quote_request:created` | New live quote request | Full quote request object |
-| `quote_request:updated` | Quote request version changed | Full quote request object |
-| `quote_request:quote_submitted` | MM submitted a draft quote; delivered to the request owner on `quote_request:{quote_request_id}`, not `quote_requests:open` | Draft quote object |
-| `quote_request:quote_withdrawn` | MM withdrew a draft quote; delivered to the request owner on `quote_request:{quote_request_id}` | `{ quote_request_id, request_version, request_hash, market_maker_id, quote_id }` |
-| `quote_request:quote_expired` | Draft quote expired and was removed from the active quote book; delivered to the request owner on `quote_request:{quote_request_id}` | `{ quote_request_id, request_version, request_hash, market_maker_id, quote_id }` |
-| `quote_request:best_changed` | Best active draft quote changed; delivered to the request owner on `quote_request:{quote_request_id}` | `{ quote_request_id, request_version, request_hash, best_quote, quote_count }` |
-| `quote_request:committed` | User committed the best quote into a real RFQ; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id, rfq_id, quote_id }` |
-| `quote_request:cancelled` | Quote request cancelled or abandoned; delivered on `quote_requests:open` and `quote_request:{quote_request_id}` | `{ quote_request_id }` |
 
 ### Quote Events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `quote:submitted` | New quote submitted | Full quote object |
-| `quote:accepted` | Quote accepted by user | `{ quote_id, rfq_id, confirmation_deadline }` |
-| `quote:confirmed` | Quote confirmed by MM | `{ quote_id, rfq_id, execution_id }` |
-| `quote:executed` | On-chain vault position created | `{ quote_id, rfq_id }` |
-| `quote:expired` | Quote expired | `{ quote_id, rfq_id }` |
-| `quote:rejected` | Quote rejected (another was accepted) | `{ quote_id, rfq_id, reason }` |
-| `quote:withdrawn` | Quote withdrawn by MM | `{ quote_id, rfq_id }` |
+| `quote:accepted` | A user committed your quote. You must confirm it before the deadline. | `{ quote_id, rfq_id, confirmation_deadline }` |
+| `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
+| `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
+| `quote:expired` | Quote expired before confirmation. | `{ quote_id, rfq_id }` |
+| `quote:rejected` | Another quote was accepted instead. | `{ quote_id, rfq_id, reason }` |
+| `quote:withdrawn` | You withdrew the quote. | `{ quote_id, rfq_id }` |
 
 ### Position Events
 
-Position events are delivered on the `rfq:{rfq_id}` channel. Subscribe to a specific RFQ's channel to receive its position lifecycle updates. Status and error events are also sent to the MM's `mm:quotes:{mm_id}` channel.
-
 | Event | Description | Data |
 |-------|-------------|------|
-| `position:created` | Position PDA created, collateral locked in vaults | `{ rfq_id, position_pda, timestamp }` |
-| `position:settled` | Position settled with outcome | `{ rfq_id, position_pda, outcome, tx_signature, quote_id, timestamp }` |
-| `position:cancelled` | Position cancelled, collateral unlocked | `{ rfq_id, position_pda, reason, timestamp }` |
-| `position:error` | Position execution error | `{ rfq_id, error, timestamp }` |
+| `position:created` | Vault position created, collateral locked. | `{ rfq_id, position_pda, timestamp }` |
+| `position:settled` | Position settled with outcome. | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
+| `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
+| `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
 
 ## Keep-Alive
 
-Send periodic pings to keep the connection alive:
+Send periodic pings to keep the connection open:
 
 ```json
 { "type": "ping" }
 ```
 
 Response:
-
 ```json
-{ "type": "pong", "timestamp": "2025-02-07T12:00:00.000Z" }
+{ "type": "pong", "timestamp": "2026-06-01T12:00:00.000Z" }
 ```
 
-## Example: Market Maker Bot
+## Example
 
 ```javascript
 const ws = new WebSocket('wss://api.totalis.trade/ws');
 
 ws.onopen = () => {
-  // Authenticate
-  ws.send(JSON.stringify({
-    type: 'auth',
-    api_key: '<your-api-key>'
-  }));
+  ws.send(JSON.stringify({ type: 'auth', api_key: '<your-api-key>' }));
 };
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
-  switch (msg.type) {
-    case 'auth:success':
-      // Subscribe to live quote requests
-      ws.send(JSON.stringify({ type: 'subscribe', channel: 'quote_requests:open' }));
-      ws.send(JSON.stringify({ type: 'subscribe', channel: `mm:quotes:${msg.user_id}` }));
-      break;
+  if (msg.type === 'auth:success') {
+    ws.send(JSON.stringify({
+      type: 'subscribe',
+      channel: `mm:quotes:${msg.user_id}`
+    }));
+  }
 
-    case 'quote_request:created':
-    case 'quote_request:updated':
-      console.log('Quote request:', msg.data);
-      // Analyze and submit POST /mm/quote-requests/{id}/quotes
-      break;
+  if (msg.type === 'quote:accepted') {
+    console.log('Quote accepted! Confirm before:', msg.data.confirmation_deadline);
+    // POST https://api.totalis.trade/mm/quotes/{quoteId}/confirm
+  }
 
-    case 'quote:accepted':
-      console.log('Quote accepted, confirming before', msg.data.confirmation_deadline);
-      // Confirm before confirmation_deadline (server-controlled)
-      break;
+  if (msg.type === 'position:settled') {
+    console.log('Position settled:', msg.data.outcome);
   }
 };
 
-// Keep alive
 setInterval(() => {
   ws.send(JSON.stringify({ type: 'ping' }));
-}, 30000);
+}, 30_000);
 ```
