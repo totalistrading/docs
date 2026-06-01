@@ -1,0 +1,57 @@
+---
+title: 'Withdraw Quote'
+description: 'Withdraw your active draft quote from a live quote request before the user commits it.'
+---
+
+```
+DELETE /v1/mm/quote-requests/{id}/quote
+```
+
+Withdraws the MM's active draft quote from a live quote request. If the quote has already expired, the response indicates `already_expired` rather than returning an error.
+
+**Auth:** `X-API-Key` (market maker)
+
+**Base URL:** Quote Service (configured per environment)
+
+## Path Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `id` | string | Quote request ID. |
+
+## Request Body (optional)
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `request_version` | integer | no | Defaults to the current version if omitted. |
+| `request_hash` | string | no | Defaults to the current hash if omitted. |
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256..."
+}
+```
+
+## Response
+
+**`204 No Content`** -- quote successfully withdrawn.
+
+If the quote had already expired:
+
+**`200 OK`**
+
+```json
+{
+  "data": {
+    "status": "already_expired"
+  }
+}
+```
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `NOT_FOUND` | 404 | Quote request not found. |
+| `CONFLICT` | 409 | No active quote to withdraw, request expired, no longer active, or version mismatch. Check `details.reason`. |

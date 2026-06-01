@@ -1,5 +1,9 @@
 ---
-title: 'Withdraw Quote'
+title: 'Withdraw Quote (Deprecated)'
 description: 'Withdraw one of your pending Totalis quotes before the bettor accepts it.'
 openapi: 'POST /mm/quotes/{quoteId}/withdraw'
 ---
+
+<Warning>
+**This endpoint is no longer available.** The legacy RFQ flow has been replaced by [Live Quote Requests](/guides/live-quote-requests). Use [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to withdraw draft quotes from live quote requests instead.
+</Warning>

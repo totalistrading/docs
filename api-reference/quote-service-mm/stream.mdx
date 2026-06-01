@@ -1,0 +1,93 @@
+---
+title: 'Stream Quote Requests (MM)'
+description: 'SSE stream that delivers all active quote requests to market makers in real time. The primary integration path for receiving new pricing opportunities.'
+---
+
+```
+GET /v1/mm/quote-requests/stream
+```
+
+Opens a Server-Sent Events (SSE) stream that delivers all active quote requests to the connected market maker. This is the primary integration path -- use it instead of polling. The stream emits new requests as they arrive and notifies when requests expire.
+
+**Auth:** `X-API-Key` (market maker)
+
+**Base URL:** Quote Service (configured per environment)
+
+## SSE Events
+
+### `connected`
+
+Sent immediately on connection.
+
+```json
+{
+  "mm_id": "mm-uuid"
+}
+```
+
+### `quote_request`
+
+Sent when a new quote request becomes visible or when a request is updated to a new version.
+
+```json
+{
+  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "user_id": "did:privy:...",
+  "input_legs": [
+    { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" }
+  ],
+  "legs": [
+    {
+      "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+      "event_ticker": "KXBTC-25FEB07-T100000",
+      "market_ticker": "KXBTC-25FEB07-T100000",
+      "side": "yes",
+      "venue": "kalshi"
+    }
+  ],
+  "bet_amount": 25,
+  "implied_probability": 0,
+  "version": 3,
+  "request_hash": "sha256...",
+  "expires_at": "2026-05-31T18:45:30.000Z"
+}
+```
+
+### `snapshot_begin`
+
+Sent at the start of the initial snapshot (on new connection or reconnect). After this event the server re-emits all currently active quote requests before sending `snapshot_complete`.
+
+```json
+{
+  "page_size": 50
+}
+```
+
+### `snapshot_complete`
+
+Sent when the initial snapshot is finished. After this event the stream switches to incremental updates.
+
+```json
+{
+  "pages": 2,
+  "total": 87
+}
+```
+
+### `quote_request_expired`
+
+Sent when a previously seen quote request is no longer active (expired, committed, or cancelled).
+
+```json
+{
+  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40"
+}
+```
+
+## Notes
+
+- The stream automatically excludes quote requests created by the connected MM's own user.
+- On reconnect, pass the `last_event_id` query parameter (the `id:` field of the last SSE event you received) to replay any events you missed. The server resumes from that point rather than re-sending everything.
+- Every SSE event includes an `id:` field. Persist this value so you can reconnect without data loss.
+- When a new connection is established (or reconnected), the server sends a `snapshot_begin` event, then re-emits all currently active requests, followed by a `snapshot_complete` event. After the snapshot phase, the stream switches to incremental updates.
+- Keep the connection alive and maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) to signal liveness.

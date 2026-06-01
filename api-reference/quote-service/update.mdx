@@ -1,0 +1,66 @@
+---
+title: 'Update Quote Request'
+description: 'Update the legs or bet amount on an active quote request. Increments the version and request_hash, invalidating all stale MM quotes.'
+---
+
+```
+PATCH /v1/quote-requests/{id}
+```
+
+Updates an active quote request when the user changes legs or bet amount in the slip builder. The `version` increments and a new `request_hash` is computed, so all MM quotes for older versions are automatically invalidated.
+
+**Auth:** `Authorization: Bearer <privy_jwt>`
+
+## Path Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `id` | string | Quote request ID. |
+
+## Request Body
+
+Same shape as [Create Quote Request](/api-reference/quote-service/create).
+
+```json
+{
+  "legs": [
+    { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
+    { "market_ticker": "KXETH-25FEB07-T3000", "side": "no", "venue": "kalshi" }
+  ],
+  "bet_amount": 50
+}
+```
+
+## Response
+
+**`200 OK`**
+
+```json
+{
+  "data": {
+    "quote_request": {
+      "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+      "user_id": "did:privy:...",
+      "version": 2,
+      "request_hash": "sha256...",
+      "book_seq": 0,
+      "status": "active",
+      "bet_amount": 50,
+      "implied_probability": 0,
+      "expires_at": "2026-05-31T18:45:30.000Z",
+      "legs": [ "..." ],
+      "input_legs": [ "..." ]
+    }
+  }
+}
+```
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | Invalid body or market validation failed. |
+| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
+| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
+| `NOT_FOUND` | 404 | Quote request not found. |
+| `CONFLICT` | 409 | Quote request is already committed, committing, cancelled, or expired. |

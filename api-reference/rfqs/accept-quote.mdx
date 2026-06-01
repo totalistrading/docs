@@ -1,5 +1,9 @@
 ---
-title: 'Accept Quote'
+title: 'Accept Quote (Deprecated)'
 description: 'Accept a market maker quote on your Totalis RFQ. Rejects all other pending quotes and returns the deadline by which the market maker must confirm.'
 openapi: 'POST /rfqs/{id}/quotes/{quoteId}/accept'
 ---
+
+<Warning>
+**This endpoint is no longer available.** The legacy RFQ flow has been replaced by [Live Quote Requests](/guides/live-quote-requests). Use [`POST /v1/quote-requests/{id}/commit`](/api-reference/quote-service/commit) to commit the best quote instead.
+</Warning>

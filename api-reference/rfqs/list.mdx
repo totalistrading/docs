@@ -1,5 +1,9 @@
 ---
-title: 'List RFQs'
+title: 'List RFQs (Deprecated)'
 description: 'List your Totalis RFQs with optional status filtering (comma-separated values are accepted). Pass `include=quotes` to embed the quotes array on each row; otherwise `quotes` is null. Cursor-paginated.'
 openapi: 'GET /rfqs'
 ---
+
+<Warning>
+**This endpoint is no longer available.** The legacy RFQ flow has been replaced by [Live Quote Requests](/guides/live-quote-requests). Use [`GET /v1/quote-requests/{id}`](/api-reference/quote-service/get) to fetch quote request state instead.
+</Warning>
