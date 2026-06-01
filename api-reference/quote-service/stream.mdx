@@ -78,14 +78,14 @@ Sent when the quote request transitions out of the `active` state (committed, ca
 
 <RequestExample>
 ```bash curl
-curl -N https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/stream \
+curl -N https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/stream \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept: text/event-stream"
 ```
 
 ```javascript JavaScript
 const eventSource = new EventSource(
-  'https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06.../stream',
+  'https://api.totalis.trade/v1/quote-requests/1a6d1f06.../stream',
   { headers: { 'Authorization': `Bearer ${token}` } }
 );
 
@@ -106,7 +106,7 @@ eventSource.addEventListener('status', (e) => {
 import requests
 import json
 
-url = 'https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06.../stream'
+url = 'https://api.totalis.trade/v1/quote-requests/1a6d1f06.../stream'
 headers = {
     'Authorization': f'Bearer {token}',
     'Accept': 'text/event-stream',

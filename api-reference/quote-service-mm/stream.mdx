@@ -115,7 +115,7 @@ GET /v1/mm/quote-requests/stream?last_event_id=evt_abc123
 
 <RequestExample>
 ```bash curl
-curl -N https://quote-service.totalis.trade/v1/mm/quote-requests/stream \
+curl -N https://api.totalis.trade/v1/mm/quote-requests/stream \
   -H "X-API-Key: $API_KEY" \
   -H "Accept: text/event-stream"
 ```
@@ -124,7 +124,7 @@ curl -N https://quote-service.totalis.trade/v1/mm/quote-requests/stream \
 const EventSource = require('eventsource');
 
 const es = new EventSource(
-  'https://quote-service.totalis.trade/v1/mm/quote-requests/stream',
+  'https://api.totalis.trade/v1/mm/quote-requests/stream',
   { headers: { 'X-API-Key': API_KEY } }
 );
 
@@ -148,7 +148,7 @@ es.addEventListener('quote_request_expired', (e) => {
 import requests
 import json
 
-url = 'https://quote-service.totalis.trade/v1/mm/quote-requests/stream'
+url = 'https://api.totalis.trade/v1/mm/quote-requests/stream'
 headers = {
     'X-API-Key': API_KEY,
     'Accept': 'text/event-stream',

@@ -40,14 +40,14 @@ Send a heartbeat every **30 seconds** to stay well within the 60-second TTL. Run
 
 <RequestExample>
 ```bash
-curl -X POST https://quote-service.totalis.trade/v1/mm/heartbeat \
+curl -X POST https://api.totalis.trade/v1/mm/heartbeat \
   -H "X-API-Key: $API_KEY"
 ```
 
 ```javascript JavaScript
 // Run alongside your SSE stream connection
 setInterval(async () => {
-  const res = await fetch('https://quote-service.totalis.trade/v1/mm/heartbeat', {
+  const res = await fetch('https://api.totalis.trade/v1/mm/heartbeat', {
     method: 'POST',
     headers: { 'X-API-Key': API_KEY },
   });
@@ -64,7 +64,7 @@ import threading
 def heartbeat_loop(api_key):
     while True:
         resp = requests.post(
-            'https://quote-service.totalis.trade/v1/mm/heartbeat',
+            'https://api.totalis.trade/v1/mm/heartbeat',
             headers={'X-API-Key': api_key},
         )
         data = resp.json()['data']

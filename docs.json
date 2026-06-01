@@ -10,7 +10,10 @@
   "favicon": "/totalis_logo.png",
   "api": {
     "mdx": {
-      "server": "https://quote-service.totalis.trade"
+      "server": "https://api.totalis.trade",
+      "auth": {
+        "method": "bearer"
+      }
     }
   },
   "navigation": {
@@ -139,7 +142,9 @@
       }
     ]
   },
-  "openapi": ["/api-reference/openapi.json"],
+  "openapi": [
+    "/api-reference/openapi.json"
+  ],
   "seo": {
     "metatags": {
       "og:type": "website",
