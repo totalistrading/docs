@@ -64,6 +64,7 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 | `QUOTE_CHANGED` | The `expected_version` does not match. The request was updated since you last fetched it. |
 | `MARKET_NOT_LIVE` | One or more markets are no longer available (expired, halted, or delisted). |
 | `QUOTE_EXPIRED` | No active quotes exist, or the best quote expired between selection and commit. |
+| `COMMIT_FAILED` | The commit could not be completed — for example no eligible market maker had sufficient collateral. Returns `409`. |
 | `COMMIT_FAILED_RETRYABLE` | Transient error. Retry after a short delay. Returns `503`. |
 
 ## Errors

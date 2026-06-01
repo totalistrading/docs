@@ -32,13 +32,13 @@ Sent at the start of the initial snapshot (on new connection or reconnect). All 
 
 ```json
 {
-  "page_size": 50
+  "page_size": 500
 }
 ```
 
 ### `quote_request`
 
-Sent when a new quote request is created or when an existing request is updated to a new version. This is the primary event you price against.
+Sent when a **new** quote request is created, and once for each active request replayed during the initial snapshot. This is the primary event you price against.
 
 ```json
 {
@@ -69,6 +69,28 @@ Sent when a new quote request is created or when an existing request is updated 
   "version": 1,
   "request_hash": "sha256:9f86d08...",
   "expires_at": "2026-06-01T18:45:30.000Z"
+}
+```
+
+### `quote_request:updated`
+
+Sent when a request you have **already seen** changes to a new `version` — the user edited the legs or the bet amount. The payload is identical to `quote_request` (with the incremented `version` and new `request_hash`). Any quote you submitted for the prior version is automatically invalidated; re-price and submit a new quote against the new `version` and `request_hash`.
+
+<Warning>
+This is a distinct event name from `quote_request`. If your client only registers a listener for `quote_request`, it will miss every version bump. Register a listener for `quote_request:updated` as well (or, with a raw SSE parser, branch on the `event:` field).
+</Warning>
+
+```json
+{
+  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "user_id": "did:privy:cm3abc...",
+  "input_legs": [ "..." ],
+  "legs": [ "..." ],
+  "bet_amount": 50,
+  "implied_probability": 0,
+  "version": 2,
+  "request_hash": "sha256:3b1f9c2...",
+  "expires_at": "2026-06-01T18:46:10.000Z"
 }
 ```
 
@@ -105,7 +127,7 @@ GET /v1/mm/quote-requests/stream?last_event_id=evt_abc123
 
 - The stream automatically excludes quote requests created by your own user account.
 - Keep the connection alive and send a [heartbeat](/api-reference/quote-service-mm/heartbeat) at least every 30 seconds to signal liveness.
-- When `version` changes on a `quote_request` event, any quote you submitted for a prior version is automatically invalidated. Re-price and submit a new quote.
+- A version change arrives as a `quote_request:updated` event (a new request arrives as `quote_request`). When the `version` changes, any quote you submitted for the prior version is automatically invalidated. Re-price and submit a new quote.
 
 ## Errors
 
@@ -138,6 +160,12 @@ es.addEventListener('quote_request', (e) => {
   // Price the legs and submit a quote
 });
 
+es.addEventListener('quote_request:updated', (e) => {
+  const req = JSON.parse(e.data);
+  console.log('Request updated to version', req.version, '— re-price:', req.id);
+  // Your prior-version quote is invalidated; submit a new one
+});
+
 es.addEventListener('quote_request_expired', (e) => {
   const { id } = JSON.parse(e.data);
   console.log('Request expired:', id);
@@ -164,6 +192,9 @@ with requests.get(url, headers=headers, stream=True) as resp:
             if event_type == 'quote_request':
                 print(f"New request: {payload['id']}")
                 # Price the legs and submit a quote
+            elif event_type == 'quote_request:updated':
+                print(f"Request {payload['id']} updated to v{payload['version']} — re-price")
+                # Prior-version quote invalidated; submit a new one
             elif event_type == 'quote_request_expired':
                 print(f"Expired: {payload['id']}")
             event_type = None
@@ -186,6 +217,9 @@ data: {"pages":1,"total":3}
 
 event: quote_request
 data: {"id":"f7e8d9c0-1234-5678-abcd-ef0123456789","user_id":"did:privy:cm9xyz...","input_legs":[{"market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"legs":[{"id":"d4e5f6a7-8901-23bc-def4-567890abcdef","event_ticker":"KXETH-26JUN01","market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"bet_amount":10,"implied_probability":0,"version":1,"request_hash":"sha256:b5c6d7e...","expires_at":"2026-06-01T18:50:00.000Z"}
+
+event: quote_request:updated
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":50,"implied_probability":0,"version":2,"request_hash":"sha256:3b1f9c2...","expires_at":"2026-06-01T18:46:10.000Z"}
 
 event: quote_request_expired
 data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40"}
