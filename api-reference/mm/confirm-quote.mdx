@@ -1,5 +1,101 @@
 ---
-title: 'Confirm Quote'
-description: 'Confirm an accepted quote on Totalis. Queues an atomic Solana transaction that locks the bettor stake and the MM collateral in their persistent vaults.'
-openapi: 'POST /mm/quotes/{quoteId}/confirm'
+title: "Confirm Quote"
+api: "POST /mm/quotes/{quoteId}/confirm"
+description: "Confirm an accepted quote to lock in the trade and begin vault settlement."
 ---
+
+Confirm an accepted quote to finalize the trade. This triggers an atomic Solana transaction that locks the user's stake and your collateral in their respective vaults.
+
+You receive a `quote:accepted` WebSocket event when a user commits your quote. You must confirm before the `confirmation_deadline` returned in that event. If you miss the deadline, the trade is unwound and the RFQ reopens for other market makers.
+
+**Base URL:** `https://api.totalis.trade`
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Path Parameters
+
+<ParamField path="quoteId" type="string" required>
+  The accepted quote ID (UUID). This is the `quote_id` from the `quote:accepted` WebSocket event.
+</ParamField>
+
+## Request Body
+
+No request body required.
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="status" type="string">`"confirmed"`</ResponseField>
+    <ResponseField name="quote_id" type="string">The confirmed quote ID.</ResponseField>
+    <ResponseField name="execution_id" type="string">Execution ID for tracking the vault settlement.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | You do not own this quote. |
+| 404 | `NOT_FOUND` | Quote not found. |
+| 409 | `CONFLICT` | Quote is not in `accepted` status (already confirmed, expired, or cancelled). |
+| 409 | `CONFLICT` | Insufficient balance. Your aggregate risk across pending positions exceeds your available USDC (wallet + vault free balance). |
+| 503 | `SERVICE_UNAVAILABLE` | Unable to verify your balance. Retry after a short delay. |
+
+<RequestExample>
+```bash
+curl -X POST https://api.totalis.trade/mm/quotes/d4e5f6a7-8901-bcde-f234-567890abcdef/confirm \
+  -H "X-API-Key: $API_KEY"
+```
+
+```javascript JavaScript
+// After receiving a quote:accepted WebSocket event
+ws.on('message', async (msg) => {
+  const event = JSON.parse(msg);
+  if (event.type === 'quote:accepted') {
+    const res = await fetch(
+      `https://api.totalis.trade/mm/quotes/${event.data.quote_id}/confirm`,
+      {
+        method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
+      }
+    );
+    const { data } = await res.json();
+    console.log('Confirmed:', data.execution_id);
+  }
+});
+```
+
+```python Python
+import requests
+
+# After receiving a quote:accepted WebSocket event
+quote_id = "d4e5f6a7-8901-bcde-f234-567890abcdef"
+
+resp = requests.post(
+    f"https://api.totalis.trade/mm/quotes/{quote_id}/confirm",
+    headers={"X-API-Key": API_KEY},
+)
+data = resp.json()["data"]
+print(f"Confirmed: {data['execution_id']}")
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "data": {
+    "status": "confirmed",
+    "quote_id": "d4e5f6a7-8901-bcde-f234-567890abcdef",
+    "execution_id": "exec-a1b2c3d4e5f6"
+  }
+}
+```
+</ResponseExample>

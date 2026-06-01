@@ -1,79 +1,107 @@
 ---
-title: 'Commit Quote Request'
-description: 'Commit the best available quote on a live quote request. Creates an accepted RFQ atomically with commit-protection fields that prevent stale-price execution.'
+title: "Commit Quote Request"
+api: "POST /v1/quote-requests/{id}/commit"
+description: "Lock in the best available quote and create a trade."
 ---
 
+Commit the best available quote on an active quote request. The server re-validates all markets, selects the best quote that meets your `min_payout_odds_seen` threshold, and creates the trade atomically.
+
+The request body includes protection fields that tie the commit to exactly what you last saw, preventing stale-price execution.
+
+After a successful commit, the selected market maker receives a `quote:accepted` event and must confirm the trade before the `confirmation_deadline`. From there, the vault settlement flow takes over.
+
+## Authentication
+
+Bearer token required. Pass your JWT in the `Authorization` header.
+
 ```
-POST /v1/quote-requests/{id}/commit
+Authorization: Bearer <jwt>
 ```
-
-Commits the best eligible quote on a live quote request. The server re-validates all markets, selects the best quote that meets the `min_payout_odds_seen` threshold, and creates the final accepted RFQ atomically via the Core Backend.
-
-The commit body includes **commit-protection fields** that tie the commit to what the user actually saw on screen, preventing stale-price execution.
-
-**Auth:** `Authorization: Bearer <privy_jwt>`
 
 ## Path Parameters
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Quote request ID. |
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
 
 ## Request Body
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `expected_version` | integer | yes | The quote request `version` the frontend is currently displaying. Commit is rejected if the server version differs. |
-| `displayed_quote_id` | string | yes | The `id` of the best quote the user saw on screen at commit time. |
-| `displayed_quote_book_seq` | integer | yes | The `book_seq` value from the SSE stream event that delivered the displayed quote. Proves the frontend was up-to-date. |
-| `min_payout_odds_seen` | number | yes | The minimum payout odds the user was shown. Only quotes at or above this threshold are eligible. Must be >= 1.0001. |
+<ParamField body="expected_version" type="integer" required>
+  The quote request `version` you are currently viewing. The commit is rejected if the server's version differs (meaning the request was updated since you last fetched it).
+</ParamField>
 
-```json
-{
-  "expected_version": 3,
-  "displayed_quote_id": "quote-uuid",
-  "displayed_quote_book_seq": 5,
-  "min_payout_odds_seen": 4.25
-}
-```
+<ParamField body="displayed_quote_id" type="string" required>
+  The `id` of the best quote you saw at commit time.
+</ParamField>
+
+<ParamField body="displayed_quote_book_seq" type="integer" required>
+  The `book_seq` value from the SSE event that delivered the displayed quote. Proves your data was up to date.
+</ParamField>
+
+<ParamField body="min_payout_odds_seen" type="number" required>
+  The minimum payout odds you were shown. Only quotes at or above this threshold are eligible. Must be >= 1.0001.
+</ParamField>
 
 ## Response
 
-**`201 Created`**
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="status" type="string">`"committed"`</ResponseField>
+    <ResponseField name="quote_request_id" type="string">The quote request ID.</ResponseField>
+    <ResponseField name="rfq_id" type="string">The created RFQ ID for vault settlement.</ResponseField>
+    <ResponseField name="quote_id" type="string">The selected quote ID.</ResponseField>
+    <ResponseField name="selected_payout_odds" type="number">The payout odds that were locked in.</ResponseField>
+    <ResponseField name="confirmation_deadline" type="string">ISO 8601 deadline by which the market maker must confirm.</ResponseField>
+  </Expandable>
+</ResponseField>
 
-```json
+## Rejection Reasons
+
+When a commit is rejected with `409 Conflict`, the `error.details.reason` field explains why:
+
+| Reason | Description |
+|--------|-------------|
+| `QUOTE_CHANGED` | The server's version does not match your `expected_version`. The request was updated. |
+| `MARKET_NOT_LIVE` | One or more markets are no longer available (expired, halted, or delisted). |
+| `QUOTE_EXPIRED` | No active quotes exist, or the best quote expired between selection and commit. |
+| `COMMIT_FAILED_RETRYABLE` | Transient backend error. Retry after a short delay. Returns `503`. |
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Missing or invalid commit fields. |
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 403 | `FORBIDDEN` | You do not own this quote request. |
+| 404 | `NOT_FOUND` | Quote request not found. |
+| 409 | `CONFLICT` | Commit rejected. See `error.details.reason` above. |
+| 503 | `SERVICE_UNAVAILABLE` | Transient backend failure. Retry after `error.retry_after` seconds. |
+
+<RequestExample>
+```bash
+curl -X POST https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/commit \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expected_version": 3,
+    "displayed_quote_id": "b2c3d4e5-6789-0abc-def1-234567890abc",
+    "displayed_quote_book_seq": 5,
+    "min_payout_odds_seen": 4.25
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 201
 {
   "data": {
     "status": "committed",
     "quote_request_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
-    "rfq_id": "real-rfq-uuid",
-    "quote_id": "real-rfq-quote-uuid",
+    "rfq_id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
+    "quote_id": "d4e5f6a7-8901-bcde-f234-567890abcdef",
     "selected_payout_odds": 4.25,
-    "confirmation_deadline": "2026-05-31T18:45:35.000Z"
+    "confirmation_deadline": "2026-06-01T18:45:35.000Z"
   }
 }
 ```
-
-After a successful commit, the selected market maker receives a `quote:accepted` WebSocket event and must confirm the trade before `confirmation_deadline`. From that point, the normal vault settlement flow applies.
-
-## Rejection Codes
-
-The commit endpoint uses structured rejection codes in `error.details.reason`:
-
-| Reason | Description |
-| --- | --- |
-| `QUOTE_CHANGED` | The quote request version on the server does not match `expected_version`. The user's slip has been updated since they last saw it. |
-| `MARKET_NOT_LIVE` | One or more markets in the parlay are no longer available for trading (expired, halted, or delisted). |
-| `QUOTE_EXPIRED` | No active quotes exist for the current version, or the selected best quote expired between selection and final check. |
-| `COMMIT_FAILED_RETRYABLE` | The Core Backend returned a transient error. The client may retry after a short delay. Returns `503`. |
-
-## Errors
-
-| Code | Status | Description |
-| --- | --- | --- |
-| `VALIDATION_ERROR` | 400 | Missing or invalid commit body fields. |
-| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
-| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
-| `NOT_FOUND` | 404 | Quote request not found. |
-| `CONFLICT` | 409 | Quote request is no longer active, version mismatch, no eligible quotes, or commit already in progress. Check `error.details.reason`. |
-| `SERVICE_UNAVAILABLE` | 503 | Core Backend transient failure. Retry after `error.retry_after` seconds. |
+</ResponseExample>

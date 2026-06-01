@@ -1,45 +1,40 @@
 ---
-title: 'Withdraw Quote'
-description: 'Withdraw your active draft quote from a live quote request before the user commits it.'
+title: "Withdraw Quote"
+api: "DELETE /v1/mm/quote-requests/{id}/quote"
+description: "Withdraw your active quote from a quote request before the user commits it."
 ---
 
+Withdraw your active quote from a quote request. If the quote has already expired naturally, the response indicates `already_expired` instead of returning an error.
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
 ```
-DELETE /v1/mm/quote-requests/{id}/quote
+X-API-Key: <key>
 ```
-
-Withdraws the MM's active draft quote from a live quote request. If the quote has already expired, the response indicates `already_expired` rather than returning an error.
-
-**Auth:** `X-API-Key` (market maker)
-
-**Base URL:** Quote Service (configured per environment)
 
 ## Path Parameters
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Quote request ID. |
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
 
 ## Request Body (optional)
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `request_version` | integer | no | Defaults to the current version if omitted. |
-| `request_hash` | string | no | Defaults to the current hash if omitted. |
+<ParamField body="request_version" type="integer">
+  The request version your quote was submitted for. Defaults to the current version if omitted.
+</ParamField>
 
-```json
-{
-  "request_version": 3,
-  "request_hash": "sha256..."
-}
-```
+<ParamField body="request_hash" type="string">
+  The request hash your quote was submitted for. Defaults to the current hash if omitted.
+</ParamField>
 
 ## Response
 
-**`204 No Content`** -- quote successfully withdrawn.
+Returns `204 No Content` when the quote is successfully withdrawn.
 
-If the quote had already expired:
-
-**`200 OK`**
+If the quote had already expired naturally, returns `200 OK`:
 
 ```json
 {
@@ -51,7 +46,26 @@ If the quote had already expired:
 
 ## Errors
 
-| Code | Status | Description |
-| --- | --- | --- |
-| `NOT_FOUND` | 404 | Quote request not found. |
-| `CONFLICT` | 409 | No active quote to withdraw, request expired, no longer active, or version mismatch. Check `details.reason`. |
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 404 | `NOT_FOUND` | Quote request not found. |
+| 409 | `CONFLICT` | No active quote to withdraw, request expired, no longer active, or version mismatch. See `details.reason`. |
+
+<RequestExample>
+```bash
+curl -X DELETE https://quote-service.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/quote \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_version": 1,
+    "request_hash": "sha256:9f86d08..."
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```bash 204
+# No response body
+```
+</ResponseExample>

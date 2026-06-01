@@ -1,33 +1,49 @@
 ---
-title: 'Cancel Quote Request'
-description: 'Cancel an active quote request. Invalidates all pending MM quotes and removes the request from the live stream.'
+title: "Cancel Quote Request"
+api: "POST /v1/quote-requests/{id}/cancel"
+description: "Cancel an active quote request."
 ---
 
-```
-POST /v1/quote-requests/{id}/cancel
-```
+Cancel an active quote request. All pending market maker quotes are invalidated and the request is removed from the live stream. Returns `204 No Content` on success.
 
-Cancels an active quote request. All pending MM quotes are invalidated and the request is removed from the live quote request stream. Returns `204 No Content` on success.
+You can only cancel a quote request while its status is `active`.
 
-**Auth:** `Authorization: Bearer <privy_jwt>`
+## Authentication
+
+Bearer token required. Pass your JWT in the `Authorization` header.
+
+```
+Authorization: Bearer <jwt>
+```
 
 ## Path Parameters
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Quote request ID. |
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
 
 ## Response
 
-**`204 No Content`**
-
-No response body.
+Returns `204 No Content` with no response body.
 
 ## Errors
 
-| Code | Status | Description |
-| --- | --- | --- |
-| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
-| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
-| `NOT_FOUND` | 404 | Quote request not found. |
-| `CONFLICT` | 409 | Quote request is already committed, cancelled, or expired. |
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 403 | `FORBIDDEN` | You do not own this quote request. |
+| 404 | `NOT_FOUND` | Quote request not found. |
+| 409 | `CONFLICT` | Quote request is already committed, cancelled, or expired. |
+
+<RequestExample>
+```bash
+curl -X POST https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/cancel \
+  -H "Authorization: Bearer $TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```bash 204
+# No response body
+```
+</ResponseExample>

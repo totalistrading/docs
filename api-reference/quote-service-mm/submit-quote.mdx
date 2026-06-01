@@ -1,71 +1,153 @@
 ---
-title: 'Submit or Replace Quote'
-description: 'Submit a draft quote for a live quote request, or replace your existing quote for the same version. Uses PUT semantics -- one active quote per MM per request version.'
+title: "Submit or Replace Quote"
+api: "PUT /v1/mm/quote-requests/{id}/quote"
+description: "Submit a price quote for an active quote request, or replace your existing quote."
 ---
 
+Submit a quote for an active quote request. If you already have an active quote for the same request version, it is replaced atomically. Only one active quote per market maker per request version is allowed.
+
+When the user updates their request (changing legs or bet amount), the `version` and `request_hash` change, and your existing quote is automatically invalidated. Listen for `quote_request` events on the [SSE stream](/api-reference/quote-service-mm/stream) to detect version changes and re-price.
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
 ```
-PUT /v1/mm/quote-requests/{id}/quote
+X-API-Key: <key>
 ```
-
-Submits a draft quote for a live quote request. If the MM already has an active quote for the same `request_version`, it is replaced atomically. The backend enforces one active quote per MM per request version.
-
-**Auth:** `X-API-Key` (market maker)
-
-**Base URL:** Quote Service (configured per environment)
 
 ## Path Parameters
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Quote request ID. |
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
 
 ## Request Body
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `request_version` | integer | yes | The version of the quote request you priced. Must match the server's current version. |
-| `request_hash` | string | yes | The `request_hash` from the quote request event. Prevents pricing stale data. |
-| `payout_odds` | number | yes | Payout multiplier on the user's bet amount (>= 1.0001, <= 1000). |
-| `user_cost` | number | yes | The USDC cost to the user (the bet amount). |
-| `total_payout` | number | yes | Total payout if the parlay wins. |
-| `mm_cost` | number | yes | The USDC the MM puts at risk (total_payout - user_cost). |
-| `expires_in_ms` | integer | no | How long this quote is valid, in milliseconds (5000-60000, default 15000). |
-| `leg_prices` | array | yes | Per-leg pricing. Each entry has `leg_id` (string) and `leg_odds` (number, 0-1). |
+<ParamField body="request_version" type="integer" required>
+  The version of the quote request you priced. Must match the server's current version.
+</ParamField>
 
-```json
-{
-  "request_version": 3,
-  "request_hash": "sha256...",
-  "payout_odds": 4.25,
-  "user_cost": 25,
-  "total_payout": 106.25,
-  "mm_cost": 81.25,
-  "expires_in_ms": 15000,
-  "leg_prices": [
-    { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42 }
-  ]
-}
-```
+<ParamField body="request_hash" type="string" required>
+  The `request_hash` from the quote request event. Prevents pricing against stale data.
+</ParamField>
+
+<ParamField body="payout_odds" type="number" required>
+  Payout multiplier on the user's bet amount. Must be >= 1.0001 and <= 1000.
+</ParamField>
+
+<ParamField body="user_cost" type="number" required>
+  The USDC cost to the user (the bet amount).
+</ParamField>
+
+<ParamField body="total_payout" type="number" required>
+  Total USDC payout if the parlay wins.
+</ParamField>
+
+<ParamField body="mm_cost" type="number" required>
+  The USDC you put at risk (`total_payout - user_cost`).
+</ParamField>
+
+<ParamField body="expires_in_ms" type="integer">
+  How long this quote is valid, in milliseconds. Range: 5000-60000. Default: 15000.
+</ParamField>
+
+<ParamField body="leg_prices" type="array" required>
+  Per-leg pricing breakdown.
+  <Expandable title="Leg price object">
+    <ParamField body="leg_id" type="string" required>
+      The `id` of the leg from the quote request.
+    </ParamField>
+    <ParamField body="leg_odds" type="number" required>
+      The implied probability for this leg (0-1).
+    </ParamField>
+  </Expandable>
+</ParamField>
 
 ## Response
 
-**`201 Created`** (new quote) or **`200 OK`** (replaced existing)
+Returns `201 Created` for a new quote or `200 OK` when replacing an existing quote.
 
-```json
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="quote" type="object">
+      The submitted quote.
+      <Expandable title="quote">
+        <ResponseField name="id" type="string">Quote UUID.</ResponseField>
+        <ResponseField name="market_maker_id" type="string">Your market maker ID.</ResponseField>
+        <ResponseField name="request_version" type="integer">The request version this quote is for.</ResponseField>
+        <ResponseField name="request_hash" type="string">The request hash this quote is for.</ResponseField>
+        <ResponseField name="payout_odds" type="number">The payout multiplier.</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC.</ResponseField>
+        <ResponseField name="total_payout" type="number">Total payout in USDC.</ResponseField>
+        <ResponseField name="mm_cost" type="number">Your risk in USDC.</ResponseField>
+        <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
+        <ResponseField name="leg_prices" type="array">Per-leg pricing.</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="book_seq" type="integer">The new quote book sequence number.</ResponseField>
+    <ResponseField name="replaced" type="boolean">`true` if this replaced a previous quote.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Conflict Reasons
+
+When a submit is rejected with `409 Conflict`, the `error.details.reason` field explains why:
+
+| Reason | Description |
+|--------|-------------|
+| `not_found` | Quote request ID does not exist. |
+| `expired` | Quote request has expired. |
+| `not_active` | Quote request is committed, cancelled, or otherwise inactive. |
+| `version_mismatch` | Your `request_version` or `request_hash` does not match the server. Re-fetch from the SSE stream. |
+| `self_quote` | You cannot quote your own requests. |
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid body. See `details.issues`. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 409 | `CONFLICT` | Quote rejected. See `details.reason` above. |
+
+<RequestExample>
+```bash
+curl -X PUT https://quote-service.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/quote \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_version": 1,
+    "request_hash": "sha256:9f86d08...",
+    "payout_odds": 4.25,
+    "user_cost": 25,
+    "total_payout": 106.25,
+    "mm_cost": 81.25,
+    "expires_in_ms": 15000,
+    "leg_prices": [
+      {"leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42},
+      {"leg_id": "a1b2c3d4-5678-90ab-cdef-1234567890ab", "leg_odds": 0.35}
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 201
 {
   "data": {
     "quote": {
-      "id": "quote-uuid",
-      "market_maker_id": "mm-uuid",
-      "request_version": 3,
-      "request_hash": "sha256...",
+      "id": "b2c3d4e5-6789-0abc-def1-234567890abc",
+      "market_maker_id": "mm-uuid-1234",
+      "request_version": 1,
+      "request_hash": "sha256:9f86d08...",
       "payout_odds": 4.25,
       "user_cost": 25,
       "total_payout": 106.25,
       "mm_cost": 81.25,
-      "valid_until": "2026-05-31T18:45:45.000Z",
+      "valid_until": "2026-06-01T18:45:45.000Z",
       "leg_prices": [
-        { "leg_id": "8ccf2c5d-...", "leg_odds": 0.42 }
+        {"leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42},
+        {"leg_id": "a1b2c3d4-5678-90ab-cdef-1234567890ab", "leg_odds": 0.35}
       ]
     },
     "book_seq": 5,
@@ -73,20 +155,4 @@ Submits a draft quote for a live quote request. If the MM already has an active 
   }
 }
 ```
-
-## Errors
-
-| Code | Status | Description |
-| --- | --- | --- |
-| `VALIDATION_ERROR` | 400 | Invalid body. Check `details.issues`. |
-| `CONFLICT` | 409 | Quote request not found, expired, no longer active, version/hash mismatch, or attempted self-quote. Check `details.reason`. |
-
-### Conflict Reasons
-
-| Reason | Description |
-| --- | --- |
-| `not_found` | Quote request ID does not exist. |
-| `expired` | Quote request has expired. |
-| `not_active` | Quote request is committed, cancelled, or otherwise inactive. |
-| `version_mismatch` | The `request_version` or `request_hash` does not match the server's current version. Re-fetch the latest version from the SSE stream. |
-| `self_quote` | MMs cannot quote their own requests. |
+</ResponseExample>

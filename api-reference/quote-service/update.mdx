@@ -1,66 +1,121 @@
 ---
-title: 'Update Quote Request'
-description: 'Update the legs or bet amount on an active quote request. Increments the version and request_hash, invalidating all stale MM quotes.'
+title: "Update Quote Request"
+api: "PATCH /v1/quote-requests/{id}"
+description: "Update the legs or bet amount on an active quote request."
 ---
 
-```
-PATCH /v1/quote-requests/{id}
-```
+Update an active quote request with new legs or a different bet amount. This increments the `version` and recomputes the `request_hash`, which automatically invalidates all existing market maker quotes. MMs receive the updated request and can submit fresh prices.
 
-Updates an active quote request when the user changes legs or bet amount in the slip builder. The `version` increments and a new `request_hash` is computed, so all MM quotes for older versions are automatically invalidated.
+You can only update a quote request while its status is `active`.
 
-**Auth:** `Authorization: Bearer <privy_jwt>`
+## Authentication
+
+Bearer token required. Pass your JWT in the `Authorization` header.
+
+```
+Authorization: Bearer <jwt>
+```
 
 ## Path Parameters
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Quote request ID. |
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
 
 ## Request Body
 
-Same shape as [Create Quote Request](/api-reference/quote-service/create).
+Same fields as [Create Quote Request](/api-reference/quote-service/create).
 
-```json
-{
-  "legs": [
-    { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
-    { "market_ticker": "KXETH-25FEB07-T3000", "side": "no", "venue": "kalshi" }
-  ],
-  "bet_amount": 50
-}
-```
+<ParamField body="legs" type="array" required>
+  Array of 2-5 parlay legs.
+  <Expandable title="Leg object">
+    <ParamField body="market_ticker" type="string" required>
+      The market ticker on the venue.
+    </ParamField>
+    <ParamField body="side" type="string" required>
+      `"yes"` or `"no"`.
+    </ParamField>
+    <ParamField body="venue" type="string">
+      `"kalshi"` (default) or `"polymarket"`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="bet_amount" type="number" required>
+  USDC bet amount (1-100).
+</ParamField>
 
 ## Response
 
-**`200 OK`**
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="quote_request" type="object">
+      The updated quote request with an incremented `version`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
 
-```json
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid body or market validation failed. |
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 403 | `FORBIDDEN` | You do not own this quote request. |
+| 404 | `NOT_FOUND` | Quote request not found. |
+| 409 | `CONFLICT` | Quote request is already committed, cancelled, or expired. |
+
+<RequestExample>
+```bash
+curl -X PATCH https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "legs": [
+      {"market_ticker": "KXBTC-26JUN01-T72500", "side": "yes", "venue": "kalshi"},
+      {"market_ticker": "KXETH-26JUN01-T3000", "side": "no", "venue": "kalshi"}
+    ],
+    "bet_amount": 50
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
 {
   "data": {
     "quote_request": {
       "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
-      "user_id": "did:privy:...",
+      "user_id": "did:privy:cm3abc...",
       "version": 2,
-      "request_hash": "sha256...",
+      "request_hash": "sha256:a3f4b2c...",
       "book_seq": 0,
       "status": "active",
       "bet_amount": 50,
       "implied_probability": 0,
-      "expires_at": "2026-05-31T18:45:30.000Z",
-      "legs": [ "..." ],
-      "input_legs": [ "..." ]
+      "expires_at": "2026-06-01T18:45:30.000Z",
+      "legs": [
+        {
+          "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+          "event_ticker": "KXBTC-26JUN01",
+          "market_ticker": "KXBTC-26JUN01-T72500",
+          "side": "yes",
+          "venue": "kalshi"
+        },
+        {
+          "id": "d4e5f6a7-8901-23bc-def4-567890abcdef",
+          "event_ticker": "KXETH-26JUN01",
+          "market_ticker": "KXETH-26JUN01-T3000",
+          "side": "no",
+          "venue": "kalshi"
+        }
+      ],
+      "input_legs": [
+        {"market_ticker": "KXBTC-26JUN01-T72500", "side": "yes", "venue": "kalshi"},
+        {"market_ticker": "KXETH-26JUN01-T3000", "side": "no", "venue": "kalshi"}
+      ]
     }
   }
 }
 ```
-
-## Errors
-
-| Code | Status | Description |
-| --- | --- | --- |
-| `VALIDATION_ERROR` | 400 | Invalid body or market validation failed. |
-| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
-| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
-| `NOT_FOUND` | 404 | Quote request not found. |
-| `CONFLICT` | 409 | Quote request is already committed, committing, cancelled, or expired. |
+</ResponseExample>

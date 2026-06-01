@@ -1,61 +1,34 @@
 ---
-title: 'Stream Quote Requests (MM)'
-description: 'SSE stream that delivers all active quote requests to market makers in real time. The primary integration path for receiving new pricing opportunities.'
+title: "Stream Quote Requests"
+api: "GET /v1/mm/quote-requests/stream"
+description: "Subscribe to all active quote requests in real time via Server-Sent Events."
 ---
 
+Open a Server-Sent Events (SSE) stream to receive all active quote requests in real time. This is the primary integration path for market makers -- use it instead of polling. The stream emits new requests as they arrive, updates when requests change, and notifies when requests expire.
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
 ```
-GET /v1/mm/quote-requests/stream
+X-API-Key: <key>
 ```
 
-Opens a Server-Sent Events (SSE) stream that delivers all active quote requests to the connected market maker. This is the primary integration path -- use it instead of polling. The stream emits new requests as they arrive and notifies when requests expire.
-
-**Auth:** `X-API-Key` (market maker)
-
-**Base URL:** Quote Service (configured per environment)
-
-## SSE Events
+## SSE Event Types
 
 ### `connected`
 
-Sent immediately on connection.
+Sent immediately on connection. Confirms your identity.
 
 ```json
 {
-  "mm_id": "mm-uuid"
-}
-```
-
-### `quote_request`
-
-Sent when a new quote request becomes visible or when a request is updated to a new version.
-
-```json
-{
-  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
-  "user_id": "did:privy:...",
-  "input_legs": [
-    { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" }
-  ],
-  "legs": [
-    {
-      "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
-      "event_ticker": "KXBTC-25FEB07-T100000",
-      "market_ticker": "KXBTC-25FEB07-T100000",
-      "side": "yes",
-      "venue": "kalshi"
-    }
-  ],
-  "bet_amount": 25,
-  "implied_probability": 0,
-  "version": 3,
-  "request_hash": "sha256...",
-  "expires_at": "2026-05-31T18:45:30.000Z"
+  "mm_id": "mm-uuid-1234"
 }
 ```
 
 ### `snapshot_begin`
 
-Sent at the start of the initial snapshot (on new connection or reconnect). After this event the server re-emits all currently active quote requests before sending `snapshot_complete`.
+Sent at the start of the initial snapshot (on new connection or reconnect). All currently active quote requests follow before `snapshot_complete`.
 
 ```json
 {
@@ -63,9 +36,45 @@ Sent at the start of the initial snapshot (on new connection or reconnect). Afte
 }
 ```
 
+### `quote_request`
+
+Sent when a new quote request is created or when an existing request is updated to a new version. This is the primary event you price against.
+
+```json
+{
+  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "user_id": "did:privy:cm3abc...",
+  "input_legs": [
+    {"market_ticker": "KXBTC-26JUN01-T72500", "side": "yes", "venue": "kalshi"},
+    {"market_ticker": "KXBTC-26JUN01-T73000", "side": "no", "venue": "kalshi"}
+  ],
+  "legs": [
+    {
+      "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+      "event_ticker": "KXBTC-26JUN01",
+      "market_ticker": "KXBTC-26JUN01-T72500",
+      "side": "yes",
+      "venue": "kalshi"
+    },
+    {
+      "id": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+      "event_ticker": "KXBTC-26JUN01",
+      "market_ticker": "KXBTC-26JUN01-T73000",
+      "side": "no",
+      "venue": "kalshi"
+    }
+  ],
+  "bet_amount": 25,
+  "implied_probability": 0,
+  "version": 1,
+  "request_hash": "sha256:9f86d08...",
+  "expires_at": "2026-06-01T18:45:30.000Z"
+}
+```
+
 ### `snapshot_complete`
 
-Sent when the initial snapshot is finished. After this event the stream switches to incremental updates.
+Sent when the initial snapshot is finished. After this, the stream switches to incremental updates only.
 
 ```json
 {
@@ -76,7 +85,7 @@ Sent when the initial snapshot is finished. After this event the stream switches
 
 ### `quote_request_expired`
 
-Sent when a previously seen quote request is no longer active (expired, committed, or cancelled).
+Sent when a previously seen quote request is no longer active (expired, committed, or cancelled). Remove it from your local state.
 
 ```json
 {
@@ -84,10 +93,101 @@ Sent when a previously seen quote request is no longer active (expired, committe
 }
 ```
 
+## Reconnection
+
+Every SSE event includes an `id:` field. Persist this value. On reconnect, pass it as the `last_event_id` query parameter to replay any events you missed instead of receiving the full snapshot again.
+
+```
+GET /v1/mm/quote-requests/stream?last_event_id=evt_abc123
+```
+
 ## Notes
 
-- The stream automatically excludes quote requests created by the connected MM's own user.
-- On reconnect, pass the `last_event_id` query parameter (the `id:` field of the last SSE event you received) to replay any events you missed. The server resumes from that point rather than re-sending everything.
-- Every SSE event includes an `id:` field. Persist this value so you can reconnect without data loss.
-- When a new connection is established (or reconnected), the server sends a `snapshot_begin` event, then re-emits all currently active requests, followed by a `snapshot_complete` event. After the snapshot phase, the stream switches to incremental updates.
-- Keep the connection alive and maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) to signal liveness.
+- The stream automatically excludes quote requests created by your own user account.
+- Keep the connection alive and send a [heartbeat](/api-reference/quote-service-mm/heartbeat) at least every 30 seconds to signal liveness.
+- When `version` changes on a `quote_request` event, any quote you submitted for a prior version is automatically invalidated. Re-price and submit a new quote.
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+
+<RequestExample>
+```bash curl
+curl -N https://quote-service.totalis.trade/v1/mm/quote-requests/stream \
+  -H "X-API-Key: $API_KEY" \
+  -H "Accept: text/event-stream"
+```
+
+```javascript JavaScript
+const EventSource = require('eventsource');
+
+const es = new EventSource(
+  'https://quote-service.totalis.trade/v1/mm/quote-requests/stream',
+  { headers: { 'X-API-Key': API_KEY } }
+);
+
+es.addEventListener('connected', (e) => {
+  console.log('Connected as', JSON.parse(e.data).mm_id);
+});
+
+es.addEventListener('quote_request', (e) => {
+  const req = JSON.parse(e.data);
+  console.log('New request:', req.id, req.bet_amount, 'USDC');
+  // Price the legs and submit a quote
+});
+
+es.addEventListener('quote_request_expired', (e) => {
+  const { id } = JSON.parse(e.data);
+  console.log('Request expired:', id);
+});
+```
+
+```python Python
+import requests
+import json
+
+url = 'https://quote-service.totalis.trade/v1/mm/quote-requests/stream'
+headers = {
+    'X-API-Key': API_KEY,
+    'Accept': 'text/event-stream',
+}
+
+with requests.get(url, headers=headers, stream=True) as resp:
+    event_type = None
+    for line in resp.iter_lines(decode_unicode=True):
+        if line.startswith('event: '):
+            event_type = line[7:]
+        elif line.startswith('data: '):
+            payload = json.loads(line[6:])
+            if event_type == 'quote_request':
+                print(f"New request: {payload['id']}")
+                # Price the legs and submit a quote
+            elif event_type == 'quote_request_expired':
+                print(f"Expired: {payload['id']}")
+            event_type = None
+```
+</RequestExample>
+
+<ResponseExample>
+```text SSE stream
+event: connected
+data: {"mm_id":"mm-uuid-1234"}
+
+event: snapshot_begin
+data: {"page_size":50}
+
+event: quote_request
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":25,"implied_probability":0,"version":1,"request_hash":"sha256:9f86d08...","expires_at":"2026-06-01T18:45:30.000Z"}
+
+event: snapshot_complete
+data: {"pages":1,"total":3}
+
+event: quote_request
+data: {"id":"f7e8d9c0-1234-5678-abcd-ef0123456789","user_id":"did:privy:cm9xyz...","input_legs":[{"market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"legs":[{"id":"d4e5f6a7-8901-23bc-def4-567890abcdef","event_ticker":"KXETH-26JUN01","market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"bet_amount":10,"implied_probability":0,"version":1,"request_hash":"sha256:b5c6d7e...","expires_at":"2026-06-01T18:50:00.000Z"}
+
+event: quote_request_expired
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40"}
+```
+</ResponseExample>

@@ -1,17 +1,18 @@
 ---
-title: 'MM Heartbeat'
-description: 'Send a liveness heartbeat to the Quote Service. Active MMs should send heartbeats at least once per minute.'
+title: "Heartbeat"
+api: "POST /v1/mm/heartbeat"
+description: "Send a liveness heartbeat to maintain your market maker connection."
 ---
 
+Send a liveness heartbeat to the Quote Service. The server tracks heartbeats to monitor market maker availability. Send a heartbeat at least every 30 seconds to stay within the 60-second TTL.
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
 ```
-POST /v1/mm/heartbeat
+X-API-Key: <key>
 ```
-
-Sends a liveness heartbeat for the connected market maker. The Quote Service records heartbeats to track MM availability. Heartbeat status is currently informational; quote exclusion based on liveness is not yet enforced but is planned.
-
-**Auth:** `X-API-Key` (market maker)
-
-**Base URL:** Quote Service (configured per environment)
 
 ## Request Body
 
@@ -19,33 +20,71 @@ No request body required.
 
 ## Response
 
-**`200 OK`**
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="status" type="string">Always `"ok"`.</ResponseField>
+    <ResponseField name="mm_id" type="string">Your market maker ID.</ResponseField>
+    <ResponseField name="ttl_ms" type="integer">Heartbeat TTL in milliseconds. Send the next heartbeat before this expires.</ResponseField>
+  </Expandable>
+</ResponseField>
 
-```json
+## Recommended Cadence
+
+Send a heartbeat every **30 seconds** to stay well within the 60-second TTL. Run this alongside your SSE stream connection.
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+
+<RequestExample>
+```bash
+curl -X POST https://quote-service.totalis.trade/v1/mm/heartbeat \
+  -H "X-API-Key: $API_KEY"
+```
+
+```javascript JavaScript
+// Run alongside your SSE stream connection
+setInterval(async () => {
+  const res = await fetch('https://quote-service.totalis.trade/v1/mm/heartbeat', {
+    method: 'POST',
+    headers: { 'X-API-Key': API_KEY },
+  });
+  const { data } = await res.json();
+  console.log('Heartbeat OK, TTL:', data.ttl_ms, 'ms');
+}, 30_000);
+```
+
+```python Python
+import requests
+import time
+import threading
+
+def heartbeat_loop(api_key):
+    while True:
+        resp = requests.post(
+            'https://quote-service.totalis.trade/v1/mm/heartbeat',
+            headers={'X-API-Key': api_key},
+        )
+        data = resp.json()['data']
+        print(f"Heartbeat OK, TTL: {data['ttl_ms']}ms")
+        time.sleep(30)
+
+# Run in a background thread alongside your SSE stream
+thread = threading.Thread(target=heartbeat_loop, args=(API_KEY,), daemon=True)
+thread.start()
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
 {
   "data": {
     "status": "ok",
-    "mm_id": "mm-uuid",
+    "mm_id": "mm-uuid-1234",
     "ttl_ms": 60000
   }
 }
 ```
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `status` | string | Always `"ok"`. |
-| `mm_id` | string | The MM's user ID. |
-| `ttl_ms` | integer | The heartbeat TTL in milliseconds. Send the next heartbeat before this expires. |
-
-## Recommended Cadence
-
-Send a heartbeat every **30 seconds** to stay well within the 60-second TTL. A simple interval loop alongside the SSE stream connection works well:
-
-```javascript
-setInterval(() => {
-  fetch('/v1/mm/heartbeat', {
-    method: 'POST',
-    headers: { 'X-API-Key': API_KEY },
-  });
-}, 30_000);
-```
+</ResponseExample>

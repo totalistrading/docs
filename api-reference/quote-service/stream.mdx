@@ -1,39 +1,42 @@
 ---
-title: 'Stream Quote Request'
-description: 'SSE stream that delivers real-time best-quote updates for a live quote request. The frontend subscribes to this to show live pricing.'
+title: "Stream Quote Updates"
+api: "GET /v1/quote-requests/{id}/stream"
+description: "Subscribe to real-time best-quote updates for a quote request via Server-Sent Events."
 ---
 
-```
-GET /v1/quote-requests/{id}/stream
-```
+Open a Server-Sent Events (SSE) stream to receive real-time best-quote updates for a specific quote request. As market makers submit, update, and withdraw quotes, you receive the current best offer automatically.
 
-Opens a Server-Sent Events (SSE) stream that delivers real-time best-quote updates for a specific quote request. The frontend subscribes here to show live pricing as market makers submit, replace, and withdraw quotes.
+## Authentication
 
-**Auth:** `Authorization: Bearer <privy_jwt>`
+Bearer token required. Pass your JWT in the `Authorization` header.
+
+```
+Authorization: Bearer <jwt>
+```
 
 ## Path Parameters
 
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `id` | string | Quote request ID. |
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
 
-## SSE Events
+## SSE Event Types
 
 ### `best_quote`
 
-Sent whenever the quote book changes (new quote submitted, quote replaced, quote withdrawn, or quote expired). The `book_seq` increments monotonically so the frontend can detect missed updates.
+Sent whenever the quote book changes (new quote submitted, quote updated, quote withdrawn, or quote expired). The `book_seq` increments monotonically so you can detect missed updates.
 
 ```json
 {
   "book_seq": 5,
   "version": 3,
   "best_quote": {
-    "id": "quote-uuid",
+    "id": "b2c3d4e5-6789-0abc-def1-234567890abc",
     "payout_odds": 4.25,
     "user_cost": 25,
     "total_payout": 106.25,
     "mm_cost": 81.25,
-    "valid_until": "2026-05-31T18:45:45.000Z"
+    "valid_until": "2026-06-01T18:45:45.000Z"
   }
 }
 ```
@@ -58,17 +61,78 @@ Sent when the quote request transitions out of the `active` state (committed, ca
 }
 ```
 
-## Frontend Integration
+## Integration Guide
 
-1. Open the SSE stream immediately after creating or updating a quote request.
-2. On each `best_quote` event, update the displayed payout odds and store the `book_seq` and best quote `id`.
-3. When the user taps "Submit", pass `expected_version`, `displayed_quote_id`, `displayed_quote_book_seq`, and `min_payout_odds_seen` to the [commit endpoint](/api-reference/quote-service/commit).
-4. On a `status` event, close the stream and navigate to the appropriate result screen.
+1. Open the SSE stream after creating or updating a quote request.
+2. On each `best_quote` event, update your displayed payout odds and store the `book_seq` and best quote `id`.
+3. When the user is ready to commit, pass `expected_version`, `displayed_quote_id`, `displayed_quote_book_seq`, and `min_payout_odds_seen` to the [Commit](/api-reference/quote-service/commit) endpoint.
+4. On a `status` event, close the stream and handle the terminal state.
 
 ## Errors
 
-| Code | Status | Description |
-| --- | --- | --- |
-| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
-| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
-| `NOT_FOUND` | 404 | Quote request not found. |
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 403 | `FORBIDDEN` | You do not own this quote request. |
+| 404 | `NOT_FOUND` | Quote request not found. |
+
+<RequestExample>
+```bash curl
+curl -N https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/stream \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: text/event-stream"
+```
+
+```javascript JavaScript
+const eventSource = new EventSource(
+  'https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06.../stream',
+  { headers: { 'Authorization': `Bearer ${token}` } }
+);
+
+eventSource.addEventListener('best_quote', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Best quote:', data.best_quote);
+  console.log('Book seq:', data.book_seq);
+});
+
+eventSource.addEventListener('status', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Terminal status:', data.status);
+  eventSource.close();
+});
+```
+
+```python Python
+import requests
+import json
+
+url = 'https://quote-service.totalis.trade/v1/quote-requests/1a6d1f06.../stream'
+headers = {
+    'Authorization': f'Bearer {token}',
+    'Accept': 'text/event-stream',
+}
+
+with requests.get(url, headers=headers, stream=True) as resp:
+    for line in resp.iter_lines(decode_unicode=True):
+        if line.startswith('data: '):
+            payload = json.loads(line[6:])
+            if 'best_quote' in payload:
+                print('Best quote:', payload['best_quote'])
+            elif 'status' in payload:
+                print('Terminal:', payload['status'])
+                break
+```
+</RequestExample>
+
+<ResponseExample>
+```text SSE stream
+event: best_quote
+data: {"book_seq":1,"version":1,"best_quote":{"id":"b2c3d4e5-6789-0abc-def1-234567890abc","payout_odds":4.25,"user_cost":25,"total_payout":106.25,"mm_cost":81.25,"valid_until":"2026-06-01T18:45:45.000Z"}}
+
+event: best_quote
+data: {"book_seq":2,"version":1,"best_quote":{"id":"e5f6a7b8-9012-cdef-3456-7890abcdef12","payout_odds":4.50,"user_cost":25,"total_payout":112.50,"mm_cost":87.50,"valid_until":"2026-06-01T18:45:50.000Z"}}
+
+event: status
+data: {"status":"committed"}
+```
+</ResponseExample>
