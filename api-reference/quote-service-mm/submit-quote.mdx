@@ -25,7 +25,7 @@ X-API-Key: <key>
 ## Request Body
 
 <ParamField body="request_version" type="integer" required>
-  The version of the quote request you priced. Must match the server's current version.
+  The version of the quote request you priced. Must match the current version from the SSE stream.
 </ParamField>
 
 <ParamField body="request_hash" type="string" required>
@@ -99,7 +99,7 @@ When a submit is rejected with `409 Conflict`, the `error.details.reason` field 
 | `not_found` | Quote request ID does not exist. |
 | `expired` | Quote request has expired. |
 | `not_active` | Quote request is committed, cancelled, or otherwise inactive. |
-| `version_mismatch` | Your `request_version` or `request_hash` does not match the server. Re-fetch from the SSE stream. |
+| `version_mismatch` | Your `request_version` or `request_hash` is outdated. Use the latest values from the SSE stream. |
 | `self_quote` | You cannot quote your own requests. |
 
 ## Errors

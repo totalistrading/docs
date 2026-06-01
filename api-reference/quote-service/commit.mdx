@@ -27,7 +27,7 @@ Authorization: Bearer <jwt>
 ## Request Body
 
 <ParamField body="expected_version" type="integer" required>
-  The quote request `version` you are currently viewing. The commit is rejected if the server's version differs (meaning the request was updated since you last fetched it).
+  The quote request `version` you are committing against. The commit is rejected if the version has changed since you last received it, indicating the request was modified.
 </ParamField>
 
 <ParamField body="displayed_quote_id" type="string" required>
@@ -61,10 +61,10 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 
 | Reason | Description |
 |--------|-------------|
-| `QUOTE_CHANGED` | The server's version does not match your `expected_version`. The request was updated. |
+| `QUOTE_CHANGED` | The `expected_version` does not match. The request was updated since you last fetched it. |
 | `MARKET_NOT_LIVE` | One or more markets are no longer available (expired, halted, or delisted). |
 | `QUOTE_EXPIRED` | No active quotes exist, or the best quote expired between selection and commit. |
-| `COMMIT_FAILED_RETRYABLE` | Transient backend error. Retry after a short delay. Returns `503`. |
+| `COMMIT_FAILED_RETRYABLE` | Transient error. Retry after a short delay. Returns `503`. |
 
 ## Errors
 
@@ -75,7 +75,7 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 | 403 | `FORBIDDEN` | You do not own this quote request. |
 | 404 | `NOT_FOUND` | Quote request not found. |
 | 409 | `CONFLICT` | Commit rejected. See `error.details.reason` above. |
-| 503 | `SERVICE_UNAVAILABLE` | Transient backend failure. Retry after `error.retry_after` seconds. |
+| 503 | `SERVICE_UNAVAILABLE` | Transient failure. Retry after a short delay. |
 
 <RequestExample>
 ```bash
