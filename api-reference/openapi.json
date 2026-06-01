@@ -3,518 +3,46 @@
   "info": {
     "title": "Totalis RFQ API",
     "version": "2.1.0",
-    "description": "Public REST surface for the Totalis parlay RFQ platform — a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker — there is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: 100 req/min anonymous, 300 req/min authenticated. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
+    "description": "Public REST surface for the Totalis parlay RFQ platform \u2014 a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker \u2014 there is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: 100 req/min anonymous, 300 req/min authenticated. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
   },
   "servers": [
-    { "url": "https://api.totalis.trade", "description": "Production" },
-    { "url": "http://localhost:8080", "description": "Local development" }
+    {
+      "url": "https://api.totalis.trade",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development"
+    }
   ],
-  "security": [{ "ApiKey": [] }],
+  "security": [
+    {
+      "ApiKey": []
+    }
+  ],
   "tags": [
-    { "name": "RFQs", "description": "User-facing endpoints for creating and managing RFQs (Requests for Quote)." },
-    { "name": "Market Maker", "description": "Market maker endpoints for listing RFQs, submitting quotes, withdrawing stale quotes, and confirming trades." },
-    { "name": "Markets", "description": "Cached Kalshi and Polymarket market data." },
-    { "name": "User", "description": "User profile, wallet, and devnet helpers." },
-    { "name": "API Keys", "description": "Manage programmatic access keys for the authenticated user." }
+    {
+      "name": "Markets",
+      "description": "Cached Kalshi and Polymarket market data."
+    },
+    {
+      "name": "User",
+      "description": "User profile, wallet, and devnet helpers."
+    },
+    {
+      "name": "API Keys",
+      "description": "Manage programmatic access keys for the authenticated user."
+    }
   ],
   "paths": {
-    "/rfqs": {
-      "post": {
-        "operationId": "createRfq",
-        "summary": "Create RFQ",
-        "description": "Create a new Request for Quote with 2-5 legs. Each leg references a market on a specific venue (`kalshi` or `polymarket`) and a side (`yes`/`no`). The system validates markets against the cached market list, checks for series-exclusion conflicts, and records the RFQ as `open` so market makers can quote against it.",
-        "tags": ["RFQs"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateRfqRequest" },
-              "example": {
-                "legs": [
-                  { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
-                  { "market_ticker": "0x4d2…", "side": "no", "venue": "polymarket" }
-                ],
-                "bet_amount": 25,
-                "expires_in_seconds": 300
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "RFQ created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["data"],
-                  "properties": { "data": { "$ref": "#/components/schemas/Rfq" } }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "429": { "$ref": "#/components/responses/RateLimited" }
-        }
-      },
-      "get": {
-        "operationId": "listRfqs",
-        "summary": "List RFQs",
-        "description": "List the authenticated user's RFQs, optionally filtered by status. The `status` query accepts a comma-separated list (e.g. `?status=open,quoted`). Pass `?include=quotes` to embed the quotes array on each row; otherwise `quotes` is `null`.",
-        "tags": ["RFQs"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "description": "Filter by RFQ status. Repeatable values are joined with commas (e.g. `?status=open,quoted,accepted`).",
-            "style": "form",
-            "explode": false,
-            "schema": {
-              "type": "array",
-              "items": { "$ref": "#/components/schemas/RfqStatus" }
-            },
-            "example": ["open", "quoted", "accepted"]
-          },
-          {
-            "name": "include",
-            "in": "query",
-            "description": "Include the `quotes` array on each RFQ. Omit to return `quotes: null`.",
-            "schema": { "type": "string", "enum": ["quotes"] }
-          },
-          { "$ref": "#/components/parameters/LimitParam" },
-          { "$ref": "#/components/parameters/CursorParam" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of RFQs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "rfqs": {
-                          "type": "array",
-                          "items": { "$ref": "#/components/schemas/Rfq" }
-                        }
-                      }
-                    },
-                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
-        }
-      }
-    },
-    "/rfqs/{id}": {
-      "get": {
-        "operationId": "getRfq",
-        "summary": "Get RFQ",
-        "description": "Get an RFQ by id. The `quotes` array is always populated on this endpoint regardless of `?include=`.",
-        "tags": ["RFQs"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "RFQ UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "RFQ details with quotes",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["data"],
-                  "properties": { "data": { "$ref": "#/components/schemas/Rfq" } }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
-      }
-    },
-    "/rfqs/{id}/cancel": {
-      "post": {
-        "operationId": "cancelRfq",
-        "summary": "Cancel RFQ",
-        "description": "Cancel an open or quoted RFQ. Cannot cancel RFQs that are already accepted, confirmed, executed, settled, expired, or cancelled — those return `409 Conflict`. Returns `204 No Content` on success.",
-        "tags": ["RFQs"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "RFQ UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/CancelRfqRequest" }
-            }
-          }
-        },
-        "responses": {
-          "204": { "description": "RFQ cancelled" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": {
-            "description": "Caller does not own this RFQ",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
-          },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" }
-        }
-      }
-    },
-    "/rfqs/{id}/quotes": {
-      "get": {
-        "operationId": "listRfqQuotes",
-        "summary": "List RFQ Quotes",
-        "description": "List all quotes that have been submitted on an RFQ.",
-        "tags": ["RFQs"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "RFQ UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of quotes",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "quotes": {
-                          "type": "array",
-                          "items": { "$ref": "#/components/schemas/Quote" }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" }
-        }
-      }
-    },
-    "/rfqs/{id}/quotes/{quoteId}/accept": {
-      "post": {
-        "operationId": "acceptQuote",
-        "summary": "Accept Quote",
-        "description": "Accept a pending quote on an RFQ. Auto-rejects all other pending quotes on the same RFQ and returns the `confirmation_deadline` by which the market maker must confirm. If the MM misses the deadline, the outcome depends on whether the RFQ has expired (see the RFQ lifecycle guide for details).",
-        "tags": ["RFQs"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "RFQ UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          },
-          {
-            "name": "quoteId",
-            "in": "path",
-            "required": true,
-            "description": "Quote UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Quote accepted",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AcceptQuoteResponse" }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": {
-            "description": "Caller does not own the RFQ",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
-          },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" }
-        }
-      }
-    },
-    "/mm/rfqs": {
-      "get": {
-        "operationId": "listOpenRfqs",
-        "summary": "List Open RFQs",
-        "description": "List open RFQs available for quoting. Filter by event ticker and bet amount range. Cursor-based pagination.",
-        "tags": ["Market Maker"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "event_ticker",
-            "in": "query",
-            "description": "Filter by event identifier (matches any leg). **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (or `market_slug` fallback). Matches the `Leg.event_ticker` field on returned RFQs.",
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "min_bet",
-            "in": "query",
-            "description": "Minimum bet amount filter (USDC).",
-            "schema": { "type": "number" }
-          },
-          {
-            "name": "max_bet",
-            "in": "query",
-            "description": "Maximum bet amount filter (USDC).",
-            "schema": { "type": "number" }
-          },
-          { "$ref": "#/components/parameters/MmLimitParam" },
-          { "$ref": "#/components/parameters/CursorParam" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of open RFQs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "rfqs": {
-                          "type": "array",
-                          "items": { "$ref": "#/components/schemas/MmRfq" }
-                        }
-                      }
-                    },
-                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/mm/quotes": {
-      "post": {
-        "operationId": "submitQuote",
-        "summary": "Submit Quote",
-        "description": "Submit a quote on an open RFQ. `payout_odds` is the multiplier applied to the bettor's `bet_amount` to compute the total payout if the parlay wins; the MM's max risk is `bet_amount * (payout_odds - 1)`. `leg_prices` is an optional per-leg price snapshot where each entry is `{ leg_id, odds }` and `odds` is a decimal (0-1). The response (`Quote.leg_prices[]`) reflects the same value under the field name `leg_odds`. `Idempotency-Key` is honored for safe retries.",
-        "tags": ["Market Maker"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/SubmitQuoteRequest" },
-              "example": {
-                "rfq_id": "550e8400-e29b-41d4-a716-446655440000",
-                "payout_odds": 4.0,
-                "valid_for_seconds": 60,
-                "leg_prices": [
-                  { "leg_id": "9c0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "odds": 0.50 },
-                  { "leg_id": "5a0c8b1e-1c2c-4a8a-9c2d-1c2c4a8a9c2d", "odds": 0.50 }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Quote submitted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["data"],
-                  "properties": { "data": { "$ref": "#/components/schemas/QuoteMmView" } }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" },
-          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
-        }
-      },
-      "get": {
-        "operationId": "listMmQuotes",
-        "summary": "List MM Quotes",
-        "description": "List the authenticated market maker's quotes, optionally filtered by status or `rfq_id`. Cursor-based pagination.",
-        "tags": ["Market Maker"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "description": "Filter by quote status.",
-            "schema": { "$ref": "#/components/schemas/QuoteStatus" }
-          },
-          {
-            "name": "rfq_id",
-            "in": "query",
-            "description": "Filter by RFQ id.",
-            "schema": { "type": "string", "format": "uuid" }
-          },
-          { "$ref": "#/components/parameters/MmLimitParam" },
-          { "$ref": "#/components/parameters/CursorParam" }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of quotes",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "quotes": {
-                          "type": "array",
-                          "items": { "$ref": "#/components/schemas/QuoteMmView" }
-                        }
-                      }
-                    },
-                    "meta": { "$ref": "#/components/schemas/PaginationMeta" }
-                  }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/mm/quotes/{quoteId}/confirm": {
-      "post": {
-        "operationId": "confirmQuote",
-        "summary": "Confirm Quote",
-        "description": "Confirm an accepted quote. A `vault_positions` row is created in `pending` state and the vault job service then creates the on-chain position atomically — a single transaction that locks the user's stake and the MM's collateral in their persistent vaults.",
-        "tags": ["Market Maker"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "quoteId",
-            "in": "path",
-            "required": true,
-            "description": "Quote UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Quote confirmed, vault position creation queued",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ConfirmQuoteResponse" }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" },
-          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
-        }
-      }
-    },
-    "/mm/quotes/{quoteId}/withdraw": {
-      "post": {
-        "operationId": "withdrawQuote",
-        "summary": "Withdraw Quote",
-        "description": "Withdraw one of your pending quotes before the bettor accepts it. Only `pending` quotes can be withdrawn; accepted, confirmed, executed, expired, rejected, or already-withdrawn quotes return a conflict.",
-        "tags": ["Market Maker"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
-        "parameters": [
-          {
-            "name": "quoteId",
-            "in": "path",
-            "required": true,
-            "description": "Quote UUID",
-            "schema": { "type": "string", "format": "uuid" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Quote withdrawn",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["data"],
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "required": ["status"],
-                      "properties": {
-                        "status": { "type": "string", "example": "withdrawn" }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "$ref": "#/components/responses/Conflict" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
     "/markets": {
       "get": {
         "operationId": "listMarkets",
         "summary": "List Markets",
         "description": "List active markets grouped by event across supported venues (Kalshi and Polymarket). Filters: `category`, `venue`, `subcategory` (validated against the selected category), `frequency` (`daily`/`weekly`/`monthly`/`hourly`), `date_filter` (time bucket), and `search`. Pagination is cursor-based at the event level. The response includes `available_subcategories` and `available_frequencies` so clients can drive filter chips from the same result set.",
-        "tags": ["Markets"],
+        "tags": [
+          "Markets"
+        ],
         "security": [],
         "parameters": [
           {
@@ -523,51 +51,98 @@
             "description": "Filter by category. Pass `all` to disable the default category filter.",
             "schema": {
               "type": "string",
-              "enum": ["politics", "sports", "crypto", "finance", "economics", "entertainment", "weather", "tech", "all"]
+              "enum": [
+                "politics",
+                "sports",
+                "crypto",
+                "finance",
+                "economics",
+                "entertainment",
+                "weather",
+                "tech",
+                "all"
+              ]
             }
           },
           {
             "name": "venue",
             "in": "query",
             "description": "Filter by venue. Omit to include all venues.",
-            "schema": { "$ref": "#/components/schemas/Venue" }
+            "schema": {
+              "$ref": "#/components/schemas/Venue"
+            }
           },
           {
             "name": "subcategory",
             "in": "query",
             "description": "Filter events by subcategory. Valid values depend on the selected `category` (requires `category` to also be set).",
-            "schema": { "$ref": "#/components/schemas/SubcategorySlug" }
+            "schema": {
+              "$ref": "#/components/schemas/SubcategorySlug"
+            }
           },
           {
             "name": "frequency",
             "in": "query",
-            "description": "Filter events by the cadence of the underlying series. `other` is intentionally rejected — it's a residual response bucket, not a filter target.",
-            "schema": { "type": "string", "enum": ["daily", "weekly", "monthly", "hourly"] }
+            "description": "Filter events by the cadence of the underlying series. `other` is intentionally rejected \u2014 it's a residual response bucket, not a filter target.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly",
+                "hourly"
+              ]
+            }
           },
           {
             "name": "date_filter",
             "in": "query",
             "description": "Time bucket filter. If omitted, a default 7-day horizon is applied. Pass `all` to retrieve all active markets regardless of close date.",
-            "schema": { "type": "string", "enum": ["1h", "1h-1d", "1d-7d", "today", "this_week", "this_month", "all"] }
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1h",
+                "1h-1d",
+                "1d-7d",
+                "today",
+                "this_week",
+                "this_month",
+                "all"
+              ]
+            }
           },
           {
             "name": "search",
             "in": "query",
             "description": "Full-text search across event/market titles.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           },
-          { "$ref": "#/components/parameters/CursorParam" },
+          {
+            "$ref": "#/components/parameters/CursorParam"
+          },
           {
             "name": "limit",
             "in": "query",
-            "description": "Events per page. Default 21, max 100. The product `limit × markets_per_event` must not exceed 2000.",
-            "schema": { "type": "integer", "default": 21, "minimum": 1, "maximum": 100 }
+            "description": "Events per page. Default 21, max 100. The product `limit \u00d7 markets_per_event` must not exceed 2000.",
+            "schema": {
+              "type": "integer",
+              "default": 21,
+              "minimum": 1,
+              "maximum": 100
+            }
           },
           {
             "name": "markets_per_event",
             "in": "query",
             "description": "Max markets returned per event group. Default 10, max 50.",
-            "schema": { "type": "integer", "default": 10, "minimum": 1, "maximum": 50 }
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 50
+            }
           }
         ],
         "responses": {
@@ -583,24 +158,40 @@
                       "properties": {
                         "events": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/EventGroup" }
+                          "items": {
+                            "$ref": "#/components/schemas/EventGroup"
+                          }
                         }
                       }
                     },
                     "meta": {
                       "allOf": [
-                        { "$ref": "#/components/schemas/PaginationMeta" },
+                        {
+                          "$ref": "#/components/schemas/PaginationMeta"
+                        },
                         {
                           "type": "object",
                           "properties": {
-                            "total_events": { "type": "integer" },
+                            "total_events": {
+                              "type": "integer"
+                            },
                             "available_subcategories": {
                               "type": "array",
-                              "items": { "$ref": "#/components/schemas/SubcategorySlug" }
+                              "items": {
+                                "$ref": "#/components/schemas/SubcategorySlug"
+                              }
                             },
                             "available_frequencies": {
                               "type": "array",
-                              "items": { "type": "string", "enum": ["daily", "weekly", "monthly", "hourly"] }
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "daily",
+                                  "weekly",
+                                  "monthly",
+                                  "hourly"
+                                ]
+                              }
                             }
                           }
                         }
@@ -611,8 +202,12 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "500": { "$ref": "#/components/responses/InternalError" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
         }
       }
     },
@@ -621,7 +216,9 @@
         "operationId": "getExclusionGroups",
         "summary": "Get Exclusion Groups",
         "description": "Returns the configured leg-conflict rules. Each group is a set of tickers that cannot co-exist as legs in the same parlay (e.g. correlated outcomes on the same underlying asset). Each entry carries a `scope` (`event` or `series`). No authentication required.",
-        "tags": ["Markets"],
+        "tags": [
+          "Markets"
+        ],
         "security": [],
         "responses": {
           "200": {
@@ -636,9 +233,13 @@
                       "properties": {
                         "exclusion_groups": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/ExclusionGroup" }
+                          "items": {
+                            "$ref": "#/components/schemas/ExclusionGroup"
+                          }
                         },
-                        "conflict_mode": { "type": "string" }
+                        "conflict_mode": {
+                          "type": "string"
+                        }
                       }
                     }
                   }
@@ -654,14 +255,25 @@
         "operationId": "getOrCreateUser",
         "summary": "Get Profile",
         "description": "Get the authenticated user's profile. Auto-creates a user record on first call. Pass `?ref=<invite-code>` on first login to auto-redeem an invite code; when redemption succeeds the response includes `auto_redeemed: true` and, where configured, an `airdrop` outcome.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "tags": [
+          "User"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "parameters": [
           {
             "name": "ref",
             "in": "query",
             "description": "Referral / invite code to auto-redeem on first login.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -671,13 +283,21 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
-                  "properties": { "data": { "$ref": "#/components/schemas/User" } }
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
                 }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
@@ -685,27 +305,40 @@
       "put": {
         "operationId": "updateUsername",
         "summary": "Update Username",
-        "description": "Change the authenticated user's display name. Must be 3–20 characters, alphanumeric and underscores only.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "description": "Change the authenticated user's display name. Must be 3\u201320 characters, alphanumeric and underscores only.",
+        "tags": [
+          "User"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["username"],
+                "required": [
+                  "username"
+                ],
                 "properties": {
                   "username": {
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 20,
                     "pattern": "^[a-zA-Z0-9_]+$",
-                    "description": "New username (3–20 chars, alphanumeric + underscores)."
+                    "description": "New username (3\u201320 chars, alphanumeric + underscores)."
                   }
                 }
               },
-              "example": { "username": "trader_123" }
+              "example": {
+                "username": "trader_123"
+              }
             }
           }
         },
@@ -719,16 +352,26 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "properties": { "username": { "type": "string" } }
+                      "properties": {
+                        "username": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "409": { "$ref": "#/components/responses/Conflict" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
         }
       }
     },
@@ -736,16 +379,27 @@
       "get": {
         "operationId": "checkUsername",
         "summary": "Check Username",
-        "description": "Check whether a username is available. Must match 3–20 chars, alphanumeric + underscores.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "description": "Check whether a username is available. Must match 3\u201320 chars, alphanumeric + underscores.",
+        "tags": [
+          "User"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "parameters": [
           {
             "name": "username",
             "in": "query",
             "required": true,
             "description": "Candidate username.",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -758,14 +412,20 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "properties": { "available": { "type": "boolean" } }
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
@@ -773,9 +433,15 @@
       "post": {
         "operationId": "createApiKey",
         "summary": "Create API Key",
-        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` — save it immediately. Subsequent listings only show the prefix. Requires Privy JWT auth (web dashboard); cannot be called with an existing API key.",
-        "tags": ["API Keys"],
-        "security": [{ "PrivyJWT": [] }],
+        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` \u2014 save it immediately. Subsequent listings only show the prefix. Requires Privy JWT auth (web dashboard); cannot be called with an existing API key.",
+        "tags": [
+          "API Keys"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -783,7 +449,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "name": { "type": "string", "description": "Optional display name for the key." }
+                  "name": {
+                    "type": "string",
+                    "description": "Optional display name for the key."
+                  }
                 }
               }
             }
@@ -796,21 +465,38 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
-                  "properties": { "data": { "$ref": "#/components/schemas/ApiKeyFull" } }
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ApiKeyFull"
+                    }
+                  }
                 }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       },
       "get": {
         "operationId": "listApiKeys",
         "summary": "List API Keys",
-        "description": "List the authenticated user's API keys. Only metadata and prefixes are returned — the original secret is never re-exposed.",
-        "tags": ["API Keys"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "description": "List the authenticated user's API keys. Only metadata and prefixes are returned \u2014 the original secret is never re-exposed.",
+        "tags": [
+          "API Keys"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "List of API keys",
@@ -824,7 +510,9 @@
                       "properties": {
                         "keys": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/ApiKeySummary" }
+                          "items": {
+                            "$ref": "#/components/schemas/ApiKeySummary"
+                          }
                         }
                       }
                     }
@@ -833,7 +521,9 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
@@ -842,21 +532,38 @@
         "operationId": "revokeApiKey",
         "summary": "Revoke API Key",
         "description": "Revoke one of the authenticated user's API keys by prefix. Takes effect immediately on all subsequent requests. Returns `204 No Content`.",
-        "tags": ["API Keys"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "tags": [
+          "API Keys"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "parameters": [
           {
             "name": "prefix",
             "in": "path",
             "required": true,
             "description": "Key prefix returned by `listApiKeys` / `createApiKey` (`key_prefix`).",
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
-          "204": { "description": "API key revoked" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "204": {
+            "description": "API key revoked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
         }
       }
     },
@@ -865,8 +572,17 @@
         "operationId": "getWallet",
         "summary": "Get Wallet",
         "description": "Get the authenticated user's embedded Solana wallet address, wallet/vault balances, and the aggregated `locked_amount` across active RFQs and vault positions.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "tags": [
+          "User"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Wallet snapshot",
@@ -874,13 +590,21 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["data"],
-                  "properties": { "data": { "$ref": "#/components/schemas/Wallet" } }
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Wallet"
+                    }
+                  }
                 }
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
@@ -889,8 +613,17 @@
         "operationId": "getBlockhash",
         "summary": "Get Blockhash",
         "description": "Latest Solana blockhash for client-side transaction construction. Useful for browser clients that do not have direct RPC access.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "tags": [
+          "User"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Latest blockhash",
@@ -901,10 +634,17 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": ["blockhash", "last_valid_block_height"],
+                      "required": [
+                        "blockhash",
+                        "last_valid_block_height"
+                      ],
                       "properties": {
-                        "blockhash": { "type": "string" },
-                        "last_valid_block_height": { "type": "integer" }
+                        "blockhash": {
+                          "type": "string"
+                        },
+                        "last_valid_block_height": {
+                          "type": "integer"
+                        }
                       }
                     }
                   }
@@ -912,7 +652,9 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
         }
       }
     },
@@ -921,15 +663,26 @@
         "operationId": "submitTransaction",
         "summary": "Submit Transaction",
         "description": "Submit a client-signed serialized Solana transaction. Used for wallet delegation and other user-signed flows from browser clients without direct RPC access. Rate-limited to 10 requests/minute.",
-        "tags": ["User"],
-        "security": [{ "PrivyJWT": [] }, { "ApiKey": [] }],
+        "tags": [
+          "User"
+        ],
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["transaction"],
+                "required": [
+                  "transaction"
+                ],
                 "properties": {
                   "transaction": {
                     "type": "string",
@@ -937,7 +690,9 @@
                   }
                 }
               },
-              "example": { "transaction": "AQAAAA..." }
+              "example": {
+                "transaction": "AQAAAA..."
+              }
             }
           }
         },
@@ -951,9 +706,14 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": ["signature"],
+                      "required": [
+                        "signature"
+                      ],
                       "properties": {
-                        "signature": { "type": "string", "description": "Solana transaction signature." }
+                        "signature": {
+                          "type": "string",
+                          "description": "Solana transaction signature."
+                        }
                       }
                     }
                   }
@@ -961,9 +721,15 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "429": { "$ref": "#/components/responses/RateLimited" }
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
         }
       }
     }
@@ -988,80 +754,154 @@
         "name": "cursor",
         "in": "query",
         "description": "Opaque pagination cursor from a previous response's `meta.cursor`. Do not construct manually.",
-        "schema": { "type": "string" }
+        "schema": {
+          "type": "string"
+        }
       },
       "LimitParam": {
         "name": "limit",
         "in": "query",
         "description": "Page size.",
-        "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 }
+        "schema": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 100
+        }
       },
       "MmLimitParam": {
         "name": "limit",
         "in": "query",
         "description": "Page size (MM endpoints default to 50, max 100).",
-        "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 100 }
+        "schema": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 100
+        }
       },
       "IdempotencyKey": {
         "name": "Idempotency-Key",
         "in": "header",
-        "description": "Client-generated UUID. Successful (2xx) responses are cached for 24h and replayed on retry with the same key. The request body is not part of the cache key — use a fresh UUID whenever the payload differs (e.g. updated odds), otherwise the original response is replayed. Non-2xx responses are not cached.",
-        "schema": { "type": "string", "format": "uuid" }
+        "description": "Client-generated UUID. Successful (2xx) responses are cached for 24h and replayed on retry with the same key. The request body is not part of the cache key \u2014 use a fresh UUID whenever the payload differs (e.g. updated odds), otherwise the original response is replayed. Non-2xx responses are not cached.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
       }
     },
     "responses": {
       "BadRequest": {
         "description": "Validation error",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
       },
       "Unauthorized": {
         "description": "Missing or invalid authentication",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
-            "example": { "error": { "code": "UNAUTHORIZED", "message": "Missing or invalid authentication" } }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "Missing or invalid authentication"
+              }
+            }
           }
         }
       },
       "Forbidden": {
         "description": "Authenticated caller is not allowed to perform this action",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
       },
       "NotFound": {
         "description": "Resource not found",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" },
-            "example": { "error": { "code": "NOT_FOUND", "message": "Resource not found" } }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Resource not found"
+              }
+            }
           }
         }
       },
       "Conflict": {
         "description": "Resource conflict (duplicate, already taken, invalid status transition, etc.)",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
       },
       "RateLimited": {
         "description": "Rate limit exceeded",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
       },
       "InternalError": {
         "description": "Internal server error",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
       },
       "ServiceUnavailable": {
         "description": "Temporary upstream or infrastructure failure",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } }
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
       }
     },
     "schemas": {
       "ErrorEnvelope": {
         "type": "object",
-        "required": ["error"],
-        "properties": { "error": { "$ref": "#/components/schemas/ErrorBody" } }
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        }
       },
       "ErrorBody": {
         "type": "object",
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "properties": {
           "code": {
             "type": "string",
@@ -1078,8 +918,14 @@
             ],
             "description": "Machine-readable error code."
           },
-          "message": { "type": "string", "description": "Human-readable error message." },
-          "details": { "type": "object", "description": "Additional error context." },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "details": {
+            "type": "object",
+            "description": "Additional error context."
+          },
           "retry_after": {
             "type": "integer",
             "nullable": true,
@@ -1090,37 +936,74 @@
       "PaginationMeta": {
         "type": "object",
         "properties": {
-          "cursor": { "type": "string", "nullable": true, "description": "Opaque cursor for the next page; null on the final page." },
-          "has_more": { "type": "boolean" }
+          "cursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page; null on the final page."
+          },
+          "has_more": {
+            "type": "boolean"
+          }
         }
       },
       "Venue": {
         "type": "string",
-        "enum": ["kalshi", "polymarket"],
+        "enum": [
+          "kalshi",
+          "polymarket"
+        ],
         "description": "Source venue for a market."
       },
       "Side": {
         "type": "string",
-        "enum": ["yes", "no"],
+        "enum": [
+          "yes",
+          "no"
+        ],
         "description": "Bet side."
       },
       "WinnerSide": {
         "type": "string",
-        "enum": ["user", "mm"],
+        "enum": [
+          "user",
+          "mm"
+        ],
         "description": "Winner of a settled parlay position."
       },
       "LegOutcome": {
         "type": "string",
-        "enum": ["win", "loss", "push", "pending"]
+        "enum": [
+          "win",
+          "loss",
+          "push",
+          "pending"
+        ]
       },
       "RfqStatus": {
         "type": "string",
-        "enum": ["open", "quoted", "accepted", "confirmed", "executed", "cancelled", "expired", "settled"],
+        "enum": [
+          "open",
+          "quoted",
+          "accepted",
+          "confirmed",
+          "executed",
+          "cancelled",
+          "expired",
+          "settled"
+        ],
         "description": "Lifecycle status of an RFQ."
       },
       "QuoteStatus": {
         "type": "string",
-        "enum": ["pending", "accepted", "confirmed", "executed", "rejected", "expired", "withdrawn"],
+        "enum": [
+          "pending",
+          "accepted",
+          "confirmed",
+          "executed",
+          "rejected",
+          "expired",
+          "withdrawn"
+        ],
         "description": "Lifecycle status of a quote."
       },
       "PositionStatus": {
@@ -1145,12 +1028,36 @@
         "type": "string",
         "description": "Subcategory wire format (lowercase snake_case). Valid values depend on the selected `category` and are enforced server-side.",
         "enum": [
-          "nba", "ncaa", "nfl", "nhl", "mlb", "ufc", "lol", "epl", "efl", "la_liga",
-          "world_cup", "bundesliga", "liga_portugal", "ligue_1", "f1", "ipl",
-          "btc", "eth", "sol",
-          "stocks", "indices", "etfs", "earnings",
-          "rates", "inflation", "commodities", "fx", "jobs",
-          "ai", "companies",
+          "nba",
+          "ncaa",
+          "nfl",
+          "nhl",
+          "mlb",
+          "ufc",
+          "lol",
+          "epl",
+          "efl",
+          "la_liga",
+          "world_cup",
+          "bundesliga",
+          "liga_portugal",
+          "ligue_1",
+          "f1",
+          "ipl",
+          "btc",
+          "eth",
+          "sol",
+          "stocks",
+          "indices",
+          "etfs",
+          "earnings",
+          "rates",
+          "inflation",
+          "commodities",
+          "fx",
+          "jobs",
+          "ai",
+          "companies",
           "other"
         ]
       },
@@ -1159,7 +1066,7 @@
         "properties": {
           "ticker": {
             "type": "string",
-            "description": "Unique market identifier on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned by this API."
+            "description": "Unique market identifier on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned by this API."
           },
           "event_ticker": {
             "type": "string",
@@ -1167,48 +1074,103 @@
           },
           "series_ticker": {
             "type": "string",
-            "description": "Series identifier the event belongs to. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug` — Polymarket has no native series concept, so we key whitelisting on the market slug."
+            "description": "Series identifier the event belongs to. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug` \u2014 Polymarket has no native series concept, so we key whitelisting on the market slug."
           },
-          "title": { "type": "string" },
-          "subtitle": { "type": "string", "nullable": true },
-          "yes_sub_title": { "type": "string", "nullable": true },
-          "no_sub_title": { "type": "string", "nullable": true },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "yes_sub_title": {
+            "type": "string",
+            "nullable": true
+          },
+          "no_sub_title": {
+            "type": "string",
+            "nullable": true
+          },
           "bet_group": {
             "type": "string",
             "nullable": true,
             "description": "Polymarket-only: section label for the row (e.g. \"Match O/U 21.5\"). Always null on Kalshi rows."
           },
-          "category": { "type": "string" },
-          "subcategory": { "type": "string", "nullable": true },
+          "category": {
+            "type": "string"
+          },
+          "subcategory": {
+            "type": "string",
+            "nullable": true
+          },
           "frequency": {
             "type": "string",
             "nullable": true,
             "description": "Cadence of the underlying series: daily/weekly/monthly/hourly/other. Null for categories without timeframe pills."
           },
-          "venue": { "$ref": "#/components/schemas/Venue" },
-          "status": { "type": "string" },
-          "yes_bid": { "type": "number" },
-          "yes_ask": { "type": "number" },
-          "no_bid": { "type": "number" },
-          "no_ask": { "type": "number" },
-          "last_price": { "type": "number" },
+          "venue": {
+            "$ref": "#/components/schemas/Venue"
+          },
+          "status": {
+            "type": "string"
+          },
+          "yes_bid": {
+            "type": "number"
+          },
+          "yes_ask": {
+            "type": "number"
+          },
+          "no_bid": {
+            "type": "number"
+          },
+          "no_ask": {
+            "type": "number"
+          },
+          "last_price": {
+            "type": "number"
+          },
           "price_to_beat": {
             "type": "number",
             "nullable": true,
             "description": "Reference price for Polymarket up/down markets. Null on Kalshi and on non-up/down Polymarket markets."
           },
-          "volume": { "type": "integer" },
-          "volume_24h": { "type": "integer" },
-          "open_interest": { "type": "integer" },
-          "venue_url": { "type": "string", "nullable": true, "description": "Canonical market URL on its source venue." },
-          "open_time": { "type": "string", "format": "date-time" },
-          "close_time": { "type": "string", "format": "date-time" },
-          "expiration_time": { "type": "string", "format": "date-time" }
+          "volume": {
+            "type": "integer"
+          },
+          "volume_24h": {
+            "type": "integer"
+          },
+          "open_interest": {
+            "type": "integer"
+          },
+          "venue_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Canonical market URL on its source venue."
+          },
+          "open_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "close_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiration_time": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "EventGroup": {
         "type": "object",
-        "required": ["event_ticker", "series_ticker", "category", "total_markets", "markets"],
+        "required": [
+          "event_ticker",
+          "series_ticker",
+          "category",
+          "total_markets",
+          "markets"
+        ],
         "properties": {
           "event_ticker": {
             "type": "string",
@@ -1218,55 +1180,128 @@
             "type": "string",
             "description": "Series identifier. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug`."
           },
-          "series_title": { "type": "string", "nullable": true },
-          "event_title": { "type": "string", "nullable": true },
-          "event_sub_title": { "type": "string", "nullable": true },
-          "category": { "type": "string" },
-          "image_url": { "type": "string", "nullable": true },
-          "total_markets": { "type": "integer" },
+          "series_title": {
+            "type": "string",
+            "nullable": true
+          },
+          "event_title": {
+            "type": "string",
+            "nullable": true
+          },
+          "event_sub_title": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "total_markets": {
+            "type": "integer"
+          },
           "markets": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/Market" }
+            "items": {
+              "$ref": "#/components/schemas/Market"
+            }
           }
         }
       },
       "ExclusionGroup": {
         "type": "object",
         "properties": {
-          "name": { "type": "string" },
-          "scope": { "type": "string", "enum": ["event", "series"] },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "event",
+              "series"
+            ]
+          },
           "tickers": {
             "type": "array",
             "description": "Identifiers belonging to this exclusion group. When `scope=event`, these are event identifiers (Kalshi event ticker like `KXBTC-25FEB07`, or Polymarket Gamma `event_slug`). When `scope=series`, these are series identifiers (Kalshi series ticker like `KXBTC`, or Polymarket Gamma `market_slug`). Values are compared against `Leg.event_ticker` / `Market.series_ticker` to detect conflicts.",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "description": { "type": "string" }
+          "description": {
+            "type": "string"
+          }
         }
       },
       "Leg": {
         "type": "object",
-        "required": ["market_ticker", "event_ticker", "side", "venue", "market_title"],
+        "required": [
+          "market_ticker",
+          "event_ticker",
+          "side",
+          "venue",
+          "market_title"
+        ],
         "properties": {
           "market_ticker": {
             "type": "string",
-            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned \u2014 resolve them client-side via Polymarket's CLOB if needed."
           },
           "event_ticker": {
             "type": "string",
             "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
           },
-          "side": { "$ref": "#/components/schemas/Side" },
-          "venue": { "$ref": "#/components/schemas/Venue" },
-          "market_title": { "type": "string" },
-          "event_title": { "type": "string" },
-          "yes_sub_title": { "type": "string", "nullable": true, "description": "Snapshot of the market's yes-side subtitle at RFQ creation." },
-          "no_sub_title": { "type": "string", "nullable": true, "description": "Snapshot of the market's no-side subtitle at RFQ creation." },
-          "venue_url": { "type": "string", "nullable": true, "description": "Canonical URL of the leg's market on its venue." },
-          "image_url": { "type": "string", "nullable": true, "description": "Image URL for the leg's market." },
-          "expected_expiration_time": { "type": "string", "format": "date-time", "nullable": true, "description": "Expected market resolution time for the leg." },
-          "current_yes_price": { "type": "number", "description": "Yes ask price at RFQ creation, decimal (0-1)." },
-          "current_no_price": { "type": "number", "description": "No ask price at RFQ creation, decimal (0-1)." },
-          "outcome": { "$ref": "#/components/schemas/LegOutcome" }
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/Venue"
+          },
+          "market_title": {
+            "type": "string"
+          },
+          "event_title": {
+            "type": "string"
+          },
+          "yes_sub_title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Snapshot of the market's yes-side subtitle at RFQ creation."
+          },
+          "no_sub_title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Snapshot of the market's no-side subtitle at RFQ creation."
+          },
+          "venue_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Canonical URL of the leg's market on its venue."
+          },
+          "image_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Image URL for the leg's market."
+          },
+          "expected_expiration_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Expected market resolution time for the leg."
+          },
+          "current_yes_price": {
+            "type": "number",
+            "description": "Yes ask price at RFQ creation, decimal (0-1)."
+          },
+          "current_no_price": {
+            "type": "number",
+            "description": "No ask price at RFQ creation, decimal (0-1)."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LegOutcome"
+          }
         }
       },
       "Rfq": {
@@ -1283,48 +1318,123 @@
           "expires_at"
         ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "user_id": { "type": "string", "description": "Privy DID of the bettor." },
-          "status": { "$ref": "#/components/schemas/RfqStatus" },
-          "bet_amount": { "type": "number", "description": "USDC. Capped at 100 USDC per RFQ." },
-          "implied_probability": { "type": "number", "description": "Combined implied probability of all legs (0-1)." },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Privy DID of the bettor."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RfqStatus"
+          },
+          "bet_amount": {
+            "type": "number",
+            "description": "USDC. Capped at 100 USDC per RFQ."
+          },
+          "implied_probability": {
+            "type": "number",
+            "description": "Combined implied probability of all legs (0-1)."
+          },
           "legs": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/Leg" }
+            "items": {
+              "$ref": "#/components/schemas/Leg"
+            }
           },
           "quotes": {
             "type": "array",
             "nullable": true,
-            "items": { "$ref": "#/components/schemas/Quote" },
+            "items": {
+              "$ref": "#/components/schemas/Quote"
+            },
             "description": "`null` when not requested (listRfqs without `?include=quotes`). `[]` means requested but no quotes yet."
           },
-          "accepted_quote_id": { "type": "string", "format": "uuid", "nullable": true, "description": "Set once status >= accepted." },
-          "market_maker_id": { "type": "string", "nullable": true, "description": "Set once status >= accepted." },
-          "position_pda": { "type": "string", "nullable": true, "description": "On-chain position address. Set once status >= confirmed." },
+          "accepted_quote_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Set once status >= accepted."
+          },
+          "market_maker_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set once status >= accepted."
+          },
+          "position_pda": {
+            "type": "string",
+            "nullable": true,
+            "description": "On-chain position address. Set once status >= confirmed."
+          },
           "position_status": {
             "nullable": true,
             "description": "Position status from the vault positions table.",
-            "allOf": [{ "$ref": "#/components/schemas/PositionStatus" }]
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositionStatus"
+              }
+            ]
           },
-          "position_error": { "type": "string", "nullable": true, "description": "Last error recorded on the vault position; populated when `position_status === 'error'`." },
-          "cancellation_reason": { "type": "string", "nullable": true },
-          "is_failed": { "type": "boolean", "description": "True when the vault position errored on-chain. Derived from `position_status === 'error'`. Omitted on non-failed parlays." },
-          "fee_amount": { "type": "number", "nullable": true, "description": "Set on settled RFQs only." },
+          "position_error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Last error recorded on the vault position; populated when `position_status === 'error'`."
+          },
+          "cancellation_reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_failed": {
+            "type": "boolean",
+            "description": "True when the vault position errored on-chain. Derived from `position_status === 'error'`. Omitted on non-failed parlays."
+          },
+          "fee_amount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Set on settled RFQs only."
+          },
           "settlement": {
             "nullable": true,
             "description": "Set on settled RFQs only.",
-            "allOf": [{ "$ref": "#/components/schemas/Settlement" }]
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Settlement"
+              }
+            ]
           },
-          "settled_at": { "type": "string", "format": "date-time", "nullable": true },
-          "created_at": { "type": "string", "format": "date-time" },
-          "updated_at": { "type": "string", "format": "date-time" },
-          "expires_at": { "type": "string", "format": "date-time" }
+          "settled_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "MmRfqLeg": {
         "type": "object",
-        "description": "Subset of a leg surfaced to market makers — drops display-only fields, keeps the price snapshot needed for quoting.",
-        "required": ["leg_index", "market_ticker", "event_ticker", "side", "venue", "market_title", "current_yes_price", "current_no_price"],
+        "description": "Subset of a leg surfaced to market makers \u2014 drops display-only fields, keeps the price snapshot needed for quoting.",
+        "required": [
+          "leg_index",
+          "market_ticker",
+          "event_ticker",
+          "side",
+          "venue",
+          "market_title",
+          "current_yes_price",
+          "current_no_price"
+        ],
         "properties": {
           "leg_index": {
             "type": "integer",
@@ -1332,80 +1442,175 @@
           },
           "market_ticker": {
             "type": "string",
-            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned \u2014 resolve them client-side via Polymarket's CLOB if needed."
           },
           "event_ticker": {
             "type": "string",
             "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
           },
-          "side": { "$ref": "#/components/schemas/Side" },
-          "venue": { "$ref": "#/components/schemas/Venue" },
-          "market_title": { "type": "string" },
-          "current_yes_price": { "type": "number", "description": "Yes price at RFQ creation, decimal (0-1)." },
-          "current_no_price": { "type": "number", "description": "No price at RFQ creation, decimal (0-1)." }
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/Venue"
+          },
+          "market_title": {
+            "type": "string"
+          },
+          "current_yes_price": {
+            "type": "number",
+            "description": "Yes price at RFQ creation, decimal (0-1)."
+          },
+          "current_no_price": {
+            "type": "number",
+            "description": "No price at RFQ creation, decimal (0-1)."
+          }
         }
       },
       "MmRfq": {
         "type": "object",
         "description": "Open RFQ visible to market makers.",
-        "required": ["id", "user_id", "status", "bet_amount", "implied_probability", "expires_at", "created_at", "legs"],
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "bet_amount",
+          "implied_probability",
+          "expires_at",
+          "created_at",
+          "legs"
+        ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "user_id": { "type": "string", "description": "Privy DID of the bettor (intentionally surfaced to MMs)." },
-          "status": { "type": "string", "enum": ["open"], "description": "MMs only see RFQs available for quoting." },
-          "bet_amount": { "type": "number" },
-          "implied_probability": { "type": "number", "description": "Decimal probability (0-1)." },
-          "expires_at": { "type": "string", "format": "date-time" },
-          "created_at": { "type": "string", "format": "date-time" },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Privy DID of the bettor (intentionally surfaced to MMs)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open"
+            ],
+            "description": "MMs only see RFQs available for quoting."
+          },
+          "bet_amount": {
+            "type": "number"
+          },
+          "implied_probability": {
+            "type": "number",
+            "description": "Decimal probability (0-1)."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
           "legs": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/MmRfqLeg" }
+            "items": {
+              "$ref": "#/components/schemas/MmRfqLeg"
+            }
           }
         }
       },
       "Quote": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "rfq_id": { "type": "string", "format": "uuid" },
-          "payout_odds": { "type": "number", "minimum": 1.0001, "maximum": 1000, "description": "Multiplier on `bet_amount` that produces the total payout if the parlay wins." },
-          "user_cost": { "type": "number", "description": "Bettor's cost (same as RFQ `bet_amount`)." },
-          "mm_cost": { "type": "number", "description": "Market maker's max risk = `total_payout - user_cost`." },
-          "total_payout": { "type": "number", "description": "Total payout on a win = `user_cost + mm_cost`." },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payout_odds": {
+            "type": "number",
+            "minimum": 1.0001,
+            "maximum": 1000,
+            "description": "Multiplier on `bet_amount` that produces the total payout if the parlay wins."
+          },
+          "user_cost": {
+            "type": "number",
+            "description": "Bettor's cost (same as RFQ `bet_amount`)."
+          },
+          "mm_cost": {
+            "type": "number",
+            "description": "Market maker's max risk = `total_payout - user_cost`."
+          },
+          "total_payout": {
+            "type": "number",
+            "description": "Total payout on a win = `user_cost + mm_cost`."
+          },
           "leg_prices": {
             "type": "array",
             "description": "Per-leg price snapshot captured at submit time. `leg_odds` is a decimal (0-1).",
             "items": {
               "type": "object",
-              "required": ["leg_id", "leg_odds"],
+              "required": [
+                "leg_id",
+                "leg_odds"
+              ],
               "properties": {
-                "leg_id": { "type": "string", "format": "uuid" },
-                "leg_odds": { "type": "number", "description": "Implied per-leg price, decimal (0-1)." }
+                "leg_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "leg_odds": {
+                  "type": "number",
+                  "description": "Implied per-leg price, decimal (0-1)."
+                }
               }
             }
           },
-          "status": { "$ref": "#/components/schemas/QuoteStatus" },
-          "valid_until": { "type": "string", "format": "date-time" },
-          "created_at": { "type": "string", "format": "date-time" },
-          "updated_at": { "type": "string", "format": "date-time" }
+          "status": {
+            "$ref": "#/components/schemas/QuoteStatus"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "QuoteMmView": {
         "description": "Quote with MM-only fields surfaced on MM endpoints.",
         "allOf": [
-          { "$ref": "#/components/schemas/Quote" },
+          {
+            "$ref": "#/components/schemas/Quote"
+          },
           {
             "type": "object",
             "properties": {
-              "market_maker_id": { "type": "string" },
-              "mm_wallet_address": { "type": "string" }
+              "market_maker_id": {
+                "type": "string"
+              },
+              "mm_wallet_address": {
+                "type": "string"
+              }
             }
           }
         ]
       },
       "CreateRfqRequest": {
         "type": "object",
-        "required": ["legs", "bet_amount"],
+        "required": [
+          "legs",
+          "bet_amount"
+        ],
         "properties": {
           "legs": {
             "type": "array",
@@ -1414,14 +1619,22 @@
             "description": "Parlay legs (2-5 required). Each leg references a market by ticker on a specific venue.",
             "items": {
               "type": "object",
-              "required": ["market_ticker", "side", "venue"],
+              "required": [
+                "market_ticker",
+                "side",
+                "venue"
+              ],
               "properties": {
                 "market_ticker": {
                   "type": "string",
-                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) — there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
+                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) \u2014 there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
                 },
-                "side": { "$ref": "#/components/schemas/Side" },
-                "venue": { "$ref": "#/components/schemas/Venue" }
+                "side": {
+                  "$ref": "#/components/schemas/Side"
+                },
+                "venue": {
+                  "$ref": "#/components/schemas/Venue"
+                }
               }
             }
           },
@@ -1452,31 +1665,49 @@
       },
       "SubmitQuoteRequest": {
         "type": "object",
-        "required": ["rfq_id", "payout_odds"],
+        "required": [
+          "rfq_id",
+          "payout_odds"
+        ],
         "properties": {
-          "rfq_id": { "type": "string", "format": "uuid", "description": "RFQ to quote." },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "RFQ to quote."
+          },
           "payout_odds": {
             "type": "number",
             "minimum": 1.0001,
             "maximum": 1000,
-            "description": "Multiplier (1.0001x – 1000x). Must be a finite number."
+            "description": "Multiplier (1.0001x \u2013 1000x). Must be a finite number."
           },
           "valid_for_seconds": {
             "type": "integer",
             "minimum": 10,
             "maximum": 600,
             "default": 60,
-            "description": "Quote validity window. 10s – 10min. Defaults to 60s."
+            "description": "Quote validity window. 10s \u2013 10min. Defaults to 60s."
           },
           "leg_prices": {
             "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value — the request field is named `odds`, the response field is named `leg_odds`.",
+            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value \u2014 the request field is named `odds`, the response field is named `leg_odds`.",
             "items": {
               "type": "object",
-              "required": ["leg_id", "odds"],
+              "required": [
+                "leg_id",
+                "odds"
+              ],
               "properties": {
-                "leg_id": { "type": "string", "format": "uuid" },
-                "odds": { "type": "number", "minimum": 0, "maximum": 1, "description": "Implied per-leg price, decimal (0-1)." }
+                "leg_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "odds": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Implied per-leg price, decimal (0-1)."
+                }
               }
             }
           }
@@ -1484,17 +1715,25 @@
       },
       "AcceptQuoteResponse": {
         "type": "object",
-        "required": ["data"],
+        "required": [
+          "data"
+        ],
         "properties": {
           "data": {
             "type": "object",
             "properties": {
-              "status": { "type": "string", "example": "accepted" },
-              "quote_id": { "type": "string", "format": "uuid" },
+              "status": {
+                "type": "string",
+                "example": "accepted"
+              },
+              "quote_id": {
+                "type": "string",
+                "format": "uuid"
+              },
               "confirmation_deadline": {
                 "type": "string",
                 "format": "date-time",
-                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
+                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** \u2014 RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** \u2014 RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
               }
             }
           }
@@ -1502,14 +1741,26 @@
       },
       "ConfirmQuoteResponse": {
         "type": "object",
-        "required": ["data"],
+        "required": [
+          "data"
+        ],
         "properties": {
           "data": {
             "type": "object",
             "properties": {
-              "status": { "type": "string", "example": "confirmed" },
-              "quote_id": { "type": "string", "format": "uuid" },
-              "execution_id": { "type": "string", "format": "uuid", "description": "Identifier for the queued vault-position-creation job." }
+              "status": {
+                "type": "string",
+                "example": "confirmed"
+              },
+              "quote_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "execution_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Identifier for the queued vault-position-creation job."
+              }
             }
           }
         }
@@ -1517,37 +1768,84 @@
       "User": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "description": "Privy DID — internal identifier, not exposed on public endpoints." },
-          "username": { "type": "string", "description": "Display name. Auto-set to the wallet address on first login; can be updated via `PUT /user/username` to a 3-20 char alphanumeric." },
-          "email": { "type": "string", "nullable": true },
-          "wallet_address": { "type": "string", "nullable": true },
-          "approved": { "type": "boolean", "description": "True once the user has redeemed a valid invite code or has been admin-approved." },
-          "waitlisted": { "type": "boolean", "description": "True when `approved=false` and the user is on the waitlist; false otherwise. Always present." },
-          "auto_redeemed": { "type": "boolean", "description": "Only present when the `?ref` param successfully redeemed an invite code in this exact request." },
+          "id": {
+            "type": "string",
+            "description": "Privy DID \u2014 internal identifier, not exposed on public endpoints."
+          },
+          "username": {
+            "type": "string",
+            "description": "Display name. Auto-set to the wallet address on first login; can be updated via `PUT /user/username` to a 3-20 char alphanumeric."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "wallet_address": {
+            "type": "string",
+            "nullable": true
+          },
+          "approved": {
+            "type": "boolean",
+            "description": "True once the user has redeemed a valid invite code or has been admin-approved."
+          },
+          "waitlisted": {
+            "type": "boolean",
+            "description": "True when `approved=false` and the user is on the waitlist; false otherwise. Always present."
+          },
+          "auto_redeemed": {
+            "type": "boolean",
+            "description": "Only present when the `?ref` param successfully redeemed an invite code in this exact request."
+          },
           "airdrop": {
             "nullable": true,
             "description": "Welcome-airdrop outcome from the auto-redeem path. Present alongside `auto_redeemed: true`. `null` when the invite has no airdrop configured or the user was already credited.",
-            "allOf": [{ "$ref": "#/components/schemas/AirdropOutcome" }]
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AirdropOutcome"
+              }
+            ]
           },
-          "created_at": { "type": "string", "format": "date-time" }
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "AirdropOutcome": {
         "type": "object",
         "description": "Welcome airdrop outcome. `success: true` with `pending: true` means the amount was staged and will mint on the user's next `POST /user/wallet/enable-trading` call. `success: false` means staging failed.",
-        "required": ["success", "amount", "pending"],
+        "required": [
+          "success",
+          "amount",
+          "pending"
+        ],
         "properties": {
-          "success": { "type": "boolean" },
-          "amount": { "type": "number", "description": "USDC (whole dollars)." },
-          "pending": { "type": "boolean" }
+          "success": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": "number",
+            "description": "USDC (whole dollars)."
+          },
+          "pending": {
+            "type": "boolean"
+          }
         }
       },
       "Wallet": {
         "type": "object",
         "properties": {
-          "address": { "type": "string", "nullable": true, "description": "Solana wallet address (base58). Null if no wallet is linked yet." },
-          "sol_balance": { "type": "number" },
-          "usdc_balance": { "type": "number" },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "description": "Solana wallet address (base58). Null if no wallet is linked yet."
+          },
+          "sol_balance": {
+            "type": "number"
+          },
+          "usdc_balance": {
+            "type": "number"
+          },
           "vault_balance": {
             "type": "number",
             "description": "Gross USDC balance currently held in the caller's Totalis vault. Resolved by the returned `address`; returns 0 when no vault row exists for that wallet. Includes both free vault cash and locked collateral. Add to `usdc_balance` for total on-chain USDC across wallet and vault; subtract `locked_amount` from that total for an available-cash view."
@@ -1566,41 +1864,107 @@
         "type": "object",
         "description": "Returned only on creation; the full `key` is visible exactly once.",
         "properties": {
-          "key": { "type": "string", "description": "Full API key (only shown once)." },
-          "key_prefix": { "type": "string" },
-          "name": { "type": "string" },
-          "created_at": { "type": "string", "format": "date-time" },
-          "expires_at": { "type": "string", "format": "date-time" }
+          "key": {
+            "type": "string",
+            "description": "Full API key (only shown once)."
+          },
+          "key_prefix": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "ApiKeySummary": {
         "type": "object",
         "properties": {
-          "key_prefix": { "type": "string" },
-          "name": { "type": "string" },
-          "status": { "type": "string", "enum": ["active", "revoked", "expired"] },
-          "created_at": { "type": "string", "format": "date-time" },
-          "expires_at": { "type": "string", "format": "date-time" },
-          "last_used_at": { "type": "string", "format": "date-time", "nullable": true },
-          "request_count": { "type": "integer" }
+          "key_prefix": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked",
+              "expired"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "request_count": {
+            "type": "integer"
+          }
         }
       },
       "Settlement": {
         "type": "object",
-        "required": ["id", "rfq_id", "winner", "payout", "user_stake", "mm_risk", "fee_amount", "settle_tx", "settled_at"],
+        "required": [
+          "id",
+          "rfq_id",
+          "winner",
+          "payout",
+          "user_stake",
+          "mm_risk",
+          "fee_amount",
+          "settle_tx",
+          "settled_at"
+        ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "rfq_id": { "type": "string", "format": "uuid" },
-          "winner": { "$ref": "#/components/schemas/WinnerSide" },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "winner": {
+            "$ref": "#/components/schemas/WinnerSide"
+          },
           "payout": {
             "type": "number",
-            "description": "Full pot transferred to the winner — equals `user_stake + mm_risk` (i.e. `bet_amount * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
+            "description": "Full pot transferred to the winner \u2014 equals `user_stake + mm_risk` (i.e. `bet_amount * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
           },
-          "user_stake": { "type": "number" },
-          "mm_risk": { "type": "number" },
-          "fee_amount": { "type": "number", "description": "Protocol fee deducted from the winner's payout." },
-          "settle_tx": { "type": "string" },
-          "settled_at": { "type": "string", "format": "date-time" }
+          "user_stake": {
+            "type": "number"
+          },
+          "mm_risk": {
+            "type": "number"
+          },
+          "fee_amount": {
+            "type": "number",
+            "description": "Protocol fee deducted from the winner's payout."
+          },
+          "settle_tx": {
+            "type": "string"
+          },
+          "settled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     }
