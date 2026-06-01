@@ -37,7 +37,7 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="user_cost" type="number" required>
-  The USDC cost to the user (the bet amount). Sent for validation, but the server recomputes the authoritative value from the request's `bet_amount` and your `payout_odds`; a mismatch is logged and your value is discarded.
+  The USDC cost to the user (equal to the request's `bet_amount`). The server recomputes this from `bet_amount`; a mismatch is logged and your value is discarded.
 </ParamField>
 
 <ParamField body="total_payout" type="number" required>

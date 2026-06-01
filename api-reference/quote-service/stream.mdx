@@ -132,13 +132,19 @@ eventSource.addEventListener('best_quote', (e) => {
   console.log('Book seq:', data.book_seq);
 });
 
-eventSource.addEventListener('status', (e) => {
+eventSource.addEventListener('committed', (e) => {
   const data = JSON.parse(e.data);
-  console.log('Terminal status:', data.status);
-  if (data.status === 'committed') {
-    console.log('RFQ created:', data.committed_rfq_id);
-    // Follow the trade on the WebSocket rfq:{committed_rfq_id} channel
-  }
+  console.log('RFQ created:', data.rfq_id);
+  eventSource.close();
+});
+
+eventSource.addEventListener('cancelled', () => {
+  console.log('Quote request cancelled');
+  eventSource.close();
+});
+
+eventSource.addEventListener('expired', () => {
+  console.log('Quote request expired');
   eventSource.close();
 });
 ```
@@ -153,15 +159,19 @@ headers = {
     'Accept': 'text/event-stream',
 }
 
+event_type = None
 with requests.get(url, headers=headers, stream=True) as resp:
     for line in resp.iter_lines(decode_unicode=True):
-        if line.startswith('data: '):
+        if line.startswith('event: '):
+            event_type = line[7:]
+        elif line.startswith('data: '):
             payload = json.loads(line[6:])
-            if 'best_quote' in payload:
+            if event_type == 'best_quote':
                 print('Best quote:', payload['best_quote'])
-            elif 'status' in payload:
-                print('Terminal:', payload['status'])
+            elif event_type in ('committed', 'cancelled', 'expired'):
+                print(f'Terminal: {event_type}', payload)
                 break
+            event_type = None
 ```
 </RequestExample>
 
