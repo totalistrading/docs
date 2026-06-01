@@ -8,6 +8,11 @@
     "dark": "#15803D"
   },
   "favicon": "/totalis_logo.png",
+  "api": {
+    "mdx": {
+      "server": "https://quote-service.totalis.trade"
+    }
+  },
   "navigation": {
     "tabs": [
       {
