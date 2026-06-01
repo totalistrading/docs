@@ -9,10 +9,6 @@
     {
       "url": "https://api.totalis.trade",
       "description": "Production"
-    },
-    {
-      "url": "http://localhost:8080",
-      "description": "Local development"
     }
   ],
   "security": [
