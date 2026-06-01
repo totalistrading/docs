@@ -1,0 +1,92 @@
+---
+title: 'Submit or Replace Quote'
+description: 'Submit a draft quote for a live quote request, or replace your existing quote for the same version. Uses PUT semantics -- one active quote per MM per request version.'
+---
+
+```
+PUT /v1/mm/quote-requests/{id}/quote
+```
+
+Submits a draft quote for a live quote request. If the MM already has an active quote for the same `request_version`, it is replaced atomically. The backend enforces one active quote per MM per request version.
+
+**Auth:** `X-API-Key` (market maker)
+
+**Base URL:** Quote Service (configured per environment)
+
+## Path Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `id` | string | Quote request ID. |
+
+## Request Body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `request_version` | integer | yes | The version of the quote request you priced. Must match the server's current version. |
+| `request_hash` | string | yes | The `request_hash` from the quote request event. Prevents pricing stale data. |
+| `payout_odds` | number | yes | Payout multiplier on the user's bet amount (>= 1.0001, <= 1000). |
+| `user_cost` | number | yes | The USDC cost to the user (the bet amount). |
+| `total_payout` | number | yes | Total payout if the parlay wins. |
+| `mm_cost` | number | yes | The USDC the MM puts at risk (total_payout - user_cost). |
+| `expires_in_ms` | integer | no | How long this quote is valid, in milliseconds (5000-60000, default 15000). |
+| `leg_prices` | array | yes | Per-leg pricing. Each entry has `leg_id` (string) and `leg_odds` (number, 0-1). |
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256...",
+  "payout_odds": 4.25,
+  "user_cost": 25,
+  "total_payout": 106.25,
+  "mm_cost": 81.25,
+  "expires_in_ms": 15000,
+  "leg_prices": [
+    { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42 }
+  ]
+}
+```
+
+## Response
+
+**`201 Created`** (new quote) or **`200 OK`** (replaced existing)
+
+```json
+{
+  "data": {
+    "quote": {
+      "id": "quote-uuid",
+      "market_maker_id": "mm-uuid",
+      "request_version": 3,
+      "request_hash": "sha256...",
+      "payout_odds": 4.25,
+      "user_cost": 25,
+      "total_payout": 106.25,
+      "mm_cost": 81.25,
+      "valid_until": "2026-05-31T18:45:45.000Z",
+      "leg_prices": [
+        { "leg_id": "8ccf2c5d-...", "leg_odds": 0.42 }
+      ]
+    },
+    "book_seq": 5,
+    "replaced": false
+  }
+}
+```
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | Invalid body. Check `details.issues`. |
+| `CONFLICT` | 409 | Quote request not found, expired, no longer active, version/hash mismatch, or attempted self-quote. Check `details.reason`. |
+
+### Conflict Reasons
+
+| Reason | Description |
+| --- | --- |
+| `not_found` | Quote request ID does not exist. |
+| `expired` | Quote request has expired. |
+| `not_active` | Quote request is committed, cancelled, or otherwise inactive. |
+| `version_mismatch` | The `request_version` or `request_hash` does not match the server's current version. Re-fetch the latest version from the SSE stream. |
+| `self_quote` | MMs cannot quote their own requests. |

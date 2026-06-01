@@ -1,5 +1,9 @@
 ---
-title: 'Submit Quote'
+title: 'Submit Quote (Deprecated)'
 description: 'Submit a quote for an open Totalis RFQ. payout_odds is the multiplier on the bettor stake; the MM risk is bet_amount * (payout_odds - 1). Idempotency-Key is honored.'
 openapi: 'POST /mm/quotes'
 ---
+
+<Warning>
+**This endpoint is no longer available.** The legacy RFQ flow has been replaced by [Live Quote Requests](/guides/live-quote-requests). Use [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) to submit draft quotes against live quote requests instead.
+</Warning>

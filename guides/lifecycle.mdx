@@ -32,7 +32,7 @@ A few status nuances worth knowing:
     - **Polymarket**: the `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`). Not the gamma id, question id, or market slug. Both yes and no sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`; CLOB token ids are not part of the RFQ surface.
 
     ```bash
-    POST /quote-requests
+    POST /v1/quote-requests
     {
       "legs": [
         { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
@@ -42,16 +42,16 @@ A few status nuances worth knowing:
     }
     ```
 
-    The system validates that each market exists in the cache, enforces leg-exclusion rules (see [Get Exclusion Groups](/api-reference/markets/exclusion-groups)), versions the request, and broadcasts it on `quote_requests:open` so market makers can quote against it.
+    The system validates that each market exists in the cache, enforces leg-exclusion rules (see [Get Exclusion Groups](/api-reference/markets/exclusion-groups)), versions the request, and broadcasts it to all connected market makers via the Quote Service SSE stream.
 
     **Quote request status: `active`**
   </Step>
 
   <Step title="Market Makers Submit Draft Quotes">
-    Market makers subscribe to the `quote_requests:open` WebSocket channel and submit draft quotes with their payout odds. [List Quote Requests](/api-reference/mm/list-quote-requests) is only a catchup/recovery endpoint for startup or reconnect gaps.
+    Market makers subscribe to the [Quote Service SSE stream](/api-reference/quote-service-mm/stream) (`GET /v1/mm/quote-requests/stream`) and submit draft quotes with their payout odds.
 
     ```bash
-    POST /mm/quote-requests/<quote-request-id>/quotes
+    PUT /v1/mm/quote-requests/<quote-request-id>/quote
     {
       "request_version": 3,
       "request_hash": "sha256...",
@@ -76,9 +76,11 @@ A few status nuances worth knowing:
     The frontend shows the best active draft quote. When the user submits, the server selects the best still-valid quote for the displayed version and creates the real RFQ plus accepted quote atomically.
 
     ```bash
-    POST /quote-requests/<quote-request-id>/commit-best
+    POST /v1/quote-requests/<quote-request-id>/commit
     {
       "expected_version": 3,
+      "displayed_quote_id": "quote-uuid",
+      "displayed_quote_book_seq": 5,
       "min_payout_odds_seen": 4.0
     }
     ```
@@ -142,6 +144,6 @@ Two background services manage the vault position lifecycle:
 | Bet amount | 1–100 USDC |
 | Payout odds | 1.0001× – 1000× |
 | Quote request expiry | Server-set; visible as `expires_at` on the quote request object |
-| RFQ expiration | 30 s – 24 h (default 300 s); applies to real RFQs created at `commit-best` |
+| RFQ expiration | 30 s – 24 h (default 300 s); applies to real RFQs created at commit |
 | Quote validity | 10 s – 1 h (default 60 s) |
-| MM confirmation window | Server-controlled; returned on the `commit-best` response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
+| MM confirmation window | Server-controlled; returned on the commit response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |

@@ -1,0 +1,74 @@
+---
+title: 'Stream Quote Request'
+description: 'SSE stream that delivers real-time best-quote updates for a live quote request. The frontend subscribes to this to show live pricing.'
+---
+
+```
+GET /v1/quote-requests/{id}/stream
+```
+
+Opens a Server-Sent Events (SSE) stream that delivers real-time best-quote updates for a specific quote request. The frontend subscribes here to show live pricing as market makers submit, replace, and withdraw quotes.
+
+**Auth:** `Authorization: Bearer <privy_jwt>`
+
+## Path Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `id` | string | Quote request ID. |
+
+## SSE Events
+
+### `best_quote`
+
+Sent whenever the quote book changes (new quote submitted, quote replaced, quote withdrawn, or quote expired). The `book_seq` increments monotonically so the frontend can detect missed updates.
+
+```json
+{
+  "book_seq": 5,
+  "version": 3,
+  "best_quote": {
+    "id": "quote-uuid",
+    "payout_odds": 4.25,
+    "user_cost": 25,
+    "total_payout": 106.25,
+    "mm_cost": 81.25,
+    "valid_until": "2026-05-31T18:45:45.000Z"
+  }
+}
+```
+
+When no quotes are active, `best_quote` is `null`:
+
+```json
+{
+  "book_seq": 6,
+  "version": 3,
+  "best_quote": null
+}
+```
+
+### `status`
+
+Sent when the quote request transitions out of the `active` state (committed, cancelled, or expired). The stream closes after this event.
+
+```json
+{
+  "status": "committed"
+}
+```
+
+## Frontend Integration
+
+1. Open the SSE stream immediately after creating or updating a quote request.
+2. On each `best_quote` event, update the displayed payout odds and store the `book_seq` and best quote `id`.
+3. When the user taps "Submit", pass `expected_version`, `displayed_quote_id`, `displayed_quote_book_seq`, and `min_payout_odds_seen` to the [commit endpoint](/api-reference/quote-service/commit).
+4. On a `status` event, close the stream and navigate to the appropriate result screen.
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
+| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
+| `NOT_FOUND` | 404 | Quote request not found. |

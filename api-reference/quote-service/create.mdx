@@ -1,0 +1,74 @@
+---
+title: 'Create Quote Request'
+description: 'Create a new live quote request with 2-5 legs and a USDC bet amount. The request is immediately streamed to all connected market makers for pricing.'
+---
+
+```
+POST /v1/quote-requests
+```
+
+Creates a new live quote request. The Quote Service validates all legs against the market cache, assigns a `version` of `1` and a `request_hash`, and begins broadcasting the request to market makers via SSE.
+
+**Auth:** `Authorization: Bearer <privy_jwt>`
+
+## Request Body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `legs` | array | yes | 2-5 legs, each with `market_ticker`, `side`, and `venue`. |
+| `legs[].market_ticker` | string | yes | Ticker of the market on the venue. |
+| `legs[].side` | `"yes"` \| `"no"` | yes | Side of the leg. |
+| `legs[].venue` | `"kalshi"` \| `"polymarket"` | no | Defaults to `"kalshi"`. |
+| `bet_amount` | number | yes | USDC bet amount (1-100). |
+
+```json
+{
+  "legs": [
+    { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
+    { "market_ticker": "0x4d2...", "side": "no", "venue": "polymarket" }
+  ],
+  "bet_amount": 25
+}
+```
+
+## Response
+
+**`201 Created`**
+
+```json
+{
+  "data": {
+    "quote_request": {
+      "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+      "user_id": "did:privy:...",
+      "version": 1,
+      "request_hash": "sha256...",
+      "book_seq": 0,
+      "status": "active",
+      "bet_amount": 25,
+      "implied_probability": 0,
+      "expires_at": "2026-05-31T18:45:30.000Z",
+      "legs": [
+        {
+          "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+          "event_ticker": "KXBTC-25FEB07-T100000",
+          "market_ticker": "KXBTC-25FEB07-T100000",
+          "side": "yes",
+          "venue": "kalshi"
+        }
+      ],
+      "input_legs": [
+        { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" }
+      ]
+    }
+  }
+}
+```
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | Invalid legs, side, venue, or bet amount. `details.issues` contains Zod validation errors. |
+| `VALIDATION_ERROR` | 400 | Market validation failed (market not found, expired, or exclusion conflict). `details.leg_errors` lists per-leg errors. |
+| `UNAUTHORIZED` | 401 | Missing or invalid auth. |

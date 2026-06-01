@@ -1,0 +1,79 @@
+---
+title: 'Commit Quote Request'
+description: 'Commit the best available quote on a live quote request. Creates an accepted RFQ atomically with commit-protection fields that prevent stale-price execution.'
+---
+
+```
+POST /v1/quote-requests/{id}/commit
+```
+
+Commits the best eligible quote on a live quote request. The server re-validates all markets, selects the best quote that meets the `min_payout_odds_seen` threshold, and creates the final accepted RFQ atomically via the Core Backend.
+
+The commit body includes **commit-protection fields** that tie the commit to what the user actually saw on screen, preventing stale-price execution.
+
+**Auth:** `Authorization: Bearer <privy_jwt>`
+
+## Path Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `id` | string | Quote request ID. |
+
+## Request Body
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `expected_version` | integer | yes | The quote request `version` the frontend is currently displaying. Commit is rejected if the server version differs. |
+| `displayed_quote_id` | string | yes | The `id` of the best quote the user saw on screen at commit time. |
+| `displayed_quote_book_seq` | integer | yes | The `book_seq` value from the SSE stream event that delivered the displayed quote. Proves the frontend was up-to-date. |
+| `min_payout_odds_seen` | number | yes | The minimum payout odds the user was shown. Only quotes at or above this threshold are eligible. Must be >= 1.0001. |
+
+```json
+{
+  "expected_version": 3,
+  "displayed_quote_id": "quote-uuid",
+  "displayed_quote_book_seq": 5,
+  "min_payout_odds_seen": 4.25
+}
+```
+
+## Response
+
+**`201 Created`**
+
+```json
+{
+  "data": {
+    "status": "committed",
+    "quote_request_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+    "rfq_id": "real-rfq-uuid",
+    "quote_id": "real-rfq-quote-uuid",
+    "selected_payout_odds": 4.25,
+    "confirmation_deadline": "2026-05-31T18:45:35.000Z"
+  }
+}
+```
+
+After a successful commit, the selected market maker receives a `quote:accepted` WebSocket event and must confirm the trade before `confirmation_deadline`. From that point, the normal vault settlement flow applies.
+
+## Rejection Codes
+
+The commit endpoint uses structured rejection codes in `error.details.reason`:
+
+| Reason | Description |
+| --- | --- |
+| `QUOTE_CHANGED` | The quote request version on the server does not match `expected_version`. The user's slip has been updated since they last saw it. |
+| `MARKET_NOT_LIVE` | One or more markets in the parlay are no longer available for trading (expired, halted, or delisted). |
+| `QUOTE_EXPIRED` | No active quotes exist for the current version, or the selected best quote expired between selection and final check. |
+| `COMMIT_FAILED_RETRYABLE` | The Core Backend returned a transient error. The client may retry after a short delay. Returns `503`. |
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 400 | Missing or invalid commit body fields. |
+| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
+| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
+| `NOT_FOUND` | 404 | Quote request not found. |
+| `CONFLICT` | 409 | Quote request is no longer active, version mismatch, no eligible quotes, or commit already in progress. Check `error.details.reason`. |
+| `SERVICE_UNAVAILABLE` | 503 | Core Backend transient failure. Retry after `error.retry_after` seconds. |

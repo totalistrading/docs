@@ -1,7 +1,11 @@
 ---
-title: 'Submit Quote Request Quote'
+title: 'Submit Quote Request Quote (Deprecated)'
 description: 'Submit a draft market maker quote for a live quote request.'
 ---
+
+<Warning>
+**This endpoint has been superseded.** Use [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) on the Quote Service instead. The new endpoint uses PUT semantics and supports atomic quote replacement.
+</Warning>
 
 ```bash
 POST /mm/quote-requests/{id}/quotes

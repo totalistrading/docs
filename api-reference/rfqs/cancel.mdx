@@ -1,5 +1,9 @@
 ---
-title: 'Cancel RFQ'
+title: 'Cancel RFQ (Deprecated)'
 description: 'Cancel an open or quoted RFQ on Totalis. Returns 204 on success; RFQs that are already accepted, confirmed, executed, settled, expired, or cancelled return 409 Conflict.'
 openapi: 'POST /rfqs/{id}/cancel'
 ---
+
+<Warning>
+**This endpoint is no longer available.** The legacy RFQ flow has been replaced by [Live Quote Requests](/guides/live-quote-requests). Use [`POST /v1/quote-requests/{id}/cancel`](/api-reference/quote-service/cancel) to cancel a live quote request instead.
+</Warning>

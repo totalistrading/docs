@@ -1,0 +1,33 @@
+---
+title: 'Cancel Quote Request'
+description: 'Cancel an active quote request. Invalidates all pending MM quotes and removes the request from the live stream.'
+---
+
+```
+POST /v1/quote-requests/{id}/cancel
+```
+
+Cancels an active quote request. All pending MM quotes are invalidated and the request is removed from the live quote request stream. Returns `204 No Content` on success.
+
+**Auth:** `Authorization: Bearer <privy_jwt>`
+
+## Path Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `id` | string | Quote request ID. |
+
+## Response
+
+**`204 No Content`**
+
+No response body.
+
+## Errors
+
+| Code | Status | Description |
+| --- | --- | --- |
+| `UNAUTHORIZED` | 401 | Bearer token is missing, expired, or invalid. |
+| `FORBIDDEN` | 403 | Authenticated user does not own this quote request. |
+| `NOT_FOUND` | 404 | Quote request not found. |
+| `CONFLICT` | 409 | Quote request is already committed, cancelled, or expired. |

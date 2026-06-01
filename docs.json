@@ -40,27 +40,24 @@
             ]
           },
           {
-            "group": "RFQs",
+            "group": "Quote Service",
             "pages": [
-              "api-reference/rfqs/create",
-              "api-reference/rfqs/list",
-              "api-reference/rfqs/get",
-              "api-reference/rfqs/cancel",
-              "api-reference/rfqs/list-quotes",
-              "api-reference/rfqs/accept-quote"
+              "api-reference/quote-service/create",
+              "api-reference/quote-service/update",
+              "api-reference/quote-service/get",
+              "api-reference/quote-service/commit",
+              "api-reference/quote-service/cancel",
+              "api-reference/quote-service/stream"
             ]
           },
           {
             "group": "Market Maker",
             "pages": [
-              "api-reference/mm/list-rfqs",
-              "api-reference/mm/list-quote-requests",
-              "api-reference/mm/submit-quote-request-quote",
-              "api-reference/mm/withdraw-quote-request-quote",
-              "api-reference/mm/submit-quote",
-              "api-reference/mm/list-quotes",
-              "api-reference/mm/confirm-quote",
-              "api-reference/mm/withdraw-quote"
+              "api-reference/quote-service-mm/stream",
+              "api-reference/quote-service-mm/submit-quote",
+              "api-reference/quote-service-mm/withdraw-quote",
+              "api-reference/quote-service-mm/heartbeat",
+              "api-reference/mm/confirm-quote"
             ]
           },
           {

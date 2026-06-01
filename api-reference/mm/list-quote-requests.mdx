@@ -1,7 +1,11 @@
 ---
-title: 'List Quote Requests'
+title: 'List Quote Requests (Deprecated)'
 description: 'List active draft quote requests available for market maker pricing.'
 ---
+
+<Warning>
+**This endpoint has been superseded.** Use the [MM quote request SSE stream](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. The stream replays all active requests on connect, replacing the need for a separate catchup endpoint.
+</Warning>
 
 ```bash
 GET /mm/quote-requests

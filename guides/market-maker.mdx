@@ -1,40 +1,38 @@
 ---
 title: 'How to Become a Market Maker'
-description: 'Get started as a market maker on Totalis — monitor incoming parlay RFQs in real-time, submit competitive quotes, and earn the spread.'
+description: 'Get started as a market maker on Totalis — stream live parlay quote requests, submit competitive quotes via the Quote Service, and earn the spread.'
 ---
 
-Market makers on Totalis monitor incoming parlay quote requests, submit competitive prices, and earn the spread when users commit and confirm trades. There is no separate market maker role — any authenticated user with an API key can quote.
+Market makers on Totalis stream incoming parlay quote requests via SSE, submit competitive prices, and earn the spread when users commit and confirm trades. There is no separate market maker role — any authenticated user with an API key can quote.
 
 ## How It Works
 
 <Steps>
-  <Step title="Connect via WebSocket">
-    Subscribe to `quote_requests:open` to receive live builder quote requests instantly. Keep `rfqs:open` too if you support the legacy RFQ flow.
+  <Step title="Connect to the Quote Request Stream">
+    Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. Maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds.
   </Step>
   <Step title="Submit Draft Quotes">
-    Analyze the legs and submit payout odds for the exact `version` and `request_hash` you received.
+    Analyze the legs and submit payout odds via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the exact `version` and `request_hash` you received.
   </Step>
   <Step title="Confirm Trades">
-    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. Confirm before the deadline to lock in the trade via onchain Solana vaults.
+    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade via onchain Solana vaults.
   </Step>
 </Steps>
 
 ## Core Quoting Loop
 
-For most market makers, the public integration surface should stay small:
+For most market makers, the integration surface should stay small:
 
 | Step | Endpoint |
 | --- | --- |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
 | Check invalid leg combinations | [`GET /markets/exclusion-groups`](/api-reference/markets/exclusion-groups) |
-| Receive live quote requests | [`quote_requests:open` WebSocket channel](/guides/websocket) |
-| Catch up after startup or reconnect | [`GET /mm/quote-requests`](/api-reference/mm/list-quote-requests) |
-| Submit a draft quote | [`POST /mm/quote-requests/{id}/quotes`](/api-reference/mm/submit-quote-request-quote) |
-| Withdraw a draft quote | [`POST /mm/quote-requests/{id}/quotes/withdraw`](/api-reference/mm/withdraw-quote-request-quote) |
+| Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
+| Submit a draft quote | [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) |
+| Withdraw a draft quote | [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) |
+| Send liveness heartbeat | [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) |
 | Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
-| Track your quotes | [`GET /mm/quotes`](/api-reference/mm/list-quotes) |
 | Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
-| Pull stale classic RFQ quote risk | [`POST /mm/quotes/{quoteId}/withdraw`](/api-reference/mm/withdraw-quote) |
 
 Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 
@@ -42,16 +40,16 @@ Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC
 
 <CardGroup cols={2}>
   <Card title="Get an API Key" icon="key" href="/guides/authentication">
-    Generate an API key from the Totalis Dashboard to authenticate REST and WebSocket requests.
+    Generate an API key from the Totalis Dashboard to authenticate REST and SSE requests.
   </Card>
-  <Card title="Connect via WebSocket" icon="bolt" href="/guides/websocket">
-    Set up a WebSocket connection to `wss://api.totalis.trade/ws` and subscribe to `quote_requests:open` for live quote requests.
+  <Card title="Live Quote Requests" icon="bolt" href="/guides/live-quote-requests">
+    Learn the full trading flow: versioned quote requests, SSE streaming, commit protection, and rejection codes.
   </Card>
-  <Card title="RFQ Rate Limits" icon="gauge-high" href="/api-reference/introduction">
+  <Card title="Rate Limits" icon="gauge-high" href="/api-reference/introduction">
     Authenticated clients get 300 req/min across REST endpoints, with `X-RateLimit-*` headers on every response.
   </Card>
-  <Card title="Live Quote Requests" icon="chart-line" href="/guides/live-quote-requests">
-    Learn the versioned draft quote flow before a user commits to a real RFQ.
+  <Card title="MM API Reference" icon="chart-line" href="/api-reference/quote-service-mm/stream">
+    Full endpoint reference for the MM side of the Quote Service.
   </Card>
 </CardGroup>
 

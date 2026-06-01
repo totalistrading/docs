@@ -1,38 +1,104 @@
 ---
 title: 'Live Quote Requests'
-description: 'How Totalis streams draft parlay quote requests to market makers before a user commits to a trade.'
+description: 'The primary trading flow on Totalis. Stream live parlay quote requests to market makers, receive real-time pricing via SSE, and commit the best quote with stale-price protection.'
 ---
 
-Live quote requests are the pre-trade price discovery layer for the parlay builder. They are not real RFQs yet and do not lock user funds. When a user has a valid slip, the API publishes a short-lived, versioned quote request to all market makers. Market makers submit draft quotes, the frontend shows the best active payout, and the user commits the best quote when they submit.
+Live quote requests are the trading flow on Totalis. When a user builds a valid parlay slip, the Quote Service publishes a versioned quote request to all connected market makers. MMs submit draft quotes, the frontend streams the best active payout in real time, and the user commits the best quote when ready.
+
+All Quote Service endpoints use the `/v1/` prefix and are served by the Quote Service (configured per environment).
 
 ## Flow
 
 <Steps>
-  <Step title="Frontend Creates or Updates a Quote Request">
-    The app calls `POST /quote-requests` for the first valid slip and `PATCH /quote-requests/{id}` whenever the legs or bet amount change. Every change increments `version` and `request_hash`, so stale MM quotes cannot be shown or committed.
+  <Step title="Create or Update a Quote Request">
+    The app calls [`POST /v1/quote-requests`](/api-reference/quote-service/create) for the first valid slip and [`PATCH /v1/quote-requests/{id}`](/api-reference/quote-service/update) whenever the legs or bet amount change. Every change increments `version` and recomputes `request_hash`, invalidating all stale MM quotes.
   </Step>
-  <Step title="Market Makers Receive It">
-    MMs subscribe to `quote_requests:open` for live delivery. Use `GET /mm/quote-requests` only to catch up after startup or reconnect. Events use `quote_request:created` and `quote_request:updated`.
+  <Step title="Stream Live Pricing">
+    The frontend opens an SSE connection to [`GET /v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream) and receives `best_quote` events as the quote book changes. Each event includes a `book_seq` that increments monotonically.
   </Step>
-  <Step title="Market Makers Submit Draft Quotes">
-    MMs call `POST /mm/quote-requests/{id}/quotes` with the exact `request_version` and `request_hash` they priced. The backend stores one active draft quote per MM per request version.
+  <Step title="Market Makers Receive and Price">
+    MMs subscribe to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) for live delivery of new quote requests. They submit draft quotes via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the exact `request_version` and `request_hash` they priced.
   </Step>
   <Step title="User Commits the Best Quote">
-    The app calls `POST /quote-requests/{id}/commit-best` with the version it displayed. The server selects the best still-valid quote, creates the real RFQ and accepted quote atomically, and sends `quote:accepted` to the selected MM.
-
-    ```json
-    {
-      "expected_version": 3,
-      "min_payout_odds_seen": 4.25
-    }
-    ```
+    The app calls [`POST /v1/quote-requests/{id}/commit`](/api-reference/quote-service/commit) with commit-protection fields that prove the user saw fresh pricing. The server re-validates markets, selects the best eligible quote, and creates the accepted RFQ atomically.
   </Step>
-  <Step title="Existing Confirm/Vault Flow Continues">
-    The selected MM confirms with `POST /mm/quotes/{quoteId}/confirm`. From this point forward, the normal RFQ, quote, vault, execution, and settlement lifecycle applies.
+  <Step title="MM Confirms and Vault Settlement Begins">
+    The selected MM receives `quote:accepted` on `mm:quotes:{mm_id}` and confirms with `POST /mm/quotes/{quoteId}/confirm`. The normal vault settlement lifecycle applies from here.
   </Step>
 </Steps>
 
-## MM Draft Quote Request
+## Commit Protection
+
+The commit endpoint requires fields that tie the submission to what the user actually saw on screen, preventing stale-price execution:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `expected_version` | integer | The quote request `version` the frontend is displaying. Rejected if the server version differs. |
+| `displayed_quote_id` | string | The `id` of the best quote shown to the user at commit time. |
+| `displayed_quote_book_seq` | integer | The `book_seq` from the SSE event that delivered the displayed quote. Proves the frontend was up-to-date. |
+| `min_payout_odds_seen` | number | The minimum payout odds shown to the user. Only quotes at or above this threshold are eligible. |
+
+```json
+{
+  "expected_version": 3,
+  "displayed_quote_id": "quote-uuid",
+  "displayed_quote_book_seq": 5,
+  "min_payout_odds_seen": 4.25
+}
+```
+
+## Rejection Codes
+
+If a commit fails, the error response includes a structured `reason` in `error.details`:
+
+| Reason | When It Happens |
+| --- | --- |
+| `QUOTE_CHANGED` | The quote request version on the server does not match `expected_version`. The slip was updated after the frontend last received an update. |
+| `MARKET_NOT_LIVE` | One or more markets in the parlay expired, halted, or were delisted between the last update and the commit attempt. |
+| `QUOTE_EXPIRED` | No active quotes exist for the current version, or the selected best quote expired before it could be committed. The user should wait for a fresh quote. |
+| `COMMIT_FAILED_RETRYABLE` | The Core Backend returned a transient error. The client may retry after a short delay (returns `503` with `retry_after`). |
+
+## MM Draft Quote Lifecycle
+
+### Submitting Quotes
+
+MMs call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the exact `request_version` and `request_hash` they priced. The backend stores one active draft quote per MM per request version. Submitting again for the same version replaces the previous quote atomically.
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256...",
+  "payout_odds": 4.25,
+  "user_cost": 25,
+  "total_payout": 106.25,
+  "mm_cost": 81.25,
+  "expires_in_ms": 15000,
+  "leg_prices": [
+    { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42 }
+  ]
+}
+```
+
+Draft quotes should be short-lived (default 15 seconds). If you receive a `quote_request` event for the same `id` with a higher `version`, discard quotes for older versions and price the new version.
+
+### Withdrawing Quotes
+
+To retract a quote before the user commits it, call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote). If the quote already expired, the response returns `already_expired` rather than an error.
+
+### Heartbeat
+
+MMs must send periodic heartbeats via [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) to signal liveness. The heartbeat TTL is 60 seconds; send heartbeats every 30 seconds. MMs that stop sending heartbeats may be deprioritized.
+
+```javascript
+setInterval(() => {
+  fetch('/v1/mm/heartbeat', {
+    method: 'POST',
+    headers: { 'X-API-Key': API_KEY },
+  });
+}, 30_000);
+```
+
+## Quote Request Object
 
 ```json
 {
@@ -40,79 +106,57 @@ Live quote requests are the pre-trade price discovery layer for the parlay build
   "user_id": "did:privy:...",
   "version": 3,
   "request_hash": "sha256...",
+  "book_seq": 5,
   "status": "active",
   "bet_amount": 25,
-  "expires_at": "2026-05-29T18:45:30.000Z",
+  "implied_probability": 0,
+  "expires_at": "2026-05-31T18:45:30.000Z",
   "legs": [
     {
       "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+      "event_ticker": "KXBTC-25FEB07-T100000",
       "market_ticker": "KXBTC-25FEB07-T100000",
       "side": "yes",
-      "venue": "kalshi",
-      "current_yes_price": 0.42,
-      "current_no_price": 0.58
+      "venue": "kalshi"
     }
+  ],
+  "input_legs": [
+    { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" }
   ]
 }
 ```
 
-## Submit a Draft Quote
+## SSE Best Quote Event
 
-```bash
-POST /mm/quote-requests/<quote-request-id>/quotes
-```
+The frontend receives these events on the [`/v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream) endpoint:
 
 ```json
 {
-  "request_version": 3,
-  "request_hash": "sha256...",
-  "payout_odds": 4.25,
-  "valid_for_seconds": 15,
-  "leg_prices": [
-    { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "odds": 0.42 }
-  ]
-}
-```
-
-Draft quotes should be short lived. If you receive a later `quote_request:updated` event for the same `id`, discard quotes for older versions and price the new version.
-
-To revise a live draft quote, submit a replacement quote for the same
-`request_version` and `request_hash`; it replaces that MM's previous draft
-quote for that request version. To retract a quote before it expires, call
-`POST /mm/quote-requests/{id}/quotes/withdraw` with the same version/hash.
-
-The request owner receives `quote_request:quote_withdrawn`,
-`quote_request:quote_expired`, and `quote_request:best_changed` events on
-`quote_request:{quote_request_id}` as the active quote book changes.
-
-## Commit Semantics
-
-The frontend never chooses the counterparty by trusting its local screen state. On submit, the server rechecks ownership, request version, market validity, user balance, quote expiry, and MM collateral, then commits the best valid quote.
-
-The frontend sends:
-
-```bash
-POST /quote-requests/<quote-request-id>/commit-best
-```
-
-```json
-{
-  "expected_version": 3,
-  "min_payout_odds_seen": 4.25
-}
-```
-
-If commit succeeds, the committed quote becomes a normal accepted RFQ quote. The selected MM receives this websocket event on `mm:quotes:{mm_id}`:
-
-```json
-{
-  "type": "quote:accepted",
-  "data": {
-    "quote_id": "real-rfq-quote-uuid",
-    "rfq_id": "real-rfq-uuid",
-    "confirmation_deadline": "2026-05-29T18:45:35.000Z"
+  "book_seq": 5,
+  "version": 3,
+  "best_quote": {
+    "id": "quote-uuid",
+    "payout_odds": 4.25,
+    "user_cost": 25,
+    "total_payout": 106.25,
+    "mm_cost": 81.25,
+    "valid_until": "2026-05-31T18:45:45.000Z"
   }
 }
 ```
 
-At that point, use the existing confirm endpoint.
+When no quotes are active, `best_quote` is `null`. Store the `book_seq` and `best_quote.id` from the latest event to pass into the commit request.
+
+## Commit Semantics
+
+The frontend never chooses the counterparty by trusting its local screen state. On submit, the server:
+
+1. Validates the quote request is still `active` and the `expected_version` matches
+2. Claims an atomic commit lock to prevent double-commit
+3. Re-validates all markets are still live
+4. Fetches active quotes and filters by `min_payout_odds_seen`
+5. Selects the best eligible quote and checks final expiry
+6. Calls the Core Backend to create the accepted RFQ atomically
+7. Marks the quote request as `committed`
+
+If any step fails, the lock is released and a structured rejection code is returned. The client can retry or show the rejection reason to the user.

@@ -1,7 +1,11 @@
 ---
-title: 'Withdraw Quote Request Quote'
+title: 'Withdraw Quote Request Quote (Deprecated)'
 description: 'Withdraw one of your active draft quotes from a live quote request.'
 ---
+
+<Warning>
+**This endpoint has been superseded.** Use [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) on the Quote Service instead.
+</Warning>
 
 ```bash
 POST /mm/quote-requests/{id}/quotes/withdraw
