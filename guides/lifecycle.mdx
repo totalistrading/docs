@@ -56,10 +56,10 @@ A few status nuances worth knowing:
       "request_version": 3,
       "request_hash": "sha256...",
       "payout_odds": 4.0,
-      "valid_for_seconds": 15,
+      "expires_in_ms": 15000,
       "leg_prices": [
-        { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "odds": 0.42 },
-        { "leg_id": "6e854379-57bb-487a-aec3-197fdd861fc8", "odds": 0.58 }
+        { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42 },
+        { "leg_id": "6e854379-57bb-487a-aec3-197fdd861fc8", "leg_odds": 0.58 }
       ]
     }
     ```
@@ -144,6 +144,6 @@ Two background services manage the vault position lifecycle:
 | Bet amount | 1–100 USDC |
 | Payout odds | 1.0001× – 1000× |
 | Quote request expiry | Server-set; visible as `expires_at` on the quote request object |
-| RFQ expiration | 30 s – 24 h (default 300 s); applies to real RFQs created at commit |
-| Quote validity | 10 s – 1 h (default 60 s) |
+| RFQ expiration | Fixed at 300 s for RFQs created at commit |
+| Quote validity (`expires_in_ms` on a draft quote) | 5 s – 60 s (default 15 s) |
 | MM confirmation window | Server-controlled; returned on the commit response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |

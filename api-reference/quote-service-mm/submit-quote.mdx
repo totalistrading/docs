@@ -6,7 +6,7 @@ description: "Submit a price quote for an active quote request, or replace your 
 
 Submit a quote for an active quote request. If you already have an active quote for the same request version, it is replaced atomically. Only one active quote per market maker per request version is allowed.
 
-When the user updates their request (changing legs or bet amount), the `version` and `request_hash` change, and your existing quote is automatically invalidated. Listen for `quote_request` events on the [SSE stream](/api-reference/quote-service-mm/stream) to detect version changes and re-price.
+When the user updates their request (changing legs or bet amount), the `version` and `request_hash` change, and your existing quote is automatically invalidated. Listen for `quote_request:updated` events on the [SSE stream](/api-reference/quote-service-mm/stream) to detect version changes and re-price.
 
 ## Authentication
 
@@ -37,15 +37,15 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="user_cost" type="number" required>
-  The USDC cost to the user (the bet amount).
+  The USDC cost to the user (the bet amount). Sent for validation, but the server recomputes the authoritative value from the request's `bet_amount` and your `payout_odds`; a mismatch is logged and your value is discarded.
 </ParamField>
 
 <ParamField body="total_payout" type="number" required>
-  Total USDC payout if the parlay wins.
+  Total USDC payout if the parlay wins. Recomputed server-side as `bet_amount × payout_odds` — the value you send is not trusted.
 </ParamField>
 
 <ParamField body="mm_cost" type="number" required>
-  The USDC you put at risk (`total_payout - user_cost`).
+  The USDC you put at risk (`total_payout - user_cost`). Recomputed server-side; the value you send is not trusted.
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer">
