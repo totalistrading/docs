@@ -33,35 +33,11 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="payout_odds" type="number" required>
-  Payout multiplier on the user's bet amount. Between 1.0001 and 1000.
-</ParamField>
-
-<ParamField body="user_cost" type="number" required>
-  The USDC cost to the user (equal to the request's `bet_amount`). The server recomputes this from `bet_amount`; a mismatch is logged and your value is discarded.
-</ParamField>
-
-<ParamField body="total_payout" type="number" required>
-  Total USDC payout if the parlay wins. Recomputed server-side as `bet_amount × payout_odds` — the value you send is not trusted.
-</ParamField>
-
-<ParamField body="mm_cost" type="number" required>
-  The USDC you put at risk (`total_payout - user_cost`). Recomputed server-side; the value you send is not trusted.
+  Payout multiplier on the user's bet amount. Between 1.0001 and 1000. The server derives all cost fields (`user_cost`, `total_payout`, `mm_cost`) from this value and the request's `bet_amount`.
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer">
   How long this quote is valid, in milliseconds. Range: 5000-60000. Default: 15000.
-</ParamField>
-
-<ParamField body="leg_prices" type="array" required>
-  Per-leg pricing breakdown.
-  <Expandable title="Leg price object">
-    <ParamField body="leg_id" type="string" required>
-      The `id` of the leg from the quote request.
-    </ParamField>
-    <ParamField body="leg_odds" type="number" required>
-      The implied probability for this leg (0-1).
-    </ParamField>
-  </Expandable>
 </ParamField>
 
 ## Response
@@ -78,11 +54,10 @@ Returns `201 Created` for a new quote or `200 OK` when replacing an existing quo
         <ResponseField name="request_version" type="integer">The request version this quote is for.</ResponseField>
         <ResponseField name="request_hash" type="string">The request hash this quote is for.</ResponseField>
         <ResponseField name="payout_odds" type="number">The payout multiplier.</ResponseField>
-        <ResponseField name="user_cost" type="number">Cost to the user in USDC.</ResponseField>
-        <ResponseField name="total_payout" type="number">Total payout in USDC.</ResponseField>
-        <ResponseField name="mm_cost" type="number">Your risk in USDC.</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC (server-derived from `bet_amount`).</ResponseField>
+        <ResponseField name="total_payout" type="number">Total payout in USDC (server-derived from `bet_amount * payout_odds`).</ResponseField>
+        <ResponseField name="mm_cost" type="number">Your risk in USDC (server-derived: `total_payout - user_cost`).</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
-        <ResponseField name="leg_prices" type="array">Per-leg pricing.</ResponseField>
       </Expandable>
     </ResponseField>
     <ResponseField name="book_seq" type="integer">The new quote book sequence number.</ResponseField>
@@ -119,14 +94,7 @@ curl -X PUT https://api.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-99
     "request_version": 1,
     "request_hash": "sha256:9f86d08...",
     "payout_odds": 4.25,
-    "user_cost": 25,
-    "total_payout": 106.25,
-    "mm_cost": 81.25,
-    "expires_in_ms": 15000,
-    "leg_prices": [
-      {"leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42},
-      {"leg_id": "a1b2c3d4-5678-90ab-cdef-1234567890ab", "leg_odds": 0.35}
-    ]
+    "expires_in_ms": 15000
   }'
 ```
 </RequestExample>
@@ -144,11 +112,7 @@ curl -X PUT https://api.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-99
       "user_cost": 25,
       "total_payout": 106.25,
       "mm_cost": 81.25,
-      "valid_until": "2026-06-01T18:45:45.000Z",
-      "leg_prices": [
-        {"leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42},
-        {"leg_id": "a1b2c3d4-5678-90ab-cdef-1234567890ab", "leg_odds": 0.35}
-      ]
+      "valid_until": "2026-06-01T18:45:45.000Z"
     },
     "book_seq": 5,
     "replaced": false
