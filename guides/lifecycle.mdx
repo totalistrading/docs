@@ -27,7 +27,7 @@ A few status nuances worth knowing:
   <Step title="User Builds a Live Quote Request">
     The user adds 2–5 legs to the parlay builder. Each leg references a market on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`). The frontend creates or updates a short-lived quote request instead of immediately creating a real RFQ.
 
-    `market_ticker` is venue-polymorphic — see [Create RFQ](/api-reference/rfqs/create) for the full field reference:
+    `market_ticker` is venue-polymorphic — see [Create Quote Request](/api-reference/quote-service/create) for the full field reference:
     - **Kalshi**: the Kalshi market ticker (e.g. `KXBTC-25FEB07-T100000`).
     - **Polymarket**: the `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`). Not the gamma id, question id, or market slug. Both yes and no sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`; CLOB token ids are not part of the RFQ surface.
 
