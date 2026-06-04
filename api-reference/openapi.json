@@ -207,6 +207,62 @@
         }
       }
     },
+    "/markets/{ticker}": {
+      "get": {
+        "operationId": "getMarket",
+        "summary": "Get Market",
+        "description": "Fetch a single Kalshi market by ticker or a single Polymarket market by condition ID. When `venue` is omitted, the API infers Polymarket for condition IDs that look like `0x...`; otherwise it looks up the market as Kalshi.",
+        "tags": [
+          "Markets"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "description": "Kalshi market ticker or Polymarket `condition_id`.",
+            "schema": {
+              "type": "string",
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "venue",
+            "in": "query",
+            "required": false,
+            "description": "Optional venue hint. Use this when the caller already knows whether the ticker belongs to Kalshi or Polymarket.",
+            "schema": {
+              "$ref": "#/components/schemas/Venue"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Market"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/markets/exclusion-groups": {
       "get": {
         "operationId": "getExclusionGroups",

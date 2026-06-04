@@ -72,6 +72,7 @@
             "group": "Markets",
             "pages": [
               "api-reference/markets/list",
+              "api-reference/markets/get",
               "api-reference/markets/exclusion-groups"
             ]
           },
