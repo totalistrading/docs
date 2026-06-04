@@ -35,6 +35,14 @@
               "terms-of-service",
               "privacy-policy"
             ]
+          },
+          {
+            "group": "Vault v2.1 Specification",
+            "pages": [
+              "guides/vault-api-contract",
+              "guides/vault-openapi-reference",
+              "guides/vault-backend-schema"
+            ]
           }
         ]
       },

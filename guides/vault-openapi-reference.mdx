@@ -1,0 +1,659 @@
+---
+title: 'OpenAPI Reference v2.1'
+description: 'Human-readable OpenAPI reference for the vault-based API — servers, authentication, shared types, endpoints, WebSocket contract, and schema decisions'
+---
+
+**Format:** OpenAPI 3.0.3 / snake_case wire format / frontend transforms to camelCase at boundary.
+
+---
+
+## Servers
+
+| Environment | URL |
+|-------------|-----|
+| Production | `https://api.totalis.com` |
+| Development | `http://localhost:8080` |
+
+---
+
+## Authentication
+
+| Method | Header | Used by |
+|--------|--------|---------|
+| Privy JWT | `Authorization: Bearer <token>` | Web frontend |
+| API Key | `X-API-Key: api_live_xxx` | Programmatic / WebSocket |
+| Admin Key | `X-Admin-Key: <secret>` | Admin endpoints |
+
+---
+
+## Common Conventions
+
+- **Response envelope:** `{ "data": {...}, "meta": { "cursor": "...", "has_more": true } }`
+- **Error envelope:** `{ "error": { "code": "...", "message": "...", "details": {}, "retry_after": null } }`
+- **Pagination:** Cursor-based, encoding `(created_at, id)`. No offset pagination.
+- **State transitions:** All use `POST` (not `PUT` or `DELETE`). These are actions, not idempotent replacements.
+- **Rate limits:** 100 req/min anonymous, 300 req/min authenticated. Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`.
+- **Body limit:** 256KB
+- **Idempotency:** Mutation endpoints accept optional `Idempotency-Key` header (UUID, 24h TTL).
+- **Venue:** Always explicit, never defaulted. `venue` is required on legs, markets, results.
+
+---
+
+## Error Codes
+
+| HTTP | Code | Meaning |
+|------|------|---------|
+| 400 | `VALIDATION_ERROR` | Invalid request body/params |
+| 401 | `UNAUTHORIZED` | Missing or invalid auth |
+| 403 | `FORBIDDEN` | Authenticated but not allowed |
+| 404 | `NOT_FOUND` | Resource does not exist |
+| 409 | `CONFLICT` | Duplicate action (e.g., double-quote) |
+| 413 | `PAYLOAD_TOO_LARGE` | Request body exceeds 256KB limit |
+| 429 | `RATE_LIMITED` | Too many requests, `retry_after` set |
+| 500 | `INTERNAL_ERROR` | Server error |
+
+---
+
+## Shared Types
+
+### Venue
+```
+"kalshi" | "polymarket"
+```
+
+### Side
+```
+"yes" | "no"
+```
+
+### WinnerSide
+```
+"user" | "mm"
+```
+
+### RfqStatus
+```
+"open" | "quoted" | "accepted" | "confirmed" | "executed" | "cancelled" | "expired" | "settled"
+```
+
+### QuoteStatus
+```
+"pending" | "accepted" | "confirmed" | "executed" | "rejected" | "expired" | "withdrawn"
+```
+
+### LegOutcome
+```
+"win" | "loss" | "push" | "pending"
+```
+
+### PositionStatus
+```
+"pending" | "active" | "settling" | "cancelling" | "settled_win" | "settled_loss" | "cancelled" | "error"
+```
+
+On-chain states: Active, SettledWin, SettledLoss, Cancelled. DB adds intermediate states for async processing: `pending`, `settling`, `cancelling`, `error`.
+
+---
+
+## Endpoints
+
+### Public
+
+#### `GET /health`
+
+Health check and system status.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "services": {
+    "database": "ok",
+    "solana_rpc": "ok",
+    "market_sync": "ok",
+    "settlement": "ok"
+  },
+  "timestamp": "2026-04-01T12:00:00Z"
+}
+```
+
+#### `GET /status` [Admin]
+
+Full internal observability: DB pool stats, background service health, sync state, WS stats, fee payer balance. Requires `X-Admin-Key`.
+
+#### `GET /status/sync`
+
+Recent market sync log entries. Query: `limit` (default 50, max 200).
+
+---
+
+### Markets
+
+#### `GET /markets`
+
+List markets grouped by event. Cached, publicly accessible.
+
+**Query params:** `category`, `sports_subcategory`, `date_filter`, `search`, `cursor`, `limit` (default 20, max 100)
+
+**Cache:** `s-maxage=60, stale-while-revalidate=300`
+
+**Response fields per market:**
+- `ticker`, `event_ticker`, `series_ticker`
+- `title`, `subtitle`
+- `yes_sub_title`, `no_sub_title` (Kalshi-specific outcome labels, null for Polymarket)
+- `category`, `sports_subcategory`
+- `venue` (explicit, required)
+- `status`, `yes_bid`, `yes_ask`, `no_bid`, `no_ask`, `last_price`
+- `volume`, `volume_24h`, `open_interest`
+- `venue_url` (was `kalshi_url`, now unified across venues)
+- `open_time`, `close_time`, `expiration_time`
+
+**Response fields per event:**
+- `event_ticker`, `title`, `category`, `venue`
+- `image_url` (from `whitelisted_series.image_url` for Kalshi, `polymarket_markets.image_url` for Polymarket)
+- `markets[]`
+
+**Meta:** `cursor`, `has_more`, `total_events`
+
+#### `GET /markets/:ticker`
+
+Single market by ticker. Cache: `s-maxage=30, stale-while-revalidate=120`
+
+#### `GET /markets/suggestions`
+
+Pre-built parlay suggestions. Each suggestion has `legs[]` with `market_ticker`, `side`, `venue`.
+
+#### `GET /markets/exclusion-groups`
+
+Leg conflict rules. Returns `exclusion_groups[]` and `conflict_mode`.
+
+---
+
+### User (Auth Required)
+
+#### `GET /user/me`
+
+Get or auto-create user profile. Optional `?ref=CODE` to auto-redeem invite on first login.
+
+**Response:**
+```json
+{
+  "data": {
+    "id": "did:privy:abc123",
+    "username": "degen_trader",
+    "email": "trader@example.com",
+    "wallet_address": "7xKp...wallet123",
+    "approved": true,
+    "waitlisted": false,
+    "created_at": "2026-01-15T00:00:00Z"
+  }
+}
+```
+
+Note: `id` is the Privy DID (format `did:privy:...`), used as PK in the DB.
+
+#### `PUT /user/username`
+
+Update display name. 409 if taken.
+
+#### `GET /user/username/check?username=foo`
+
+Returns `{ "data": { "available": true } }`.
+
+#### `GET /user/wallet`
+
+Balances in SOL/USDC dollars (not lamports). Fields: `sol_balance`, `usdc_balance`, `locked_amount`, `total_usdc_airdropped`, `airdrop_remaining`.
+
+Note: `locked_amount` currently reflects escrow flow only. When vault flow is fully live, this will also include `locked_collateral` from the user's vault.
+
+#### `GET /user/wallet/delegation-status`
+
+TEE wallet delegation status: `ready`, `delegated`, `address`, `wallet_id`.
+
+#### `GET /user/wallet/blockhash`
+
+Latest Solana blockhash for client-side transaction construction.
+
+#### `POST /user/wallet/submit-tx`
+
+Submit a client-signed serialized Solana transaction. Rate-limited: 10 req/min.
+
+#### `POST /user/wallet/airdrop-usdc`
+
+Mint devnet USDC. 1000 lifetime cap. Optional body `{ "amount": 100 }`.
+
+#### `POST /user/wallet/enable-trading`
+
+Enable TEE wallet delegation for server-side signing.
+
+#### `GET /user/stats`
+
+Pre-computed aggregates from `user_stats` table (no live aggregation):
+```json
+{
+  "data": {
+    "total_parlays": 25,
+    "wins": 12,
+    "losses": 10,
+    "total_wagered": 1250.00,
+    "realized_pnl": 850.00,
+    "updated_at": "2026-04-01T11:59:00Z"
+  }
+}
+```
+
+#### `GET /user/rfq-counts`
+
+Status breakdown for portfolio tabs. Active statuses are a bounded live query; terminal counts from `user_stats`.
+```json
+{
+  "data": {
+    "open": 2, "quoted": 1, "accepted": 0, "confirmed": 0,
+    "total_settled": 12, "total_cancelled": 3, "total_expired": 2
+  }
+}
+```
+
+#### `GET /user/pnl-chart`
+
+P&L timeseries from `user_pnl_daily`. Query: `period=1D|1W|1M|ALL`. Returns `points[]` with `date` and `pnl`.
+
+---
+
+### API Keys (Auth Required)
+
+#### `POST /user/api-keys`
+
+Create API key. Full key shown once on creation. Default expiry: 1 year.
+
+#### `GET /user/api-keys`
+
+List keys (prefix, name, status, request_count, timestamps). Never returns full key.
+
+#### `DELETE /user/api-keys/:prefix`
+
+Revoke a key. Returns 204.
+
+---
+
+### RFQs (Auth Required)
+
+#### `POST /rfqs`
+
+Create a new parlay RFQ. Accepts `Idempotency-Key`.
+
+**Request:**
+```json
+{
+  "legs": [
+    { "market_ticker": "BTC-100K-APR", "side": "yes", "venue": "polymarket" },
+    { "market_ticker": "ETH-5K-APR", "side": "yes", "venue": "polymarket" }
+  ],
+  "bet_amount": 25.00,
+  "expires_in_seconds": 300
+}
+```
+
+**Validations:** 2-5 legs, `bet_amount` >= 1.00 and <= 5000, no conflicting legs, all tickers valid and open, `venue` required on every leg.
+
+**Response:** Full RFQ object with `legs[]` (including `venue`, `outcome: "pending"`), `quotes: null`, `position_pda: null`, `position_status: null`.
+
+#### `GET /rfqs`
+
+List user's RFQs. Query: `status`, `limit`, `cursor`, `include=quotes`.
+
+Counts and P&L summary are NOT on this endpoint (too expensive at scale). Use `GET /user/rfq-counts` and `GET /user/stats`.
+
+Cursor encodes `(created_at, id)`.
+
+#### `GET /rfqs/:id`
+
+Full RFQ with `quotes[]` always populated.
+
+#### `POST /rfqs/:id/cancel`
+
+Cancel an open/quoted RFQ. Returns 204.
+
+#### `GET /rfqs/:id/quotes`
+
+List quotes for an RFQ.
+
+#### `GET /rfqs/:id/best-quote`
+
+Best quote for an RFQ.
+
+#### `POST /rfqs/:id/quotes/:quoteId/accept`
+
+Accept a pending quote. Returns `status`, `quote_id`, `confirmation_deadline`.
+
+#### `POST /rfqs/:id/quotes/:quoteId/reject`
+
+Reject a pending quote.
+
+---
+
+### Market Maker (Auth Required)
+
+#### `GET /mm/rfqs`
+
+Open RFQs available for quoting. Query: `event_ticker`, `min_bet`, `max_bet`, `limit`, `cursor`.
+
+#### `POST /mm/quotes`
+
+Submit a quote on an RFQ. Accepts `Idempotency-Key`.
+
+**Request:**
+```json
+{
+  "rfq_id": "rfq-uuid",
+  "payout_odds": 3.8,
+  "valid_for_seconds": 120,
+  "leg_prices": [
+    { "market_ticker": "BTC-100K-APR", "price": 62 },
+    { "market_ticker": "ETH-5K-APR", "price": 29 }
+  ]
+}
+```
+
+**`leg_prices`** is an array of `{ market_ticker, price }` objects on the wire. Prices are cents (0-100). Stored as JSONB on the quotes table.
+
+**Validations:** `payout_odds` > 1.0, `leg_prices` keys match RFQ tickers, one pending quote per MM per RFQ.
+
+**MM-only fields** (`market_maker_id`, `mm_wallet_address`) only returned on MM endpoints, omitted from user-facing quote objects.
+
+#### `GET /mm/quotes`
+
+List MM's quotes. Query: `status`, `rfq_id`, `limit`, `cursor`.
+
+#### `POST /mm/quotes/:quoteId/confirm`
+
+Confirm accepted quote, triggers vault position creation.
+
+When MM confirms:
+1. A `vault_position` record is created with status `pending`
+2. The vault-job-service processes it asynchronously
+3. On-chain position is created atomically (single TX with both deposits)
+4. Status transitions to `active` on success
+
+**Balance handling:** No balance pre-check at confirm time. vault-job-service fetches on-chain vault state and auto-deposits the shortfall from the user's/MM's ATA if needed. If ATA has insufficient USDC, the TX fails and `retry_count` increments. After `MAX_RETRIES` (default 5) exhausted, position transitions to `error` status.
+
+**ILP collateral calculation:** `mm_collateral_locked` is calculated at vault-job-service processing time (not confirm time). Inputs: MM's existing active positions + the new position. Enables collateral netting when positions hedge each other.
+
+Returns `status`, `quote_id`, `execution_id`.
+
+#### `POST /mm/quotes/:quoteId/withdraw`
+
+Withdraw a pending quote.
+
+#### `GET /mm/dashboard/summary`
+
+Aggregates: `total_pnl`, `total_exposure`, `active_positions`, `pending_quotes`, `win_rate`, `total_trades`, `avg_payout_odds`.
+
+#### `GET /mm/dashboard/pnl?days=30`
+
+P&L timeseries: `date`, `daily_pnl`, `cumulative`.
+
+#### `GET /mm/dashboard/positions`
+
+Active vault positions. Fields: `position_pda`, `rfq_id`, `user_stake`, `mm_risk`, `mm_collateral_locked`, `total_payout`, `status`, `legs[]`, `created_at`.
+
+#### `GET /mm/dashboard/history`
+
+Settlement history. Query: `limit`, `cursor`, `winner=user|mm`.
+
+---
+
+### Leaderboard
+
+#### `GET /leaderboard`
+
+Public. Query: `period=daily|weekly|all`, `limit`, `cursor`, `search`.
+
+Returns `leaderboard[]` with `rank`, `username`, `total_trades`, `win_rate`, `total_pnl`, `is_current_user`.
+
+Served by `idx_user_stats_pnl` index on `user_stats`. Sub-millisecond at 200k rows.
+
+---
+
+### Invite Codes (Auth Required)
+
+#### `POST /user/redeem-invite`
+
+Redeem code. Throws on failure (no `success: false`).
+
+#### `POST /user/waitlist`
+
+Join waitlist. 204 on success, 409 if already waitlisted.
+
+#### `GET /user/invite-codes`
+
+List user's codes and `remaining` count.
+
+#### `POST /user/invite-codes`
+
+Generate invite code (max 2 per user).
+
+---
+
+### Admin (Admin Key Required)
+
+#### `GET /admin/fees`
+
+Query: `from_date`, `to_date`, `winner`, `limit`, `cursor`. Fee record only exists after settlement. `settle_tx` is always populated.
+
+Fields: `user_stake` (was `user_deposit`), `mm_risk` (was `mm_deposit`), `total_payout`, `profit`, `fee_bps`, `fee_amount`, `winner`, `settle_tx`.
+
+#### `GET /admin/fees/summary`
+
+Aggregates: `total_fees`, `total_count`, `user_wins_count`, `mm_wins_count`, `avg_fee`.
+
+#### `GET /admin/fees/:ticketId`
+
+Fee record for a specific RFQ.
+
+#### `POST /admin/settlements/run`
+
+Ingest market results and trigger settlement.
+
+**Request:**
+```json
+{
+  "results": [
+    {
+      "ticker": "BTC-100K-APR",
+      "venue": "polymarket",
+      "result": "yes",
+      "resolved_at": "2026-05-01T00:00:00Z",
+      "source": "polymarket"
+    }
+  ]
+}
+```
+
+`venue` is required per result (no default). `result` can be `"yes"`, `"no"`, or `"invalid"`.
+
+#### `GET /admin/positions`
+
+Query: `status`, `from_date`, `to_date`, `limit`, `cursor`.
+
+**Status values:** `pending`, `active`, `settling`, `cancelling`, `settled_win`, `settled_loss`, `cancelled`, `error`.
+
+Returns vault position objects with `position_pda`, `user_vault_pda`, `mm_vault_pda`, `user_stake`, `mm_risk`, `mm_collateral_locked`, `total_payout`, `status`, TX signatures, `error`, `retry_count`.
+
+#### `GET /admin/positions/:pda`
+
+Position detail by on-chain PDA address.
+
+#### `POST /admin/positions/:pda/settle`
+
+Manual settle. Body: `{ "winner": "user" | "mm" }`. Returns `status`, `winner`, `tx_signature`, `close_tx`.
+
+#### `POST /admin/positions/:pda/cancel`
+
+Cancel position. Body: `{ "reason": "..." }`. Returns `status`, `reason`, `cancel_tx`.
+
+#### `GET /admin/rfqs/:id/events`
+
+Full audit log of state transitions for an RFQ. Covers ticket, quotes, and position events. `entity_type`: `ticket`, `quote`, or `position`.
+
+#### `POST /admin/api-keys`
+
+Create API key for a user. Body: `{ "entity_id": "<privy_did>", "name": "..." }`.
+
+#### `GET /admin/api-keys`
+
+List API keys. Query: `entity_id` (Privy DID filter).
+
+#### `GET /admin/api-keys/:prefix`
+
+Get API key detail by prefix.
+
+#### `DELETE /admin/api-keys/:prefix`
+
+Revoke an API key. Optional body: `{ "reason": "..." }`.
+
+#### `POST /admin/invite-codes/generate`
+
+Bulk generate. Body: `{ "count": 10, "label": "yc-batch-1" }`.
+
+#### `GET /admin/invite-codes`
+
+Query: `status=available|redeemed`, `limit`.
+
+#### `GET /admin/waitlist`
+
+Returns `waitlist[]` with `privy_id`, `email`, `created_at`.
+
+#### `POST /admin/waitlist/:privyId/approve`
+
+Approve a waitlisted user.
+
+#### `POST /admin/airdrop-usdc`
+
+Admin override of per-user cap. Body: `{ "user_id": "did:privy:abc", "amount": 500 }`.
+
+---
+
+### Vault (Future)
+
+Not implemented yet. Endpoints: `GET /user/vault`, `POST /user/vault/deposit`, `POST /user/vault/withdraw`.
+
+---
+
+## State Transitions
+
+### RFQ Lifecycle
+
+```
+open -> quoted       (first quote received)
+open -> cancelled    (user cancels)
+open -> expired      (expires_at reached)
+quoted -> accepted   (user accepts a quote)
+quoted -> cancelled  (user cancels)
+quoted -> expired    (expires_at reached)
+accepted -> confirmed (MM confirms the accepted quote)
+accepted -> expired  (MM fails to confirm before deadline)
+confirmed -> executed (vault position created on-chain)
+executed -> settled  (all legs resolved, payout distributed)
+executed -> cancelled (timeout or manual admin cancellation)
+```
+
+### Quote Lifecycle
+
+```
+pending -> accepted   (user accepts this quote)
+pending -> rejected   (user rejects this quote)
+pending -> withdrawn  (MM withdraws)
+pending -> expired    (RFQ expires or quote valid_until reached)
+accepted -> confirmed (MM confirms)
+accepted -> expired   (MM fails to confirm before deadline)
+confirmed -> executed (position funded)
+```
+
+### Vault Position Lifecycle
+
+```
+pending -> active         (on-chain position created successfully)
+pending -> [retry]        (creation failed, retry_count < MAX_RETRIES, stays pending and retries)
+pending -> error          (retry_count >= MAX_RETRIES, exhausted, terminal)
+active -> settling        (settlement in progress, claimed by worker)
+active -> cancelling      (cancellation in progress)
+settling -> settled_win   (user won, payout distributed)
+settling -> settled_loss  (MM won, payout distributed)
+settling -> active        (settlement failed, reverted for retry)
+cancelling -> cancelled   (position cancelled, funds returned)
+cancelling -> active      (cancellation failed, reverted for retry)
+```
+
+`error` is a terminal state requiring manual intervention. `MAX_RETRIES` default is 5, configurable via `VAULT_JOB_MAX_RETRIES` env var.
+
+---
+
+## WebSocket Contract
+
+### Connection
+
+```
+URL: wss://api.totalis.com/ws
+```
+
+Auth within 10 seconds or server closes with code 4001.
+
+```json
+{ "type": "auth", "api_key": "api_live_xxx" }
+{ "type": "auth", "token": "eyJ..." }
+```
+
+### Channels
+
+| Channel | Description | Who subscribes |
+|---------|-------------|----------------|
+| `rfqs:open` | All new open RFQs | Market makers |
+| `rfq:{rfq_id}` | Updates for specific RFQ | RFQ creator only |
+| `mm:quotes:{user_id}` | Quote updates for MM | That MM only |
+| `vault:{user_id}` | Vault deposit/withdraw events | Vault owner |
+
+### Server Events
+
+All events include `type`, `seq` (per-channel monotonic integer), `channel`, `timestamp`.
+
+- `rfq:created`, `rfq:status`, `rfq:cancelled`, `rfq:expired`
+- `quote:submitted`, `quote:accepted`, `quote:rejected`, `quote:withdrawn`, `quote:confirmed`, `quote:executed`, `quote:expired`
+- `position:created`, `position:settled`, `position:cancelled`
+- `position:failed` (single attempt failed, retryable), `position:error` (terminal, retries exhausted)
+- `vault:deposited`, `vault:withdrawn` (future - vault flow)
+- `pong` (keepalive)
+
+### Client Events
+
+- `ping`
+- `resync` with `channel` and `last_seq` (server replays missed events or sends `resync:full` if beyond 5min retention)
+
+### Ordering
+
+The Go backend does NOT guarantee cross-goroutine message ordering. Client handles this via per-channel sequence numbers, state machine validation, and periodic HTTP refetch as safety net.
+
+### Reconnection
+
+Exponential backoff (1s -> 2s -> 4s -> ... -> 30s cap). On reconnect: re-auth, re-subscribe, resync per channel, full HTTP refetch as safety net.
+
+---
+
+## Key Schema Decisions
+
+These decisions from `07-backend-schema.md` affect the API surface:
+
+| Decision | Rationale |
+|----------|-----------|
+| Privy DID as `users.id` PK | The DID is the identity, no extra UUID needed |
+| `api_keys.entity_type` not exposed in API | DB has `entity_type` (always `'unified'`, CHECK enforced) + `entity_id` (Privy DID). API exposes only `entity_id` |
+| Separate `vaults` and `vault_positions` tables | Vaults are persistent per-participant; positions are per-trade. Enables efficient balance and position queries |
+| `vault_positions.position_id` is 16-byte BYTEA | Matches on-chain position PDA seed; hex-encoded in API responses |
+| Position status includes intermediate states | `pending`, `settling`, `cancelling`, `error` enable async job processing with proper claim/release semantics |
+| Vault balance columns cached in DB | `gross_balance` and `locked_collateral` updated atomically alongside position state changes to avoid RPC calls on reads. `free_balance` is a generated column |
+| `leg_prices` as JSONB on `quotes` | 2-6 immutable legs, always read whole, no N+1 writes |
+| `venue` required everywhere | Multi-venue is first-class. `NOT NULL` on all market, leg, and result tables with no defaults |
+| Cursor pagination on `(created_at, id)` | Offset breaks under concurrent inserts |
+| `user_stats` for terminal aggregates only | Live counts are bounded per-user queries; terminal stats are pre-computed |
+| Separate `kalshi_markets` + `polymarket_markets` tables | Source-specific columns, unified at the application layer for reads |

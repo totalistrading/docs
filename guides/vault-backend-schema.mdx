@@ -1,0 +1,776 @@
+---
+title: 'Backend Database Schema v2.1'
+description: 'PostgreSQL schema for the vault-based position system — tables, indexes, constraints, and design decisions for vaults, positions, markets, and settlement'
+---
+**Architecture Update (v2.1)**: Added `vaults` and `vault_positions` tables for the
+vault-based position system. The escrow-related fields on `parlay_tickets` are retained
+for backward compatibility but are deprecated in favor of vault positions.
+
+---
+
+## Design Decisions
+
+
+| Decision                                         | Rationale                                                                                                                                                                                                                                          |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Privy DID as `users.id` PK**                   | The DID *is* the identity - no value in an extra UUID + `privy_id` column                                                                                                                                                                          |
+| **`api_keys.entity_type` not exposed in API**   | DB has `entity_type` (always `'unified'`, CHECK enforced) + `entity_id` (Privy DID). API exposes only `entity_id` - no branching logic for entity_type                                                                                             |
+| **Separate `vaults` and `vault_positions` tables** | Vaults are persistent per-participant; positions are per-trade. Clean separation enables efficient queries for balance, locked collateral, and position history                                                                                    |
+| **`vault_positions.position_id` is a 16-byte UUID** | Matches on-chain position PDA seed; stored as BYTEA for exact byte-level matching                                                                                                                                                                  |
+| **Position status includes intermediate states** | `pending`, `settling`, `cancelling` enable async job processing with proper claim/release semantics                                                                                                                                                |
+| `**leg_prices` as JSONB on `quotes`**            | Quotes have 2–6 legs (bounded), are immutable post-creation, and are always read whole. JSONB avoids N+1 writes, Postgres jsonpath operators cover any analytical query                                                                           |
+| `**rfq_events` is a generic audit log**          | Tracks status transitions for tickets, quotes, and positions in one place with `entity_type`/`entity_id`                                                                                                                                          |
+| `**user_stats` stores terminal aggregates only** | Per-status counters are noise - active statuses are a tiny live query per user (bounded). Terminal aggregates (wins, losses, pnl) are pre-computed and indexed for leaderboard                                                                    |
+| `**venue` required everywhere**                  | Multi-venue is a first-class requirement - `venue` is `NOT NULL` on all market, leg, and result tables                                                                                                                                             |
+| **Cursor pagination uses sort-key encoding**     | Cursors encode `(created_at, id)` - not offset. Offset pagination breaks under concurrent inserts at scale                                                                                                                                         |
+
+
+---
+
+## Schema: `rfq`
+
+All tables live in the `rfq` schema.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS rfq;
+
+-- ============================================================
+-- INVITE CODES
+-- (Defined first - users.invite_code_id references it)
+-- ============================================================
+CREATE TABLE rfq.invite_codes (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code         VARCHAR(6) NOT NULL UNIQUE
+                 CHECK (code ~ '^[A-Z]{6}$'),
+    source       TEXT NOT NULL DEFAULT 'admin',     -- 'admin' or referrer user_id
+    source_label TEXT,                               -- campaign label
+    redeemed_by  TEXT,                               -- user_id or NULL
+    redeemed_at  TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_invite_codes_source ON rfq.invite_codes (source);
+
+-- ============================================================
+-- USERS
+-- ============================================================
+CREATE TABLE rfq.users (
+    id                    TEXT PRIMARY KEY,          -- Privy DID ("did:privy:abc123")
+    username              TEXT NOT NULL
+                          CHECK (
+                              username ~ '^0x[a-fA-F0-9]{40}$'
+                              OR username ~ '^[a-zA-Z0-9_]{3,20}$'
+                          ),
+    email                 TEXT,
+    wallet_address        TEXT,                      -- Solana pubkey (Privy embedded wallet)
+    approved              BOOLEAN NOT NULL DEFAULT FALSE,
+    invite_code_id        UUID REFERENCES rfq.invite_codes(id),
+    total_usdc_airdropped NUMERIC(20, 6) NOT NULL DEFAULT 0,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Case-insensitive uniqueness on username
+CREATE UNIQUE INDEX users_username_lower_idx ON rfq.users (lower(username));
+CREATE INDEX idx_users_wallet ON rfq.users (wallet_address);
+
+-- ============================================================
+-- API KEYS
+-- Uses entity_type/entity_id pattern (entity_type always 'unified')
+-- ============================================================
+CREATE TABLE rfq.api_keys (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key_prefix    VARCHAR(12) NOT NULL UNIQUE,       -- e.g., "api_live_xxxx" - safe to log
+    key_hash      VARCHAR(64) NOT NULL UNIQUE,        -- bcrypt hash of full key
+    entity_type   VARCHAR(20) NOT NULL
+                  CHECK (entity_type = 'unified'),    -- Always 'unified'
+    entity_id     VARCHAR(100) NOT NULL,              -- Privy DID (user's id)
+    name          VARCHAR(255),                        -- human label
+    status        VARCHAR(20) NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active', 'revoked', 'expired')),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at    TIMESTAMPTZ,
+    last_used_at  TIMESTAMPTZ,
+    revoked_at    TIMESTAMPTZ,
+    revoked_reason VARCHAR(255)
+);
+
+CREATE INDEX idx_api_keys_entity ON rfq.api_keys (entity_type, entity_id);
+CREATE INDEX idx_api_keys_hash ON rfq.api_keys (key_hash);
+CREATE INDEX idx_api_keys_active ON rfq.api_keys (status)
+    WHERE status = 'active';
+
+-- ============================================================
+-- WAITLIST
+-- ============================================================
+CREATE TABLE rfq.waitlist (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    privy_id   TEXT NOT NULL UNIQUE,
+    email      TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
+-- KALSHI MARKETS (Cache)
+-- ============================================================
+CREATE TABLE rfq.kalshi_markets (
+    ticker                TEXT PRIMARY KEY,
+    event_ticker          TEXT NOT NULL,
+    series_ticker         TEXT NOT NULL,
+    series_title          TEXT,
+    title                 TEXT,
+    subtitle              TEXT,
+    yes_sub_title         TEXT,
+    no_sub_title          TEXT,
+    category              TEXT,
+    status                TEXT NOT NULL DEFAULT 'open',
+    volume                INTEGER DEFAULT 0,
+    volume_24h            INTEGER DEFAULT 0,
+    open_interest         INTEGER DEFAULT 0,
+    yes_bid               NUMERIC(10, 4),
+    yes_ask               NUMERIC(10, 4),
+    no_bid                NUMERIC(10, 4),
+    no_ask                NUMERIC(10, 4),
+    last_price            NUMERIC(10, 4),
+    kalshi_url            TEXT,                      -- API exposes as venue_url
+    open_time             TIMESTAMPTZ,
+    close_time            TIMESTAMPTZ,
+    expiration_time       TIMESTAMPTZ,
+    venue                 VARCHAR(20) NOT NULL DEFAULT 'kalshi',
+    meta                  JSONB NOT NULL DEFAULT '{}',
+    synced_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_kalshi_markets_event    ON rfq.kalshi_markets (event_ticker);
+CREATE INDEX idx_kalshi_markets_series   ON rfq.kalshi_markets (series_ticker);
+CREATE INDEX idx_kalshi_markets_category ON rfq.kalshi_markets (category);
+CREATE INDEX idx_kalshi_markets_status   ON rfq.kalshi_markets (status);
+CREATE INDEX idx_kalshi_markets_close    ON rfq.kalshi_markets (close_time);
+
+-- ============================================================
+-- POLYMARKET MARKETS (Cache)
+-- ============================================================
+CREATE TABLE rfq.polymarket_markets (
+    condition_id       TEXT PRIMARY KEY,
+    gamma_id           TEXT,
+    question_id        TEXT,
+    question           TEXT,
+    event_id           TEXT,
+    event_slug         TEXT,
+    market_slug        TEXT,
+    description        TEXT,
+    category           TEXT,
+    active             BOOLEAN NOT NULL DEFAULT TRUE,
+    closed             BOOLEAN NOT NULL DEFAULT FALSE,
+    archived           BOOLEAN NOT NULL DEFAULT FALSE,
+    outcome_yes_price  NUMERIC(10, 4),
+    outcome_no_price   NUMERIC(10, 4),
+    best_bid           NUMERIC(10, 4),
+    best_ask           NUMERIC(10, 4),
+    spread             NUMERIC(10, 4),
+    volume             NUMERIC(20, 2),
+    volume_24h         NUMERIC(20, 2),
+    liquidity          NUMERIC(20, 2),
+    end_date_iso       TIMESTAMPTZ,
+    game_start_time    TIMESTAMPTZ,
+    polymarket_url     TEXT,                            -- API exposes as venue_url
+    image_url          TEXT,
+    token_id_yes       TEXT,
+    token_id_no        TEXT,
+    resolved           BOOLEAN NOT NULL DEFAULT FALSE,
+    outcome            TEXT,
+    resolution_source  TEXT,
+    meta               JSONB NOT NULL DEFAULT '{}',
+    synced_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_polymarket_question ON rfq.polymarket_markets (question_id);
+CREATE INDEX idx_polymarket_event    ON rfq.polymarket_markets (event_id);
+CREATE INDEX idx_polymarket_slug     ON rfq.polymarket_markets (event_slug);
+CREATE INDEX idx_polymarket_active   ON rfq.polymarket_markets (active);
+CREATE INDEX idx_polymarket_synced   ON rfq.polymarket_markets (synced_at);
+
+-- ============================================================
+-- WHITELISTED SERIES (Kalshi - allowlist + event images)
+-- ============================================================
+CREATE TABLE rfq.whitelisted_series (
+    series_ticker TEXT PRIMARY KEY,
+    description   TEXT,
+    category      TEXT,
+    image_url     TEXT,
+    enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_whitelisted_series_category ON rfq.whitelisted_series (category);
+CREATE INDEX idx_whitelisted_series_enabled  ON rfq.whitelisted_series (enabled);
+
+-- ============================================================
+-- WHITELIST POLYMARKET SERIES
+-- ============================================================
+CREATE TABLE rfq.whitelist_polymarket_series (
+    series_slug         TEXT PRIMARY KEY,
+    description         TEXT,
+    category            TEXT,
+    frequency           TEXT,
+    event_count         INTEGER,
+    max_market_volume   NUMERIC,
+    total_market_volume NUMERIC,
+    max_market_oi       NUMERIC,
+    total_open_interest NUMERIC,
+    enabled             BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_whitelist_poly_category ON rfq.whitelist_polymarket_series (category);
+
+-- ============================================================
+-- MARKET RESULTS (Settlement oracle)
+-- ============================================================
+CREATE TABLE rfq.market_results (
+    ticker      TEXT NOT NULL,
+    venue       VARCHAR(20) NOT NULL,
+    result      TEXT NOT NULL CHECK (result IN ('yes', 'no', 'invalid')),
+    resolved_at TIMESTAMPTZ,
+    source      TEXT,
+    meta        JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (ticker, venue)
+);
+
+CREATE INDEX idx_market_results_resolved ON rfq.market_results (resolved_at);
+CREATE INDEX idx_market_results_venue    ON rfq.market_results (venue, ticker);
+
+-- ============================================================
+-- PARLAY TICKETS (RFQs)
+-- Escrow fields are DEPRECATED - use vault_positions instead
+-- ============================================================
+CREATE TABLE rfq.parlay_tickets (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id              TEXT NOT NULL REFERENCES rfq.users(id),
+    status               TEXT NOT NULL DEFAULT 'open'
+                         CHECK (status IN (
+                             'open', 'quoted', 'accepted', 'confirmed',
+                             'executed', 'cancelled', 'expired', 'settled'
+                         )),
+    bet_amount           NUMERIC(15, 2) NOT NULL CHECK (bet_amount >= 1 AND bet_amount <= 5000),
+    implied_probability  NUMERIC(10, 6),
+    accepted_quote_id    UUID,
+    mm_id                TEXT,
+    cancellation_reason  TEXT,
+    fee_amount           NUMERIC(20, 6) NOT NULL DEFAULT 0,
+
+    -- DEPRECATED: Escrow state (retained for backward compatibility)
+    -- New positions use vault_positions table
+    escrow_pda           VARCHAR(64),
+    escrow_token_account VARCHAR(64),
+    parlay_id_onchain    BYTEA,
+    escrow_status        VARCHAR(50)
+                         CHECK (escrow_status IN (
+                             'created', 'user_funded', 'active', 'settling',
+                             'settled', 'settled_win', 'settled_loss',
+                             'cancelling', 'cancelled', 'stale'
+                         )),
+    escrow_error         TEXT,
+    escrow_retry_count   INTEGER NOT NULL DEFAULT 0,
+    user_wallet          VARCHAR(64),
+    mm_wallet            VARCHAR(64),
+    deadline             TIMESTAMPTZ,
+
+    -- On-chain transaction signatures (DEPRECATED for vault flow)
+    create_tx            VARCHAR(128),
+    deposit_user_tx      VARCHAR(128),
+    deposit_mm_tx        VARCHAR(128),
+    settle_tx            VARCHAR(128),
+    close_tx             VARCHAR(128),
+
+    -- Timestamps
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at           TIMESTAMPTZ NOT NULL,
+    settled_at           TIMESTAMPTZ
+);
+
+CREATE INDEX idx_tickets_user_created   ON rfq.parlay_tickets (user_id, created_at DESC);
+CREATE INDEX idx_tickets_status         ON rfq.parlay_tickets (status);
+CREATE INDEX idx_tickets_mm             ON rfq.parlay_tickets (mm_id) WHERE mm_id IS NOT NULL;
+CREATE INDEX idx_tickets_escrow_status  ON rfq.parlay_tickets (escrow_status) WHERE escrow_status IS NOT NULL;
+CREATE INDEX idx_tickets_expires        ON rfq.parlay_tickets (expires_at) WHERE status IN ('open', 'quoted');
+CREATE INDEX idx_tickets_deadline       ON rfq.parlay_tickets (deadline)
+    WHERE deadline IS NOT NULL AND escrow_status IN ('created', 'user_funded');
+CREATE INDEX idx_tickets_escrow_pda     ON rfq.parlay_tickets (escrow_pda) WHERE escrow_pda IS NOT NULL;
+
+-- ============================================================
+-- PARLAY LEGS
+-- ============================================================
+CREATE TABLE rfq.parlay_legs (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_id         UUID NOT NULL REFERENCES rfq.parlay_tickets(id) ON DELETE CASCADE,
+    leg_index         INTEGER NOT NULL,
+    event_ticker      VARCHAR(100) NOT NULL,
+    market_ticker     VARCHAR(100) NOT NULL,
+    venue             VARCHAR(20) NOT NULL,
+    side              VARCHAR(10) NOT NULL CHECK (side IN ('yes', 'no')),
+    bet_amount        NUMERIC(15, 2) NOT NULL CHECK (bet_amount >= 1),
+    event_title       VARCHAR(500),
+    market_title      VARCHAR(500),
+    current_yes_price NUMERIC(10, 6),
+    current_no_price  NUMERIC(10, 6),
+    outcome           TEXT NOT NULL DEFAULT 'pending'
+                      CHECK (outcome IN ('win', 'loss', 'push', 'pending')),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (ticket_id, leg_index)
+);
+
+CREATE INDEX idx_legs_ticket         ON rfq.parlay_legs (ticket_id);
+CREATE INDEX idx_legs_market_ticker  ON rfq.parlay_legs (market_ticker);
+CREATE INDEX idx_legs_venue          ON rfq.parlay_legs (venue);
+
+-- ============================================================
+-- QUOTES
+-- ============================================================
+CREATE TABLE rfq.quotes (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parlay_ticket_id UUID NOT NULL REFERENCES rfq.parlay_tickets(id) ON DELETE CASCADE,
+    market_maker_id  TEXT NOT NULL REFERENCES rfq.users(id),
+    payout_odds      NUMERIC(10, 6) NOT NULL CHECK (payout_odds >= 1.01 AND payout_odds <= 1000),
+    user_cost        NUMERIC(15, 2) NOT NULL,
+    mm_cost          NUMERIC(15, 2) NOT NULL,
+    total_payout     NUMERIC(15, 2) NOT NULL,
+    status           VARCHAR(50) NOT NULL DEFAULT 'pending'
+                     CHECK (status IN (
+                         'pending', 'accepted', 'confirmed', 'executed',
+                         'rejected', 'expired', 'withdrawn'
+                     )),
+    mm_wallet_address VARCHAR(44),
+    leg_prices        JSONB NOT NULL DEFAULT '[]',
+    valid_until      TIMESTAMPTZ NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One active (pending) quote per MM per RFQ
+CREATE UNIQUE INDEX idx_quotes_mm_pending
+    ON rfq.quotes (parlay_ticket_id, market_maker_id)
+    WHERE status = 'pending';
+
+CREATE INDEX idx_quotes_ticket  ON rfq.quotes (parlay_ticket_id, created_at DESC);
+CREATE INDEX idx_quotes_mm      ON rfq.quotes (market_maker_id, status, created_at DESC);
+CREATE INDEX idx_quotes_status  ON rfq.quotes (status);
+CREATE INDEX idx_quotes_expiry  ON rfq.quotes (valid_until) WHERE status = 'pending';
+
+-- FK from parlay_tickets.accepted_quote_id → quotes
+ALTER TABLE rfq.parlay_tickets
+    ADD CONSTRAINT fk_accepted_quote
+    FOREIGN KEY (accepted_quote_id) REFERENCES rfq.quotes(id);
+
+-- ============================================================
+-- VAULTS (NEW - Persistent per-participant vault accounts)
+-- Derived from: rfq-apis/src/lib/db/vaults.ts
+-- On-chain: parlay-vaults/programs/parlay_vaults/src/state.rs (Vault struct)
+-- Seeds: ["vault", owner_wallet]
+--
+-- UNIQUE(owner_id, owner_type) rationale:
+--   On-chain: One vault per wallet (seeds = ["vault", owner_wallet]).
+--   DB: Tracks user/mm roles separately. If the same person acts as both
+--   user and MM (same wallet), they get two DB rows with different owner_type
+--   values, but vault_pda UNIQUE ensures no on-chain conflicts since both
+--   rows point to the same PDA.
+--
+-- Balance caching:
+--   gross_balance and locked_collateral are cached copies of on-chain state.
+--   They are updated atomically alongside position state changes (create,
+--   settle, cancel) to avoid live RPC calls on read paths.
+-- ============================================================
+CREATE TABLE rfq.vaults (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id            TEXT NOT NULL,                      -- Privy DID
+    owner_type          VARCHAR(10) NOT NULL
+                        CHECK (owner_type IN ('user', 'mm')),
+    owner_wallet        VARCHAR(44) NOT NULL,               -- Solana wallet address
+    vault_pda           VARCHAR(44) NOT NULL UNIQUE,        -- On-chain vault PDA
+    vault_token_account VARCHAR(44) NOT NULL,               -- Associated USDC token account
+    init_tx             VARCHAR(128) NOT NULL,              -- TX that initialized vault
+
+    -- Cached on-chain balances (updated atomically with position state changes)
+    gross_balance       NUMERIC(20, 6) NOT NULL DEFAULT 0
+                        CHECK (gross_balance >= 0),
+    locked_collateral   NUMERIC(20, 6) NOT NULL DEFAULT 0
+                        CHECK (locked_collateral >= 0 AND locked_collateral <= gross_balance),
+    free_balance        NUMERIC(20, 6) GENERATED ALWAYS AS (gross_balance - locked_collateral) STORED,
+
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (owner_id, owner_type)
+);
+
+CREATE INDEX idx_vaults_owner_wallet ON rfq.vaults (owner_wallet);
+CREATE INDEX idx_vaults_pda          ON rfq.vaults (vault_pda);
+
+-- ============================================================
+-- VAULT POSITIONS (NEW - Per-trade positions within vaults)
+-- Derived from: rfq-apis/src/lib/db/vault-positions.ts
+-- On-chain: parlay-vaults/programs/parlay_vaults/src/state.rs (ParlayPosition struct)
+-- Seeds: ["position", position_id]
+-- ============================================================
+CREATE TABLE rfq.vault_positions (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_id            UUID NOT NULL REFERENCES rfq.parlay_tickets(id) ON DELETE CASCADE,
+    position_id          BYTEA NOT NULL UNIQUE
+                         CHECK (octet_length(position_id) = 16),  -- 16-byte UUID, matches on-chain seed
+    position_pda         VARCHAR(44),                       -- On-chain position PDA (set after creation)
+    user_vault_pda       VARCHAR(44) REFERENCES rfq.vaults(vault_pda),  -- User's vault PDA
+    mm_vault_pda         VARCHAR(44) REFERENCES rfq.vaults(vault_pda),  -- MM's vault PDA
+    user_wallet          VARCHAR(44),                       -- User's wallet address
+    mm_wallet            VARCHAR(44),                       -- MM's wallet address
+    user_stake           NUMERIC(15, 2) NOT NULL,           -- User's bet amount (was user_deposit)
+    mm_risk              NUMERIC(15, 2) NOT NULL,           -- Max payout owed to user if they win
+    mm_collateral_locked NUMERIC(15, 2)
+                         CHECK (mm_collateral_locked >= 0 AND mm_collateral_locked <= mm_risk),
+    total_payout         NUMERIC(15, 2) NOT NULL,           -- user_stake + mm_risk
+    status               VARCHAR(20) NOT NULL DEFAULT 'pending'
+                         CHECK (status IN (
+                             'pending',       -- Created in DB, awaiting on-chain creation
+                             'active',        -- On-chain position created and funded
+                             'settling',      -- Settlement in progress (claimed by worker)
+                             'cancelling',    -- Cancellation in progress
+                             'settled_win',   -- User won, payout distributed
+                             'settled_loss',  -- MM won, payout distributed
+                             'cancelled',     -- Position cancelled, funds returned
+                             'error'          -- Exhausted retries (retry_count >= MAX_RETRIES)
+                         )),
+    create_position_tx   VARCHAR(128),                      -- TX that created on-chain position
+    settle_tx            VARCHAR(128),                      -- Settlement TX
+    cancel_tx            VARCHAR(128),                      -- Cancellation TX
+    close_tx             VARCHAR(128),                      -- Position close TX (if separate)
+    error                TEXT,                              -- Last error message
+    retry_count          INTEGER NOT NULL DEFAULT 0,        -- Number of retry attempts
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    settled_at           TIMESTAMPTZ,
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Find pending positions for job worker
+CREATE INDEX idx_vault_positions_pending ON rfq.vault_positions (created_at ASC)
+    WHERE status = 'pending';
+
+-- Find active positions for settlement
+CREATE INDEX idx_vault_positions_active ON rfq.vault_positions (created_at ASC)
+    WHERE status = 'active';
+
+-- Find positions by ticket
+CREATE INDEX idx_vault_positions_ticket ON rfq.vault_positions (ticket_id);
+
+-- Find positions by PDA
+CREATE INDEX idx_vault_positions_pda ON rfq.vault_positions (position_pda)
+    WHERE position_pda IS NOT NULL;
+
+-- Find positions by MM wallet (for MM dashboard)
+CREATE INDEX idx_vault_positions_mm_wallet ON rfq.vault_positions (mm_wallet, created_at DESC)
+    WHERE mm_wallet IS NOT NULL;
+
+-- Find positions by user wallet
+CREATE INDEX idx_vault_positions_user_wallet ON rfq.vault_positions (user_wallet, created_at DESC)
+    WHERE user_wallet IS NOT NULL;
+
+-- ============================================================
+-- ESCROW JOBS (DEPRECATED - use vault_positions for new flow)
+-- Retained for backward compatibility with existing escrow positions.
+--
+-- vault_positions replaces escrow_jobs: the status/error/retry_count columns
+-- on vault_positions serve the same purpose as escrow_jobs for the vault flow.
+-- No separate job queue table is needed - the vault-jobs service queries
+-- vault_positions directly via the pending index.
+-- ============================================================
+CREATE TABLE rfq.escrow_jobs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rfq_id          UUID NOT NULL REFERENCES rfq.parlay_tickets(id),
+    quote_id        UUID NOT NULL REFERENCES rfq.quotes(id),
+    user_id         TEXT NOT NULL,
+    mm_id           TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+    attempt_count   INTEGER NOT NULL DEFAULT 0,
+    max_attempts    INTEGER NOT NULL DEFAULT 5,
+    last_error      TEXT,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_escrow_jobs_pending ON rfq.escrow_jobs (next_attempt_at)
+    WHERE status IN ('pending', 'processing');
+CREATE INDEX idx_escrow_jobs_rfq ON rfq.escrow_jobs (rfq_id);
+CREATE UNIQUE INDEX idx_escrow_jobs_rfq_active ON rfq.escrow_jobs (rfq_id)
+    WHERE status NOT IN ('failed', 'cancelled', 'completed');
+
+-- ============================================================
+-- FEES (Revenue ledger - one record per settled ticket)
+-- ============================================================
+CREATE TABLE rfq.fees (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parlay_ticket_id UUID NOT NULL UNIQUE REFERENCES rfq.parlay_tickets(id),
+    quote_id         UUID NOT NULL REFERENCES rfq.quotes(id),
+    user_stake       NUMERIC(20, 6) NOT NULL,             -- Was user_deposit
+    mm_risk          NUMERIC(20, 6) NOT NULL,             -- Was mm_deposit
+    total_payout     NUMERIC(20, 6) NOT NULL,
+    profit           NUMERIC(20, 6) NOT NULL,
+    fee_bps          INTEGER NOT NULL,
+    fee_amount       NUMERIC(20, 6) NOT NULL,
+    winner           VARCHAR(4) NOT NULL CHECK (winner IN ('user', 'mm')),
+    settle_tx        VARCHAR(128) NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_fees_created ON rfq.fees (created_at);
+CREATE INDEX idx_fees_winner  ON rfq.fees (winner);
+
+-- ============================================================
+-- BLOCKCHAIN EVENTS (On-chain tx audit trail)
+-- ============================================================
+CREATE TABLE rfq.blockchain_events (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rfq_id       UUID REFERENCES rfq.parlay_tickets(id) ON DELETE CASCADE,
+    event_type   VARCHAR(50) NOT NULL
+                 CHECK (event_type IN ('quote_accepted', 'position_created', 'position_settled', 'position_cancelled', 'position_failed')),
+    tx_signature VARCHAR(88) NOT NULL,
+    user_wallet  VARCHAR(44),
+    mm_wallet    VARCHAR(44),
+    amount       NUMERIC(15, 2),
+    block_time   TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_blockchain_events_rfq ON rfq.blockchain_events (rfq_id);
+CREATE INDEX idx_blockchain_events_tx  ON rfq.blockchain_events (tx_signature);
+
+-- ============================================================
+-- ORPHANED ESCROWS (DEPRECATED - retained for legacy cleanup)
+-- ============================================================
+CREATE TABLE rfq.orphaned_escrows (
+    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id                 UUID NOT NULL,
+    rfq_id                 UUID NOT NULL,
+    escrow_pda             VARCHAR(64) NOT NULL UNIQUE,
+    error                  TEXT,
+    resolved               BOOLEAN NOT NULL DEFAULT FALSE,
+    reconciliation_method  TEXT,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at            TIMESTAMPTZ
+);
+
+-- ============================================================
+-- RFQ EVENTS (Generic status-change audit log)
+-- Tracks all status transitions for tickets, quotes, and positions.
+-- entity_type: 'ticket' | 'quote' | 'position'
+-- ============================================================
+CREATE TABLE rfq.rfq_events (
+    id           BIGSERIAL PRIMARY KEY,
+    entity_type  TEXT NOT NULL,                      -- 'ticket', 'quote', or 'position'
+    entity_id    TEXT NOT NULL,
+    old_status   TEXT,
+    new_status   TEXT NOT NULL,
+    triggered_by TEXT NOT NULL,                      -- user_id, mm_id, or 'system'
+    context      JSONB,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_rfq_events_entity ON rfq.rfq_events (entity_type, entity_id, created_at DESC);
+
+-- ============================================================
+-- MARKET SYNC LOG
+-- ============================================================
+CREATE TABLE rfq.market_sync_log (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    series_ticker   TEXT,
+    markets_synced  INTEGER,
+    markets_removed INTEGER,
+    status          TEXT NOT NULL CHECK (status IN ('success', 'error')),
+    error_message   TEXT,
+    duration_ms     INTEGER,
+    started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ
+);
+
+-- ============================================================
+-- USER STATS (Materialized aggregates - refreshed on settlement)
+-- ============================================================
+CREATE TABLE rfq.user_stats (
+    user_id       TEXT PRIMARY KEY REFERENCES rfq.users(id),
+    total_parlays INTEGER NOT NULL DEFAULT 0,
+    wins          INTEGER NOT NULL DEFAULT 0,
+    losses        INTEGER NOT NULL DEFAULT 0,
+    total_wagered NUMERIC(20, 6) NOT NULL DEFAULT 0,
+    realized_pnl  NUMERIC(20, 6) NOT NULL DEFAULT 0,
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
+-- USER PNL DAILY (Time-series P&L for charts)
+-- ============================================================
+CREATE TABLE rfq.user_pnl_daily (
+    user_id  TEXT NOT NULL REFERENCES rfq.users(id),
+    date     DATE NOT NULL,
+    pnl      NUMERIC(20, 6) NOT NULL DEFAULT 0,
+    wins     INTEGER NOT NULL DEFAULT 0,
+    losses   INTEGER NOT NULL DEFAULT 0,
+    settled  INTEGER NOT NULL DEFAULT 0,
+
+    PRIMARY KEY (user_id, date)
+);
+
+CREATE INDEX idx_user_pnl_daily_user_date ON rfq.user_pnl_daily (user_id, date DESC);
+
+-- ============================================================
+-- SCALE-CRITICAL INDEXES
+-- ============================================================
+
+-- Leaderboard: sort 200k+ users by pnl/wins without full scan
+CREATE INDEX idx_user_stats_pnl  ON rfq.user_stats (realized_pnl DESC);
+CREATE INDEX idx_user_stats_wins ON rfq.user_stats (wins DESC);
+
+-- Settlement: find all pending legs for a resolved market
+CREATE INDEX idx_legs_pending_settlement ON rfq.parlay_legs (market_ticker)
+    WHERE outcome = 'pending';
+
+-- rfq_events: time-range queries for audit/support tooling
+CREATE INDEX idx_rfq_events_created ON rfq.rfq_events (created_at DESC);
+```
+
+---
+
+## Vault Position Status State Machine
+
+```
+                                ┌─────────────────┐
+                                │     pending     │
+                                │  (created in DB)│
+                                └────────┬────────┘
+                                         │
+                    ┌────────────────────┼────────────────────┐
+                    │                    │                    │
+                    ▼                    ▼                    ▼
+           ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
+           │    active     │    │  retry < MAX  │    │     error     │
+           │  (on-chain)   │    │  (try again)  │    │ (MAX retries) │
+           └───────┬───────┘    └───────┬───────┘    └───────────────┘
+                   │                    │                  (terminal)
+                   │                    └──► back to pending
+        ┌──────────┴──────────┐
+        │                     │
+        ▼                     ▼
+┌───────────────┐     ┌───────────────┐
+│   settling    │     │  cancelling   │
+│ (claimed by   │     │ (claimed by   │
+│   worker)     │     │   worker)     │
+└───────┬───────┘     └───────┬───────┘
+        │                     │
+   ┌────┴────┐           ┌────┴────┐
+   │         │           │         │
+   ▼         ▼           ▼         ▼
+┌──────┐  ┌──────┐    ┌──────┐  ┌──────┐
+│win   │  │loss  │    │cancel│  │revert│
+│      │  │      │    │led   │  │to    │
+│      │  │      │    │      │  │active│
+└──────┘  └──────┘    └──────┘  └──────┘
+```
+
+**Retry exhaustion:** When `retry_count >= MAX_RETRIES` (default 5, configurable via
+`VAULT_JOB_MAX_RETRIES` env var), the position transitions from `pending` to `error`.
+A `position:error` WebSocket event is emitted. Manual intervention required to resolve.
+
+---
+
+## Migration Strategy
+
+Use `golang-migrate` for versioned migrations:
+
+```
+migrations/
+├── 000001_create_schema.up.sql           # CREATE SCHEMA rfq
+├── 000001_create_schema.down.sql
+├── 000002_create_auth.up.sql             # invite_codes + users + api_keys + waitlist
+├── 000002_create_auth.down.sql
+├── 000003_create_markets.up.sql          # kalshi_markets + polymarket_markets + whitelisted_series + whitelist_polymarket_series + market_results
+├── 000003_create_markets.down.sql
+├── 000004_create_tickets.up.sql          # parlay_tickets + parlay_legs
+├── 000004_create_tickets.down.sql
+├── 000005_create_quotes.up.sql           # quotes + FK on tickets.accepted_quote_id
+├── 000005_create_quotes.down.sql
+├── 000006_create_execution.up.sql        # escrow_jobs + fees + blockchain_events + orphaned_escrows
+├── 000006_create_execution.down.sql
+├── 000007_create_observability.up.sql    # rfq_events + market_sync_log
+├── 000007_create_observability.down.sql
+├── 000008_create_stats.up.sql            # user_stats + user_pnl_daily
+├── 000008_create_stats.down.sql
+├── 000009_create_vaults.up.sql           # vaults + vault_positions (NEW)
+├── 000009_create_vaults.down.sql
+```
+
+Run: `migrate -path migrations -database "$DATABASE_URL" up`
+
+---
+
+## Scale Considerations
+
+Designed for 200k DAU. Key operational notes:
+
+### Table partitioning (implement before launch)
+
+
+| Table            | Partition by | Strategy                                             |
+| ---------------- | ------------ | ---------------------------------------------------- |
+| `parlay_tickets` | `created_at` | Monthly - at 200k DAU = ~200k rows/day, ~73M/year    |
+| `vault_positions`| `created_at` | Monthly - same scale as tickets                      |
+| `rfq_events`     | `created_at` | Monthly - ~8 status changes per RFQ = ~1.6M rows/day |
+| `user_pnl_daily` | `date`       | Yearly - 200k users × 365 days                       |
+
+
+### Retention policies
+
+
+| Table               | Retention                  | Reason                                                     |
+| ------------------- | -------------------------- | ---------------------------------------------------------- |
+| `market_sync_log`   | 7 days                     | High-frequency write (~1 row/min/series), operational only |
+| `rfq_events`        | 90 days hot → cold storage | Compliance + support; cold = S3/ClickHouse after 90d       |
+| `blockchain_events` | Indefinite                 | Immutable on-chain record                                  |
+
+
+### Read routing
+
+- `GET /markets`, `GET /leaderboard`, `GET /rfqs` (settled history) → **read replica**
+- All writes, active RFQ queries, vault position state → **primary**
+
+### Vault position queries
+
+```sql
+-- Find pending positions for job worker (single-instance safe)
+SELECT * FROM rfq.vault_positions
+WHERE status = 'pending' AND retry_count < 5
+ORDER BY created_at ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED;
+
+-- Find active positions for settlement
+SELECT vp.*, pt.user_id, pt.accepted_quote_id
+FROM rfq.vault_positions vp
+JOIN rfq.parlay_tickets pt ON pt.id = vp.ticket_id
+WHERE vp.status = 'active'
+ORDER BY vp.created_at ASC
+LIMIT 50;
+
+-- MM dashboard positions
+SELECT * FROM rfq.vault_positions
+WHERE mm_wallet = $1 AND status = 'active'
+ORDER BY created_at DESC;
+```
