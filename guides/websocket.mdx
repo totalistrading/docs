@@ -43,7 +43,7 @@ After authenticating, subscribe to channels to receive events:
 
 | Channel | Description |
 |---------|-------------|
-| `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, confirmed, expired, withdrawn) |
+| `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, accepted details, confirmed, expired, withdrawn) |
 | `rfq:{rfq_id}` | Position and status updates for a specific trade |
 
 ## Events
@@ -53,6 +53,7 @@ After authenticating, subscribe to channels to receive events:
 | Event | Description | Data |
 |-------|-------------|------|
 | `quote:accepted` | A user committed your quote. You must confirm it before the deadline. | `{ quote_id, rfq_id, confirmation_deadline }` |
+| `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately; still confirm using `quote:accepted.quote_id`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
 | `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
 | `quote:expired` | Quote expired before confirmation. | `{ quote_id, rfq_id }` |
@@ -103,6 +104,10 @@ ws.onmessage = (event) => {
   if (msg.type === 'quote:accepted') {
     console.log('Quote accepted! Confirm before:', msg.data.confirmation_deadline);
     // POST https://api.totalis.trade/mm/quotes/{quoteId}/confirm
+  }
+
+  if (msg.type === 'mm_quote:accepted') {
+    console.log('Accepted quote details:', msg.data.exposure_legs);
   }
 
   if (msg.type === 'position:settled') {
