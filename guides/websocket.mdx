@@ -53,12 +53,45 @@ After authenticating, subscribe to channels to receive events:
 | Event | Description | Data |
 |-------|-------------|------|
 | `quote:accepted` | A user committed your quote. You must confirm it before the deadline. | `{ quote_id, rfq_id, confirmation_deadline }` |
-| `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately; still confirm using `quote:accepted.quote_id`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
+| `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
 | `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
 | `quote:expired` | Quote expired before confirmation. | `{ quote_id, rfq_id }` |
 | `quote:rejected` | Another quote was accepted instead. | `{ quote_id, rfq_id, reason }` |
 | `quote:withdrawn` | You withdrew the quote. | `{ quote_id, rfq_id }` |
+
+`mm_quote:accepted` payload:
+
+```json
+{
+  "rfq_id": "550e8400-e29b-41d4-a716-446655440000",
+  "quote_id": "7d3a2f1e-4b8c-4d6e-9f0a-1b2c3d4e5f60",
+  "market_maker_id": "did:privy:mm",
+  "user_id": "did:privy:user",
+  "source": "quote_request_commit",
+  "quote_request_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "draft_quote_id": "b2c3d4e5-6789-0abc-def1-234567890abc",
+  "request_version": 3,
+  "request_hash": "sha256:...",
+  "confirmation_deadline": "2026-06-05T12:00:05.000Z",
+  "accepted_at": "2026-06-05T12:00:00.000Z",
+  "quote": {
+    "payout_odds": 7.08,
+    "user_cost": 50,
+    "total_payout": 354,
+    "mm_cost": 304,
+    "valid_until": "2026-06-05T12:00:10.000Z"
+  },
+  "exposure_legs": [
+    {
+      "venue": "kalshi",
+      "event_ticker": "KXCAR",
+      "market_ticker": "KXCAR-YES",
+      "side": "yes"
+    }
+  ]
+}
+```
 
 ### Position Events
 
