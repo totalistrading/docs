@@ -8,7 +8,7 @@ Commit the best available quote on an active quote request. The server re-valida
 
 The request body includes protection fields that tie the commit to exactly what you last saw, preventing stale-price execution.
 
-After a successful commit, the selected market maker receives a `quote:accepted` event and must confirm the trade before the `confirmation_deadline`. From there, the vault settlement flow takes over.
+After a successful commit, the selected market maker receives a `quote:accepted` event and must confirm the trade before the `confirmation_deadline`. The selected market maker may also receive `mm_quote:accepted` on its private `mm:quotes:{mm_id}` channel with the final quote economics and exact exposure legs for immediate local risk reservation. From there, the vault settlement flow takes over.
 
 ## Authentication
 

@@ -6,7 +6,7 @@ description: "Confirm an accepted quote to lock in the trade and begin vault set
 
 Confirm an accepted quote to finalize the trade. This triggers an atomic Solana transaction that locks the user's stake and your collateral in their respective vaults.
 
-You receive a `quote:accepted` WebSocket event when a user commits your quote. You must confirm before the `confirmation_deadline` returned in that event. If you miss the deadline, the trade is unwound and the RFQ reopens for other market makers.
+You receive a `quote:accepted` WebSocket event when a user commits your quote. You must confirm before the `confirmation_deadline` returned in that event. The selected market maker may also receive `mm_quote:accepted` on the same `mm:quotes:{mm_id}` channel with richer quote economics and `exposure_legs`; use it for local risk reservation or analytics. Both events carry the same accepted `quote_id`, and either value is valid for confirmation. Do not rely on delivery order between the two events. If you miss the deadline, the trade is unwound and the RFQ reopens for other market makers.
 
 **Base URL:** `https://api.totalis.trade`
 
@@ -21,7 +21,7 @@ X-API-Key: <key>
 ## Path Parameters
 
 <ParamField path="quoteId" type="string" required>
-  The accepted quote ID (UUID). This is the `quote_id` from the `quote:accepted` WebSocket event.
+  The accepted quote ID (UUID). This is the `quote_id` from the `quote:accepted` WebSocket event, and matches `quote_id` on the optional `mm_quote:accepted` detail event.
 </ParamField>
 
 ## Request Body
