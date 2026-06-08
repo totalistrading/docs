@@ -3,3 +3,14 @@ title: 'Get Exclusion Groups'
 description: 'Get the leg-conflict groups that prevent correlated tickers from being combined in the same Totalis parlay. Each group declares its scope (event or series). No authentication required.'
 openapi: 'GET /markets/exclusion-groups'
 ---
+
+<Note>
+  **Prefer `exclusion_keys` for parlay building.** Every market returned by
+  [List Markets](/api-reference/markets/list) and [Get Market](/api-reference/markets/get)
+  now carries an `exclusion_keys` array — two markets conflict if (and only if)
+  their keys intersect. That covers the full rule set (same-game sports
+  correlation, threshold ladders, Polymarket sub-events) as a simple
+  set-intersection, with nothing to resolve client-side. This endpoint returns
+  only the static **cross-series** groups and is retained for
+  compatibility.
+</Note>
