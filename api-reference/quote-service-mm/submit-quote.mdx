@@ -8,6 +8,12 @@ Submit a quote for an active quote request. If you already have an active quote 
 
 When the user updates their request (changing legs or bet amount), the `version` and `request_hash` change, and your existing quote is automatically invalidated. Listen for `quote_request:updated` events on the [SSE stream](/api-reference/quote-service-mm/stream) to detect version changes and re-price.
 
+<Note>
+**Moving to a new version takes no withdraw.** A quote is scoped to a single `(request, version)` pair. When the request advances to a new `version`, your prior-version quote is invalidated automatically — it leaves the book at once, can no longer be accepted, and never blocks a new submission. To quote the new version, simply `PUT` again with the new `request_version` and `request_hash` from the latest `quote_request:updated` event. There is no need to [withdraw](/api-reference/quote-service-mm/withdraw-quote) the old quote first.
+
+A `409` with `reason: version_mismatch` is **not** caused by an outstanding prior quote. It means the `request_version` and/or `request_hash` in your body no longer match the live request — you priced a stale version, or the slip changed again while you were pricing. Re-read the latest stream event and submit with both current values (they must both match).
+</Note>
+
 ## Authentication
 
 API key required. Pass your market maker API key in the `X-API-Key` header.
@@ -74,7 +80,7 @@ When a submit is rejected with `409 Conflict`, the `error.details.reason` field 
 | `not_found` | Quote request ID does not exist. |
 | `expired` | Quote request has expired. |
 | `not_active` | Quote request is committed, cancelled, or otherwise inactive. |
-| `version_mismatch` | Your `request_version` or `request_hash` is outdated. Use the latest values from the SSE stream. |
+| `version_mismatch` | Your `request_version` and/or `request_hash` don't match the live request — you priced a stale version, or it changed while you were pricing. Re-read the latest `quote_request` / `quote_request:updated` event and submit both current values. This is **not** caused by a still-open prior quote, so there is nothing to withdraw. |
 | `self_quote` | You cannot quote your own requests. |
 
 ## Errors
