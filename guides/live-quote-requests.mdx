@@ -66,28 +66,22 @@ Connect to the [MM SSE stream](/api-reference/quote-service-mm/stream) to receiv
 
 ### Submitting Quotes
 
-Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version -- submitting again replaces your previous quote.
+Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version -- submitting again replaces your previous quote. Send only the fields below; the server derives `user_cost`, `total_payout`, and `mm_cost` from `payout_odds` and the request's `bet_amount`.
 
 ```json
 {
   "request_version": 3,
   "request_hash": "sha256...",
   "payout_odds": 4.25,
-  "user_cost": 25,
-  "total_payout": 106.25,
-  "mm_cost": 81.25,
-  "expires_in_ms": 15000,
-  "leg_prices": [
-    { "leg_id": "8ccf2c5d-...", "leg_odds": 0.42 }
-  ]
+  "expires_in_ms": 15000
 }
 ```
 
-Keep quotes short-lived (default 15s). When you receive an updated version for the same request, discard old quotes and re-price.
+Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically -- just re-price and `PUT` a new quote with the new `version` and `request_hash`. You don't need to withdraw the old one.
 
 ### Withdrawing Quotes
 
-Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote before the user commits it.
+Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote on the **current** version before the user commits it -- for example, if your price moved and you want to stand down. This is not part of the version-change flow: a new `version` already invalidates your prior quote, so you don't withdraw to re-quote.
 
 ### Heartbeat
 
