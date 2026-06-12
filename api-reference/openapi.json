@@ -1539,6 +1539,7 @@
           "user_id",
           "status",
           "bet_amount",
+          "user_stake",
           "implied_probability",
           "expires_at",
           "created_at",
@@ -1561,7 +1562,12 @@
             "description": "MMs only see RFQs available for quoting."
           },
           "bet_amount": {
-            "type": "number"
+            "type": "number",
+            "description": "The user's gross wager (USDC)."
+          },
+          "user_stake": {
+            "type": "number",
+            "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
           },
           "implied_probability": {
             "type": "number",
@@ -1602,7 +1608,7 @@
           },
           "user_cost": {
             "type": "number",
-            "description": "Bettor's cost (same as RFQ `bet_amount`)."
+            "description": "Net stake the MM quotes on = bet_amount - taker_fee (== bet_amount when the taker fee is off)."
           },
           "mm_cost": {
             "type": "number",
