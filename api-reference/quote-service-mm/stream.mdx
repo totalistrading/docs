@@ -161,7 +161,7 @@ es.addEventListener('connected', (e) => {
 
 es.addEventListener('quote_request', (e) => {
   const req = JSON.parse(e.data);
-  console.log('New request:', req.id, req.user_stake, 'USDC');  // user_stake = net stake to price against
+  console.log('New request:', req.id, req.user_stake ?? req.bet_amount, 'USDC');  // price against net user_stake; falls back to gross bet_amount if absent
   // req.bet_amount is the gross wager; price + size against user_stake
 });
 

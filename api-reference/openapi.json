@@ -1371,6 +1371,7 @@
           "status",
           "legs",
           "bet_amount",
+          "user_stake",
           "implied_probability",
           "created_at",
           "updated_at",
@@ -1394,7 +1395,7 @@
           },
           "user_stake": {
             "type": "number",
-            "description": "Net stake the MM underwrites = bet_amount - taker fee (floor(bet_amount * taker_fee_bps / 10000)). Price and size against this, not bet_amount, when the taker fee is on."
+            "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
           },
           "implied_probability": {
             "type": "number",
