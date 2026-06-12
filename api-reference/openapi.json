@@ -2009,7 +2009,7 @@
           },
           "payout": {
             "type": "number",
-            "description": "Full pot transferred to the winner \u2014 equals `user_stake + mm_risk` (i.e. `bet_amount * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
+            "description": "Full pot transferred to the winner \u2014 equals `user_stake + mm_risk` (i.e. `user_stake * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
           },
           "user_stake": {
             "type": "number"
