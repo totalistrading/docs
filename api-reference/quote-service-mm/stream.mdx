@@ -119,6 +119,8 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 
 `won` is `true` only when `reason` is `committed` **and your quote was the one selected**; otherwise `false` (including every `cancelled`/`expired` close). A `committed` close with `won: false` means you were out-bid — the user took another market maker's quote. The winning maker's identity and odds are never disclosed.
 
+`won` is **omitted** on the rare `committed` close where the outcome is indeterminate (e.g. the event was produced by a previous server instance during a deploy). Treat an absent `won` as *unknown* — do not record it as a loss.
+
 ```json
 {
   "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
@@ -183,8 +185,11 @@ es.addEventListener('quote_request:updated', (e) => {
 
 es.addEventListener('quote_request_expired', (e) => {
   const { id, reason, won } = JSON.parse(e.data);
-  // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected
-  const outcome = reason === 'committed' ? (won ? 'won' : 'lost (out-bid)') : reason;
+  // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
+  // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+  const outcome = reason === 'committed'
+    ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
+    : reason;
   console.log('Request closed:', id, outcome);
 });
 ```
@@ -213,9 +218,14 @@ with requests.get(url, headers=headers, stream=True) as resp:
                 print(f"Request {payload['id']} updated to v{payload['version']} — re-price")
                 # Prior-version quote invalidated; submit a new one
             elif event_type == 'quote_request_expired':
-                # reason: 'committed' | 'cancelled' | 'expired'; won True only if you were selected
+                # reason: 'committed' | 'cancelled' | 'expired'; won True only if you were selected.
+                # won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
                 reason = payload.get('reason', 'expired')
-                outcome = ('won' if payload.get('won') else 'lost (out-bid)') if reason == 'committed' else reason
+                won = payload.get('won')
+                if reason == 'committed':
+                    outcome = 'unknown' if won is None else ('won' if won else 'lost (out-bid)')
+                else:
+                    outcome = reason
                 print(f"Request closed: {payload['id']} — {outcome}")
             event_type = None
 ```
