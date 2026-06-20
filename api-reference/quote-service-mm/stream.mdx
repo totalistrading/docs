@@ -109,11 +109,23 @@ Sent when the initial snapshot is finished. After this, the stream switches to i
 
 ### `quote_request_expired`
 
-Sent when a previously seen quote request is no longer active (expired, committed, or cancelled). Remove it from your local state.
+Sent when a previously seen quote request is no longer active. Remove it from your local state. The `reason` field tells you why it closed, and lets you distinguish a lost auction from an abandoned or timed-out one:
+
+| `reason` | Meaning |
+|----------|---------|
+| `committed` | The user committed to a quote. The auction is over — check `won`. This can arrive well before `expires_at`; there is no minimum auction duration. |
+| `cancelled` | The user abandoned the request before committing to any quote. |
+| `expired` | The request reached `expires_at` with no commit. |
+
+`won` is `true` only when `reason` is `committed` **and your quote was the one selected**; otherwise `false` (including every `cancelled`/`expired` close). A `committed` close with `won: false` means you were out-bid — the user took another market maker's quote. The winning maker's identity and odds are never disclosed.
+
+`won` is **omitted** on the rare `committed` close where the outcome is indeterminate (e.g. the event was produced by a previous server instance during a deploy). Treat an absent `won` as *unknown* — do not record it as a loss.
 
 ```json
 {
-  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40"
+  "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "reason": "committed",
+  "won": false
 }
 ```
 
@@ -172,8 +184,13 @@ es.addEventListener('quote_request:updated', (e) => {
 });
 
 es.addEventListener('quote_request_expired', (e) => {
-  const { id } = JSON.parse(e.data);
-  console.log('Request expired:', id);
+  const { id, reason, won } = JSON.parse(e.data);
+  // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
+  // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+  const outcome = reason === 'committed'
+    ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
+    : reason;
+  console.log('Request closed:', id, outcome);
 });
 ```
 
@@ -201,7 +218,15 @@ with requests.get(url, headers=headers, stream=True) as resp:
                 print(f"Request {payload['id']} updated to v{payload['version']} — re-price")
                 # Prior-version quote invalidated; submit a new one
             elif event_type == 'quote_request_expired':
-                print(f"Expired: {payload['id']}")
+                # reason: 'committed' | 'cancelled' | 'expired'; won True only if you were selected.
+                # won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+                reason = payload.get('reason', 'expired')
+                won = payload.get('won')
+                if reason == 'committed':
+                    outcome = 'unknown' if won is None else ('won' if won else 'lost (out-bid)')
+                else:
+                    outcome = reason
+                print(f"Request closed: {payload['id']} — {outcome}")
             event_type = None
 ```
 </RequestExample>
@@ -227,6 +252,6 @@ event: quote_request:updated
 data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":50,"user_stake":49.50,"implied_probability":0,"version":2,"request_hash":"sha256:3b1f9c2...","expires_at":"2026-06-01T18:46:10.000Z"}
 
 event: quote_request_expired
-data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40"}
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","reason":"committed","won":false}
 ```
 </ResponseExample>
