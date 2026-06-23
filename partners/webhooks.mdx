@@ -84,7 +84,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export function verifyTotalisWebhook(
   secret: string,
   signatureHeader: string,
-  rawBody: string,
+  rawBody: string | Buffer, // express.raw() gives a Buffer; both are fine
   toleranceSec = 300,
 ): boolean {
   const fields = new Map<string, string>();
@@ -97,7 +97,8 @@ export function verifyTotalisWebhook(
   if (!Number.isFinite(t) || !v1) return false;
   if (Math.abs(Date.now() / 1000 - t) > toleranceSec) return false;
 
-  const expected = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
+  // Chained .update() signs "<t>." then the raw body bytes — no string coercion of the Buffer.
+  const expected = createHmac("sha256", secret).update(`${t}.`).update(rawBody).digest("hex");
   const a = Buffer.from(expected);
   const b = Buffer.from(v1);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -167,6 +168,11 @@ and last response code (`GET /partner/webhooks/deliveries`):
 }
 ```
 
+<Note>
+  `next_attempt_at` is only meaningful while a delivery is `failed` (awaiting its next retry). For
+  `delivered` and `dead_letter` rows it's a terminal timestamp and can be ignored.
+</Note>
+
 ### Replaying deliveries
 
 A **delivered** or **dead-lettered** delivery can be re-queued from the console (or
@@ -181,5 +187,19 @@ side. Replays reuse the same `X-Totalis-Event-Id`, so your deduplication will re
 ## Rotating your signing secret
 
 Rotate the secret anytime from the console (`POST /partner/webhooks/rotate-secret`). The new secret
-is shown once and the **old one stops signing immediately**, so deploy the new secret to your
-verifier before (or atomically with) rotating.
+is shown once and the **old one stops signing immediately** — there's no overlap window where both
+secrets are valid. A safe sequence:
+
+<Steps>
+  <Step title="Rotate during a quiet window">
+    Generate the new secret in the console. Capture it immediately — it's shown only once.
+  </Step>
+  <Step title="Update your verifier">
+    Deploy the new secret to your endpoint as fast as possible. Any deliveries signed with the new
+    secret that arrive before your verifier is updated will fail verification.
+  </Step>
+  <Step title="Replay anything that failed in the gap">
+    From the deliveries list, replay any `dead_letter` (or, once they exhaust retries, formerly
+    `failed`) deliveries from the swap window — they'll be re-signed with the current secret.
+  </Step>
+</Steps>

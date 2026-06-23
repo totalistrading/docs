@@ -31,7 +31,7 @@ access token scoped to exactly what they granted. No UI to build on your side.
 
 Generate a PKCE verifier and challenge, then redirect the user's browser to `GET /oauth/authorize`:
 
-```
+```http
 GET https://api.totalis.trade/oauth/authorize
   ?response_type=code
   &client_id=your-client-id
@@ -107,6 +107,23 @@ curl -X POST https://api.totalis.trade/oauth/token \
   -d "code_verifier=<your-code-verifier>" \
   -d "redirect_uri=https://yourapp.com/totalis/callback"
 ```
+
+<Accordion title="Authenticating with body parameters instead of HTTP Basic">
+  If your HTTP client can't send Basic auth, pass your credentials as form fields instead of `-u`:
+
+  ```bash
+  curl -X POST https://api.totalis.trade/oauth/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=authorization_code" \
+    -d "client_id=your-client-id" \
+    -d "client_secret=your-client-secret" \
+    -d "code=<authorization-code>" \
+    -d "code_verifier=<your-code-verifier>" \
+    -d "redirect_uri=https://yourapp.com/totalis/callback"
+  ```
+
+  The same applies to `grant_type=refresh_token` and `/oauth/revoke`.
+</Accordion>
 
 A successful response (`200`, `Cache-Control: no-store`):
 
