@@ -30,8 +30,18 @@ Set your endpoint URL and the events you want in the [Partner Console](/partners
 | `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
 | `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
 | `position.bought_back` | `positions:read` | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
 | `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 | `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
+
+<Note>
+  **`parlay.status_changed`** tracks an RFQ's live progression — `status` is one of `accepted`,
+  `confirmed`, `executed`, or `cancelled` (`accepted_quote_id` is set once a quote is accepted, else
+  `null`). Terminal **settlement** comes via `position.settled` and **expiry** isn't part of this
+  event, so use the `position.*` events for final outcomes. A cancellation fires **both**
+  `parlay.status_changed` (`status: "cancelled"`) and `position.cancelled` — dedupe on
+  `X-Totalis-Event-Id` if you subscribe to both.
+</Note>
 
 ## Delivery format
 
