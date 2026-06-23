@@ -40,21 +40,6 @@
         ]
       },
       {
-        "tab": "Partners",
-        "groups": [
-          {
-            "group": "Partner Platform",
-            "pages": [
-              "partners/overview",
-              "partners/onboarding",
-              "partners/webhooks",
-              "partners/console",
-              "partners/idempotency"
-            ]
-          }
-        ]
-      },
-      {
         "tab": "API Reference",
         "groups": [
           {
