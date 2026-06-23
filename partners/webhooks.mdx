@@ -1,0 +1,205 @@
+---
+title: 'Webhooks'
+description: 'Receive HMAC-signed events when your users settle positions, get bought back, or move funds. Verify signatures, handle retries, and replay deliveries.'
+---
+
+Webhooks push events to your server as they happen, so you don't have to poll. Each event is
+delivered only to partners whose user **granted the matching scope**, is **HMAC-signed** so you can
+verify it came from Totalis, and is **retried with backoff** until it succeeds or is dead-lettered.
+
+## Configuring your endpoint
+
+Set your endpoint URL and the events you want in the [Partner Console](/partners/console) (or via
+`PUT /partner/webhooks`):
+
+- **Endpoint URL** — must be HTTPS. Set it to `null` to disable webhooks entirely.
+- **Events** — any subset of the [catalog](#event-catalog) below.
+- **Signing secret** — generate one in the console (`whsec_…`). **Deliveries only start once a
+  signing secret exists.** It's shown exactly once; store it securely.
+
+<Info>
+  You only receive an event for a given user if the **user's active grant still includes the scope
+  that event requires**. If a user narrows their grant, matching events stop — the scope is
+  re-checked at delivery time, not just at subscribe time.
+</Info>
+
+## Event catalog
+
+| Event | Required scope | `data` fields |
+| --- | --- | --- |
+| `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `positions:read` | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
+| `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
+
+## Delivery format
+
+Each delivery is an HTTP `POST` with a JSON body and these headers:
+
+| Header | Description |
+| --- | --- |
+| `X-Totalis-Signature` | `t=<unix-seconds>,v1=<hmac-sha256-hex>` — see [verifying](#verifying-signatures). |
+| `X-Totalis-Event-Id` | Unique event id. **Use this to deduplicate.** |
+| `X-Totalis-Event-Type` | The event name, e.g. `position.settled`. |
+| `Content-Type` | `application/json` |
+
+The body is a stable envelope — `id`, `type`, and an event-specific `data` object:
+
+```json
+{
+  "id": "evt_01HZX…",
+  "type": "position.settled",
+  "data": {
+    "rfq_id": "11111111-1111-1111-1111-111111111111",
+    "outcome": "user_wins",
+    "tx_signature": "5Hk…",
+    "occurred_at": "2026-06-22T00:00:00.000Z"
+  }
+}
+```
+
+Respond with any `2xx` status to acknowledge. Anything else is treated as a failure and retried.
+
+## Verifying signatures
+
+The `X-Totalis-Signature` header has the form `t=<timestamp>,v1=<signature>`, where the signature is
+`HMAC-SHA256(secret, "<timestamp>.<raw-body>")` hex-encoded. To verify:
+
+1. Parse `t` and `v1` from the header.
+2. Reject if `t` is outside your tolerance (we recommend **±5 minutes**) — this blocks replay.
+3. Recompute the HMAC over the **exact raw request body** joined to the timestamp as `t.body`.
+4. Compare to `v1` with a constant-time equality check.
+
+<Warning>
+  Compute the HMAC over the **raw bytes** of the request body, before any JSON parsing or
+  re-serialization. Re-stringifying parsed JSON can reorder keys or change whitespace and will break
+  the signature.
+</Warning>
+
+<CodeGroup>
+```ts Node / Express
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+export function verifyTotalisWebhook(
+  secret: string,
+  signatureHeader: string,
+  rawBody: string | Buffer, // express.raw() gives a Buffer; both are fine
+  toleranceSec = 300,
+): boolean {
+  const fields = new Map<string, string>();
+  for (const part of signatureHeader.split(",")) {
+    const i = part.indexOf("=");
+    if (i !== -1) fields.set(part.slice(0, i), part.slice(i + 1));
+  }
+  const t = Number(fields.get("t"));
+  const v1 = fields.get("v1");
+  if (!Number.isFinite(t) || !v1) return false;
+  if (Math.abs(Date.now() / 1000 - t) > toleranceSec) return false;
+
+  // Chained .update() signs "<t>." then the raw body bytes — no string coercion of the Buffer.
+  const expected = createHmac("sha256", secret).update(`${t}.`).update(rawBody).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(v1);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// Express: capture the raw body so you can sign over the exact bytes.
+// app.use("/totalis/webhooks", express.raw({ type: "application/json" }));
+```
+
+```python Python / Flask
+import hmac, hashlib, time
+
+def verify_totalis_webhook(secret: str, signature_header: str, raw_body: bytes, tolerance_sec: int = 300) -> bool:
+    fields = dict(p.split("=", 1) for p in signature_header.split(",") if "=" in p)
+    t, v1 = fields.get("t"), fields.get("v1")
+    if not t or not v1:
+        return False
+    if abs(time.time() - int(t)) > tolerance_sec:
+        return False
+    signed = f"{t}.".encode() + raw_body
+    expected = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, v1)
+
+# Flask: use request.get_data() for the raw body, not request.json.
+```
+</CodeGroup>
+
+## Idempotency & ordering
+
+- **Deduplicate on `X-Totalis-Event-Id`.** At-least-once delivery means you may occasionally receive
+  the same event more than once (a retry that actually succeeded, or a [replay](#replaying-deliveries)).
+  Treat the event id as the unique key.
+- **Don't assume ordering.** Process each event on its own merits; use `occurred_at` if you need to
+  reason about sequence.
+
+## Retries & failure handling
+
+If your endpoint doesn't return `2xx`, Totalis retries with exponential backoff:
+
+- **Up to 8 attempts**, starting ~30s apart and doubling (capped at 1 hour), with jitter.
+- **Retried:** `5xx`, `408`, `429`, timeouts (15s), and network errors → status `failed`, will retry.
+- **Not retried:** other `4xx` responses → immediately `dead_letter` (your endpoint rejected it; a
+  retry won't help).
+- After 8 failed attempts, the delivery is `dead_letter`.
+
+Return `2xx` quickly and do heavy work asynchronously — a slow endpoint that exceeds the 15s timeout
+counts as a failed attempt.
+
+## Inspecting & replaying deliveries
+
+The [Partner Console](/partners/console) shows recent deliveries with their status, attempt count,
+and last response code (`GET /partner/webhooks/deliveries`):
+
+```json
+{
+  "deliveries": [
+    {
+      "id": "…",
+      "event_type": "position.settled",
+      "status": "delivered",
+      "attempts": 1,
+      "response_code": 200,
+      "created_at": "2026-06-22T12:00:00.000Z",
+      "next_attempt_at": "2026-06-22T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+<Note>
+  `next_attempt_at` is only meaningful while a delivery is `failed` (awaiting its next retry). For
+  `delivered` and `dead_letter` rows it's a terminal timestamp and can be ignored.
+</Note>
+
+### Replaying deliveries
+
+A **delivered** or **dead-lettered** delivery can be re-queued from the console (or
+`POST /partner/webhooks/deliveries/{id}/redeliver`) — useful after you fix a bug or an outage on your
+side. Replays reuse the same `X-Totalis-Event-Id`, so your deduplication will recognize them.
+
+<Note>
+  A `failed` delivery that is still mid-retry can't be manually replayed — it's already scheduled for
+  another attempt. Wait for it to land or dead-letter.
+</Note>
+
+## Rotating your signing secret
+
+Rotate the secret anytime from the console (`POST /partner/webhooks/rotate-secret`). The new secret
+is shown once and the **old one stops signing immediately** — there's no overlap window where both
+secrets are valid. A safe sequence:
+
+<Steps>
+  <Step title="Rotate during a quiet window">
+    Generate the new secret in the console. Capture it immediately — it's shown only once.
+  </Step>
+  <Step title="Update your verifier">
+    Deploy the new secret to your endpoint as fast as possible. Any deliveries signed with the new
+    secret that arrive before your verifier is updated will fail verification.
+  </Step>
+  <Step title="Replay anything that failed in the gap">
+    From the deliveries list, replay any `dead_letter` (or, once they exhaust retries, formerly
+    `failed`) deliveries from the swap window — they'll be re-signed with the current secret.
+  </Step>
+</Steps>

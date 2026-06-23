@@ -1,0 +1,81 @@
+---
+title: 'Partner Console'
+description: 'A self-serve dashboard to review the API keys issued to you, configure webhooks, rotate your signing secret, and track usage.'
+---
+
+The Partner Console is where your team manages your live integration — without filing a ticket. It's
+read/write for your own partner data only; everything you see is scoped to your partner account.
+
+## Access
+
+Console access is **invite-based**. A Totalis operator invites a teammate by email and shares the
+console URL. There's no password: you sign in with a **one-time code** sent to your email.
+
+<Steps>
+  <Step title="Get invited">
+    Ask your Totalis contact to invite your work email. Each member is invited individually; the
+    email address is the identity — sign in with the exact address that was invited.
+  </Step>
+  <Step title="Sign in">
+    Open the console and enter your email. You'll receive a one-time code; enter it to log in. No
+    wallet, no password.
+  </Step>
+</Steps>
+
+<Note>
+  If sign-in succeeds but you can't get in, your email probably hasn't been invited yet (or was
+  invited with different casing/address). Ask your Totalis contact to confirm the invite.
+</Note>
+
+## What you can do
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="gauge">
+    Your partner profile, granted scopes, active key count, total request volume, and webhook status
+    at a glance.
+  </Card>
+  <Card title="API Keys" icon="key">
+    See every access token issued to you (by user), with status, scopes, last-used time, and request
+    count. Revoke any key immediately.
+  </Card>
+  <Card title="Webhooks" icon="webhook">
+    Set your endpoint URL and subscribed events, rotate your signing secret, and inspect recent
+    deliveries (with one-click replay).
+  </Card>
+  <Card title="Usage" icon="chart-line">
+    Active key count and total request volume across all your keys.
+  </Card>
+</CardGroup>
+
+## API keys
+
+The console lists the keys issued to you — one per user who completed
+[OAuth onboarding](/partners/onboarding). For each key you see its prefix, the user it belongs to,
+its scopes, status, last-used time, and request count. Secrets are never shown (they're only
+returned once, at the token exchange).
+
+**Revoking** a key takes effect immediately and can't be undone — the user has to re-authorize to
+restore access. Use it if a key is compromised or a user offboards.
+
+<Info>
+  You can't **mint** keys from the console — keys are created through the OAuth consent flow so every
+  key is tied to a consenting user. To issue a key, onboard the user.
+</Info>
+
+## Webhooks
+
+From the Webhooks page you can:
+
+- Set your **endpoint URL** (HTTPS) and choose which [events](/partners/webhooks#event-catalog) to receive.
+- **Rotate your signing secret** — shown once; the old one stops working immediately, so update your
+  verifier in lockstep.
+- Browse **recent deliveries** and **replay** a delivered or dead-lettered one after fixing an issue
+  on your side.
+
+See [Webhooks](/partners/webhooks) for the signature scheme and verification code.
+
+## Roles
+
+Invited members have a role (`admin` or `member`). Roles are recorded on the membership currently; as
+console capabilities grow, higher-risk actions will be gated to `admin`. Invite teammates with the
+least privilege they need.

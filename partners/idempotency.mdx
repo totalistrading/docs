@@ -1,0 +1,57 @@
+---
+title: 'Idempotency'
+description: 'Safely retry write requests with an Idempotency-Key so a network blip never double-submits an order or a transfer.'
+---
+
+Network calls fail in ambiguous ways — a request times out, but the server may already have processed
+it. For write operations, retrying blindly risks doing the same thing twice. An **idempotency key**
+makes a retry safe: the server processes the request once and replays the same response for repeats.
+
+## Using an idempotency key
+
+Send a unique `Idempotency-Key` header on write requests you might retry. Use a **UUID v4**, one per
+logical operation:
+
+```bash
+curl -X POST https://api.totalis.trade/rfqs \
+  -H "Authorization: Bearer api_live_xxxxxxxxxxxx" \
+  -H "Idempotency-Key: 3f9a1c7e-2b4d-4f6a-8c1e-9d0b2a5e7f31" \
+  -H "Content-Type: application/json" \
+  -d '{ … }'
+```
+
+- Reuse the **same** key when you retry the **same** operation — you'll get the original response
+  back instead of a second execution.
+- Use a **new** key for a genuinely new operation.
+- The key must be a valid UUID v4; malformed keys are rejected.
+
+## Behavior
+
+| Situation | Result |
+| --- | --- |
+| First request with a key | Processed normally; if it succeeds (`2xx`) the response is cached. |
+| Retry after success | The cached `2xx` response is replayed, with header `Idempotency-Replayed: true`. No re-execution. |
+| Retry while the first is still in flight | `409 CONFLICT` — *"A request with this Idempotency-Key is already being processed"*. |
+| Retry after a non-`2xx` response | Re-executed — failed responses are **not** cached, so you can retry after fixing the input. |
+
+<Note>
+  Only successful (`2xx`) responses are cached. A `4xx`/`5xx` doesn't "use up" the key — retrying with
+  the same key after a failure runs the request again.
+</Note>
+
+### Handling the 409
+
+A `409` means a request with that key is **already being processed** — not that it failed. Don't
+treat it as a hard error: wait briefly and retry, then read back state (or rely on the eventual
+replayed response) to confirm the outcome. Two concurrent submits of the same key is exactly the
+double-submit this protects against.
+
+## Retention
+
+Idempotency keys are retained for **24 hours**. After that, the same key is treated as a brand-new
+request. Scope your keys to operations that complete well within that window.
+
+## When to use it
+
+Use an idempotency key on any **non-idempotent write** you might retry — placing or committing a
+quote request, moving funds. Reads (`GET`) are naturally idempotent and don't need a key.

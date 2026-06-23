@@ -1,0 +1,214 @@
+---
+title: 'OAuth Onboarding'
+description: 'Onboard your users with the OAuth 2.0 authorization code flow + PKCE. Totalis hosts the consent screen; you receive a scoped, per-user access token.'
+---
+
+Totalis uses the standard **OAuth 2.0 authorization code flow with PKCE** (RFC 7636). You redirect a
+user to a Totalis-hosted consent screen; once they approve, you exchange an authorization code for an
+access token scoped to exactly what they granted. No UI to build on your side.
+
+## At a glance
+
+<Steps>
+  <Step title="Redirect to /oauth/authorize">
+    Send the user to Totalis with your `client_id`, requested `scope`, a `state`, and a PKCE
+    `code_challenge`.
+  </Step>
+  <Step title="User consents">
+    Totalis hosts the login + consent screen. On approval, the user's browser is redirected back to
+    your `redirect_uri` with a one-time `code`.
+  </Step>
+  <Step title="Exchange the code">
+    Your server POSTs the `code` + `code_verifier` to `/oauth/token` and receives an `access_token`
+    and `refresh_token`.
+  </Step>
+  <Step title="Call the API & refresh">
+    Use the access token on behalf of the user; refresh it before it expires.
+  </Step>
+</Steps>
+
+## Step 1 — Authorization request
+
+Generate a PKCE verifier and challenge, then redirect the user's browser to `GET /oauth/authorize`:
+
+```http
+GET https://api.totalis.trade/oauth/authorize
+  ?response_type=code
+  &client_id=your-client-id
+  &redirect_uri=https://yourapp.com/totalis/callback
+  &scope=positions:read%20trading:write
+  &state=<opaque-random>
+  &code_challenge=<base64url-sha256-of-verifier>
+  &code_challenge_method=S256
+```
+
+| Parameter | Required | Notes |
+| --- | --- | --- |
+| `response_type` | yes | Must be `code`. |
+| `client_id` | yes | Your registered client id. |
+| `redirect_uri` | yes | Must **exactly match** a URI registered for your app (HTTPS, no fragment). |
+| `scope` | yes | Space-delimited. Must be within your scope ceiling. |
+| `state` | yes | Opaque value you generate; round-tripped back to you. Verify it to defend against CSRF. |
+| `code_challenge` | yes | `base64url(SHA-256(code_verifier))` — 43 chars, no padding. |
+| `code_challenge_method` | yes | Must be `S256`. `plain` is rejected. |
+
+The `code_verifier` is a random 43–128 character string from `[A-Za-z0-9._~-]`. Keep it server-side
+(or in the session) — you'll need it in Step 3.
+
+<CodeGroup>
+```ts Node (PKCE)
+import { createHash, randomBytes } from "node:crypto";
+
+const codeVerifier = randomBytes(32).toString("base64url"); // 43 chars
+const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
+// Persist codeVerifier + state against the user's session, then redirect them to /oauth/authorize.
+```
+
+```python Python (PKCE)
+import hashlib, base64, secrets
+
+code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+digest = hashlib.sha256(code_verifier.encode()).digest()
+code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+```
+</CodeGroup>
+
+<Note>
+  If a parameter is invalid **before** the `redirect_uri` is validated (bad/unknown client, bad
+  redirect URI), Totalis returns a JSON `400`/`403`. Once the redirect URI is validated, OAuth errors
+  come back as a redirect to `redirect_uri?error=…&error_description=…&state=…` per RFC 6749.
+</Note>
+
+## Step 2 — Hosted consent
+
+Totalis redirects the user to its hosted consent screen (`https://app.totalis.trade/connect`). There
+the user logs in (or creates a Totalis account), reviews the scopes you requested — they may
+**deselect** scopes to narrow the grant — and approves.
+
+On approval, the user's browser is redirected back to your `redirect_uri`:
+
+```
+https://yourapp.com/totalis/callback?code=<authorization-code>&state=<your-state>
+```
+
+Verify `state` matches what you sent. The `code` is single-use and short-lived (~60 seconds).
+
+## Step 3 — Exchange the code for tokens
+
+From your **server** (never the browser), POST to `/oauth/token`. Authenticate your app with HTTP
+Basic (`client_id:client_secret`) or with body parameters.
+
+```bash
+curl -X POST https://api.totalis.trade/oauth/token \
+  -u "your-client-id:your-client-secret" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code" \
+  -d "code=<authorization-code>" \
+  -d "code_verifier=<your-code-verifier>" \
+  -d "redirect_uri=https://yourapp.com/totalis/callback"
+```
+
+<Accordion title="Authenticating with body parameters instead of HTTP Basic">
+  If your HTTP client can't send Basic auth, pass your credentials as form fields instead of `-u`:
+
+  ```bash
+  curl -X POST https://api.totalis.trade/oauth/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=authorization_code" \
+    -d "client_id=your-client-id" \
+    -d "client_secret=your-client-secret" \
+    -d "code=<authorization-code>" \
+    -d "code_verifier=<your-code-verifier>" \
+    -d "redirect_uri=https://yourapp.com/totalis/callback"
+  ```
+
+  The same applies to `grant_type=refresh_token` and `/oauth/revoke`.
+</Accordion>
+
+A successful response (`200`, `Cache-Control: no-store`):
+
+```json
+{
+  "access_token": "api_live_xxxxxxxxxxxx",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "rt_live_xxxxxxxxxxxx",
+  "scope": "positions:read trading:write",
+  "user_id": "did:privy:abc123"
+}
+```
+
+- `access_token` — present it as `Authorization: Bearer …` (or `X-API-Key`) on API calls.
+- `expires_in` — lifetime in seconds (set per partner; commonly 3600).
+- `refresh_token` — store securely; used to get a new access token (Step 5).
+- `scope` — the **effective** scopes (intersection of requested, your ceiling, and what the user
+  approved). Always read this back rather than assuming you got everything you asked for.
+- `user_id` — the stable Totalis user id this grant belongs to.
+
+<Warning>
+  `scope` is re-clamped to the live partner ceiling and the user's consent at exchange time. If your
+  ceiling changed or the user narrowed scopes, you may receive fewer scopes than requested — handle
+  that gracefully.
+</Warning>
+
+### Token-exchange errors (RFC 6749)
+
+| Status | `error` | Cause |
+| --- | --- | --- |
+| 400 | `invalid_request` | Missing `code`, `code_verifier`, or `redirect_uri`. |
+| 400 | `invalid_grant` | Code invalid / expired / already used, PKCE mismatch, or grant revoked. |
+| 401 | `invalid_client` | Bad `client_id` / `client_secret`. |
+| 500 | `server_error` | Token minting failed — safe to retry. |
+
+## Step 4 — Call the API
+
+```bash
+curl https://api.totalis.trade/positions \
+  -H "Authorization: Bearer api_live_xxxxxxxxxxxx"
+```
+
+Every call is scoped to the token's user and permissions. A call needing a scope the token lacks is
+rejected with `403`.
+
+## Step 5 — Refresh the token
+
+Before (or when) an access token expires, exchange the refresh token for a new pair:
+
+```bash
+curl -X POST https://api.totalis.trade/oauth/token \
+  -u "your-client-id:your-client-secret" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=rt_live_xxxxxxxxxxxx"
+```
+
+The response shape is identical to Step 3.
+
+<Warning>
+  **Refresh tokens rotate on every use** (RFC 9700). Each refresh returns a **new** `refresh_token`
+  and invalidates the old one — always persist the new one and discard the previous. If a refresh
+  token is ever used twice (reuse = likely theft), Totalis revokes the **entire grant**, invalidating
+  all tokens. The user then has to re-authorize.
+</Warning>
+
+## Step 6 — Revoke (optional)
+
+To proactively end a grant — for example when a user disconnects in your product — revoke any of its
+tokens. This revokes the **whole grant** (all access + refresh tokens) per RFC 7009:
+
+```bash
+curl -X POST https://api.totalis.trade/oauth/revoke \
+  -u "your-client-id:your-client-secret" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=api_live_xxxxxxxxxxxx"
+```
+
+Always returns `200` (it never discloses whether a token was valid). A user can also revoke your
+access from their Totalis account at any time, which has the same effect.
+
+## Security notes
+
+- **Always do the token exchange server-side.** The `client_secret` must never reach the browser.
+- **Verify `state`** on the callback to prevent CSRF.
+- **PKCE is required** (`S256`), which protects the code even for confidential clients.
+- Authorization codes are single-use and expire in ~60 seconds; exchange promptly.
