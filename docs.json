@@ -78,7 +78,7 @@
             ]
           },
           {
-            "group": "Account (/v1)",
+            "group": "Account",
             "pages": [
               "api-reference/user/get-profile",
               "api-reference/user/update-username",
