@@ -302,7 +302,7 @@
         }
       }
     },
-    "/user/me": {
+    "/v1/me": {
       "get": {
         "operationId": "getOrCreateUser",
         "summary": "Get Profile",
@@ -353,7 +353,7 @@
         }
       }
     },
-    "/user/username": {
+    "/v1/username": {
       "put": {
         "operationId": "updateUsername",
         "summary": "Update Username",
@@ -427,7 +427,7 @@
         }
       }
     },
-    "/user/username/check": {
+    "/v1/username/check": {
       "get": {
         "operationId": "checkUsername",
         "summary": "Check Username",
@@ -481,7 +481,7 @@
         }
       }
     },
-    "/user/api-keys": {
+    "/v1/api-keys": {
       "post": {
         "operationId": "createApiKey",
         "summary": "Create API Key",
@@ -579,7 +579,7 @@
         }
       }
     },
-    "/user/api-keys/{prefix}": {
+    "/v1/api-keys/{prefix}": {
       "delete": {
         "operationId": "revokeApiKey",
         "summary": "Revoke API Key",
@@ -619,7 +619,7 @@
         }
       }
     },
-    "/user/wallet": {
+    "/v1/wallet": {
       "get": {
         "operationId": "getWallet",
         "summary": "Get Wallet",
@@ -660,7 +660,7 @@
         }
       }
     },
-    "/user/wallet/blockhash": {
+    "/v1/wallet/blockhash": {
       "get": {
         "operationId": "getBlockhash",
         "summary": "Get Blockhash",
@@ -710,7 +710,7 @@
         }
       }
     },
-    "/user/wallet/submit-tx": {
+    "/v1/wallet/submit-tx": {
       "post": {
         "operationId": "submitTransaction",
         "summary": "Submit Transaction",
@@ -1844,7 +1844,7 @@
           },
           "username": {
             "type": "string",
-            "description": "Display name. Auto-set to the wallet address on first login; can be updated via `PUT /user/username` to a 3-20 char alphanumeric."
+            "description": "Display name. Auto-set to the wallet address on first login; can be updated via `PUT /v1/username` to a 3-20 char alphanumeric."
           },
           "email": {
             "type": "string",
@@ -1883,7 +1883,7 @@
       },
       "AirdropOutcome": {
         "type": "object",
-        "description": "Welcome airdrop outcome. `success: true` with `pending: true` means the amount was staged and will mint on the user's next `POST /user/wallet/enable-trading` call. `success: false` means staging failed.",
+        "description": "Welcome airdrop outcome. `success: true` with `pending: true` means the amount was staged and will mint on the user's next `POST /v1/wallet/enable-trading` call. `success: false` means staging failed.",
         "required": [
           "success",
           "amount",
@@ -1922,7 +1922,7 @@
           },
           "locked_amount": {
             "type": "number",
-            "description": "Every USDC the caller has committed across roles: in-flight RFQs, bettor-side vault position stakes, and maker-side `locked_collateral`. Because `vault_balance` is gross, vault locked collateral is intentionally represented in both `vault_balance` and `locked_amount`; compute available cash as `usdc_balance + vault_balance - locked_amount` and do not add `/user/vault.locked_collateral` again."
+            "description": "Every USDC the caller has committed across roles: in-flight RFQs, bettor-side vault position stakes, and maker-side `locked_collateral`. Because `vault_balance` is gross, vault locked collateral is intentionally represented in both `vault_balance` and `locked_amount`; compute available cash as `usdc_balance + vault_balance - locked_amount` and do not add `/v1/vault.locked_collateral` again."
           },
           "has_traded": {
             "type": "boolean",
