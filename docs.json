@@ -95,6 +95,16 @@
               "api-reference/user/create-api-key",
               "api-reference/user/revoke-api-key"
             ]
+          },
+          {
+            "group": "Funds & Vault",
+            "pages": [
+              "api-reference/funds/get-vault",
+              "api-reference/funds/wallet-withdraw",
+              "api-reference/funds/delegation-status",
+              "api-reference/funds/enable-trading",
+              "api-reference/funds/portfolio"
+            ]
           }
         ]
       }
