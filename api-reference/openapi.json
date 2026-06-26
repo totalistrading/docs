@@ -825,6 +825,131 @@
         }
       }
     },
+    "/v1/portfolio": {
+      "get": {
+        "operationId": "getUserPortfolio",
+        "tags": [
+          "User"
+        ],
+        "summary": "Consolidated portfolio (balance, stats, counts, summary)",
+        "description": "Returns the user's full portfolio in a single batched query: vault balance,\ntrading stats, RFQ status counts, and active-bet summary. Balance is null\nwhen the user has no vault (never traded).\n",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PortfolioData"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet/delegation-status": {
+      "get": {
+        "operationId": "getDelegationStatus",
+        "tags": [
+          "User"
+        ],
+        "summary": "Check TEE wallet delegation status",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DelegationStatus"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet/enable-trading": {
+      "post": {
+        "operationId": "enableTrading",
+        "tags": [
+          "User"
+        ],
+        "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
+        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state \u2014 it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DelegationStatus"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "airdrop": {
+                              "allOf": [
+                                {
+                                  "$ref": "#/components/schemas/AirdropDrainOutcome"
+                                }
+                              ],
+                              "nullable": true,
+                              "description": "Outcome of the pending-airdrop drain.\n`null` when nothing was staged for this\nuser (most common \u2014 pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape.\n"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/wallet/withdraw": {
       "post": {
         "operationId": "withdrawFromWallet",
@@ -990,131 +1115,6 @@
                           }
                         }
                       }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/wallet/delegation-status": {
-      "get": {
-        "operationId": "getDelegationStatus",
-        "tags": [
-          "User"
-        ],
-        "summary": "Check TEE wallet delegation status",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/DelegationStatus"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/wallet/enable-trading": {
-      "post": {
-        "operationId": "enableTrading",
-        "tags": [
-          "User"
-        ],
-        "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
-        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state \u2014 it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "allOf": [
-                        {
-                          "$ref": "#/components/schemas/DelegationStatus"
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "airdrop": {
-                              "allOf": [
-                                {
-                                  "$ref": "#/components/schemas/AirdropDrainOutcome"
-                                }
-                              ],
-                              "nullable": true,
-                              "description": "Outcome of the pending-airdrop drain.\n`null` when nothing was staged for this\nuser (most common \u2014 pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape.\n"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/v1/portfolio": {
-      "get": {
-        "operationId": "getUserPortfolio",
-        "tags": [
-          "User"
-        ],
-        "summary": "Consolidated portfolio (balance, stats, counts, summary)",
-        "description": "Returns the user's full portfolio in a single batched query: vault balance,\ntrading stats, RFQ status counts, and active-bet summary. Balance is null\nwhen the user has no vault (never traded).\n",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/PortfolioData"
                     }
                   }
                 }
@@ -1344,6 +1344,58 @@
           "polymarket"
         ],
         "description": "Source venue for a market."
+      },
+      "Side": {
+        "type": "string",
+        "enum": [
+          "yes",
+          "no"
+        ],
+        "description": "Bet side."
+      },
+      "WinnerSide": {
+        "type": "string",
+        "enum": [
+          "user",
+          "mm"
+        ],
+        "description": "Winner of a settled parlay position."
+      },
+      "LegOutcome": {
+        "type": "string",
+        "enum": [
+          "win",
+          "loss",
+          "push",
+          "pending"
+        ]
+      },
+      "RfqStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "quoted",
+          "accepted",
+          "confirmed",
+          "executed",
+          "cancelled",
+          "expired",
+          "settled"
+        ],
+        "description": "Lifecycle status of an RFQ."
+      },
+      "QuoteStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "confirmed",
+          "executed",
+          "rejected",
+          "expired",
+          "withdrawn"
+        ],
+        "description": "Lifecycle status of a quote."
       },
       "PositionStatus": {
         "type": "string",
@@ -1581,6 +1633,547 @@
           }
         }
       },
+      "Leg": {
+        "type": "object",
+        "required": [
+          "market_ticker",
+          "event_ticker",
+          "side",
+          "venue",
+          "market_title"
+        ],
+        "properties": {
+          "market_ticker": {
+            "type": "string",
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned \u2014 resolve them client-side via Polymarket's CLOB if needed."
+          },
+          "event_ticker": {
+            "type": "string",
+            "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/Venue"
+          },
+          "market_title": {
+            "type": "string"
+          },
+          "event_title": {
+            "type": "string"
+          },
+          "yes_sub_title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Snapshot of the market's yes-side subtitle at RFQ creation."
+          },
+          "no_sub_title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Snapshot of the market's no-side subtitle at RFQ creation."
+          },
+          "venue_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Canonical URL of the leg's market on its venue."
+          },
+          "image_url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Image URL for the leg's market."
+          },
+          "expected_expiration_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Expected market resolution time for the leg."
+          },
+          "current_yes_price": {
+            "type": "number",
+            "description": "Yes ask price at RFQ creation, decimal (0-1)."
+          },
+          "current_no_price": {
+            "type": "number",
+            "description": "No ask price at RFQ creation, decimal (0-1)."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LegOutcome"
+          }
+        }
+      },
+      "Rfq": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "legs",
+          "bet_amount",
+          "user_stake",
+          "implied_probability",
+          "created_at",
+          "updated_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Privy DID of the bettor."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RfqStatus"
+          },
+          "bet_amount": {
+            "type": "number",
+            "description": "USDC. Capped at 100 USDC per RFQ."
+          },
+          "user_stake": {
+            "type": "number",
+            "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
+          },
+          "implied_probability": {
+            "type": "number",
+            "description": "Combined implied probability of all legs (0-1)."
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Leg"
+            }
+          },
+          "quotes": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Quote"
+            },
+            "description": "`null` when not requested (listRfqs without `?include=quotes`). `[]` means requested but no quotes yet."
+          },
+          "accepted_quote_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Set once status >= accepted."
+          },
+          "market_maker_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set once status >= accepted."
+          },
+          "position_pda": {
+            "type": "string",
+            "nullable": true,
+            "description": "On-chain position address. Set once status >= confirmed."
+          },
+          "position_status": {
+            "nullable": true,
+            "description": "Position status from the vault positions table.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PositionStatus"
+              }
+            ]
+          },
+          "position_error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Last error recorded on the vault position; populated when `position_status === 'error'`."
+          },
+          "cancellation_reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_failed": {
+            "type": "boolean",
+            "description": "True when the vault position errored on-chain. Derived from `position_status === 'error'`. Omitted on non-failed parlays."
+          },
+          "fee_amount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Set on settled RFQs only."
+          },
+          "settlement": {
+            "nullable": true,
+            "description": "Set on settled RFQs only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Settlement"
+              }
+            ]
+          },
+          "settled_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MmRfqLeg": {
+        "type": "object",
+        "description": "Subset of a leg surfaced to market makers \u2014 drops display-only fields, keeps the price snapshot needed for quoting.",
+        "required": [
+          "leg_index",
+          "market_ticker",
+          "event_ticker",
+          "side",
+          "venue",
+          "market_title",
+          "current_yes_price",
+          "current_no_price"
+        ],
+        "properties": {
+          "leg_index": {
+            "type": "integer",
+            "description": "Zero-based leg position within the RFQ."
+          },
+          "market_ticker": {
+            "type": "string",
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned \u2014 resolve them client-side via Polymarket's CLOB if needed."
+          },
+          "event_ticker": {
+            "type": "string",
+            "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/Venue"
+          },
+          "market_title": {
+            "type": "string"
+          },
+          "current_yes_price": {
+            "type": "number",
+            "description": "Yes price at RFQ creation, decimal (0-1)."
+          },
+          "current_no_price": {
+            "type": "number",
+            "description": "No price at RFQ creation, decimal (0-1)."
+          }
+        }
+      },
+      "MmRfq": {
+        "type": "object",
+        "description": "Open RFQ visible to market makers.",
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "bet_amount",
+          "user_stake",
+          "implied_probability",
+          "expires_at",
+          "created_at",
+          "legs"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Privy DID of the bettor (intentionally surfaced to MMs)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open"
+            ],
+            "description": "MMs only see RFQs available for quoting."
+          },
+          "bet_amount": {
+            "type": "number",
+            "description": "The user's gross wager (USDC)."
+          },
+          "user_stake": {
+            "type": "number",
+            "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
+          },
+          "implied_probability": {
+            "type": "number",
+            "description": "Decimal probability (0-1)."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "legs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MmRfqLeg"
+            }
+          }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payout_odds": {
+            "type": "number",
+            "minimum": 1.0001,
+            "maximum": 1000,
+            "description": "Multiplier on the net stake (`user_stake`) that produces the total payout if the parlay wins. When the taker fee is off, `user_stake == bet_amount`."
+          },
+          "user_cost": {
+            "type": "number",
+            "description": "Net stake the MM quotes on = bet_amount - taker_fee (== bet_amount when the taker fee is off)."
+          },
+          "mm_cost": {
+            "type": "number",
+            "description": "Market maker's max risk = `total_payout - user_cost`."
+          },
+          "total_payout": {
+            "type": "number",
+            "description": "Total payout on a win = `user_cost + mm_cost`."
+          },
+          "leg_prices": {
+            "type": "array",
+            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is a decimal (0-1).",
+            "items": {
+              "type": "object",
+              "required": [
+                "leg_id",
+                "leg_odds"
+              ],
+              "properties": {
+                "leg_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "leg_odds": {
+                  "type": "number",
+                  "description": "Implied per-leg price, decimal (0-1)."
+                }
+              }
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/QuoteStatus"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QuoteMmView": {
+        "description": "Quote with MM-only fields surfaced on MM endpoints.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Quote"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "market_maker_id": {
+                "type": "string"
+              },
+              "mm_wallet_address": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "CreateRfqRequest": {
+        "type": "object",
+        "required": [
+          "legs",
+          "bet_amount"
+        ],
+        "properties": {
+          "legs": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "description": "Parlay legs (2-5 required). Each leg references a market by ticker on a specific venue.",
+            "items": {
+              "type": "object",
+              "required": [
+                "market_ticker",
+                "side",
+                "venue"
+              ],
+              "properties": {
+                "market_ticker": {
+                  "type": "string",
+                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) \u2014 there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
+                },
+                "side": {
+                  "$ref": "#/components/schemas/Side"
+                },
+                "venue": {
+                  "$ref": "#/components/schemas/Venue"
+                }
+              }
+            }
+          },
+          "bet_amount": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "USDC. Max 100. Must be a positive finite number."
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 86400,
+            "default": 300,
+            "description": "RFQ lifetime in seconds. Floor 30s, cap 24h. Defaults to 300."
+          }
+        }
+      },
+      "CancelRfqRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Optional cancellation reason. Defaults to \"User cancelled\". Truncated to 500 chars."
+          }
+        }
+      },
+      "SubmitQuoteRequest": {
+        "type": "object",
+        "required": [
+          "rfq_id",
+          "payout_odds"
+        ],
+        "properties": {
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "RFQ to quote."
+          },
+          "payout_odds": {
+            "type": "number",
+            "minimum": 1.0001,
+            "maximum": 1000,
+            "description": "Multiplier (1.0001x \u2013 1000x). Must be a finite number."
+          },
+          "valid_for_seconds": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "default": 60,
+            "description": "Quote validity window. 10s \u2013 10min. Defaults to 60s."
+          },
+          "leg_prices": {
+            "type": "array",
+            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value \u2014 the request field is named `odds`, the response field is named `leg_odds`.",
+            "items": {
+              "type": "object",
+              "required": [
+                "leg_id",
+                "odds"
+              ],
+              "properties": {
+                "leg_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "odds": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Implied per-leg price, decimal (0-1)."
+                }
+              }
+            }
+          }
+        }
+      },
+      "AcceptQuoteResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "example": "accepted"
+              },
+              "quote_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "confirmation_deadline": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** \u2014 RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** \u2014 RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
+              }
+            }
+          }
+        }
+      },
+      "ConfirmQuoteResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "example": "confirmed"
+              },
+              "quote_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "execution_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Identifier for the queued vault-position-creation job."
+              }
+            }
+          }
+        }
+      },
       "User": {
         "type": "object",
         "properties": {
@@ -1735,6 +2328,54 @@
           }
         }
       },
+      "Settlement": {
+        "type": "object",
+        "required": [
+          "id",
+          "rfq_id",
+          "winner",
+          "payout",
+          "user_stake",
+          "mm_risk",
+          "fee_amount",
+          "settle_tx",
+          "settled_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "winner": {
+            "$ref": "#/components/schemas/WinnerSide"
+          },
+          "payout": {
+            "type": "number",
+            "description": "Full pot transferred to the winner \u2014 equals `user_stake + mm_risk` (i.e. `user_stake * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
+          },
+          "user_stake": {
+            "type": "number"
+          },
+          "mm_risk": {
+            "type": "number"
+          },
+          "fee_amount": {
+            "type": "number",
+            "description": "Protocol fee deducted from the winner's payout."
+          },
+          "settle_tx": {
+            "type": "string"
+          },
+          "settled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "AirdropDrainOutcome": {
         "type": "object",
         "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` \u2014 there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint).\n`{ success: true, amount }` \u2014 the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` \u2014 the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.\n",
@@ -1752,16 +2393,31 @@
           }
         }
       },
-      "UserVaultResponse": {
+      "DelegationStatus": {
         "type": "object",
-        "description": "Vault state with active position summaries (GET /v1/vault response).\nReturns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.\n",
         "properties": {
-          "vault_pda": {
-            "type": "string"
+          "ready": {
+            "type": "boolean",
+            "description": "True if a wallet is linked and delegation can proceed"
           },
-          "vault_token_account": {
-            "type": "string"
+          "delegated": {
+            "type": "boolean",
+            "description": "True if TEE wallet delegation is active (server can sign)"
           },
+          "address": {
+            "type": "string",
+            "description": "Solana wallet address (base58). Empty string if no wallet linked."
+          },
+          "wallet_id": {
+            "type": "string",
+            "description": "Privy embedded wallet ID (used for delegation API calls)"
+          }
+        }
+      },
+      "PortfolioBalance": {
+        "type": "object",
+        "description": "Caller's vault balance (DB-cached, no RPC). Null only when the\ncaller has no vault row at all. For dual-role accounts the\nbettor-side vault is preferred and the maker-side row is used\nas a fallback (same rules as `GET /v1/vault`).\n",
+        "properties": {
           "gross_balance": {
             "type": "number"
           },
@@ -1771,43 +2427,11 @@
           "free_balance": {
             "type": "number"
           },
-          "positions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/VaultPositionSummary"
-            }
-          }
-        }
-      },
-      "VaultPositionSummary": {
-        "type": "object",
-        "description": "Lightweight position summary for the vault response.\n\nCaller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral.\nDon't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned \u2014 for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.\n",
-        "properties": {
-          "position_id": {
-            "type": "string",
-            "description": "16-byte position ID (hex encoded)"
+          "vault_pda": {
+            "type": "string"
           },
-          "rfq_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "user_stake": {
-            "type": "number",
-            "description": "Bettor side of the trade. The caller's stake on the\nbettor-side vault response; the counterparty's stake on\nthe maker-side vault response.\n"
-          },
-          "mm_risk": {
-            "type": "number",
-            "description": "Maker side of the trade. The counterparty's collateral on\nthe bettor-side vault response; the caller's own\ncollateral on the maker-side vault response.\n"
-          },
-          "total_payout": {
-            "type": "number"
-          },
-          "status": {
-            "$ref": "#/components/schemas/PositionStatus"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
+          "vault_token_account": {
+            "type": "string"
           }
         }
       },
@@ -1832,27 +2456,6 @@
           },
           "summary": {
             "$ref": "#/components/schemas/PortfolioSummary"
-          }
-        }
-      },
-      "PortfolioBalance": {
-        "type": "object",
-        "description": "Caller's vault balance (DB-cached, no RPC). Null only when the\ncaller has no vault row at all. For dual-role accounts the\nbettor-side vault is preferred and the maker-side row is used\nas a fallback (same rules as `GET /v1/vault`).\n",
-        "properties": {
-          "gross_balance": {
-            "type": "number"
-          },
-          "locked_collateral": {
-            "type": "number"
-          },
-          "free_balance": {
-            "type": "number"
-          },
-          "vault_pda": {
-            "type": "string"
-          },
-          "vault_token_account": {
-            "type": "string"
           }
         }
       },
@@ -1934,24 +2537,62 @@
           }
         }
       },
-      "DelegationStatus": {
+      "UserVaultResponse": {
         "type": "object",
+        "description": "Vault state with active position summaries (GET /v1/vault response).\nReturns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.\n",
         "properties": {
-          "ready": {
-            "type": "boolean",
-            "description": "True if a wallet is linked and delegation can proceed"
+          "vault_pda": {
+            "type": "string"
           },
-          "delegated": {
-            "type": "boolean",
-            "description": "True if TEE wallet delegation is active (server can sign)"
+          "vault_token_account": {
+            "type": "string"
           },
-          "address": {
+          "gross_balance": {
+            "type": "number"
+          },
+          "locked_collateral": {
+            "type": "number"
+          },
+          "free_balance": {
+            "type": "number"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VaultPositionSummary"
+            }
+          }
+        }
+      },
+      "VaultPositionSummary": {
+        "type": "object",
+        "description": "Lightweight position summary for the vault response.\n\nCaller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral.\nDon't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned \u2014 for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.\n",
+        "properties": {
+          "position_id": {
             "type": "string",
-            "description": "Solana wallet address (base58). Empty string if no wallet linked."
+            "description": "16-byte position ID (hex encoded)"
           },
-          "wallet_id": {
+          "rfq_id": {
             "type": "string",
-            "description": "Privy embedded wallet ID (used for delegation API calls)"
+            "format": "uuid"
+          },
+          "user_stake": {
+            "type": "number",
+            "description": "Bettor side of the trade. The caller's stake on the\nbettor-side vault response; the counterparty's stake on\nthe maker-side vault response.\n"
+          },
+          "mm_risk": {
+            "type": "number",
+            "description": "Maker side of the trade. The counterparty's collateral on\nthe bettor-side vault response; the caller's own\ncollateral on the maker-side vault response.\n"
+          },
+          "total_payout": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PositionStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
