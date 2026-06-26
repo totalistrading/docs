@@ -1,0 +1,81 @@
+---
+title: 'Funding Your Wallet'
+description: 'How to get USDC into your Totalis embedded wallet — there is no deposit endpoint; you fund by sending USDC on-chain to your wallet address, and trades auto-fund the vault from there.'
+---
+
+There is **no deposit endpoint**. You fund your account by sending USDC directly to your embedded wallet address on Solana. From there, everything downstream — locking collateral when you place a parlay, and tapping the vault when you withdraw — happens automatically. This guide walks through funding end to end.
+
+<Note>
+  If you came here looking for a `POST .../deposit` call, there isn't one, and you don't need it. Funding is an on-chain transfer; the vault is funded automatically when you trade. See [Why there's no deposit endpoint](#why-theres-no-deposit-endpoint) below.
+</Note>
+
+## Prerequisite: Trading Must Be Enabled
+
+Before your wallet can trade or withdraw, it must be **delegated** — you grant Totalis's key quorum permission to sign transactions on your behalf inside the Privy TEE. See [Vault Architecture → Privy TEE Wallets](/guides/vault-architecture#privy-tee-wallets-with-session-signers) for the full model.
+
+<Warning>
+  Enabling trading is an **interactive, user-side action**. The Privy client SDK (`addSessionSigners()`) must be called from a browser or app where you approve a consent dialog — it **cannot currently be completed through the REST API alone**. `POST /v1/wallet/enable-trading` only *confirms* delegation status; it does not grant it.
+
+  Until the wallet is delegated, placing a parlay and `POST /v1/wallet/withdraw` will be rejected. You can check the current state any time with [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
+</Warning>
+
+## Funding Steps
+
+<Steps>
+  <Step title="Get your wallet address">
+    Call [`GET /v1/wallet`](/api-reference/user/get-wallet) to read your embedded Solana wallet address and current balances.
+
+    ```bash
+    curl -X GET https://api.totalis.trade/v1/wallet \
+      -H "X-API-Key: <your-api-key>"
+    ```
+
+    The response includes your wallet `address` — this is your funding destination.
+  </Step>
+
+  <Step title="Send USDC to that address">
+    Send **native USDC** to your wallet address on **Solana mainnet** from any wallet or exchange that supports SPL token transfers.
+
+    | | |
+    |---|---|
+    | **Network** | Solana mainnet |
+    | **Token** | USDC (SPL) |
+    | **Mint** | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+    | **Decimals** | 6 |
+
+    <Warning>
+      Send only **native Solana USDC** at the mint above. Bridged USDC variants, other tokens, or transfers on other chains will not be credited and may be unrecoverable.
+    </Warning>
+
+    You do **not** need SOL in your wallet. Transaction fees for trading and withdrawals are gas-sponsored — your wallet only ever needs to hold USDC.
+  </Step>
+
+  <Step title="Confirm the balance landed">
+    Poll [`GET /v1/wallet`](/api-reference/user/get-wallet) until your USDC balance reflects the transfer. Once it does, you're funded and ready to request quotes and place parlays.
+  </Step>
+</Steps>
+
+## Why There's No Deposit Endpoint
+
+Totalis uses persistent on-chain vaults for collateral (see [Vault Architecture](/guides/vault-architecture)). You might expect to "deposit" USDC into your vault before betting — but that step is handled for you:
+
+- **Funding** lands in your wallet's token account (the on-chain transfer above).
+- **Placing a parlay** builds a single atomic `create_position` transaction that pulls your stake from the wallet into the vault and locks it — in one step. You never pre-stage the vault.
+- The balance check at quote-commit time validates against your **combined** wallet + vault free balance, so as long as your total covers the stake, the trade goes through.
+
+In other words: get USDC into the wallet, and the vault takes care of itself.
+
+## Withdrawing
+
+To move funds back out, use [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw) with a recipient address and amount. If the requested amount exceeds your bare wallet balance, the handler automatically taps your vault's free balance (settled winnings, unlocked collateral) to cover the shortfall before sending — so a single withdraw call reaches everything that isn't locked in an active position.
+
+```bash
+curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
+  -H "X-API-Key: <your-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{ "recipient": "<solana-address>", "amount_usdc": 50 }'
+```
+
+<Note>
+  Withdrawals require the wallet to be delegated (trading enabled) — the same [prerequisite](#prerequisite-trading-must-be-enabled) as placing trades.
+</Note>
