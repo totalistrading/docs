@@ -86,6 +86,7 @@ For most operations, the fee payer covers gas. However, `deposit_to_vault` and `
 | `settle_position` | Fee Payer | Settlement Authority |
 | `cancel_position` | Fee Payer | Settlement Authority |
 | `close_position` | Fee Payer | Settlement Authority |
+| `buyback_position` | Fee Payer | Fee Payer + User + MM (via Privy TEE) + Settlement Authority |
 
 ### Privy TEE Wallets with Session Signers
 
@@ -170,6 +171,7 @@ Derived value: `free_balance = gross_balance - locked_collateral`
 | `settle_position` | Transfers funds to winner, deducts fee, unlocks collateral | `settlement_authority` |
 | `cancel_position` | Unlocks collateral in both vaults (no fund transfer) | `settlement_authority` |
 | `close_position` | Closes position PDA, reclaims rent (included in same TX as settle/cancel) | `settlement_authority` |
+| `buyback_position` | Early cashout: MM unwinds an `Active` position for `amount`, releasing the user's collateral, realizing the taker fee, and carving the profit fee (`amount × fee_bps / 10_000`) from the receiving side. Recomputes MM collateral (release-only) and closes + tombstones the position in-place — no separate `close_position` | `fee_payer` + `user` + `mm` + `settlement_authority` |
 
 ## State Machines
 
@@ -189,6 +191,7 @@ Vaults don't have explicit status fields — their state is derived from balance
 create_position()   → Active
 settle_position()   → SettledWin | SettledLoss
 cancel_position()   → Cancelled
+buyback_position()  → (closed + tombstoned, from Active)
 ```
 
 | Status | Description |
@@ -197,6 +200,8 @@ cancel_position()   → Cancelled
 | `SettledWin` | User won, funds transferred to user vault |
 | `SettledLoss` | MM won, funds transferred to MM vault |
 | `Cancelled` | Position voided (invalid leg), collateral unlocked |
+
+Early cashout (`buyback_position`) closes an `Active` position in-place — there is no distinct on-chain status variant for it; the position account is tombstoned and the RFQ is recorded as `bought_back` off-chain. See [RFQ Lifecycle → Early Cashout](/guides/lifecycle#early-cashout).
 
 Only terminal positions (`SettledWin`, `SettledLoss`, `Cancelled`) can be closed.
 

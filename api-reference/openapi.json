@@ -1380,9 +1380,10 @@
           "executed",
           "cancelled",
           "expired",
-          "settled"
+          "settled",
+          "bought_back"
         ],
-        "description": "Lifecycle status of an RFQ."
+        "description": "Lifecycle status of an RFQ. `bought_back` is the terminal status for a position closed early via the buyback (early-cashout) flow, distinct from `settled`."
       },
       "QuoteStatus": {
         "type": "string",
@@ -1399,7 +1400,7 @@
       },
       "PositionStatus": {
         "type": "string",
-        "description": "Vault position lifecycle. `pending`/`processing` are intermediate states before on-chain creation; `settling`/`cancelling` are intermediate states for settlement/cancellation; `settled_win`/`settled_loss`/`cancelled` are terminal; the `*_mm_release` and `expired` states cover the permissionless-expiry path; `error` means retries are exhausted and manual intervention is required.",
+        "description": "Vault position lifecycle. `pending`/`processing` are intermediate states before on-chain creation; `settling`/`cancelling` are intermediate states for settlement/cancellation; `settled_win`/`settled_loss`/`cancelled` are terminal; the `*_mm_release` and `expired` states cover the permissionless-expiry path; the buyback path is `active → bought_back_pending_db → bought_back` (with `reconciling_bought_back_db` as the short-lived reconciler sentinel); `error` means retries are exhausted and manual intervention is required.",
         "enum": [
           "pending",
           "processing",
@@ -1412,6 +1413,9 @@
           "reconciling_mm_release",
           "expired_pending_mm_release",
           "expired",
+          "reconciling_bought_back_db",
+          "bought_back_pending_db",
+          "bought_back",
           "error"
         ]
       },
@@ -1811,6 +1815,20 @@
             "format": "date-time",
             "nullable": true
           },
+          "cashout": {
+            "nullable": true,
+            "description": "Set on bought_back (early-cashout) RFQs only — realized buyback P&L.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Cashout"
+              }
+            ]
+          },
+          "buyback_tx": {
+            "type": "string",
+            "nullable": true,
+            "description": "Buyback (early-cashout) transaction signature, surfaced at the RFQ root by the serializer. Set on bought_back RFQs — the on-chain proof of the cashout, the buyback analogue of settle_tx."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -1822,6 +1840,35 @@
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "Cashout": {
+        "type": "object",
+        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the buyback analogue of Settlement. realized_pnl is the user's net P&L (stake nets out; the directional `amount` is the realized delta, less the profit fee on the profiting side and the create-time taker fee).",
+        "required": [
+          "realized_pnl",
+          "amount",
+          "mm_pays_user"
+        ],
+        "properties": {
+          "realized_pnl": {
+            "type": "number",
+            "description": "User's realized P&L from the early cashout (USDC, signed)."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Directional buyback transfer (USDC, >= 0)."
+          },
+          "mm_pays_user": {
+            "type": "boolean",
+            "description": "True when the MM paid the user (user was up on the position)."
+          },
+          "cashed_out_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Time the position was bought back / cashed out (the buyback fee insert = finalize moment). The buyback analogue of settled_at. Absent on legacy rows without a fee."
           }
         }
       },

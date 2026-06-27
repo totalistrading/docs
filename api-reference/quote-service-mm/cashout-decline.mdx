@@ -1,0 +1,64 @@
+---
+title: "Decline Cashout"
+api: "POST /v1/mm/cashout-requests/{id}/decline"
+description: "Permanently refuse to quote an early-cashout (buyback) request."
+---
+
+Permanently refuse to quote a cashout request when the position can't be priced and won't become priceable on retry — a leg is already decided, unrecognized, or its live odds sit outside the band. The user's [stream](/api-reference/quote-service/cashout-stream) surfaces a terminal `status: declined` immediately instead of waiting out the ~90 s TTL.
+
+Use this only for a **permanent** decline. For a **transient** refuse (a leg has no trustworthy live price right now), submit nothing and stay silent — the request rides its TTL so a later quote can still land. See [Pricing Early-Cashout Buybacks → When to Refuse](/guides/market-maker#when-to-refuse).
+
+This endpoint is single-MM scoped and idempotent: declining an already-terminal request is a no-op (`noop: true`).
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## Request Body
+
+No body.
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="status" type="string">`"declined"` (or the request's existing terminal status on a no-op).</ResponseField>
+    <ResponseField name="noop" type="boolean">`true` when the request was already terminal and nothing changed.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | You are not the counterparty MM for this position. |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+
+<RequestExample>
+```bash
+curl -X POST https://api.totalis.trade/v1/mm/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/decline \
+  -H "X-API-Key: $API_KEY"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "data": {
+    "status": "declined",
+    "noop": false
+  }
+}
+```
+</ResponseExample>

@@ -57,7 +57,10 @@
               "api-reference/quote-service/get",
               "api-reference/quote-service/commit",
               "api-reference/quote-service/cancel",
-              "api-reference/quote-service/stream"
+              "api-reference/quote-service/stream",
+              "api-reference/quote-service/cashout-create",
+              "api-reference/quote-service/cashout-stream",
+              "api-reference/quote-service/cashout-commit"
             ]
           },
           {
@@ -67,6 +70,8 @@
               "api-reference/quote-service-mm/submit-quote",
               "api-reference/quote-service-mm/withdraw-quote",
               "api-reference/quote-service-mm/heartbeat",
+              "api-reference/quote-service-mm/cashout-quote",
+              "api-reference/quote-service-mm/cashout-decline",
               "api-reference/mm/confirm-quote"
             ]
           },

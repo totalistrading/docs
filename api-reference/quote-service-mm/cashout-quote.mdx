@@ -1,0 +1,105 @@
+---
+title: "Submit Buyback Quote"
+api: "PUT /v1/mm/cashout-requests/{id}/quote"
+description: "Price an early-cashout (buyback) request as the position's counterparty market maker."
+---
+
+Submit or replace a **buyback quote** for a cashout request on a position you make the market for. You receive cashout requests on the same [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to, as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event (carrying `cashout_request_id` + `position_id`) — scoped to you, never broadcast. Quote the directional `amount` on top of the user's stake (which is always refunded); the server computes the unit-boundary economics and surfaces the net to the user on their stream.
+
+A cashout request is offered to a **single** market maker — the position's existing maker. You can only quote requests targeted at you; otherwise the request returns `403`. Re-submitting replaces your live quote atomically.
+
+For pricing rules and the refuse gates, see [How to Become a Market Maker → Pricing Early-Cashout Buybacks](/guides/market-maker#pricing-early-cashout-buybacks).
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## Request Body
+
+<ParamField body="buyback_price" type="number" required>
+  Your directional buyback `amount` in USDC (≥ 0), gross of the profit fee. This is the net on top of the refunded stake — what the MM pays the user (when `mm_pays_user` is `true`) or the user pays the MM.
+</ParamField>
+
+<ParamField body="mm_pays_user" type="boolean" required>
+  `true` when you pay the user (position is in the user's favor); `false` when the user pays you.
+</ParamField>
+
+<ParamField body="expires_in_ms" type="integer">
+  How long this quote is valid, in milliseconds. Range: 5000-60000. Default: 15000.
+</ParamField>
+
+## Response
+
+Returns `201 Created` for a new quote or `200 OK` when replacing an existing quote.
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="quote" type="object">
+      The submitted buyback quote.
+      <Expandable title="quote">
+        <ResponseField name="id" type="string">Quote UUID.</ResponseField>
+        <ResponseField name="cashout_request_id" type="string">The cashout request this quote is for.</ResponseField>
+        <ResponseField name="market_maker_id" type="string">Your market maker ID (the request's target MM).</ResponseField>
+        <ResponseField name="buyback_price" type="number">The directional amount you quoted (USDC).</ResponseField>
+        <ResponseField name="mm_pays_user" type="boolean">Quote direction.</ResponseField>
+        <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
+        <ResponseField name="status" type="string">`"active"`</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="book_seq" type="integer">The cashout request's new book sequence number.</ResponseField>
+    <ResponseField name="replaced" type="boolean">`true` if this replaced a previous quote.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Invalid body (negative price, out-of-range `expires_in_ms`, or failed buyback economics). See `details`. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | You are not the counterparty MM for this position (`details.reason: not_target_mm`). |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+| 409 | `CONFLICT` | Request is no longer active, expired, or the position is too close to expiry. See `details.reason`. |
+
+<RequestExample>
+```bash
+curl -X PUT https://api.totalis.trade/v1/mm/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/quote \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "buyback_price": 41.5,
+    "mm_pays_user": true,
+    "expires_in_ms": 15000
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json 201
+{
+  "data": {
+    "quote": {
+      "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
+      "cashout_request_id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
+      "market_maker_id": "mm-uuid-1234",
+      "buyback_price": 41.5,
+      "mm_pays_user": true,
+      "valid_until": "2026-06-01T18:45:45.000Z",
+      "status": "active"
+    },
+    "book_seq": 3,
+    "replaced": false
+  }
+}
+```
+</ResponseExample>

@@ -129,6 +129,36 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 }
 ```
 
+### `cashout_request`
+
+Sent when a user opens an [early-cashout (buyback) request](/api-reference/quote-service/cashout-create) on a position **you** make the market for — and once for each active cashout replayed during the initial snapshot. These arrive on this same stream but are **scoped to you alone** (single-MM, never broadcast). Price them with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) or refuse with [`POST /v1/mm/cashout-requests/{id}/decline`](/api-reference/quote-service-mm/cashout-decline).
+
+<Warning>
+This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a buyback request apart from a forward quote request.
+</Warning>
+
+```json
+{
+  "cashout_request_id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
+  "position_id": "9f86d08818844f86d08818844f86d088",
+  "legs": [
+    {
+      "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+      "event_ticker": "KXBTC-26JUN01",
+      "market_ticker": "KXBTC-26JUN01-T72500",
+      "side": "yes",
+      "venue": "kalshi",
+      "resolution": "unresolved"
+    }
+  ],
+  "user_stake": 24.75,
+  "mm_risk": 75,
+  "total_payout": 100,
+  "payout_odds": 4.0,
+  "expires_at": "2026-06-01T18:46:00.000Z"
+}
+```
+
 ## Reconnection
 
 Every SSE event includes an `id:` field. Persist this value. On reconnect, pass it as the `last_event_id` query parameter to replay any events you missed instead of receiving the full snapshot again.
@@ -192,6 +222,14 @@ es.addEventListener('quote_request_expired', (e) => {
     : reason;
   console.log('Request closed:', id, outcome);
 });
+
+es.addEventListener('cashout_request', (e) => {
+  const cr = JSON.parse(e.data);
+  // Distinct from quote_request: the key is cr.cashout_request_id (NOT cr.id).
+  // Single-MM scoped — it's yours to price. Re-value the position and respond on
+  // the cashout endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
+  console.log('Buyback request:', cr.cashout_request_id, 'position', cr.position_id);
+});
 ```
 
 ```python Python
@@ -227,6 +265,11 @@ with requests.get(url, headers=headers, stream=True) as resp:
                 else:
                     outcome = reason
                 print(f"Request closed: {payload['id']} — {outcome}")
+            elif event_type == 'cashout_request':
+                # Distinct from quote_request: the key is cashout_request_id (NOT id).
+                # Single-MM scoped — re-value the position and respond on the cashout
+                # endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
+                print(f"Buyback request: {payload['cashout_request_id']} position {payload['position_id']}")
             event_type = None
 ```
 </RequestExample>
