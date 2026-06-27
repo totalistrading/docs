@@ -37,6 +37,37 @@ For most market makers, the integration surface should stay small:
 
 Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 
+## Pricing Early-Cashout Buybacks
+
+A user can close an active position before settlement by accepting a **buyback** price from you, its counterparty MM. You receive cashout requests on the same SSE stream you already subscribe to (`GET /v1/mm/quote-requests/stream`) — scoped to you, never broadcast — and respond with one of:
+
+| Action | Endpoint |
+| --- | --- |
+| Submit / update a buyback quote | `PUT /v1/mm/cashout-requests/{id}/quote` |
+| Decline (permanent refuse) | `POST /v1/mm/cashout-requests/{id}/decline` |
+
+### Fair Value
+
+Re-value the position at live odds: `fair_value = fair_win_prob × total_payout`, where `fair_win_prob` is the parlay's current joint win probability. Convert that to a directional quote by shrinking it with a conservative **exit edge** that is MM-favorable in both directions — you pay less when the user is up, the user pays more when they're down. A **partial-settle** buyback (some legs already resolved and pinned at certainty) uses a wider edge. The user's stake is always refunded separately; your quote is the directional net `amount` on top of it, gross of the profit fee.
+
+### When to Refuse
+
+Pricing runs a fixed sequence of gates, first match wins, with two kinds of outcome:
+
+- **Permanent decline** — the position can't be priced and won't become priceable on retry. Call the decline endpoint; the user sees an instant `declined`.
+- **Transient refuse** — a leg has no trustworthy live price right now (a wide book or a feed blip). Submit nothing and stay silent; the request rides its ~90 s TTL so a later quote can still land.
+
+| Gate | Condition | Outcome |
+| --- | --- | --- |
+| Unrecognized resolution | a leg's resolution isn't a known value | permanent decline |
+| Worthless | any leg resolved lost or void | permanent decline |
+| Already decided | all legs resolved won (settlement pays full value shortly) | permanent decline |
+| Malformed | a leg is missing its ticker or side | permanent decline |
+| No live price | a leg has no trustworthy live book (spread too wide / stale) | transient — stay silent |
+| Near-decided | a leg's live price is outside the `[0.05, 0.95]` odds band, so re-pricing is unreliable | permanent decline |
+
+The no-live-price gate refuses a leg whose two-sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale; a leg already resolved and pinned at certainty is exempt from the odds-band check.
+
 ## Get Set Up
 
 <CardGroup cols={2}>

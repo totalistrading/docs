@@ -9,17 +9,21 @@ An RFQ (Request for Quote) goes through several stages from creation to on-chain
 
 ```
 open → quoted → accepted → confirmed → executed → settled
-  ↓       ↓        │
+  ↓       ↓        │                       │
+  │       │        │                       └─ user cashes out early → bought_back
   │       │        ├─ MM misses deadline, RFQ still within expires_at → open  (quote → withdrawn)
   │       │        └─ MM misses deadline, RFQ past expires_at        → expired (quote → expired)
 expired  cancelled
 ```
+
+Once a position is on-chain (`executed`), the user can close it early instead of waiting for settlement. A completed early cashout is the terminal `bought_back` status — see [Early Cashout](#early-cashout) below.
 
 A few status nuances worth knowing:
 
 - **`rejected` (quotes)** never comes from a missed confirmation. It's set on sibling pending quotes when the user accepts a different one on the same RFQ, and on the target quote of `POST /rfqs/{id}/quotes/{quoteId}/reject`.
 - **`withdrawn` (quotes)** covers MM-initiated cancellation of a pending quote, and is also what the system writes back onto the previously-accepted quote when the MM misses confirmation and the RFQ reopens.
 - **`expired` (quotes)** is used for pending quotes whose own `valid_until` lapses, and for the accepted quote when the RFQ itself expires.
+- **`bought_back` (RFQ)** is the terminal status for a position closed early via [Early Cashout](#early-cashout), distinct from `settled`. It is a separate flow with its own **cashout-request** lifecycle (`active → committing → committed`, or `declined` / `expired` / `cancelled`).
 
 ## Step-by-Step Flow
 
@@ -126,6 +130,59 @@ A few status nuances worth knowing:
     - **Any leg loses** — User's stake (minus fee) is transferred from the user vault to the MM vault (`settled_loss`).
 
     **Status: `settled`**
+  </Step>
+</Steps>
+
+## Early Cashout
+
+Instead of waiting for settlement, the user can close an `executed` (on-chain, active) position early by accepting a **buyback** price from the position's market maker. The user's stake is always refunded; the buyback `amount` is the directional net on top of it — the MM pays the user when the position is in profit, the user pays the MM when it's underwater — gross of a profit fee carved on-chain.
+
+This runs as a separate **cashout request** with its own lifecycle, distinct from the RFQ status:
+
+```
+active → committing → committed     (success → RFQ becomes bought_back)
+  │
+  ├─ MM refuses to quote (near-decided / unpriceable leg) → declined
+  ├─ TTL (~90 s) elapses with no commit                    → expired
+  └─ cancelled
+```
+
+<Steps>
+  <Step title="User Requests a Cashout">
+    The frontend creates a cashout request for the position's on-chain `position_id` (the hex id the early-cashout endpoints key on) and opens an SSE stream for the live buyback quote.
+
+    ```bash
+    POST /v1/cashout-requests
+    { "position_id": "<hex-position-id>" }
+
+    GET  /v1/cashout-requests/<id>/stream   # SSE: best_quote + status frames
+    ```
+
+    **Cashout request status: `active`**
+  </Step>
+
+  <Step title="The MM Prices or Declines the Buyback">
+    The single counterparty MM re-values the position at live odds and either submits a buyback quote or refuses. See [How to Become a Market Maker → Pricing Buybacks](/guides/market-maker#pricing-early-cashout-buybacks).
+
+    - **Quote** — `PUT /v1/mm/cashout-requests/<id>/quote` → a `best_quote` (carrying the net the user receives) appears on the stream.
+    - **Permanent refuse** — a leg is already decided or out-of-band — `POST /v1/mm/cashout-requests/<id>/decline` → the stream emits a terminal `declined`.
+    - **Transient refuse** — no live price for a leg right now — the MM stays silent; the request rides its TTL and `expired`s if no quote arrives.
+  </Step>
+
+  <Step title="User Commits">
+    The user accepts the live quote; the buyback is driven on-chain through the vault buyback lane.
+
+    ```bash
+    POST /v1/cashout-requests/<id>/commit
+    ```
+
+    **Cashout request status: `committing`** while the on-chain buyback is in flight. An indeterminate result is left `committing` for the reconciler rather than reverted, so a retry can never double-spend.
+  </Step>
+
+  <Step title="Buyback Finalize">
+    Once the on-chain `buyback_position` confirms, the finalize step releases the user's stake, records the buyback fee row and `buyback_tx`, and flips the RFQ to `bought_back`. Realized P&L and the cashout time are surfaced on the RFQ's `cashout` object.
+
+    **Cashout request status: `committed` · RFQ status: `bought_back`**
   </Step>
 </Steps>
 
