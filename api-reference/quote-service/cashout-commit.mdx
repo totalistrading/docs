@@ -1,0 +1,85 @@
+---
+title: "Commit Cashout"
+api: "POST /v1/cashout-requests/{id}/commit"
+description: "Accept the live buyback quote and drive the early cashout on-chain."
+---
+
+Accept the market maker's live buyback quote and drive the early cashout on-chain through the vault buyback lane. The quote **is** the price — there is no MM-confirm round-trip; signatures are obtained server-side via Privy at execution. On success the position is bought back, your stake is released, and the RFQ flips to `bought_back`.
+
+This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`.
+
+<Note>
+**Indeterminate commits never double-spend.** If the on-chain buyback's outcome is unknown (timeout or transient RPC failure), the request is left `committing` and a `503` is returned with `details.indeterminate: true`. The reconciler reconciles against on-chain state — do **not** treat a `503` as a failure or assume nothing happened. Re-open the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. A determinate failure (`409`) means nothing landed and you may retry.
+</Note>
+
+## Authentication
+
+Bearer token required. Pass your JWT in the `Authorization` header.
+
+```
+Authorization: Bearer <jwt>
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## Request Body
+
+No body. The committed quote is the live `best_quote` on the request.
+
+## Response
+
+Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached idempotent result.
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="cashout_request_id" type="string">The cashout request UUID.</ResponseField>
+    <ResponseField name="status" type="string">`"committed"`</ResponseField>
+    <ResponseField name="chain_sig" type="string">The on-chain buyback transaction signature.</ResponseField>
+    <ResponseField name="new_locked_micro" type="integer">The position's new locked collateral after the buyback (µUSDC integer).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 403 | `FORBIDDEN` | You do not own this cashout request (`details.reason: not_owner`). |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+| 409 | `CONFLICT` | No live quote (`quote_expired`), request not active, missing wallet info (`missing_wallet`), already locked, or a determinate on-chain failure. See `details.reason`. |
+| 410 | `GONE` | The cashout request expired before commit. |
+| 503 | `SERVICE_UNAVAILABLE` | **Indeterminate** — the buyback may have landed. `details.indeterminate` is `true`; the request stays `committing` for the reconciler. Do not retry blindly. |
+
+<RequestExample>
+```bash
+curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/commit \
+  -H "Authorization: Bearer $TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 201
+{
+  "data": {
+    "cashout_request_id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
+    "status": "committed",
+    "chain_sig": "5Nx7...buybackSig",
+    "new_locked_micro": 0
+  }
+}
+```
+
+```json 503
+{
+  "error": {
+    "code": "SERVICE_UNAVAILABLE",
+    "message": "Cashout is being processed; please check back",
+    "details": { "reason": "lane_timeout", "indeterminate": true }
+  }
+}
+```
+</ResponseExample>

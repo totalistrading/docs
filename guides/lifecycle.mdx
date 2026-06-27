@@ -164,8 +164,8 @@ active → committing → committed     (success → RFQ becomes bought_back)
   <Step title="The MM Prices or Declines the Buyback">
     The single counterparty MM re-values the position at live odds and either submits a buyback quote or refuses. See [How to Become a Market Maker → Pricing Buybacks](/guides/market-maker#pricing-early-cashout-buybacks).
 
-    - **Quote** — `PUT /v1/mm/cashout-requests/<id>/quote` → a `best_quote` (carrying the net the user receives) appears on the stream.
-    - **Permanent refuse** — a leg is already decided or out-of-band — `POST /v1/mm/cashout-requests/<id>/decline` → the stream emits a terminal `declined`.
+    - **Quote** — [`PUT /v1/mm/cashout-requests/<id>/quote`](/api-reference/quote-service-mm/cashout-quote) → a `best_quote` (carrying the net the user receives) appears on the stream.
+    - **Permanent refuse** — a leg is already decided or out-of-band — [`POST /v1/mm/cashout-requests/<id>/decline`](/api-reference/quote-service-mm/cashout-decline) → the stream emits a terminal `declined`.
     - **Transient refuse** — no live price for a leg right now — the MM stays silent; the request rides its TTL and `expired`s if no quote arrives.
   </Step>
 

@@ -1,0 +1,117 @@
+---
+title: "Stream Cashout Quote"
+api: "GET /v1/cashout-requests/{id}/stream"
+description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server-Sent Events."
+---
+
+Open a Server-Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote", plus a terminal `status` frame when the request leaves the `active`/`committing` states.
+
+## Authentication
+
+Bearer token required. Pass your JWT in the `Authorization` header.
+
+```
+Authorization: Bearer <jwt>
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## SSE Event Types
+
+### `best_quote`
+
+Sent when the MM's buyback quote changes (submitted, replaced, or expired). The `book_seq` increments monotonically so you can detect missed updates. `best_quote` is `null` when there is no live quote.
+
+```json
+{
+  "book_seq": 3,
+  "version": 1,
+  "best_quote": {
+    "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
+    "market_maker_id": "mm-uuid-1234",
+    "buyback_price": 41.5,
+    "mm_pays_user": true,
+    "valid_until": "2026-06-01T18:45:45.000Z",
+    "net_received": 66.25
+  }
+}
+```
+
+<ResponseField name="buyback_price" type="number">The directional buyback `amount` the MM quoted (USDC, ≥ 0), gross of the profit fee.</ResponseField>
+<ResponseField name="mm_pays_user" type="boolean">`true` when the MM pays the user (position is in profit); `false` when the user pays the MM.</ResponseField>
+<ResponseField name="net_received" type="number">The net cash the user walks away with after the buyback (USDC, ≥ 0) — stake plus/minus the directional amount, net of fees. Present only when computable; omitted otherwise.</ResponseField>
+
+When no quote is live, `best_quote` is `null`:
+
+```json
+{
+  "book_seq": 4,
+  "version": 1,
+  "best_quote": null
+}
+```
+
+### `status`
+
+Sent once the request leaves `active`/`committing`, then the stream closes. The `status` is the terminal cashout-request state.
+
+```json
+{
+  "status": "committed"
+}
+```
+
+| Terminal `status` | Meaning |
+|-------------------|---------|
+| `committed` | Buyback driven on-chain; the RFQ becomes `bought_back`. |
+| `declined` | The MM permanently refused to quote (near-decided / unpriceable leg). |
+| `expired` | The request's ~90 s TTL elapsed with no commit. |
+| `cancelled` | The request was cancelled. |
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 403 | `FORBIDDEN` | You do not own this cashout request. |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+
+<RequestExample>
+```bash curl
+curl -N https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/stream \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: text/event-stream"
+```
+
+```javascript JavaScript
+const eventSource = new EventSource(
+  'https://api.totalis.trade/v1/cashout-requests/c3d4e5f6.../stream',
+  { headers: { 'Authorization': `Bearer ${token}` } }
+);
+
+eventSource.addEventListener('best_quote', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Buyback quote:', data.best_quote);
+});
+
+eventSource.addEventListener('status', (e) => {
+  const { status } = JSON.parse(e.data);
+  console.log('Terminal:', status);
+  eventSource.close();
+});
+```
+</RequestExample>
+
+<ResponseExample>
+```text SSE stream
+event: best_quote
+data: {"book_seq":3,"version":1,"best_quote":{"id":"q1w2e3r4-5678-90ab-cdef-1234567890ab","market_maker_id":"mm-uuid-1234","buyback_price":41.5,"mm_pays_user":true,"valid_until":"2026-06-01T18:45:45.000Z","net_received":66.25}}
+
+event: status
+data: {"status":"committed"}
+```
+</ResponseExample>
