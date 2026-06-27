@@ -1,142 +1,140 @@
 ---
-title: 'Partner Integration — Headless / Non-Custodial (Preview)'
-description: 'Fully headless, non-custodial trading on Totalis: you hold the keys, Totalis builds and settles. No delegation, no enable-trading, no browser. In active development.'
+title: 'Headless Integration'
+description: 'Fully programmatic, non-custodial trading on Totalis. You hold the keys and sign each transaction; Totalis builds and settles. In development.'
 ---
 
 <Warning>
-  **Integration preview — not yet live.** This is the contract for the external-signer model, in active development. Use it to design your side; endpoint shapes are stable but not yet deployed. Contact us for early access + a test environment.
+  This is an integration preview. The endpoints described here are stable in design but not yet deployed. Use this page to plan your integration, and contact us for early access and a test environment.
 </Warning>
 
-Trade on Totalis **fully headlessly** — no browser step, ever, including at onboarding — while **you keep custody of the keys**. Totalis builds transactions; you sign them with your own custody stack; Totalis broadcasts and settles. We never hold a signing key.
+In the headless model you keep custody of the signing keys. Totalis builds each transaction, you sign it with your own infrastructure, and Totalis broadcasts and settles. There is no delegation, no enable-trading step, and no browser interaction at any point.
 
-- **Base URL:** `https://api.totalis.trade`
-- **Auth:** `X-API-Key`. Scopes: `accounts:provision`, `trading:write`, `tx:sign`, `funds:withdraw`, `account:read`.
-- **No `enable-trading`, no delegation, no consent dialog.** You sign; we never do.
+- Base URL: `https://api.totalis.trade`
+- Authentication: an API key in the `X-API-Key` header. Required scopes: `accounts:provision`, `trading:write`, `tx:sign`, `funds:withdraw`, `account:read`.
 
-## Who this is for
+## Who It's For
 
-- **Individuals** — you hold your own Solana keypair.
-- **Platforms with your own users** (you run on Privy / Turnkey / Fireblocks) — you stay custodian-of-record for *your* users and sign on their behalf with *your* stack. One Totalis API principal fans out to **N sub-accounts**, one per end-user, each with its own vault. Totalis never enters your custody relationship.
+- **Individuals** holding their own Solana keypair.
+- **Platforms that custody their own users** — for example, products built on Privy, Turnkey, or Fireblocks. You remain the custodian of record for your users and sign on their behalf. A single Totalis API principal manages any number of sub-accounts, one per end-user, each with its own vault.
 
-**Signer-agnostic:** a signature is just bytes — raw keypair, Privy, Turnkey, Fireblocks, HSM. We don't care how you produce it.
+Signing is provider-agnostic: Totalis verifies a signature and does not depend on how it was produced.
 
-## The loop
+## How It Works
 
-```
-register   → POST /v1/accounts/challenge  → sign payload → POST /v1/accounts
-fund       → send USDC on-chain to the account's wallet address
-quote      → POST /v1/quote-requests … commit       (bind sub-account: X-Subaccount)
-build      → POST /v1/positions/build-tx            → { build_id, transaction }
-sign       → sign the transaction with YOUR key     (the only step on your side)
-submit     → POST /v1/wallet/submit-built-tx        → broadcast + confirm
-settle     → automatic, server-side                 (no signature from you)
-withdraw   → POST /v1/vault/build-withdraw-tx → sign → submit-built-tx
-```
+<Steps>
+  <Step title="Register an account">
+    Prove control of a public key, then register it. Each key becomes an account with its own vault.
+  </Step>
+  <Step title="Fund the account">
+    Send USDC on-chain to the account's wallet address.
+  </Step>
+  <Step title="Quote and commit">
+    Open a quote request, choose a quote, and commit, scoped to the sub-account.
+  </Step>
+  <Step title="Build, sign, submit">
+    Totalis returns an unsigned transaction; you sign it and submit it back to broadcast.
+  </Step>
+  <Step title="Settle and withdraw">
+    Positions settle server-side with no signature from you. Withdrawals use the same build-sign-submit flow.
+  </Step>
+</Steps>
 
-## 1. Register an account (proof-of-control)
+## 1. Register an Account
 
-Prove you control the pubkey via a single-use signed challenge.
+Registration is a two-step proof of control: request a challenge, sign it, and submit the signature.
 
 ```bash
-# Step 1 — get a challenge
 curl -X POST https://api.totalis.trade/v1/accounts/challenge \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{ "owner_pubkey": "<solana-pubkey>" }'
 # → { challenge_id, nonce, expires_at, message_to_sign }
 ```
 
-Sign **`message_to_sign` exactly as returned** (canonical, domain-separated bytes — sign verbatim, do not re-encode), then:
+Sign `message_to_sign` exactly as returned. It is canonical, domain-separated bytes that must be signed verbatim, not re-encoded. Then register:
 
 ```bash
-# Step 2 — register
 curl -X POST https://api.totalis.trade/v1/accounts \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{ "owner_pubkey": "<pubkey>", "challenge_id": "<id>", "control_proof": "<signature>", "label": "your-user-ref" }'
 # → { id, owner_pubkey, vault_address }
 ```
 
-For a platform, repeat per end-user — each `owner_pubkey` becomes a sub-account with its own vault. Use `label` for your own user id.
+Platforms repeat this per end-user. Each `owner_pubkey` becomes a sub-account with its own vault; use `label` to record your own user identifier.
 
-| Method & path | Purpose |
-|---|---|
-| `POST /v1/accounts/challenge` | Get a single-use proof-of-control challenge |
-| `POST /v1/accounts` | Register the account (consumes the challenge) |
-| `GET /v1/accounts` · `GET /v1/accounts/{id}` | List / read your accounts |
-| `DELETE /v1/accounts/{id}` | Disable an account (funds stay withdrawable) |
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /v1/accounts/challenge` | Request a single-use proof-of-control challenge |
+| `POST /v1/accounts` | Register the account |
+| `GET /v1/accounts`, `GET /v1/accounts/{id}` | List or read accounts |
+| `DELETE /v1/accounts/{id}` | Disable an account; funds remain withdrawable |
 
 ## 2. Fund
 
-Send **native USDC on Solana mainnet** to the account's wallet address. No deposit call; placing a trade auto-moves the stake into the vault. No SOL needed (gas sponsored). USDC mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
+Send native USDC on Solana mainnet to the account's wallet address. There is no deposit endpoint; placing a trade moves the stake into the vault automatically. No SOL is required, as gas is sponsored. The USDC mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
 
-## 3. Quote & commit
+## 3. Quote and Commit
 
-Standard RFQ flow. **Bind the sub-account up front** with `X-Subaccount: <account_id>` on *both* create and commit so the position is owned by the right account.
+Quoting matches the standard RFQ flow, with one addition: pass `X-Subaccount: <account_id>` on both create and commit so the position is attributed to the correct account.
 
 ```bash
-# 1. Open the quote request → returns a quote_request_id
+# Open the quote request
 curl -X POST https://api.totalis.trade/v1/quote-requests \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "legs": [ {"market_ticker":"KXBTC-25FEB07-T100000","side":"yes","venue":"kalshi"} ], "bet_amount": 25 }'
 
-# 2. Market makers quote it; fetch quotes (or stream them) to pick a quote_id
+# Fetch quotes and choose one
 curl https://api.totalis.trade/v1/quote-requests/<quote_request_id>/quotes \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>"
 
-# 3. Commit the chosen quote → readies the position for build-tx
+# Commit the chosen quote
 curl -X POST https://api.totalis.trade/v1/quote-requests/<quote_request_id>/commit \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "quote_id": "<chosen-quote-id>" }'
 ```
 
-You now have a `quote_request_id` + `quote_id` — both are passed to `build-tx` in the next step. (In the headless model, commit does **not** create the position outright; it readies it for you to sign — see step 4.)
+Committing yields a `quote_request_id` and `quote_id`, both required by `build-tx`. In the headless model, committing does not create the position outright; it prepares it for signing.
 
-## 4. Build → sign → submit (the headless core)
+## 4. Build, Sign, Submit
 
-After committing a quote, build the on-chain transaction, sign it, submit it back.
+Build the transaction, sign it with the account's key, and submit it back.
 
 ```bash
-# Build — returns an UNSIGNED tx (your slot empty; our signatures withheld)
+# Build — returns an unsigned transaction
 curl -X POST https://api.totalis.trade/v1/positions/build-tx \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "quote_request_id": "<id>", "quote_id": "<id>" }'
-# → { build_id, transaction }   (base64 VersionedTransaction)
-```
+# → { build_id, transaction }
 
-Sign the transaction's message bytes with the account's key (`tx.sign([keypair])`, or your custody API), then:
-
-```bash
+# Sign the transaction's message bytes, then submit
 curl -X POST https://api.totalis.trade/v1/wallet/submit-built-tx \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{ "build_id": "<build_id>", "signed_transaction": "<base64>" }'
-# → { signature }   (broadcast + confirmed; position goes live)
+# → { signature }
 ```
 
 <Warning>
-  **Three rules your integration must follow:**
-  - **The tx you receive is not broadcastable on its own.** Totalis adds its own signatures inside `submit-built-tx`, only after verifying your signed tx byte-matches what we built. Don't broadcast it yourself — it will fail.
-  - **Serialize build → sign → submit per `build_id`.** Don't re-call `build-tx` for the same intent while a signature is in flight — a re-build replaces the cached tx and your earlier signature won't match.
-  - **Sign within ~60–90 s.** The tx carries a recent blockhash; if your custody round-trip is slower, call `build-tx` again for a fresh one and re-sign.
+  Three constraints govern this flow:
+
+  - The transaction returned by `build-tx` is not broadcastable on its own. Totalis adds its own signatures inside `submit-built-tx`, after verifying the submitted transaction matches what it built. Broadcasting it directly will fail.
+  - Build, sign, and submit must be serialized per `build_id`. Re-building while a signature is in flight replaces the cached transaction, and the earlier signature no longer matches.
+  - Sign within roughly 60 to 90 seconds. The transaction carries a recent blockhash; if your signing round-trip is slower, request a new build and sign again.
 </Warning>
 
 ## 5. Settlement
 
-Automatic. Totalis settles positions at resolution with no signature from you. Proceeds land in the account's vault.
+Positions settle server-side at market resolution, with no signature from the account. Proceeds land in the account's vault.
 
 ## 6. Withdraw
 
-Same build → sign → submit shape. Funds return to the account's wallet, which you control.
+Withdrawals use the same build-sign-submit flow. Funds return to the account's wallet.
 
 ```bash
 curl -X POST https://api.totalis.trade/v1/vault/build-withdraw-tx \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "amount_usdc": 50 }'
-# → { build_id, transaction }  → sign → POST /v1/wallet/submit-built-tx
+# → { build_id, transaction }, then sign and POST /v1/wallet/submit-built-tx
 ```
 
 ## Reads
 
-`GET /v1/wallet` · `GET /v1/vault` · `GET /v1/portfolio` — pass `X-Subaccount: <account_id>` to scope to one end-user.
-
-## In one line
-
-**Totalis is the venue + settlement layer; you are the signer + custodian.** Register a pubkey, fund it, and for every on-chain action we hand you an unsigned transaction, you sign it, and we broadcast + settle — no delegation, no custody transfer, no browser.
+`GET /v1/wallet`, `GET /v1/vault`, and `GET /v1/portfolio` accept `X-Subaccount: <account_id>` to scope the response to a single account.
