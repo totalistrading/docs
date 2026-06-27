@@ -1,69 +1,77 @@
 ---
-title: 'Partner Quickstart — Managed (Custodial)'
-description: 'Programmatic parlay trading on Totalis using a Totalis-managed embedded wallet and an API key. Live today.'
+title: 'Managed Quickstart'
+description: 'Programmatic parlay trading on Totalis with a Totalis-managed wallet and an API key. Available today.'
 ---
 
+The managed model provisions a Totalis-custodied embedded wallet that you fund on Solana and trade with an API key. This guide covers authentication, market data, quoting, and funds.
+
+- Base URL: `https://api.totalis.trade`
+- Full reference: [docs.totalis.trade](https://docs.totalis.trade)
+- Authentication: an API key in the `X-API-Key` header.
+
 <Note>
-  **Internal / unpublished.** The managed-custody model, available today. For the keep-your-own-keys flow, see [Headless Integration](/_internal/partners/headless-integration).
+  Trading requires a one-time delegation that authorizes Totalis to sign on the wallet's behalf. Today that step is completed interactively in the Totalis app and cannot yet be done through the API alone. Partners that need fully programmatic onboarding should use the [headless model](/_internal/partners/headless-integration).
 </Note>
 
-Build programmatic parlay trading on Totalis: authenticate, browse markets, request quotes, place parlays, and manage funds.
+## Authentication
 
-- **Base URL:** `https://api.totalis.trade`
-- **Full reference:** [docs.totalis.trade](https://docs.totalis.trade)
-- **Auth:** `X-API-Key` header on every request.
-
-<Warning>
-  **Custody note.** Trading uses a Totalis-managed embedded wallet that you fund on Solana. Enabling trading requires a **one-time delegation** — today an interactive consent in the Totalis app. A fully-headless, bring-your-own-key flow is in development ([Headless Integration](/_internal/partners/headless-integration)). Everything else below is headless via API key.
-</Warning>
-
-## 1. Authenticate
-
-Generate an API key from the [dashboard](https://app.totalis.trade) (Account → API Keys). Shown once — store it securely.
+Generate an API key from the [dashboard](https://app.totalis.trade) under Account → API Keys. The key is shown once; store it securely.
 
 ```bash
 curl https://api.totalis.trade/v1/me -H "X-API-Key: <your-api-key>"
 ```
 
-Keys are **scoped** — request only what you need: `markets:read`, `trading:write`, `balances:read`, `funds:withdraw`, `account:read`, `account:write`.
+Keys are scoped. Request only the scopes you need: `markets:read`, `trading:write`, `balances:read`, `funds:withdraw`, `account:read`, `account:write`.
 
-## 2. Lifecycle
+## Trade Lifecycle
 
-```
-fund wallet → browse markets → create quote request (parlay legs)
-   → market makers quote (stream) → commit best quote
-   → position created on-chain → settles at resolution → withdraw
-```
+<Steps>
+  <Step title="Fund the wallet">
+    Send native USDC to your embedded wallet address (see [Funds](#funds)).
+  </Step>
+  <Step title="Browse markets">
+    List markets and check which legs can be combined.
+  </Step>
+  <Step title="Open a quote request">
+    Submit a parlay of 2–5 legs; market makers compete to price it.
+  </Step>
+  <Step title="Commit a quote">
+    Committing the chosen quote creates the position on-chain.
+  </Step>
+  <Step title="Settle and withdraw">
+    Positions settle automatically at resolution; withdraw when ready.
+  </Step>
+</Steps>
 
-## 3. Account
+## Account
 
-| Method & path | Purpose |
-|---|---|
-| `GET /v1/me` | Profile + identifiers |
-| `GET /v1/wallet` | Embedded wallet address + balances |
-| `GET /v1/portfolio` | Consolidated balance, stats, position counts |
-| `GET /v1/api-keys` · `POST /v1/api-keys` · `DELETE /v1/api-keys/{prefix}` | Manage API keys (create needs a dashboard/JWT session) |
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/me` | Profile and identifiers |
+| `GET /v1/wallet` | Embedded wallet address and balances |
+| `GET /v1/portfolio` | Consolidated balance, stats, and position counts |
+| `GET /v1/api-keys`, `POST /v1/api-keys`, `DELETE /v1/api-keys/{prefix}` | Manage API keys (creation requires a dashboard session) |
 
-## 4. Markets
+## Markets
 
-| Method & path | Purpose |
-|---|---|
+| Endpoint | Purpose |
+| --- | --- |
 | `GET /markets` | List tradeable markets |
 | `GET /markets/{ticker}` | Market detail |
-| `GET /markets/exclusion-groups` | Legs that can't be combined (correlation rules) |
+| `GET /markets/exclusion-groups` | Leg combinations blocked by correlation rules |
 
-`market_ticker` is venue-polymorphic: **Kalshi** → the Kalshi ticker (e.g. `KXBTC-25FEB07-T100000`); **Polymarket** → the `condition_id` (0x hex) + `side`.
+`market_ticker` is venue-specific. For Kalshi, use the Kalshi ticker (for example `KXBTC-25FEB07-T100000`). For Polymarket, use the `condition_id` (0x hex) together with `side`.
 
-## 5. Quote & trade
+## Quoting
 
-A parlay is 2–5 legs. Open a quote request, market makers compete, you commit the best.
+A parlay is 2–5 legs. Open a quote request, let market makers price it, then commit the quote you want.
 
-| Method & path | Purpose |
-|---|---|
-| `POST /v1/quote-requests` | Open a quote request (the parlay) |
-| `PATCH /v1/quote-requests/{id}` | Update legs / stake before committing |
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /v1/quote-requests` | Open a quote request |
+| `PATCH /v1/quote-requests/{id}` | Update legs or stake before committing |
 | `GET /v1/quote-requests/{id}/quotes` | Fetch current quotes |
-| `POST /v1/quote-requests/{id}/commit` | Commit the chosen quote → creates the position |
+| `POST /v1/quote-requests/{id}/commit` | Commit a quote and create the position |
 | `POST /v1/quote-requests/{id}/cancel` | Cancel an open request |
 
 ```bash
@@ -78,21 +86,21 @@ curl -X POST https://api.totalis.trade/v1/quote-requests \
   }'
 ```
 
-Quotes arrive in real time over SSE/WebSocket — see the [Live Quote Requests](https://docs.totalis.trade/guides/live-quote-requests) and [WebSocket](https://docs.totalis.trade/guides/websocket) guides.
+Quotes are delivered in real time over SSE. See the [Live Quote Requests](https://docs.totalis.trade/guides/live-quote-requests) and [WebSocket](https://docs.totalis.trade/guides/websocket) guides for the stream contract.
 
-## 6. Funds
+## Funds
 
-| Method & path | Purpose |
-|---|---|
-| `GET /v1/wallet` | Wallet address + balances (funding destination) |
-| `GET /v1/vault` | Vault state + active positions |
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/wallet` | Wallet address and balances |
+| `GET /v1/vault` | Vault state and active positions |
 | `GET /v1/wallet/delegation-status` | Whether trading is enabled |
-| `POST /v1/wallet/enable-trading` | Confirm trading delegation (one-time) |
+| `POST /v1/wallet/enable-trading` | Confirm trading delegation |
 | `POST /v1/wallet/withdraw` | Withdraw USDC to an external address |
 
-**Funding:** no deposit endpoint — send **native USDC on Solana mainnet** to your wallet address. Placing a parlay auto-moves the stake into the vault; no SOL needed (gas sponsored). USDC mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
+There is no deposit endpoint. Fund the account by sending native USDC on Solana mainnet to your wallet address; placing a parlay moves the stake into the vault automatically. No SOL is required, as gas is sponsored. The USDC mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
 
-**Withdraw** auto-taps the vault's free balance (settled winnings) to cover the amount:
+Withdrawals draw from the vault's free balance — settled winnings and unlocked collateral — to cover the requested amount before sending.
 
 ```bash
 curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
@@ -100,6 +108,4 @@ curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
   -d '{ "recipient": "<solana-address>", "amount_usdc": 50 }'
 ```
 
-## Next
-
-Full reference + schemas: [docs.totalis.trade](https://docs.totalis.trade). Building a multi-user platform with your own custody? See [Headless Integration](/_internal/partners/headless-integration).
+Building a multi-user platform with your own custody? See [Headless Integration](/_internal/partners/headless-integration).
