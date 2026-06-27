@@ -1,0 +1,38 @@
+---
+title: 'Partner Integration — Overview'
+description: 'How partners integrate trading on Totalis: the managed (custodial) model available today, and the headless non-custodial model in active development.'
+---
+
+<Note>
+  **Internal / unpublished.** This section lives in the docs repo but is not part of the public navigation. Share specific pages with partners by direct link. To make it a properly gated public section later, see [Gating](#gating-this-section) at the bottom.
+</Note>
+
+Totalis offers two integration models. They share the same trading surface (markets, quoting, settlement) and differ only in **who holds the signing keys**.
+
+| | **Managed (custodial)** | **Headless (non-custodial)** |
+|---|---|---|
+| **Status** | ✅ Live today | 🚧 In development (preview) |
+| **Keys held by** | Totalis-managed embedded wallet | **You / your users** |
+| **Onboarding** | One-time delegation (interactive consent) | Fully headless — no browser, ever |
+| **Best for** | Individuals; quick programmatic trading | Platforms with their own users + custody stack |
+| **Guide** | [Managed Quickstart](/_internal/partners/quickstart-managed) | [Headless Integration](/_internal/partners/headless-integration) |
+
+## Which one?
+
+- **Managed** — Totalis provisions and custodies an embedded wallet; you fund it and trade via API key. Simplest to start. The only non-headless step is a one-time "enable trading" delegation.
+- **Headless** — you (or your end-users) hold the keys; Totalis builds transactions, you sign them with your own custody stack (Privy, Turnkey, Fireblocks, raw keypair — signer-agnostic), and Totalis broadcasts + settles. No delegation, no custody transfer, no browser. One API principal fans out to **N sub-accounts**, one per end-user. This is the model for partners who run their own platform.
+
+Both use the same base URL and auth:
+
+- **Base URL:** `https://api.totalis.trade`
+- **Auth:** `X-API-Key` header on every request.
+
+## Gating this section
+
+This content is currently **unpublished** (in the repo, not in `docs.json` navigation — same as `_internal/admin-reference.mdx`). To turn it into a **gated public section** (partners log in to view):
+
+1. Mintlify partner-facing auth (Password / JWT / OAuth) requires the **Enterprise plan**.
+2. Once on Enterprise, move these pages into `docs.json` navigation as a "Partners" group and mark the *public* groups `"public": true`; the partner group stays gated by the configured auth method.
+3. JWT is the natural fit — tie it to the same identity that issues API keys.
+
+Until then, unpublished + direct-link sharing is the zero-cost interim.
