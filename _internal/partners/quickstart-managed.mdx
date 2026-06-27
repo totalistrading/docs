@@ -25,7 +25,7 @@ Generate an API key from the [dashboard](https://app.totalis.trade) (Account →
 curl https://api.totalis.trade/v1/me -H "X-API-Key: <your-api-key>"
 ```
 
-Keys are **scoped** — request only what you need: `markets:read`, `trading:write`, `balances:read`, `funds:withdraw`, `tx:sign`, `account:read`, `account:write`.
+Keys are **scoped** — request only what you need: `markets:read`, `trading:write`, `balances:read`, `funds:withdraw`, `account:read`, `account:write`.
 
 ## 2. Lifecycle
 
@@ -50,8 +50,6 @@ fund wallet → browse markets → create quote request (parlay legs)
 |---|---|
 | `GET /markets` | List tradeable markets |
 | `GET /markets/{ticker}` | Market detail |
-| `GET /markets/{ticker}/history` | Price history |
-| `GET /markets/events/{event_ticker}` | Markets under an event |
 | `GET /markets/exclusion-groups` | Legs that can't be combined (correlation rules) |
 
 `market_ticker` is venue-polymorphic: **Kalshi** → the Kalshi ticker (e.g. `KXBTC-25FEB07-T100000`); **Polymarket** → the `condition_id` (0x hex) + `side`.

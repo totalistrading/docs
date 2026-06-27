@@ -70,13 +70,25 @@ Send **native USDC on Solana mainnet** to the account's wallet address. No depos
 
 ## 3. Quote & commit
 
-Standard RFQ flow. **Bind the sub-account up front** with `X-Subaccount: <account_id>` on create/commit so the position is owned by the right account.
+Standard RFQ flow. **Bind the sub-account up front** with `X-Subaccount: <account_id>` on *both* create and commit so the position is owned by the right account.
 
 ```bash
+# 1. Open the quote request → returns a quote_request_id
 curl -X POST https://api.totalis.trade/v1/quote-requests \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "legs": [ {"market_ticker":"KXBTC-25FEB07-T100000","side":"yes","venue":"kalshi"} ], "bet_amount": 25 }'
+
+# 2. Market makers quote it; fetch quotes (or stream them) to pick a quote_id
+curl https://api.totalis.trade/v1/quote-requests/<quote_request_id>/quotes \
+  -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>"
+
+# 3. Commit the chosen quote → readies the position for build-tx
+curl -X POST https://api.totalis.trade/v1/quote-requests/<quote_request_id>/commit \
+  -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
+  -d '{ "quote_id": "<chosen-quote-id>" }'
 ```
+
+You now have a `quote_request_id` + `quote_id` — both are passed to `build-tx` in the next step. (In the headless model, commit does **not** create the position outright; it readies it for you to sign — see step 4.)
 
 ## 4. Build → sign → submit (the headless core)
 
