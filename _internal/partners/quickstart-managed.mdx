@@ -3,19 +3,19 @@ title: 'Managed Quickstart'
 description: 'Programmatic parlay trading on Totalis with a Totalis-managed wallet and an API key. Available today.'
 ---
 
-The managed model provisions a Totalis-custodied embedded wallet that you fund on Solana and trade with an API key. This guide covers authentication, market data, quoting, and funds.
+The managed model gives you a Totalis-custodied embedded wallet. You fund it on Solana and trade with an API key. This guide covers authentication, market data, quoting, and funds.
 
 - Base URL: `https://api.totalis.trade`
 - Full reference: [docs.totalis.trade](https://docs.totalis.trade)
 - Authentication: an API key in the `X-API-Key` header.
 
 <Note>
-  Trading requires a one-time delegation that authorizes Totalis to sign on the wallet's behalf. Today that step is completed interactively in the Totalis app and cannot yet be done through the API alone. Partners that need fully programmatic onboarding should use the [headless model](/_internal/partners/headless-integration).
+  Trading requires a one-time delegation that lets Totalis sign on the wallet's behalf. That step is completed in the Totalis app today and cannot yet be done through the API alone. If you need fully programmatic onboarding, use the [headless model](/_internal/partners/headless-integration).
 </Note>
 
 ## Authentication
 
-Generate an API key from the [dashboard](https://app.totalis.trade) under Account → API Keys. The key is shown once; store it securely.
+Generate an API key from the [dashboard](https://app.totalis.trade) under Account, then API Keys. The key is shown once, so store it securely.
 
 ```bash
 curl https://api.totalis.trade/v1/me -H "X-API-Key: <your-api-key>"
@@ -33,13 +33,13 @@ Keys are scoped. Request only the scopes you need: `markets:read`, `trading:writ
     List markets and check which legs can be combined.
   </Step>
   <Step title="Open a quote request">
-    Submit a parlay of 2–5 legs; market makers compete to price it.
+    Submit a parlay of 2 to 5 legs. Market makers compete to price it.
   </Step>
   <Step title="Commit a quote">
     Committing the chosen quote creates the position on-chain.
   </Step>
   <Step title="Settle and withdraw">
-    Positions settle automatically at resolution; withdraw when ready.
+    Positions settle automatically at resolution. Withdraw when ready.
   </Step>
 </Steps>
 
@@ -60,11 +60,11 @@ Keys are scoped. Request only the scopes you need: `markets:read`, `trading:writ
 | `GET /markets/{ticker}` | Market detail |
 | `GET /markets/exclusion-groups` | Leg combinations blocked by correlation rules |
 
-`market_ticker` is venue-specific. For Kalshi, use the Kalshi ticker (for example `KXBTC-25FEB07-T100000`). For Polymarket, use the `condition_id` (0x hex) together with `side`.
+`market_ticker` is venue-specific. For Kalshi, use the Kalshi ticker, for example `KXBTC-25FEB07-T100000`. For Polymarket, use the `condition_id` (0x hex) together with `side`.
 
 ## Quoting
 
-A parlay is 2–5 legs. Open a quote request, let market makers price it, then commit the quote you want.
+A parlay is 2 to 5 legs. Open a quote request, let market makers price it, then commit the quote you want.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -86,7 +86,7 @@ curl -X POST https://api.totalis.trade/v1/quote-requests \
   }'
 ```
 
-Quotes are delivered in real time over SSE. See the [Live Quote Requests](https://docs.totalis.trade/guides/live-quote-requests) and [WebSocket](https://docs.totalis.trade/guides/websocket) guides for the stream contract.
+Quotes arrive in real time over SSE. The [Live Quote Requests](https://docs.totalis.trade/guides/live-quote-requests) and [WebSocket](https://docs.totalis.trade/guides/websocket) guides describe the stream contract.
 
 ## Funds
 
@@ -98,9 +98,9 @@ Quotes are delivered in real time over SSE. See the [Live Quote Requests](https:
 | `POST /v1/wallet/enable-trading` | Confirm trading delegation |
 | `POST /v1/wallet/withdraw` | Withdraw USDC to an external address |
 
-There is no deposit endpoint. Fund the account by sending native USDC on Solana mainnet to your wallet address; placing a parlay moves the stake into the vault automatically. No SOL is required, as gas is sponsored. The USDC mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
+There is no deposit endpoint. Fund the account by sending native USDC on Solana mainnet to your wallet address. Placing a parlay moves the stake into the vault automatically. No SOL is required, since gas is sponsored. The USDC mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
 
-Withdrawals draw from the vault's free balance — settled winnings and unlocked collateral — to cover the requested amount before sending.
+A withdrawal draws from the vault's free balance (settled winnings and unlocked collateral) to cover the requested amount before sending.
 
 ```bash
 curl -X POST https://api.totalis.trade/v1/wallet/withdraw \

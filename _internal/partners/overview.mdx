@@ -1,13 +1,9 @@
 ---
 title: 'Partner Integration'
-description: 'Two models for integrating trading on Totalis — managed custody, available today, and headless non-custodial, in development — and how to choose between them.'
+description: 'Two ways to integrate trading on Totalis: managed custody, available today, and headless non-custodial, in development.'
 ---
 
-<Note>
-  This section is internal and unpublished. It lives in the docs repo but is not part of the public navigation; share individual pages by direct link. See [Gating](#gating) for how to make it a restricted public section later.
-</Note>
-
-Totalis supports two integration models. Both expose the same trading surface — markets, quoting, and settlement — and differ only in who holds the signing keys for the underlying Solana wallet.
+Totalis offers two integration models. Each exposes the same trading surface for markets, quoting, and settlement. They differ in who holds the signing keys for the underlying Solana wallet.
 
 | | Managed (custodial) | Headless (non-custodial) |
 | --- | --- | --- |
@@ -18,9 +14,9 @@ Totalis supports two integration models. Both expose the same trading surface �
 
 ## Choosing a Model
 
-**Managed** is the fastest path. Totalis provisions and custodies an embedded wallet; you fund it and trade with an API key. The only non-programmatic step is a one-time delegation that authorizes Totalis to sign on the wallet's behalf.
+The managed model is the fastest way to go live. Totalis provisions and custodies an embedded wallet. You fund it and trade with an API key. The only step that is not yet programmatic is a single delegation that authorizes Totalis to sign on the wallet's behalf.
 
-**Headless** keeps custody with you. You, or your end-users, hold the keys. Totalis builds each transaction, you sign it with your own custody stack, and Totalis broadcasts and settles. There is no delegation and no browser step at any point. A single API principal manages any number of sub-accounts, one per end-user, each with its own vault. This is the model for partners running their own platform.
+The headless model keeps custody with you. Your keys, or your end-users' keys, stay inside your own infrastructure. For every on-chain action, Totalis builds the transaction and returns it unsigned, you sign it, and Totalis broadcasts and settles it. No part of the flow touches a browser, and there is no delegation step. A single API principal manages any number of sub-accounts, each end-user with its own vault. Partners running their own platform use this model.
 
 <CardGroup cols={2}>
   <Card title="Managed Quickstart" href="/_internal/partners/quickstart-managed">
@@ -31,17 +27,7 @@ Totalis supports two integration models. Both expose the same trading surface �
   </Card>
 </CardGroup>
 
-Both models share the same base URL and authentication:
+The base URL and authentication are the same in both models:
 
 - Base URL: `https://api.totalis.trade`
-- Authentication: an API key sent in the `X-API-Key` header on every request.
-
-## Gating
-
-This section is currently unpublished — present in the repo but absent from `docs.json`, following the same convention as `_internal/admin-reference`. To turn it into a restricted public section:
-
-1. Partner-facing authentication in Mintlify (Password, JWT, or OAuth) requires the Enterprise plan; the standard tier authenticates only organization members.
-2. On Enterprise, move these pages into the `docs.json` navigation as a Partners group and mark the public groups `"public": true`. The Partners group stays gated by the configured method.
-3. JWT is the natural fit, tied to the same identity that issues API keys.
-
-Until then, the section remains unpublished and is shared by direct link.
+- Authentication: an API key in the `X-API-Key` header on every request.
