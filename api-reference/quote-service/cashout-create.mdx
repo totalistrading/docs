@@ -53,9 +53,9 @@ Authorization: Bearer <jwt>
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Body is not valid JSON, or `position_id` is not a 16-byte hex string. See `details.issues`. |
 | 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
-| 404 | `NOT_FOUND` | Position not found or not eligible for cashout. |
-| 409 | `CONFLICT` | Position is not active, too close to expiry, or has no counterparty MM assigned yet. |
-| 503 | `SERVICE_UNAVAILABLE` | Eligibility/economics read failed; retry. |
+| 404 | `NOT_FOUND` | Position not found, or not owned by you. |
+| 409 | `CONFLICT` | Position is not active, too close to expiry, or has no counterparty MM wallet assigned yet. |
+| 503 | `SERVICE_UNAVAILABLE` | Eligibility/economics read failed, or no counterparty MM is resolvable yet; retry. |
 
 <RequestExample>
 ```bash

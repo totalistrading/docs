@@ -39,7 +39,7 @@ Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC
 
 ## Pricing Early-Cashout Buybacks
 
-A user can close an active position before settlement by accepting a **buyback** price from you, its counterparty MM. You receive cashout requests on the same SSE stream you already subscribe to (`GET /v1/mm/quote-requests/stream`) — scoped to you, never broadcast — and respond with one of:
+A user can close an active position before settlement by accepting a **buyback** price from you, its counterparty MM. You receive cashout requests on the same SSE stream you already subscribe to (`GET /v1/mm/quote-requests/stream`), delivered as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event — scoped to you, never broadcast — and respond with one of:
 
 | Action | Endpoint |
 | --- | --- |
@@ -66,7 +66,7 @@ Pricing runs a fixed sequence of gates, first match wins, with two kinds of outc
 | No live price | a leg has no trustworthy live book (spread too wide / stale) | transient — stay silent |
 | Near-decided | a leg's live price is outside the `[0.05, 0.95]` odds band, so re-pricing is unreliable | permanent decline |
 
-The no-live-price gate refuses a leg whose two-sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale; a leg already resolved and pinned at certainty is exempt from the odds-band check.
+The no-live-price gate refuses a leg whose two-sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale. A leg already resolved and pinned at certainty is exempt from the odds-band check.
 
 ## Get Set Up
 

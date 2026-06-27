@@ -4,7 +4,7 @@ api: "PUT /v1/mm/cashout-requests/{id}/quote"
 description: "Price an early-cashout (buyback) request as the position's counterparty market maker."
 ---
 
-Submit or replace a **buyback quote** for a cashout request on a position you make the market for. You receive cashout requests on the same [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to — scoped to you, never broadcast. Quote the directional `amount` on top of the user's stake (which is always refunded); the server computes the unit-boundary economics and surfaces the net to the user on their stream.
+Submit or replace a **buyback quote** for a cashout request on a position you make the market for. You receive cashout requests on the same [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to, as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event (carrying `cashout_request_id` + `position_id`) — scoped to you, never broadcast. Quote the directional `amount` on top of the user's stake (which is always refunded); the server computes the unit-boundary economics and surfaces the net to the user on their stream.
 
 A cashout request is offered to a **single** market maker — the position's existing maker. You can only quote requests targeted at you; otherwise the request returns `403`. Re-submitting replaces your live quote atomically.
 

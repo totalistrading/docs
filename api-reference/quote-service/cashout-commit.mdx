@@ -52,7 +52,7 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 | 404 | `NOT_FOUND` | Cashout request not found. |
 | 409 | `CONFLICT` | No live quote (`quote_expired`), request not active, missing wallet info (`missing_wallet`), already locked, or a determinate on-chain failure. See `details.reason`. |
 | 410 | `GONE` | The cashout request expired before commit. |
-| 503 | `SERVICE_UNAVAILABLE` | **Indeterminate** — the buyback may have landed. `details.indeterminate` is `true`; the request stays `committing` for the reconciler. Do not retry blindly. |
+| 503 | `SERVICE_UNAVAILABLE` | **Indeterminate** — the buyback may have landed. `details.indeterminate` is `true` and `details.reason` is e.g. `lane_unreachable` / `buyback_in_flight`; the request stays `committing` for the reconciler. Do not retry blindly. |
 
 <RequestExample>
 ```bash
@@ -78,7 +78,7 @@ curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef
   "error": {
     "code": "SERVICE_UNAVAILABLE",
     "message": "Cashout is being processed; please check back",
-    "details": { "reason": "lane_timeout", "indeterminate": true }
+    "details": { "reason": "lane_unreachable", "indeterminate": true }
   }
 }
 ```

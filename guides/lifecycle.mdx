@@ -149,7 +149,7 @@ active → committing → committed     (success → RFQ becomes bought_back)
 
 <Steps>
   <Step title="User Requests a Cashout">
-    The frontend creates a cashout request for the position's on-chain `position_id` (the hex id the early-cashout endpoints key on) and opens an SSE stream for the live buyback quote.
+    The frontend creates a cashout request for the position's on-chain `position_id` and opens an SSE stream for the live buyback quote.
 
     ```bash
     POST /v1/cashout-requests
