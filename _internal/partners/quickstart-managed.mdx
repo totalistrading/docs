@@ -1,0 +1,107 @@
+---
+title: 'Partner Quickstart — Managed (Custodial)'
+description: 'Programmatic parlay trading on Totalis using a Totalis-managed embedded wallet and an API key. Live today.'
+---
+
+<Note>
+  **Internal / unpublished.** The managed-custody model, available today. For the keep-your-own-keys flow, see [Headless Integration](/_internal/partners/headless-integration).
+</Note>
+
+Build programmatic parlay trading on Totalis: authenticate, browse markets, request quotes, place parlays, and manage funds.
+
+- **Base URL:** `https://api.totalis.trade`
+- **Full reference:** [docs.totalis.trade](https://docs.totalis.trade)
+- **Auth:** `X-API-Key` header on every request.
+
+<Warning>
+  **Custody note.** Trading uses a Totalis-managed embedded wallet that you fund on Solana. Enabling trading requires a **one-time delegation** — today an interactive consent in the Totalis app. A fully-headless, bring-your-own-key flow is in development ([Headless Integration](/_internal/partners/headless-integration)). Everything else below is headless via API key.
+</Warning>
+
+## 1. Authenticate
+
+Generate an API key from the [dashboard](https://app.totalis.trade) (Account → API Keys). Shown once — store it securely.
+
+```bash
+curl https://api.totalis.trade/v1/me -H "X-API-Key: <your-api-key>"
+```
+
+Keys are **scoped** — request only what you need: `markets:read`, `trading:write`, `balances:read`, `funds:withdraw`, `tx:sign`, `account:read`, `account:write`.
+
+## 2. Lifecycle
+
+```
+fund wallet → browse markets → create quote request (parlay legs)
+   → market makers quote (stream) → commit best quote
+   → position created on-chain → settles at resolution → withdraw
+```
+
+## 3. Account
+
+| Method & path | Purpose |
+|---|---|
+| `GET /v1/me` | Profile + identifiers |
+| `GET /v1/wallet` | Embedded wallet address + balances |
+| `GET /v1/portfolio` | Consolidated balance, stats, position counts |
+| `GET /v1/api-keys` · `POST /v1/api-keys` · `DELETE /v1/api-keys/{prefix}` | Manage API keys (create needs a dashboard/JWT session) |
+
+## 4. Markets
+
+| Method & path | Purpose |
+|---|---|
+| `GET /markets` | List tradeable markets |
+| `GET /markets/{ticker}` | Market detail |
+| `GET /markets/{ticker}/history` | Price history |
+| `GET /markets/events/{event_ticker}` | Markets under an event |
+| `GET /markets/exclusion-groups` | Legs that can't be combined (correlation rules) |
+
+`market_ticker` is venue-polymorphic: **Kalshi** → the Kalshi ticker (e.g. `KXBTC-25FEB07-T100000`); **Polymarket** → the `condition_id` (0x hex) + `side`.
+
+## 5. Quote & trade
+
+A parlay is 2–5 legs. Open a quote request, market makers compete, you commit the best.
+
+| Method & path | Purpose |
+|---|---|
+| `POST /v1/quote-requests` | Open a quote request (the parlay) |
+| `PATCH /v1/quote-requests/{id}` | Update legs / stake before committing |
+| `GET /v1/quote-requests/{id}/quotes` | Fetch current quotes |
+| `POST /v1/quote-requests/{id}/commit` | Commit the chosen quote → creates the position |
+| `POST /v1/quote-requests/{id}/cancel` | Cancel an open request |
+
+```bash
+curl -X POST https://api.totalis.trade/v1/quote-requests \
+  -H "X-API-Key: <key>" -H "Content-Type: application/json" \
+  -d '{
+    "legs": [
+      { "market_ticker": "KXBTC-25FEB07-T100000", "side": "yes", "venue": "kalshi" },
+      { "market_ticker": "0x4d2…",                "side": "no",  "venue": "polymarket" }
+    ],
+    "bet_amount": 25
+  }'
+```
+
+Quotes arrive in real time over SSE/WebSocket — see the [Live Quote Requests](https://docs.totalis.trade/guides/live-quote-requests) and [WebSocket](https://docs.totalis.trade/guides/websocket) guides.
+
+## 6. Funds
+
+| Method & path | Purpose |
+|---|---|
+| `GET /v1/wallet` | Wallet address + balances (funding destination) |
+| `GET /v1/vault` | Vault state + active positions |
+| `GET /v1/wallet/delegation-status` | Whether trading is enabled |
+| `POST /v1/wallet/enable-trading` | Confirm trading delegation (one-time) |
+| `POST /v1/wallet/withdraw` | Withdraw USDC to an external address |
+
+**Funding:** no deposit endpoint — send **native USDC on Solana mainnet** to your wallet address. Placing a parlay auto-moves the stake into the vault; no SOL needed (gas sponsored). USDC mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
+
+**Withdraw** auto-taps the vault's free balance (settled winnings) to cover the amount:
+
+```bash
+curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
+  -H "X-API-Key: <key>" -H "Content-Type: application/json" \
+  -d '{ "recipient": "<solana-address>", "amount_usdc": 50 }'
+```
+
+## Next
+
+Full reference + schemas: [docs.totalis.trade](https://docs.totalis.trade). Building a multi-user platform with your own custody? See [Headless Integration](/_internal/partners/headless-integration).
