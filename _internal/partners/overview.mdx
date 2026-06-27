@@ -3,10 +3,6 @@ title: 'Partner Integration'
 description: 'Two models for integrating trading on Totalis — managed custody, available today, and headless non-custodial, in development — and how to choose between them.'
 ---
 
-<Note>
-  This section is internal and unpublished. It lives in the docs repo but is not part of the public navigation; share individual pages by direct link. See [Gating](#gating) for how to make it a restricted public section later.
-</Note>
-
 Totalis supports two integration models. Both expose the same trading surface — markets, quoting, and settlement — and differ only in who holds the signing keys for the underlying Solana wallet.
 
 | | Managed (custodial) | Headless (non-custodial) |
@@ -35,13 +31,3 @@ Both models share the same base URL and authentication:
 
 - Base URL: `https://api.totalis.trade`
 - Authentication: an API key sent in the `X-API-Key` header on every request.
-
-## Gating
-
-This section is currently unpublished — present in the repo but absent from `docs.json`, following the same convention as `_internal/admin-reference`. To turn it into a restricted public section:
-
-1. Partner-facing authentication in Mintlify (Password, JWT, or OAuth) requires the Enterprise plan; the standard tier authenticates only organization members.
-2. On Enterprise, move these pages into the `docs.json` navigation as a Partners group and mark the public groups `"public": true`. The Partners group stays gated by the configured method.
-3. JWT is the natural fit, tied to the same identity that issues API keys.
-
-Until then, the section remains unpublished and is shared by direct link.
