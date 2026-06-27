@@ -222,6 +222,14 @@ es.addEventListener('quote_request_expired', (e) => {
     : reason;
   console.log('Request closed:', id, outcome);
 });
+
+es.addEventListener('cashout_request', (e) => {
+  const cr = JSON.parse(e.data);
+  // Distinct from quote_request: the key is cr.cashout_request_id (NOT cr.id).
+  // Single-MM scoped — it's yours to price. Re-value the position and respond on
+  // the cashout endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
+  console.log('Buyback request:', cr.cashout_request_id, 'position', cr.position_id);
+});
 ```
 
 ```python Python
@@ -257,6 +265,11 @@ with requests.get(url, headers=headers, stream=True) as resp:
                 else:
                     outcome = reason
                 print(f"Request closed: {payload['id']} — {outcome}")
+            elif event_type == 'cashout_request':
+                # Distinct from quote_request: the key is cashout_request_id (NOT id).
+                # Single-MM scoped — re-value the position and respond on the cashout
+                # endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
+                print(f"Buyback request: {payload['cashout_request_id']} position {payload['position_id']}")
             event_type = None
 ```
 </RequestExample>
