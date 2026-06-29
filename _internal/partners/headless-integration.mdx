@@ -133,6 +133,8 @@ curl https://api.totalis.trade/v1/quote-requests/<quote_request_id> \
 
 The response carries `quotes` and a `best_quote`. From it you need three values for the commit: `best_quote.id`, `quote_request.version`, and `quote_request.book_seq`. Quotes expire within seconds, so commit promptly.
 
+Polling needs `positions:read`. A sub-account-scoped key minted from the console is limited to `trading:write`, `tx:sign`, and `markets:read`, so it cannot poll or stream a quote request. If you split work across keys, poll and choose the quote with a principal key that holds `positions:read`, then use the sub-account-scoped key for the write and sign path. A single principal key with the full set of scopes above runs the whole loop on its own.
+
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests/<quote_request_id>/commit \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
