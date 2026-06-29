@@ -3,11 +3,11 @@ title: 'Headless Integration'
 description: 'Fully programmatic, non-custodial trading on Totalis. You hold the keys and sign each transaction; Totalis builds, verifies, and settles.'
 ---
 
-In the headless model you hold the signing keys and Totalis never holds them. For every on-chain action, Totalis builds the transaction and returns it unsigned, you sign it with your own key, and Totalis verifies the signature, adds its own, and broadcasts. Settlement happens server-side with no signature from you. There is no delegation step and no browser interaction at any point.
+In the headless model you hold the signing keys and Totalis never holds them. For every on-chain action, Totalis builds the transaction and returns it unsigned, you sign it with your own key, and Totalis verifies the submitted transaction's message bytes, adds its own signatures, and broadcasts. Settlement happens server-side with no signature from you. There is no delegation step and no browser interaction at any point.
 
 - Base URL: `https://api.totalis.trade`
-- Authentication: an API key in the `X-API-Key` header.
-- Signing is provider agnostic. Use a raw Solana keypair, Privy, Turnkey, Fireblocks, or a hardware wallet. Totalis verifies the signature and how you produce it is yours to choose.
+- Authentication: an API key in either `X-API-Key: <api_...>` or `Authorization: Bearer <api_...>`.
+- Signing is provider agnostic. Use a raw Solana keypair, Privy, Turnkey, Fireblocks, or a hardware wallet. Totalis only requires a standard ed25519 signature over the built message; how you produce it is yours to choose.
 
 ## Who it's for
 
@@ -22,6 +22,7 @@ API keys carry scopes, and the trading endpoints reject a key that lacks the req
 | --- | --- |
 | `accounts:provision` | Register and disable sub-accounts |
 | `account:read` | List and read sub-accounts |
+| `markets:read` | Optional market-read scope for scoped keys; `GET /v1/markets` itself is public |
 | `trading:write` | Create and commit quote requests, build a position transaction |
 | `tx:sign` | Submit a signed transaction |
 | `positions:read` | Read quote requests and portfolio |
@@ -31,6 +32,10 @@ API keys carry scopes, and the trading endpoints reject a key that lacks the req
 <Warning>
   No scope preset covers this set. The `full` preset does not include `tx:sign` or `accounts:provision`, which are the two scopes BYOW depends on most. Mint a key with an explicit, custom scope list. A `full` key alone returns `403 insufficient_scope` at both registration and submit. The first key is bootstrapped by Totalis or from an interactive session; after that a key holding `keys:manage` can mint further keys within its own scopes.
 </Warning>
+
+The full scope catalog is `account:read`, `markets:read`, `positions:read`, `balances:read`, `trading:write`, `funds:deposit`, `funds:withdraw`, `account:write`, `tx:sign`, `keys:manage`, `accounts:provision`, and `mm:quote`. High-risk scopes are `funds:withdraw`, `tx:sign`, `keys:manage`, and `accounts:provision`.
+
+Presets expand to fixed lists: `read_only` = `account:read`, `markets:read`, `positions:read`, `balances:read`; `trading` = `read_only` plus `trading:write` and `funds:deposit`; `full` = `trading` plus `funds:withdraw`, `account:write`, and `mm:quote`. No preset includes `tx:sign`, `keys:manage`, or `accounts:provision`.
 
 ## How it works
 
@@ -70,10 +75,10 @@ Registration is a two-step proof of control. Request a challenge, sign the exact
 curl -X POST https://api.totalis.trade/v1/accounts/challenge \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{ "owner_pubkey": "<solana-pubkey>" }'
-# returns { challenge_id, nonce, expires_at, message_to_sign }
+# returns { data: { challenge_id, nonce, expires_at, message_to_sign } }
 ```
 
-`message_to_sign` is a base64 string of canonical, domain-separated bytes. Sign those bytes verbatim with the owner key. Do not rebuild or re-encode them, and do not sign the nonce alone.
+`message_to_sign` is a base64 string of 152 canonical, domain-separated bytes. Sign those bytes verbatim with the owner key using strict RFC 8032 ed25519. Do not rebuild or re-encode them, do not sign the nonce alone, and do not use zip215/cofactoring semantics.
 
 ```ts
 import nacl from 'tweetnacl';
@@ -87,10 +92,10 @@ const control_proof = Buffer.from(signature).toString('base64');
 curl -X POST https://api.totalis.trade/v1/accounts \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{ "owner_pubkey": "<pubkey>", "challenge_id": "<id>", "control_proof": "<base64 signature>", "label": "your-user-ref" }'
-# returns { account: { id, owner_pubkey, label, status, control_proved_at, created_at } }
+# returns { data: { account: { id, owner_pubkey, label, status, control_proved_at, created_at } } }
 ```
 
-The returned `account.id` is the value you pass in `X-Subaccount` on the trading, build, and sign calls (sections 4 through 6). The principal-scoped reads in section 7 do not accept it. Platforms repeat this once per end-user and use `label` to record their own user identifier. The challenge is single-use and valid for ten minutes. A failed signature does not consume it, so a retry is safe.
+The returned `account.id` is the value you pass in `X-Subaccount` on commit, build, submit, and withdraw calls (sections 4 through 6). Quote creation is principal-owned and does not read `X-Subaccount`. The principal-scoped reads in section 7 ignore it. Platforms repeat this once per end-user and use `label` to record their own user identifier. The challenge is single-use and valid for ten minutes. A failed signature does not consume it, so a retry is safe.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -101,7 +106,7 @@ The returned `account.id` is the value you pass in `X-Subaccount` on the trading
 
 ## 3. Fund the wallet
 
-Hold native USDC on Solana mainnet in the owner wallet's USDC token account. There is no deposit endpoint and you do not pre-transfer into the vault. When you place a trade, the transaction Totalis builds includes a deposit instruction that moves the stake from the owner wallet into the vault and locks it, in the same transaction that opens the position. So the wallet needs to hold at least the bet amount before you submit. No SOL is required, since Totalis sponsors the transaction fee. The USDC mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
+Hold native USDC on Solana mainnet in the owner wallet's USDC token account. There is no deposit endpoint and you do not pre-transfer into the vault. When you place a trade, the transaction Totalis builds includes a deposit instruction that moves the gross bet from the owner wallet into the vault and locks it, in the same transaction that opens the position. So the wallet needs to hold at least the bet amount before you submit. No SOL is required for this flow, since Totalis sponsors the transaction fee and rent work it builds. The USDC mint is `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` (6 decimals).
 
 Sending USDC straight into the vault's token account bypasses the program's accounting and will not count as a usable balance. Fund the wallet and let the trade move it.
 
@@ -109,19 +114,19 @@ Winnings settle into the vault and are moved back to the wallet with the withdra
 
 ## 4. Quote and commit
 
-Quoting is the standard request-for-quote flow with one addition: pass `X-Subaccount: <account_id>` on create and commit so the position is attributed to the right sub-account.
+Quoting is the standard request-for-quote flow. Create the quote request under the principal, then pass `X-Subaccount: <account_id>` on commit so the position is attributed to the right sub-account.
 
 ```bash
 # Open a quote request with two to five legs
 curl -X POST https://api.totalis.trade/v1/quote-requests \
-  -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
-  -d '{
-    "legs": [
-      { "market_ticker": "KXNBA-25DEC25-LAL", "side": "yes", "venue": "kalshi" },
-      { "market_ticker": "KXNFL-25DEC25-KC",  "side": "no",  "venue": "kalshi" }
+  -H "X-API-Key: <key>" -H "Content-Type: application/json" \
+  -d "{
+    \"legs\": [
+      { \"market_ticker\": \"${MARKET_TICKER_1}\", \"side\": \"yes\", \"venue\": \"kalshi\" },
+      { \"market_ticker\": \"${MARKET_TICKER_2}\", \"side\": \"no\",  \"venue\": \"kalshi\" }
     ],
-    "bet_amount": 50
-  }'
+    \"bet_amount\": 50
+  }"
 ```
 
 Poll the quote request until market makers respond, which usually takes a few seconds.
@@ -138,16 +143,16 @@ Polling needs `positions:read`. A sub-account-scoped key minted from the console
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests/<quote_request_id>/commit \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
-  -d '{
-    "expected_version": <quote_request.version>,
-    "displayed_quote_id": "<best_quote.id>",
-    "displayed_quote_book_seq": <quote_request.book_seq>,
-    "min_payout_odds_seen": 3.1
-  }'
-# returns { status: "committed", rfq_id, quote_id, selected_payout_odds }
+  -d "{
+    \"expected_version\": ${QUOTE_REQUEST_VERSION},
+    \"displayed_quote_id\": \"${BEST_QUOTE_ID}\",
+    \"displayed_quote_book_seq\": ${QUOTE_REQUEST_BOOK_SEQ},
+    \"min_payout_odds_seen\": ${MIN_PAYOUT_ODDS_SEEN}
+  }"
+# returns { data: { status: "committed", quote_request_id, rfq_id, quote_id, selected_payout_odds, confirmation_deadline } }
 ```
 
-The commit body is a freshness contract. `expected_version` must match the current version, the displayed quote must still be live, and the awarded odds must be at least `min_payout_odds_seen`, so you never commit at worse odds than you saw. The `min_payout_odds_seen` value also protects you against a quote that moved between display and commit.
+The commit body is a freshness contract. `expected_version` must match the latest `quote_request.version`, `displayed_quote_book_seq` must match the latest `quote_request.book_seq` you displayed, the displayed quote must still be live, and the awarded odds must be at least `min_payout_odds_seen`, so you never commit at worse odds than you saw.
 
 Committing does not open the position outright. It reserves the market maker's collateral and prepares the position for signing. The position is now in `awaiting_signature`, and you have about thirty minutes to build, sign, and submit before it lapses and the reservation is released. The `rfq_id` is the ticket you pass to `build-tx`.
 
@@ -159,11 +164,23 @@ Commit is idempotent per quote request and sub-account, so a retry returns the s
 | `QUOTE_CHANGED` | The version bumped or the odds slipped below your floor. Re-poll |
 | `MARKET_NOT_LIVE` | A leg's market closed. Rebuild with live markets |
 | `SUBACCOUNT_MISMATCH` | This request was already committed under a different sub-account |
+| `NOT_ACTIVE` | The quote request is no longer active. Create a fresh one |
 | `subaccount_key_mismatch` | A sub-account-scoped key was used for a different sub-account. Returned as `403` |
+| `subaccount_not_found` | The sub-account id is not active for this principal |
+| `subaccount_pending` | Control has not been proved or activated yet |
+| `subaccount_disabled` | The sub-account is disabled |
 | `mm_confirmation_timeout` | The market maker did not confirm in time. Retry, optionally with `exclude_mm_ids` |
 | `insufficient_mm_collateral` | No market maker could back it. Retry |
 | `awaiting_signature_cap` | This sub-account already has 25 unsigned positions. Sign or let some lapse |
 | `awaiting_signature_principal_cap` | Your principal hit its aggregate unsigned ceiling. Sign or let some lapse |
+| `quote_expired` | Lowercase core-race variant of quote expiry. Request a fresh quote |
+| `cancelled` | The committed ticket was cancelled before confirmation completed |
+| `insufficient_balance` | Custodial-only path; usually means `X-Subaccount` was omitted |
+| `COMMIT_FAILED` | Unknown non-retryable core commit result. Re-poll or escalate |
+| `COMMIT_FAILED_RETRYABLE` | Transient core failure. Returned as `503`; retry |
+| `FORBIDDEN` | Core rejected the commit without a more specific public reason |
+
+Malformed `X-Subaccount` UUIDs return `400` with message `X-Subaccount must be a UUID`.
 
 ## 5. Build, sign, submit
 
@@ -173,7 +190,7 @@ Build the transaction, sign its message with the owner key, and submit it back.
 curl -X POST https://api.totalis.trade/v1/positions/build-tx \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "ticket_id": "<rfq_id>" }'
-# returns { build_id, transaction }
+# returns { data: { build_id, transaction } }
 ```
 
 `transaction` is a base64 `VersionedTransaction` with every signature slot empty. Deserialize it, sign with the owner key, and re-serialize. With `@solana/web3.js`, `tx.sign([ownerKeypair])` fills only the owner's slot and leaves the server slots empty.
@@ -190,7 +207,7 @@ const transaction = Buffer.from(tx.serialize()).toString('base64');
 curl -X POST https://api.totalis.trade/v1/wallet/submit-built-tx \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "build_id": "<build_id>", "transaction": "<signed base64>" }'
-# returns { tx_signature, position_id, status: "active" }
+# returns { data: { tx_signature, position_id, status: "active" } }
 ```
 
 If you sign with a remote signer rather than a local keypair, sign `tx.message.serialize()` and place the 64-byte signature at the owner's account index. Do not change the message in any way.
@@ -199,7 +216,7 @@ If you sign with a remote signer rather than a local keypair, sign `tx.message.s
   Three constraints govern this flow:
 
   - The transaction from `build-tx` is not broadcastable on its own. Totalis adds the market maker and fee-payer signatures inside `submit-built-tx`, and only after the submitted transaction's message matches, byte for byte, the one it built. Broadcasting the transaction yourself will fail, and altering the message in any way is rejected as `byte_mismatch`.
-  - A `build_id` is single-use and lives about ninety seconds. Build, sign, and submit in sequence. Rebuilding while a signature is in flight replaces the cached transaction and the earlier signature no longer matches. If your signing round-trip is slow, request a fresh build and sign again. The position stays in `awaiting_signature` while you do.
+  - A `build_id` is single-use and lives about ninety seconds. Each build returns an independent `build_id`; submit a signed transaction with its matching `build_id`. If your signing round-trip is slow, request a fresh build and sign the new transaction. The position stays in `awaiting_signature` while you do.
   - If `submit-built-tx` returns `submission_indeterminate`, the outcome is unknown. Do not blindly resubmit, since that risks a double create or double withdraw. Check the position or the chain first.
 </Warning>
 
@@ -209,12 +226,15 @@ The outcomes of `submit-built-tx`, in `details.reason`:
 | --- | --- | --- |
 | success | 201 | Position is active, or funds withdrawn |
 | `build_expired` | 409 | The `build_id` is unknown or already used. Rebuild |
+| `build_principal_mismatch` | 403 | The `build_id` does not belong to this principal/sub-account |
 | `byte_mismatch` | 400 | The submitted transaction does not match what was built. Rebuild and sign cleanly |
 | `position_not_found` | 404 | No `awaiting_signature` position for this build |
 | `rebuild_required` | 409 | The transaction did not land. The `build_id` is spent, so rebuild rather than retrying it |
 | `submission_indeterminate` | 500 | Outcome unknown. Check status before resubmitting |
 | `insufficient_balance` | 400 | On a withdraw, the vault free balance is too low |
 | `withdraw_scope_required` | 403 | The build is a withdraw but the key lacks `funds:withdraw` |
+| `PARTNER_WITHDRAW_FORBIDDEN` | 403 | The build is a withdraw submitted with a partner-delegated key |
+| `subaccount_disabled` | 409 | A create build was submitted for a disabled sub-account. Withdraws are still allowed |
 
 ## 6. Withdraw
 
@@ -224,31 +244,42 @@ Withdrawals use the same build, sign, and submit flow. Funds return from the vau
 curl -X POST https://api.totalis.trade/v1/vault/build-withdraw-tx \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{ "amount": 50 }'
-# returns { build_id, transaction }, then sign and POST /v1/wallet/submit-built-tx
+# returns { data: { build_id, transaction } }, then sign and POST /v1/wallet/submit-built-tx
 ```
 
-Submitting a withdraw needs both `tx:sign` and `funds:withdraw`. A withdraw `build_id` is final once it confirms, so it cannot be resubmitted or rebuilt after success. A disabled sub-account can still withdraw, which is how you drain a closed account.
+`amount` must be between `0.000001` and `1,000,000` USDC. Submitting a withdraw needs both `tx:sign` and `funds:withdraw`. A withdraw `build_id` is final once it confirms, so it cannot be resubmitted or rebuilt after success. Partner-delegated keys cannot withdraw; a withdrawal must run under the account owner/principal credential. A disabled sub-account can still withdraw, which is how you drain a closed account.
 
 ## 7. Settlement and reads
 
 Positions settle server-side at market resolution with no signature from you, and proceeds land in the sub-account's vault. The clean way to track a sub-account is webhooks (section 8) combined with direct on-chain reads of its vault, which is derived from the owner public key.
 
-The balance reads `GET /v1/wallet`, `GET /v1/vault`, and `GET /v1/portfolio` report the calling principal's own account. They do not accept `X-Subaccount` and do not return a sub-account's vault. The quote-request reads, on the other hand, are scoped to the sub-account you committed under.
+The balance reads `GET /v1/wallet`, `GET /v1/vault`, and `GET /v1/portfolio` report the calling principal's own account. They ignore/do not read `X-Subaccount` and do not return a sub-account's vault. The quote-request reads, on the other hand, are scoped to the sub-account you committed under.
 
 ## 8. Webhooks
 
-Totalis can push position events to a URL you configure. A platform receives events for every one of its sub-accounts. Configure the URL, the events you want, and a signing secret through the partner console, which uses a separate console session rather than the trading API key.
+Totalis can push position events to a URL you configure. A platform receives events for every one of its sub-accounts. Configure the URL, the events you want, and a signing secret through the partner console, which uses a separate Privy console session rather than the trading API key.
+
+| Partner console route | Purpose |
+| --- | --- |
+| `GET /partner/webhooks` | Read current webhook settings and event catalog |
+| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }` |
+| `POST /partner/webhooks/rotate-secret` | Generate a `whsec_...` signing secret, returned once |
+| `GET /partner/webhooks/deliveries` | List recent delivery attempts |
+| `POST /partner/webhooks/deliveries/:id/redeliver` | Replay a delivered or dead-lettered delivery |
+| `POST /partner/sub-accounts/:id/api-keys` | Mint a sub-account-scoped key, clamped to `trading:write`, `tx:sign`, and `markets:read` |
 
 The events you can subscribe to:
 
-| Event | `data` |
-| --- | --- |
-| `position.settled` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
-| `position.cancelled` | `rfq_id`, `reason`, `occurred_at` |
-| `position.bought_back` | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
-| `parlay.status_changed` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
+| Event | Scope | `data` |
+| --- | --- | --- |
+| `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `positions:read` | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
+| `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
+| `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 
-Each delivery is a POST with a body of `{ id, type, data }` and three headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type`, and `X-Totalis-Signature`. The signature header is `t=<unix-seconds>,v1=<hex>`, where `v1` is `HMAC-SHA256(secret, "<t>.<raw body>")`. Verify it over the raw request body and reject timestamps outside a few minutes to guard against replay.
+Each delivery is a POST with `Content-Type: application/json`, a body of `{ id, type, data }`, and three Totalis headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type`, and `X-Totalis-Signature`. The signature header is `t=<unix-seconds>,v1=<hex>`, where `v1` is `HMAC-SHA256(secret, "<t>.<raw body>")`. Verify it over the raw request body and reject timestamps outside a few minutes to guard against replay.
 
 ```ts
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -270,9 +301,10 @@ Delivery is at least once with retry and backoff, so dedupe on `X-Totalis-Event-
 ## Limits
 
 - A sub-account can hold at most 25 positions in `awaiting_signature` at once.
-- A principal has an aggregate ceiling on unsigned positions across all of its sub-accounts.
+- A principal has an aggregate ceiling on unsigned positions across all of its sub-accounts, default 250 and environment-tunable.
+- A principal can have up to 1000 active sub-accounts by default; this is environment-tunable.
 - Lapsed unsigned positions are cleaned up after about thirty minutes and the reserved collateral is released.
-- The build, submit, and withdraw endpoints are rate-limited to roughly ten requests per minute each.
+- The build, submit, and withdraw endpoints are rate-limited to roughly ten requests per minute each. General authenticated reads are roughly 300 requests per minute, and public `GET /v1/markets` is roughly 100 requests per minute per IP.
 
 ## Endpoint reference
 
@@ -283,10 +315,13 @@ Delivery is at least once with retry and backoff, so dedupe on `X-Totalis-Event-
 | `POST /v1/accounts` | `accounts:provision` | |
 | `GET /v1/accounts`, `GET /v1/accounts/{id}` | `account:read` | |
 | `DELETE /v1/accounts/{id}` | `accounts:provision` | |
-| `POST /v1/quote-requests` | `trading:write` | `X-Subaccount` |
+| `POST /v1/quote-requests` | `trading:write` | |
 | `GET /v1/quote-requests/{id}` | `positions:read` | |
 | `POST /v1/quote-requests/{id}/commit` | `trading:write` | `X-Subaccount` |
 | `POST /v1/positions/build-tx` | `trading:write` | `X-Subaccount` |
 | `POST /v1/vault/build-withdraw-tx` | `funds:withdraw` | `X-Subaccount` |
 | `POST /v1/wallet/submit-built-tx` | `tx:sign`, plus `funds:withdraw` for withdrawals | `X-Subaccount` |
-| `GET /v1/wallet`, `GET /v1/vault`, `GET /v1/portfolio` | `balances:read`, `positions:read` | |
+| `GET /v1/wallet`, `GET /v1/vault` | `balances:read` | |
+| `GET /v1/portfolio` | `positions:read` plus `balances:read` | |
+| `GET/PUT /partner/webhooks`, `POST /partner/webhooks/rotate-secret`, `GET /partner/webhooks/deliveries`, `POST /partner/webhooks/deliveries/:id/redeliver` | partner console session | |
+| `POST /partner/sub-accounts/{id}/api-keys` | partner console session | |
