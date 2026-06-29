@@ -265,19 +265,19 @@ Totalis can push position events to a URL you configure. A platform receives eve
 | `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }` |
 | `POST /partner/webhooks/rotate-secret` | Generate a `whsec_...` signing secret, returned once |
 | `GET /partner/webhooks/deliveries` | List recent delivery attempts |
-| `POST /partner/webhooks/deliveries/:id/redeliver` | Replay a delivered or dead-lettered delivery |
-| `POST /partner/sub-accounts/:id/api-keys` | Mint a sub-account-scoped key, clamped to `trading:write`, `tx:sign`, and `markets:read` |
+| `POST /partner/webhooks/deliveries/{id}/redeliver` | Replay a delivered or dead-lettered delivery |
+| `POST /partner/sub-accounts/{id}/api-keys` | Mint a sub-account-scoped key, clamped to `trading:write`, `tx:sign`, and `markets:read` |
 
-The events you can subscribe to:
+The webhook event catalog includes:
 
-| Event | Scope | `data` |
-| --- | --- | --- |
-| `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
-| `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
-| `position.bought_back` | `positions:read` | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
-| `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
-| `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
-| `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
+| Event | Scope | Headless sub-account delivery | `data` |
+| --- | --- | --- | --- |
+| `position.settled` | `positions:read` | Delivered | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `positions:read` | Delivered | `rfq_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `positions:read` | Delivered | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `parlay.status_changed` | `positions:read` | Delivered | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
+| `funds.deposited` | `balances:read` | Not yet delivered for headless sub-accounts | `amount_usdc`, `vault_balance`, `occurred_at` |
+| `funds.withdrawn` | `balances:read` | Not yet delivered for headless sub-accounts | `amount_usdc`, `vault_balance`, `occurred_at` |
 
 Each delivery is a POST with `Content-Type: application/json`, a body of `{ id, type, data }`, and three Totalis headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type`, and `X-Totalis-Signature`. The signature header is `t=<unix-seconds>,v1=<hex>`, where `v1` is `HMAC-SHA256(secret, "<t>.<raw body>")`. Verify it over the raw request body and reject timestamps outside a few minutes to guard against replay.
 
@@ -323,5 +323,5 @@ Delivery is at least once with retry and backoff, so dedupe on `X-Totalis-Event-
 | `POST /v1/wallet/submit-built-tx` | `tx:sign`, plus `funds:withdraw` for withdrawals | `X-Subaccount` |
 | `GET /v1/wallet`, `GET /v1/vault` | `balances:read` | |
 | `GET /v1/portfolio` | `positions:read` plus `balances:read` | |
-| `GET/PUT /partner/webhooks`, `POST /partner/webhooks/rotate-secret`, `GET /partner/webhooks/deliveries`, `POST /partner/webhooks/deliveries/:id/redeliver` | partner console session | |
+| `GET/PUT /partner/webhooks`, `POST /partner/webhooks/rotate-secret`, `GET /partner/webhooks/deliveries`, `POST /partner/webhooks/deliveries/{id}/redeliver` | partner console session | |
 | `POST /partner/sub-accounts/{id}/api-keys` | partner console session | |
