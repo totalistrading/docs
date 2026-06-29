@@ -90,7 +90,7 @@ curl -X POST https://api.totalis.trade/v1/accounts \
 # returns { account: { id, owner_pubkey, label, status, control_proved_at, created_at } }
 ```
 
-The returned `account.id` is the value you pass in `X-Subaccount` on every later call. Platforms repeat this once per end-user and use `label` to record their own user identifier. The challenge is single-use and valid for ten minutes. A failed signature does not consume it, so a retry is safe.
+The returned `account.id` is the value you pass in `X-Subaccount` on the trading, build, and sign calls (sections 4 through 6). The principal-scoped reads in section 7 do not accept it. Platforms repeat this once per end-user and use `label` to record their own user identifier. The challenge is single-use and valid for ten minutes. A failed signature does not consume it, so a retry is safe.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -139,9 +139,9 @@ Polling needs `positions:read`. A sub-account-scoped key minted from the console
 curl -X POST https://api.totalis.trade/v1/quote-requests/<quote_request_id>/commit \
   -H "X-API-Key: <key>" -H "X-Subaccount: <account_id>" -H "Content-Type: application/json" \
   -d '{
-    "expected_version": 2,
+    "expected_version": <quote_request.version>,
     "displayed_quote_id": "<best_quote.id>",
-    "displayed_quote_book_seq": 0,
+    "displayed_quote_book_seq": <quote_request.book_seq>,
     "min_payout_odds_seen": 3.1
   }'
 # returns { status: "committed", rfq_id, quote_id, selected_payout_odds }
@@ -159,6 +159,7 @@ Commit is idempotent per quote request and sub-account, so a retry returns the s
 | `QUOTE_CHANGED` | The version bumped or the odds slipped below your floor. Re-poll |
 | `MARKET_NOT_LIVE` | A leg's market closed. Rebuild with live markets |
 | `SUBACCOUNT_MISMATCH` | This request was already committed under a different sub-account |
+| `subaccount_key_mismatch` | A sub-account-scoped key was used for a different sub-account. Returned as `403` |
 | `mm_confirmation_timeout` | The market maker did not confirm in time. Retry, optionally with `exclude_mm_ids` |
 | `insufficient_mm_collateral` | No market maker could back it. Retry |
 | `awaiting_signature_cap` | This sub-account already has 25 unsigned positions. Sign or let some lapse |
