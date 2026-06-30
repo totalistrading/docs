@@ -1,0 +1,41 @@
+---
+title: 'Reading Your Data'
+description: 'Pull your account state on demand — portfolio, parlay history, settlement outcomes, P&L, and balances — to complement the webhook push channel.'
+---
+
+[Webhooks](/guides/webhooks) push events as they happen; the read endpoints let you **pull** the same
+state on demand — for backfill, reconciliation, and on-demand display. All of these accept a scoped
+API key (`*:read` scopes) and live under `/v1`.
+
+## What to read
+
+| You want… | Endpoint | Scope |
+| --- | --- | --- |
+| Balance + stats + status counts in one call | [`GET /v1/portfolio`](/api-reference/funds/portfolio) | `positions:read` + `balances:read` |
+| Vault balance + active positions | [`GET /v1/vault`](/api-reference/funds/get-vault) | `balances:read` |
+| Your parlays, paginated (filter by status) | [`GET /v1/rfqs`](/api-reference/parlays/list) | `positions:read` |
+| One parlay's detail + settlement outcome | [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) | `positions:read` |
+| Realized P&L timeseries | [`GET /v1/pnl`](/api-reference/funds/pnl) | `positions:read` |
+
+## Settlement outcomes
+
+`GET /v1/rfqs/{id}` is the source of truth for how a parlay resolved. Once it's terminal the response
+carries the full settlement detail: each leg's `outcome`, the terminal `status`
+(`settled` / `cancelled` / `bought_back`), the payout, and the on-chain transaction signatures
+(`settle_tx`, `cancel_tx`, `buyback_tx`). A parlay id you don't own returns `404`.
+
+## Reconciling
+
+A typical reconcile loop:
+
+1. Page through [`GET /v1/rfqs?status=settled`](/api-reference/parlays/list) (follow `meta.cursor`
+   until `has_more` is false) to enumerate terminal parlays.
+2. For any you haven't recorded, fetch [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) for the
+   settlement detail and tx signatures.
+3. Cross-check realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
+   against [`GET /v1/vault`](/api-reference/funds/get-vault).
+
+<Note>
+  Cursors are opaque — pass the `meta.cursor` value from the previous response as `?cursor=…`; don't
+  parse or construct them.
+</Note>
