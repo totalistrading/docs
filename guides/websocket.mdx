@@ -3,11 +3,9 @@ title: 'WebSocket'
 description: 'Real-time trade confirmations and position updates via WebSocket.'
 ---
 
-The Totalis WebSocket delivers real-time notifications for trade confirmations, position settlements, and quote lifecycle events.
+The Totalis WebSocket pushes **post-trade events** in real time — quote acceptances and confirmations, and position settlements. Connect, authenticate, subscribe to the channels you need, and handle events as they arrive.
 
-<Note>
-  **Live quote request streaming uses SSE, not WebSocket.** Market makers receive quote requests via the [Quote Service SSE stream](/api-reference/quote-service-mm/stream). Users receive live pricing via the [user SSE stream](/api-reference/quote-service/stream). The WebSocket is used for post-trade events like `quote:accepted` and `position:settled`.
-</Note>
+For **pre-trade** live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
 
 ## Connecting
 
