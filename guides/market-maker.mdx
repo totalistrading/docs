@@ -1,32 +1,32 @@
 ---
-title: 'How to Become a Market Maker'
+title: 'Market making'
 description: 'Get started as a market maker on Totalis — stream live parlay quote requests, submit competitive quotes via the Quote Service, and earn the spread.'
 ---
 
 Market makers on Totalis stream incoming parlay quote requests via SSE, submit competitive prices, and earn the spread when users commit and confirm trades. There is no separate market maker role — any authenticated user with an API key can quote.
 
-## How It Works
+## How it works
 
 <Steps>
-  <Step title="Connect to the Quote Request Stream">
+  <Step title="Connect to the quote-request stream">
     Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. Maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds.
   </Step>
-  <Step title="Submit Draft Quotes">
+  <Step title="Submit draft quotes">
     Analyze the legs and submit payout odds via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the exact `version` and `request_hash` you received. Price `payout_odds` and size collateral against the net stake (`user_stake`), not `bet_amount` — `user_stake` is what the vault applies your odds to when the taker fee is on.
   </Step>
-  <Step title="Confirm Trades">
-    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with selected-MM-only details such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade via onchain Solana vaults.
+  <Step title="Confirm trades">
+    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with selected-MM-only details such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. The user's stake and your collateral lock together in on-chain Solana vaults.
   </Step>
 </Steps>
 
-## Core Quoting Loop
+## Core quoting loop
 
 For most market makers, the integration surface should stay small:
 
 | Step | Endpoint |
 | --- | --- |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
-| Check invalid leg combinations | [`GET /markets/exclusion-groups`](/api-reference/markets/exclusion-groups) |
+| Check invalid leg combinations | `GET /markets/exclusion-groups` |
 | Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
 | Submit a draft quote | [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) |
 | Withdraw a draft quote | [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) |
@@ -35,9 +35,9 @@ For most market makers, the integration surface should stay small:
 | Receive accepted trade details | `mm_quote:accepted` on `mm:quotes:{mm_id}` |
 | Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
 
-Use [`GET /user/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
+Use [`GET /v1/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 
-## Pricing Early-Cashout Buybacks
+## Pricing early cashouts
 
 A user can close an active position before settlement by accepting a **buyback** price from you, its counterparty MM. You receive cashout requests on the same SSE stream you already subscribe to (`GET /v1/mm/quote-requests/stream`), delivered as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event — scoped to you, never broadcast — and respond with one of:
 
@@ -46,11 +46,11 @@ A user can close an active position before settlement by accepting a **buyback**
 | Submit / update a buyback quote | [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) |
 | Decline (permanent refuse) | [`POST /v1/mm/cashout-requests/{id}/decline`](/api-reference/quote-service-mm/cashout-decline) |
 
-### Fair Value
+### Fair value
 
 Re-value the position at live odds: `fair_value = fair_win_prob × total_payout`, where `fair_win_prob` is the parlay's current joint win probability. Convert that to a directional quote by shrinking it with a conservative **exit edge** that is MM-favorable in both directions — you pay less when the user is up, the user pays more when they're down. A **partial-settle** buyback (some legs already resolved and pinned at certainty) uses a wider edge. The user's stake is always refunded separately; your quote is the directional net `amount` on top of it, gross of the profit fee.
 
-### When to Refuse
+### When to refuse
 
 Pricing runs a fixed sequence of gates, first match wins, with two kinds of outcome:
 
@@ -68,23 +68,23 @@ Pricing runs a fixed sequence of gates, first match wins, with two kinds of outc
 
 The no-live-price gate refuses a leg whose two-sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale. A leg already resolved and pinned at certainty is exempt from the odds-band check.
 
-## Get Set Up
+## Get set up
 
 <CardGroup cols={2}>
-  <Card title="Get an API Key" icon="key" href="/guides/authentication">
+  <Card title="Get an API key" icon="key" href="/guides/authentication">
     Generate an API key from the Totalis Dashboard to authenticate REST and SSE requests.
   </Card>
-  <Card title="Live Quote Requests" icon="bolt" href="/guides/live-quote-requests">
+  <Card title="Live quote requests" icon="bolt" href="/guides/live-quote-requests">
     Learn the full trading flow: versioned quote requests, SSE streaming, commit protection, and rejection codes.
   </Card>
-  <Card title="Rate Limits" icon="gauge-high" href="/api-reference/introduction">
+  <Card title="Rate limits" icon="gauge-high" href="/api-reference/introduction">
     Authenticated clients get 300 req/min across REST endpoints, with `X-RateLimit-*` headers on every response.
   </Card>
-  <Card title="MM API Reference" icon="chart-line" href="/api-reference/quote-service-mm/stream">
+  <Card title="MM API reference" icon="chart-line" href="/api-reference/quote-service-mm/stream">
     Full endpoint reference for the MM side of the Quote Service.
   </Card>
 </CardGroup>
 
-## Become a Liquidity Provider at Scale
+## Provide liquidity at scale
 
 If you're interested in providing liquidity on Totalis at scale, contact us at [founders@totalis.trade](mailto:founders@totalis.trade) to discuss onboarding, integration support, and partnership terms.

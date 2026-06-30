@@ -1,47 +1,41 @@
 ---
 title: "Totalis"
-description: "Totalis is the derivatives layer for prediction markets — combine bets across venues like Kalshi and Polymarket into custom parlays, settled on Solana"
+description: "APIs for building and settling custom parlays across prediction markets — Kalshi, Polymarket, and more — on Solana."
 ---
 
-## Welcome to Totalis
+Totalis turns individual prediction-market bets into custom parlays. Pick 2–5 outcomes across Kalshi, Polymarket, and other venues, combine them into one leveraged position, and market makers compete to price it. Trades settle on Solana.
 
-Totalis is the derivatives layer for prediction markets. We let you take bets from different prediction market venues — starting with Kalshi, with Polymarket and others coming soon — stack them together, and turn them into custom parlays.
-
-Our first product is **custom parlays on prediction markets**. Pick 2-5 outcomes across sports, crypto, politics, weather, and more, combine them into a single leveraged position, and let market makers compete to give you the best payout odds. All trades are facilitated through our infrastructure: a request-for-quote (RFQ) system for price discovery and Solana vaults for settlement.
-
-## Get Started
+The API gives you everything the app has: browse markets, request quotes, place and settle parlays, and read your positions, P&L, and balances.
 
 <CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/guides/quickstart">
+    Make your first authenticated call in five minutes.
+  </Card>
   <Card title="Authentication" icon="key" href="/guides/authentication">
-    Generate an API key and start making requests.
+    Scoped API keys and how to send them.
   </Card>
-  <Card title="RFQ Lifecycle" icon="arrows-spin" href="/guides/lifecycle">
-    Understand how a parlay flows from creation to settlement.
+  <Card title="How parlays work" icon="arrows-spin" href="/guides/lifecycle">
+    The path from quote request to settlement.
   </Card>
-  <Card title="WebSocket" icon="bolt" href="/guides/websocket">
-    Connect to real-time updates for RFQs and quotes.
-  </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/introduction">
-    Explore all API endpoints.
+  <Card title="API reference" icon="code" href="/api-reference/introduction">
+    Every endpoint, with live examples.
   </Card>
 </CardGroup>
 
-## For Users
-
-Combine bets across prediction markets into custom parlays and get competitive quotes from market makers.
+## How it works
 
 <Steps>
-  <Step title="Build Your Parlay">
-    Pick 2-5 outcomes from any supported prediction market and set your bet amount.
+  <Step title="Build a parlay">
+    Pick 2–5 outcomes from any supported market and set your bet amount.
   </Step>
-  <Step title="Get Competitive Quotes">
-    Market makers compete to offer you the best payout odds via our RFQ system.
+  <Step title="Get competitive quotes">
+    Market makers compete over the Totalis request-for-quote (RFQ) system to offer the best payout odds.
   </Step>
-  <Step title="Trade and Settle">
-    Accept the best quote. Funds are locked in onchain Solana vaults and automatically settled when markets resolve.
+  <Step title="Trade and settle">
+    Accept a quote. Your stake and the maker's collateral lock in on-chain Solana vaults, and the position settles automatically when the markets resolve.
   </Step>
 </Steps>
 
-## For Market Makers
+## Market makers
 
-Monitor incoming parlay requests in real-time, submit competitive quotes, and earn the spread. See the [How to Become a Market Maker](/guides/market-maker) guide for setup details, or contact [founders@totalis.trade](mailto:founders@totalis.trade) if you're interested in providing liquidity.
+Stream incoming parlay requests, quote them, and earn the spread. Start with the [market-making guide](/guides/market-maker), or email [founders@totalis.trade](mailto:founders@totalis.trade) to provide liquidity.

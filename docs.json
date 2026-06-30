@@ -22,19 +22,35 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Get started",
             "pages": [
               "index",
-              "guides/faq",
-              "guides/authentication",
-              "guides/funding",
+              "guides/quickstart",
+              "guides/authentication"
+            ]
+          },
+          {
+            "group": "Core concepts",
+            "pages": [
               "guides/lifecycle",
-              "guides/vault-architecture",
-              "guides/websocket",
-              "guides/live-quote-requests",
+              "guides/funding",
+              "guides/vault-architecture"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
               "guides/reading-data",
               "guides/webhooks",
-              "guides/market-maker",
+              "guides/websocket",
+              "guides/live-quote-requests",
+              "guides/market-maker"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "guides/faq",
               "guides/world-cup-reward-pool",
               "terms-of-service",
               "privacy-policy"
@@ -43,7 +59,7 @@
         ]
       },
       {
-        "tab": "API Reference",
+        "tab": "API reference",
         "groups": [
           {
             "group": "Overview",
@@ -52,7 +68,7 @@
             ]
           },
           {
-            "group": "Quote Service",
+            "group": "Quote service",
             "pages": [
               "api-reference/quote-service/create",
               "api-reference/quote-service/update",
@@ -66,7 +82,7 @@
             ]
           },
           {
-            "group": "Market Maker",
+            "group": "Market maker",
             "pages": [
               "api-reference/quote-service-mm/stream",
               "api-reference/quote-service-mm/submit-quote",
@@ -103,7 +119,7 @@
             ]
           },
           {
-            "group": "API Keys",
+            "group": "API keys",
             "pages": [
               "api-reference/user/list-api-keys",
               "api-reference/user/create-api-key",
@@ -111,7 +127,7 @@
             ]
           },
           {
-            "group": "Funds & Vault",
+            "group": "Funds & vault",
             "pages": [
               "api-reference/funds/get-vault",
               "api-reference/funds/wallet-withdraw",

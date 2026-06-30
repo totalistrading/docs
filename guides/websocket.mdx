@@ -33,7 +33,7 @@ Error:
 { "type": "auth:error", "message": "Invalid API key" }
 ```
 
-## Subscribing to Channels
+## Subscribing to channels
 
 After authenticating, subscribe to channels to receive events:
 
@@ -48,7 +48,7 @@ After authenticating, subscribe to channels to receive events:
 
 ## Events
 
-### Quote Events
+### Quote events
 
 | Event | Description | Data |
 |-------|-------------|------|
@@ -93,7 +93,7 @@ After authenticating, subscribe to channels to receive events:
 }
 ```
 
-### Position Events
+### Position events
 
 | Event | Description | Data |
 |-------|-------------|------|
@@ -102,7 +102,7 @@ After authenticating, subscribe to channels to receive events:
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
 
-## Keep-Alive
+## Keep-alive
 
 Send periodic pings to keep the connection open:
 
