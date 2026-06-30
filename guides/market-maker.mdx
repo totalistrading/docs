@@ -15,7 +15,7 @@ Market makers on Totalis stream incoming parlay quote requests via SSE, submit c
     Analyze the legs and submit payout odds via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the exact `version` and `request_hash` you received. Price `payout_odds` and size collateral against the net stake (`user_stake`), not `bet_amount` — `user_stake` is what the vault applies your odds to when the taker fee is on.
   </Step>
   <Step title="Confirm trades">
-    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with selected-MM-only details such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. Your stake and the maker's collateral lock together in on-chain Solana vaults.
+    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with selected-MM-only details such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. The user's stake and your collateral lock together in on-chain Solana vaults.
   </Step>
 </Steps>
 

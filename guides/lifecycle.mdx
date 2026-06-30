@@ -54,6 +54,7 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
     {
       "expected_version": 3,
       "displayed_quote_id": "<quote-id>",
+      "displayed_quote_book_seq": 5,
       "min_payout_odds_seen": 4.0
     }
     ```
@@ -87,7 +88,8 @@ A cashout is its own short-lived request, separate from the parlay's status:
 active → committing → committed     (success → the parlay becomes bought_back)
    │
    ├─ maker can't price it (a leg is already decided) → declined
-   └─ no quote within the window                      → expired
+   ├─ no quote within the window                      → expired
+   └─ you cancel the request                          → cancelled
 ```
 
 <Steps>

@@ -26,7 +26,9 @@ request, and understand the contract without wading through prose. Keep these ru
   funded parlay. Pick the right term for the layer and don't swap mid-page.
 - **Code is copy-paste-first.** Show a real `curl` (or fenced HTTP) with the auth header, real-ish
   values, and the response shape. Prefer a runnable example over a prose description of one.
-- **Paths are `/v1/...`.** Never the deprecated flat `/user`/`/rfqs` roots in examples.
+- **Use current paths in examples.** The supported contract surface is `/v1/...`; the public
+  unauthenticated reads keep their own roots (`/markets`, `/leaderboard`). Never use the deprecated
+  flat `/user`/`/rfqs` roots.
 
 ## Structure (information architecture)
 
