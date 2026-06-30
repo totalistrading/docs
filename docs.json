@@ -32,6 +32,8 @@
               "guides/vault-architecture",
               "guides/websocket",
               "guides/live-quote-requests",
+              "guides/reading-data",
+              "guides/webhooks",
               "guides/market-maker",
               "guides/world-cup-reward-pool",
               "terms-of-service",
@@ -117,6 +119,16 @@
               "api-reference/funds/enable-trading",
               "api-reference/funds/portfolio",
               "api-reference/funds/pnl"
+            ]
+          },
+          {
+            "group": "Webhooks",
+            "pages": [
+              "api-reference/webhooks/get-config",
+              "api-reference/webhooks/set-config",
+              "api-reference/webhooks/rotate-secret",
+              "api-reference/webhooks/list-deliveries",
+              "api-reference/webhooks/redeliver"
             ]
           }
         ]

@@ -1,6 +1,6 @@
 ---
 title: 'Authentication'
-description: 'How to authenticate against the Totalis REST API and WebSocket — API keys for programmatic clients and Privy JWTs for the web dashboard.'
+description: 'How to authenticate against the Totalis REST API and WebSocket — scoped API keys for programmatic clients and Privy JWTs for the web dashboard.'
 ---
 
 The Totalis API accepts two authentication schemes:
@@ -8,27 +8,27 @@ The Totalis API accepts two authentication schemes:
 - **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header. Works on both REST and WebSocket.
 - **Privy JWT** — used by the web dashboard. Sent as `Authorization: Bearer <jwt>`. The session signer underpinning the JWT also signs vault transactions in the browser.
 
-Either scheme is accepted on every authenticated endpoint, with one exception: `POST /user/api-keys` (create a new API key) requires a Privy JWT. You cannot mint new API keys with an existing API key.
+Either scheme is accepted on every authenticated endpoint, with one exception: `POST /v1/api-keys` (create a new API key) requires a Privy JWT — you cannot mint new API keys with an existing API key unless that key holds the `keys:manage` scope.
 
-## Getting Your API Key
+## Getting your API key
 
 Generate an API key from the [Totalis Dashboard](https://app.totalis.trade):
 
 1. Log in to [app.totalis.trade](https://app.totalis.trade)
 2. Navigate to your account settings
-3. Create a new API key and give it a name
+3. Create a new API key, name it, and **choose its scopes** (see below)
 4. Copy the full key immediately — it is only shown once
 
 <Warning>
   The full API key is only displayed at creation time. Save it securely — you will not be able to retrieve it later.
 </Warning>
 
-## Using Your API Key
+## Using your API key
 
 Send your API key in the `X-API-Key` header with every request:
 
 ```bash
-curl -X GET https://api.totalis.trade/rfqs \
+curl -X GET https://api.totalis.trade/v1/portfolio \
   -H "X-API-Key: <your-api-key>"
 ```
 
@@ -41,18 +41,42 @@ For WebSocket connections, authenticate after connecting:
 }
 ```
 
-## Managing API Keys
+## Scopes
 
-You can list, create, and revoke API keys programmatically:
+Every API key carries a set of **scopes** that bound what it can do — a key is granted only the capabilities you select at creation, and a request to an endpoint whose scope the key lacks is rejected with `403` (`insufficient_scope`). Grant the least a given integration needs.
 
-- **List keys** — `GET /user/api-keys`
-- **Create key** — `POST /user/api-keys` (requires Privy JWT)
-- **Revoke key** — `DELETE /user/api-keys/{prefix}`
+| Scope | Grants | Risk |
+| --- | --- | --- |
+| `account:read` | View account profile and username. | low |
+| `markets:read` | Browse markets and exclusion groups. | low |
+| `positions:read` | View quote requests, portfolio, stats, and P&L. | low |
+| `balances:read` | View wallet and vault balances and delegation status. | low |
+| `trading:write` | Create, modify, commit, and cancel quote requests (place parlays). | medium |
+| `funds:deposit` | Move USDC into the vault. | low |
+| `funds:withdraw` | Move USDC out of the vault/wallet to any address. **Can drain the account.** | high |
+| `account:write` | Change username and profile settings. | medium |
+| `tx:sign` | Submit arbitrary signed Solana transactions. | high |
+| `keys:manage` | Create, list, and revoke API keys. Lets a key mint more keys. | high |
+| `mm:quote` | Read RFQs and submit/confirm quotes as a market maker. | medium |
 
-You can also manage keys from the [Totalis Dashboard](https://app.totalis.trade).
+<Note>
+  A read-only integration (dashboards, reconciliation) needs only the `*:read` scopes. A trading bot
+  adds `trading:write` (and `funds:deposit` if it tops up the vault). Reserve `funds:withdraw`,
+  `tx:sign`, and `keys:manage` for keys that genuinely need them — each can move funds or escalate.
+</Note>
 
-## Key Lifecycle
+## Managing API keys
 
-- **Active** — Key is valid and can be used for authentication.
-- **Revoked** — Key has been manually revoked and will be rejected.
-- **Expired** — Key has passed its expiration date.
+You can list, create, and revoke API keys programmatically (or from the [Dashboard](https://app.totalis.trade)):
+
+- **List keys** — `GET /v1/api-keys`
+- **Create key** — `POST /v1/api-keys` (requires a Privy JWT, or a key with `keys:manage`)
+- **Revoke key** — `DELETE /v1/api-keys/{prefix}`
+
+A new key can never grant a scope the creating credential doesn't already hold.
+
+## Key lifecycle
+
+- **Active** — the key is valid and can be used for authentication.
+- **Revoked** — the key has been manually revoked and will be rejected.
+- **Expired** — the key has passed its expiration date.
