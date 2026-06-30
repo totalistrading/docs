@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis RFQ API",
     "version": "2.1.0",
-    "description": "Public REST surface for the Totalis parlay RFQ platform \u2014 a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker \u2014 there is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: 100 req/min anonymous, 300 req/min authenticated. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
+    "description": "Public REST surface for the Totalis parlay RFQ platform — a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker — there is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: 100 req/min anonymous, 300 req/min authenticated. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
   },
   "servers": [
     {
@@ -79,7 +79,7 @@
           {
             "name": "frequency",
             "in": "query",
-            "description": "Filter events by the cadence of the underlying series. `other` is intentionally rejected \u2014 it's a residual response bucket, not a filter target.",
+            "description": "Filter events by the cadence of the underlying series. `other` is intentionally rejected — it's a residual response bucket, not a filter target.",
             "schema": {
               "type": "string",
               "enum": [
@@ -121,7 +121,7 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Events per page. Default 21, max 100. The product `limit \u00d7 markets_per_event` must not exceed 2000.",
+            "description": "Events per page. Default 21, max 100. The product `limit × markets_per_event` must not exceed 2000.",
             "schema": {
               "type": "integer",
               "default": 21,
@@ -263,45 +263,6 @@
         }
       }
     },
-    "/markets/exclusion-groups": {
-      "get": {
-        "operationId": "getExclusionGroups",
-        "summary": "Get Exclusion Groups",
-        "description": "Returns the configured leg-conflict rules. Each group is a set of tickers that cannot co-exist as legs in the same parlay (e.g. correlated outcomes on the same underlying asset). Each entry carries a `scope` (`event` or `series`). No authentication required.",
-        "tags": [
-          "Markets"
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Exclusion groups configuration",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "exclusion_groups": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/ExclusionGroup"
-                          }
-                        },
-                        "conflict_mode": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/me": {
       "get": {
         "operationId": "getOrCreateUser",
@@ -357,7 +318,7 @@
       "put": {
         "operationId": "updateUsername",
         "summary": "Update Username",
-        "description": "Change the authenticated user's display name. Must be 3\u201320 characters, alphanumeric and underscores only.",
+        "description": "Change the authenticated user's display name. Must be 3–20 characters, alphanumeric and underscores only.",
         "tags": [
           "User"
         ],
@@ -384,7 +345,7 @@
                     "minLength": 3,
                     "maxLength": 20,
                     "pattern": "^[a-zA-Z0-9_]+$",
-                    "description": "New username (3\u201320 chars, alphanumeric + underscores)."
+                    "description": "New username (3–20 chars, alphanumeric + underscores)."
                   }
                 }
               },
@@ -431,7 +392,7 @@
       "get": {
         "operationId": "checkUsername",
         "summary": "Check Username",
-        "description": "Check whether a username is available. Must match 3\u201320 chars, alphanumeric + underscores.",
+        "description": "Check whether a username is available. Must match 3–20 chars, alphanumeric + underscores.",
         "tags": [
           "User"
         ],
@@ -485,7 +446,7 @@
       "post": {
         "operationId": "createApiKey",
         "summary": "Create API Key",
-        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` \u2014 save it immediately. Subsequent listings only show the prefix. Requires Privy JWT auth (web dashboard); cannot be called with an existing API key.",
+        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` — save it immediately. Subsequent listings only show the prefix. Requires Privy JWT auth (web dashboard); cannot be called with an existing API key.",
         "tags": [
           "API Keys"
         ],
@@ -537,7 +498,7 @@
       "get": {
         "operationId": "listApiKeys",
         "summary": "List API Keys",
-        "description": "List the authenticated user's API keys. Only metadata and prefixes are returned \u2014 the original secret is never re-exposed.",
+        "description": "List the authenticated user's API keys. Only metadata and prefixes are returned — the original secret is never re-exposed.",
         "tags": [
           "API Keys"
         ],
@@ -803,7 +764,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK \u2014 vault state or null if no vault exists",
+            "description": "OK — vault state or null if no vault exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -901,7 +862,7 @@
           "User"
         ],
         "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
-        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state \u2014 it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
+        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
         "security": [
           {
             "PrivyJWT": []
@@ -933,7 +894,7 @@
                                 }
                               ],
                               "nullable": true,
-                              "description": "Outcome of the pending-airdrop drain.\n`null` when nothing was staged for this\nuser (most common \u2014 pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape.\n"
+                              "description": "Outcome of the pending-airdrop drain.\n`null` when nothing was staged for this\nuser (most common — pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape.\n"
                             }
                           }
                         }
@@ -957,7 +918,7 @@
           "User"
         ],
         "summary": "Withdraw USDC from the embedded wallet to an external address",
-        "description": "Sends USDC out of the caller's embedded wallet ATA to an arbitrary\non-curve Solana address. Uses Privy's session-signer delegation\n(set up via /v1/wallet/enable-trading) and Privy's native gas\nsponsorship \u2014 the user is not prompted to sign and never needs SOL.\n\nChained vault-tap: when the requested `amount_usdc` exceeds the\ncaller's ATA-available balance, the handler first issues\n`withdraw_from_vault` (vault PDA \u2192 owner ATA) for the shortfall,\nwaits for that TX to confirm, then issues the external SPL transfer.\nThe `vault_signature` / `vault_amount` fields surface the intermediate\nTX when this happens. If the vault tap succeeds but the external\ntransfer fails to construct or broadcast, the response is **502**\nwith `error.code: PARTIAL_VAULT_ONLY` and the vault TX surfaced under\n`error.details.vault_signature` / `error.details.vault_amount`. The\ncaller can retry with the same amount; the pre-flight will see the\nATA is now sufficient and skip the vault tap. 502 (rather than 200)\nis deliberate: the idempotency middleware caches only 2xx, so\nsame-key retries against a 502 re-enter the handler instead of\nreplaying a cached partial response.\n\nIdempotency-Key is honored: a duplicate request with the same key\nreplays the cached 2xx response without re-issuing on-chain TXs.\n",
+        "description": "Sends USDC out of the caller's embedded wallet ATA to an arbitrary\non-curve Solana address. Uses Privy's session-signer delegation\n(set up via /v1/wallet/enable-trading) and Privy's native gas\nsponsorship — the user is not prompted to sign and never needs SOL.\n\nChained vault-tap: when the requested `amount_usdc` exceeds the\ncaller's ATA-available balance, the handler first issues\n`withdraw_from_vault` (vault PDA → owner ATA) for the shortfall,\nwaits for that TX to confirm, then issues the external SPL transfer.\nThe `vault_signature` / `vault_amount` fields surface the intermediate\nTX when this happens. If the vault tap succeeds but the external\ntransfer fails to construct or broadcast, the response is **502**\nwith `error.code: PARTIAL_VAULT_ONLY` and the vault TX surfaced under\n`error.details.vault_signature` / `error.details.vault_amount`. The\ncaller can retry with the same amount; the pre-flight will see the\nATA is now sufficient and skip the vault tap. 502 (rather than 200)\nis deliberate: the idempotency middleware caches only 2xx, so\nsame-key retries against a 502 re-enter the handler instead of\nreplaying a cached partial response.\n\nIdempotency-Key is honored: a duplicate request with the same key\nreplays the cached 2xx response without re-issuing on-chain TXs.\n",
         "security": [
           {
             "PrivyJWT": []
@@ -984,12 +945,12 @@
                 "properties": {
                   "recipient": {
                     "type": "string",
-                    "description": "Destination Solana wallet address (base58). Must be\non-curve \u2014 PDAs, program IDs, and token-account\naddresses are rejected because funds sent to a\nderived ATA-of-an-ATA are unrecoverable.\n"
+                    "description": "Destination Solana wallet address (base58). Must be\non-curve — PDAs, program IDs, and token-account\naddresses are rejected because funds sent to a\nderived ATA-of-an-ATA are unrecoverable.\n"
                   },
                   "amount_usdc": {
                     "type": "number",
                     "minimum": 1e-06,
-                    "description": "USDC amount to send. Minimum is one USDC base unit\n(1e-6). Must be \u2264 the caller's total spendable pool\n(ATA + vault free_balance \u2212 in-flight RFQ holds);\nrequests exceeding this are rejected with 400.\n"
+                    "description": "USDC amount to send. Minimum is one USDC base unit\n(1e-6). Must be ≤ the caller's total spendable pool\n(ATA + vault free_balance − in-flight RFQ holds);\nrequests exceeding this are rejected with 400.\n"
                   }
                 }
               }
@@ -998,7 +959,7 @@
         },
         "responses": {
           "200": {
-            "description": "Withdrawal submitted. `signature` is the external SPL transfer\nsignature. `vault_signature` and `vault_amount` are present\nonly when the request required a vault \u2192 ATA hop.\n",
+            "description": "Withdrawal submitted. `signature` is the external SPL transfer\nsignature. `vault_signature` and `vault_amount` are present\nonly when the request required a vault → ATA hop.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -1017,7 +978,7 @@
                         },
                         "vault_signature": {
                           "type": "string",
-                          "description": "On-chain `withdraw_from_vault` signature.\nPresent only when the request required a vault\n\u2192 ATA hop to cover a shortfall.\n"
+                          "description": "On-chain `withdraw_from_vault` signature.\nPresent only when the request required a vault\n→ ATA hop to cover a shortfall.\n"
                         },
                         "vault_amount": {
                           "type": "number",
@@ -1033,7 +994,7 @@
                         },
                         "delivered_usdc": {
                           "type": "number",
-                          "description": "USDC actually delivered to the recipient\n(`amount_usdc \u2212 chargeback_usdc`). Present only with\n`recipient_ata_created`.\n"
+                          "description": "USDC actually delivered to the recipient\n(`amount_usdc − chargeback_usdc`). Present only with\n`recipient_ata_created`.\n"
                         }
                       }
                     }
@@ -1065,7 +1026,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "502": {
-            "description": "Ambiguous partial state \u2014 returned as 5xx (not 200) so\nIdempotency-Key callers retry against the handler instead of\nreplaying a cached partial response. Two codes:\n\n`PARTIAL_VAULT_ONLY` \u2014 the vault tap succeeded but the external SPL\ntransfer failed to construct/broadcast. Funds moved from vault to\nATA; retry the same request to complete the external leg (the\npre-flight sees the updated ATA and skips the vault tap). Returned\nonly when the vault tap fired this request; a same-key retry against\nan already-topped-up ATA skips the tap (`shortfall = 0`) and a\nsubsequent SPL failure surfaces as a normal 500.\n\n`WITHDRAW_SUBMITTED_UNCONFIRMED` \u2014 only on the recipient-ATA\ncreate-and-chargeback path (WITHDRAW_ATA_AUTOCREATE), where broadcast\nand confirmation are separate steps: the transaction was broadcast\n(`details.signature` present) but confirmation timed out, so it may\nhave landed. Do NOT blind-retry \u2014 verify the recipient balance first,\nsince a retry would re-send via the now-existing ATA and double-pay.\n",
+            "description": "Ambiguous partial state — returned as 5xx (not 200) so\nIdempotency-Key callers retry against the handler instead of\nreplaying a cached partial response. Two codes:\n\n`PARTIAL_VAULT_ONLY` — the vault tap succeeded but the external SPL\ntransfer failed to construct/broadcast. Funds moved from vault to\nATA; retry the same request to complete the external leg (the\npre-flight sees the updated ATA and skips the vault tap). Returned\nonly when the vault tap fired this request; a same-key retry against\nan already-topped-up ATA skips the tap (`shortfall = 0`) and a\nsubsequent SPL failure surfaces as a normal 500.\n\n`WITHDRAW_SUBMITTED_UNCONFIRMED` — only on the recipient-ATA\ncreate-and-chargeback path (WITHDRAW_ATA_AUTOCREATE), where broadcast\nand confirmation are separate steps: the transaction was broadcast\n(`details.signature` present) but confirmation timed out, so it may\nhave landed. Do NOT blind-retry — verify the recipient balance first,\nsince a retry would re-send via the now-existing ATA and double-pay.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -1089,7 +1050,7 @@
                           "properties": {
                             "signature": {
                               "type": "string",
-                              "description": "The broadcast transaction signature. Present on\nWITHDRAW_SUBMITTED_UNCONFIRMED \u2014 the tx may have\nlanded; check it before retrying.\n"
+                              "description": "The broadcast transaction signature. Present on\nWITHDRAW_SUBMITTED_UNCONFIRMED — the tx may have\nlanded; check it before retrying.\n"
                             },
                             "vault_signature": {
                               "type": "string"
@@ -1112,6 +1073,197 @@
                                 "submitted_unconfirmed"
                               ]
                             }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rfqs": {
+      "get": {
+        "operationId": "listRfqsV1",
+        "tags": [
+          "RFQs"
+        ],
+        "summary": "List parlays",
+        "description": "List your parlays (RFQs), newest first, with cursor pagination. Filter by status (`?status=settled`, or comma-separated `?status=open,quoted`); `?include=quotes` embeds each parlay's quotes.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by RFQ status. Repeatable values are joined with commas (e.g. ?status=open,quoted,accepted).",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/RfqStatus"
+              }
+            },
+            "example": [
+              "open",
+              "quoted",
+              "accepted"
+            ]
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "quotes"
+              ]
+            },
+            "description": "Include quotes array (otherwise null)"
+          },
+          {
+            "$ref": "#/components/parameters/LimitParam"
+          },
+          {
+            "$ref": "#/components/parameters/CursorParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rfqs": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Rfq"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rfqs/{id}": {
+      "get": {
+        "operationId": "getRfqV1",
+        "tags": [
+          "RFQs"
+        ],
+        "summary": "Get parlay",
+        "description": "Fetch one of your parlays (RFQs) by id, with its quotes. Once the parlay is terminal the response also carries its settlement detail — per-leg outcomes, final status, payout, and the settle/buyback transaction signature. An id you don't own returns 404.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Rfq"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/pnl": {
+      "get": {
+        "operationId": "getPnlV1",
+        "tags": [
+          "Portfolio"
+        ],
+        "summary": "P&L timeseries",
+        "description": "Realized P&L per day over the requested window (`1D` / `1W` / `1M` / `ALL`; default `1W`). Stats totals (wins / losses / realized P&L) are on `GET /v1/portfolio`.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1D",
+                "1W",
+                "1M",
+                "ALL"
+              ],
+              "default": "1W"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PnlPoint"
                           }
                         }
                       }
@@ -1174,7 +1326,7 @@
       "IdempotencyKey": {
         "name": "Idempotency-Key",
         "in": "header",
-        "description": "Client-generated UUID. Successful (2xx) responses are cached for 24h and replayed on retry with the same key. The request body is not part of the cache key \u2014 use a fresh UUID whenever the payload differs (e.g. updated odds), otherwise the original response is replayed. Non-2xx responses are not cached.",
+        "description": "Client-generated UUID. Successful (2xx) responses are cached for 24h and replayed on retry with the same key. The request body is not part of the cache key — use a fresh UUID whenever the payload differs (e.g. updated odds), otherwise the original response is replayed. Non-2xx responses are not cached.",
         "schema": {
           "type": "string",
           "format": "uuid"
@@ -1329,11 +1481,22 @@
         "properties": {
           "cursor": {
             "type": "string",
-            "nullable": true,
-            "description": "Opaque cursor for the next page; null on the final page."
+            "nullable": true
           },
           "has_more": {
             "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of items requested for this page."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of items skipped before this page."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of items available across all pages, when returned by the endpoint."
           }
         }
       },
@@ -1382,8 +1545,7 @@
           "expired",
           "settled",
           "bought_back"
-        ],
-        "description": "Lifecycle status of an RFQ. `bought_back` is the terminal status for a position closed early via the buyback (early-cashout) flow, distinct from `settled`."
+        ]
       },
       "QuoteStatus": {
         "type": "string",
@@ -1461,7 +1623,7 @@
         "properties": {
           "ticker": {
             "type": "string",
-            "description": "Unique market identifier on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned by this API."
+            "description": "Unique market identifier on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned by this API."
           },
           "event_ticker": {
             "type": "string",
@@ -1469,7 +1631,7 @@
           },
           "series_ticker": {
             "type": "string",
-            "description": "Series identifier the event belongs to. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug` \u2014 Polymarket has no native series concept, so we key whitelisting on the market slug."
+            "description": "Series identifier the event belongs to. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug` — Polymarket has no native series concept, so we key whitelisting on the market slug."
           },
           "title": {
             "type": "string"
@@ -1560,7 +1722,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Parlay-correlation keys. Two markets **cannot co-exist in the same parlay if (and only if) their `exclusion_keys` arrays intersect** \u2014 i.e. share at least one string. Apply a pure set-intersection; there is no rule table to maintain client-side. The keys encode every correlation rule (cross-series exclusion groups, threshold ladders, same-game sports family/kind/participant correlation, Polymarket sub-events). Keys are opaque and namespaced by reason and scope (e.g. `kp:<gameKey>:moneyline|spread`, `grp:<idx>:<eventKey>`, `fam:<gameKey>:<series>`), and are derived solely from the market itself, so a selected leg can snapshot its keys and compare them later. The plain one-leg-per-event rule (same `event_ticker`) is intentionally not encoded here. Always present; an empty array means the market participates in no correlation rule."
+            "description": "Parlay-correlation keys. Two markets **cannot co-exist in the same parlay if (and only if) their `exclusion_keys` arrays intersect** — i.e. share at least one string. Apply a pure set-intersection; there is no rule table to maintain client-side. The keys encode every correlation rule (cross-series exclusion groups, threshold ladders, same-game sports family/kind/participant correlation, Polymarket sub-events). Keys are opaque and namespaced by reason and scope (e.g. `kp:<gameKey>:moneyline|spread`, `grp:<idx>:<eventKey>`, `fam:<gameKey>:<series>`), and are derived solely from the market itself, so a selected leg can snapshot its keys and compare them later. The plain one-leg-per-event rule (same `event_ticker`) is intentionally not encoded here. Always present; an empty array means the market participates in no correlation rule."
           }
         }
       },
@@ -1639,21 +1801,16 @@
       },
       "Leg": {
         "type": "object",
-        "required": [
-          "market_ticker",
-          "event_ticker",
-          "side",
-          "venue",
-          "market_title"
-        ],
         "properties": {
+          "leg_index": {
+            "type": "integer",
+            "description": "Zero-based ordering index for the leg within the RFQ"
+          },
           "market_ticker": {
-            "type": "string",
-            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned \u2014 resolve them client-side via Polymarket's CLOB if needed."
+            "type": "string"
           },
           "event_ticker": {
-            "type": "string",
-            "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+            "type": "string"
           },
           "side": {
             "$ref": "#/components/schemas/Side"
@@ -1670,36 +1827,40 @@
           "yes_sub_title": {
             "type": "string",
             "nullable": true,
-            "description": "Snapshot of the market's yes-side subtitle at RFQ creation."
+            "description": "Snapshot of `Market.yes_sub_title` at RFQ creation (e.g. team name on a sports market). Lets clients render the side-specific subtitle after the underlying market has rolled out of the live `/markets` cache. Null on binary markets that carry no per-side subtitle and on legs created before this field was persisted."
           },
           "no_sub_title": {
             "type": "string",
             "nullable": true,
-            "description": "Snapshot of the market's no-side subtitle at RFQ creation."
+            "description": "Snapshot of `Market.no_sub_title` at RFQ creation — opposing-side counterpart to `yes_sub_title`. Same null semantics."
           },
           "venue_url": {
             "type": "string",
             "nullable": true,
-            "description": "Canonical URL of the leg's market on its venue."
+            "description": "Canonical URL of the leg's market on its source venue (Kalshi or Polymarket). Hydrated from marketd Redis hashes, falling back to the parlay-leg snapshot when the market hash has been purged."
           },
           "image_url": {
             "type": "string",
             "nullable": true,
-            "description": "Image URL for the leg's market."
+            "description": "Image URL for the leg's market. Hydrated from the marketd Redis hash and whitelist metadata, falling back to the parlay-leg snapshot when the market hash has been purged."
           },
           "expected_expiration_time": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Expected market resolution time for the leg."
+            "description": "Expected market resolution time for the leg. Hydrated from marketd Redis hashes, falling back to the parlay-leg snapshot when the market hash has been purged."
           },
           "current_yes_price": {
             "type": "number",
-            "description": "Yes ask price at RFQ creation, decimal (0-1)."
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Yes ask price at RFQ creation time, decimal probability (0-1)"
           },
           "current_no_price": {
             "type": "number",
-            "description": "No ask price at RFQ creation, decimal (0-1)."
+            "minimum": 0,
+            "maximum": 1,
+            "description": "No ask price at RFQ creation time, decimal probability (0-1)"
           },
           "outcome": {
             "$ref": "#/components/schemas/LegOutcome"
@@ -1708,41 +1869,22 @@
       },
       "Rfq": {
         "type": "object",
-        "required": [
-          "id",
-          "user_id",
-          "status",
-          "legs",
-          "bet_amount",
-          "user_stake",
-          "implied_probability",
-          "created_at",
-          "updated_at",
-          "expires_at"
-        ],
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
           "user_id": {
-            "type": "string",
-            "description": "Privy DID of the bettor."
+            "type": "string"
           },
           "status": {
             "$ref": "#/components/schemas/RfqStatus"
           },
           "bet_amount": {
-            "type": "number",
-            "description": "USDC. Capped at 100 USDC per RFQ."
-          },
-          "user_stake": {
-            "type": "number",
-            "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
+            "type": "number"
           },
           "implied_probability": {
-            "type": "number",
-            "description": "Combined implied probability of all legs (0-1)."
+            "type": "number"
           },
           "legs": {
             "type": "array",
@@ -1756,27 +1898,32 @@
             "items": {
               "$ref": "#/components/schemas/Quote"
             },
-            "description": "`null` when not requested (listRfqs without `?include=quotes`). `[]` means requested but no quotes yet."
+            "description": "null = not requested (fetched without include=quotes). [] = requested but no quotes yet."
           },
           "accepted_quote_id": {
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "Set once status >= accepted."
+            "description": "Set once status >= accepted"
           },
           "market_maker_id": {
             "type": "string",
             "nullable": true,
-            "description": "Set once status >= accepted."
+            "description": "Set once status >= accepted"
           },
           "position_pda": {
             "type": "string",
             "nullable": true,
             "description": "On-chain position address. Set once status >= confirmed."
           },
+          "position_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "On-chain position id — the 16-byte vault_positions.position_id, hex-encoded (32 chars). Distinct from position_pda (a base58 address): this is the id the early-cashout endpoints key on (/internal/positions/cashout-eligibility, POST /v1/cashout-requests). Set once status >= confirmed."
+          },
           "position_status": {
             "nullable": true,
-            "description": "Position status from the vault positions table.",
+            "description": "Position status from vault_positions table",
             "allOf": [
               {
                 "$ref": "#/components/schemas/PositionStatus"
@@ -1786,24 +1933,25 @@
           "position_error": {
             "type": "string",
             "nullable": true,
-            "description": "Last error recorded on the vault position; populated when `position_status === 'error'`."
+            "description": "Last error recorded on the vault position. Populated when position_status === 'error'; null otherwise."
           },
           "cancellation_reason": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Why the ticket was cancelled."
           },
           "is_failed": {
             "type": "boolean",
-            "description": "True when the vault position errored on-chain. Derived from `position_status === 'error'`. Omitted on non-failed parlays."
+            "description": "True when the vault position errored (on-chain execution failed). Derived from position_status === 'error'. Omitted (not false) for non-failed parlays."
           },
           "fee_amount": {
             "type": "number",
             "nullable": true,
-            "description": "Set on settled RFQs only."
+            "description": "Set on settled RFQs only"
           },
           "settlement": {
             "nullable": true,
-            "description": "Set on settled RFQs only.",
+            "description": "Set on settled RFQs only",
             "allOf": [
               {
                 "$ref": "#/components/schemas/Settlement"
@@ -1813,7 +1961,8 @@
           "settled_at": {
             "type": "string",
             "format": "date-time",
-            "nullable": true
+            "nullable": true,
+            "description": "Set on settled RFQs only"
           },
           "cashout": {
             "nullable": true,
@@ -1823,6 +1972,21 @@
                 "$ref": "#/components/schemas/Cashout"
               }
             ]
+          },
+          "create_position_tx": {
+            "type": "string",
+            "nullable": true,
+            "description": "create_position transaction signature. Set once the on-chain vault position is created (status >= confirmed)."
+          },
+          "settle_tx": {
+            "type": "string",
+            "nullable": true,
+            "description": "settle_position transaction signature — the on-chain proof a settled RFQ paid out. Set on settled RFQs (the settle analogue of buyback_tx)."
+          },
+          "cancel_tx": {
+            "type": "string",
+            "nullable": true,
+            "description": "cancel_position transaction signature. Set on cancelled RFQs."
           },
           "buyback_tx": {
             "type": "string",
@@ -1845,7 +2009,7 @@
       },
       "Cashout": {
         "type": "object",
-        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the buyback analogue of Settlement. realized_pnl is the user's net P&L (stake nets out; the directional `amount` is the realized delta, less the profit fee on the profiting side and the create-time taker fee).",
+        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the\nbuyback analogue of Settlement. realized_pnl is the user's net P&L\n(stake nets out; the directional `amount` is the realized delta, less\nthe profit fee on the profiting side and the create-time taker fee).\n",
         "required": [
           "realized_pnl",
           "amount",
@@ -1868,13 +2032,13 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Time the position was bought back / cashed out (the buyback fee insert = finalize moment). The buyback analogue of settled_at. Absent on legacy rows without a fee."
+            "description": "Time the position was bought back / cashed out (the buyback fee insert = finalize moment). The buyback analogue of settled_at; clients sort the History cashed-out row by this. Absent on legacy rows without a fee."
           }
         }
       },
       "MmRfqLeg": {
         "type": "object",
-        "description": "Subset of a leg surfaced to market makers \u2014 drops display-only fields, keeps the price snapshot needed for quoting.",
+        "description": "Subset of a leg surfaced to market makers — drops display-only fields, keeps the price snapshot needed for quoting.",
         "required": [
           "leg_index",
           "market_ticker",
@@ -1892,7 +2056,7 @@
           },
           "market_ticker": {
             "type": "string",
-            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned \u2014 resolve them client-side via Polymarket's CLOB if needed."
+            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
           },
           "event_ticker": {
             "type": "string",
@@ -2083,7 +2247,7 @@
               "properties": {
                 "market_ticker": {
                   "type": "string",
-                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2\u2026`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) \u2014 there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
+                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) — there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
                 },
                 "side": {
                   "$ref": "#/components/schemas/Side"
@@ -2135,18 +2299,18 @@
             "type": "number",
             "minimum": 1.0001,
             "maximum": 1000,
-            "description": "Multiplier (1.0001x \u2013 1000x). Must be a finite number."
+            "description": "Multiplier (1.0001x – 1000x). Must be a finite number."
           },
           "valid_for_seconds": {
             "type": "integer",
             "minimum": 10,
             "maximum": 600,
             "default": 60,
-            "description": "Quote validity window. 10s \u2013 10min. Defaults to 60s."
+            "description": "Quote validity window. 10s – 10min. Defaults to 60s."
           },
           "leg_prices": {
             "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value \u2014 the request field is named `odds`, the response field is named `leg_odds`.",
+            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value — the request field is named `odds`, the response field is named `leg_odds`.",
             "items": {
               "type": "object",
               "required": [
@@ -2189,7 +2353,7 @@
               "confirmation_deadline": {
                 "type": "string",
                 "format": "date-time",
-                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** \u2014 RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** \u2014 RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
+                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
               }
             }
           }
@@ -2226,7 +2390,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Privy DID \u2014 internal identifier, not exposed on public endpoints."
+            "description": "Privy DID — internal identifier, not exposed on public endpoints."
           },
           "username": {
             "type": "string",
@@ -2402,13 +2566,15 @@
           },
           "payout": {
             "type": "number",
-            "description": "Full pot transferred to the winner \u2014 equals `user_stake + mm_risk` (i.e. `user_stake * payout_odds`). For MM loss-side PnL, use `-(payout - user_stake) = -mm_risk`."
+            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. bet_amount * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
           },
           "user_stake": {
-            "type": "number"
+            "type": "number",
+            "description": "Bettor's stake at settle time. Surfaced so the MM dashboard can\nderive PnL without a second fetch — MM win = +user_stake - fee,\nMM loss = -(payout - user_stake) = -mm_risk.\n"
           },
           "mm_risk": {
-            "type": "number"
+            "type": "number",
+            "description": "Maker's max risk at settle time. Equal to payout - user_stake; the\nMM dashboard renders loss-side PnL directly off this field.\n"
           },
           "fee_amount": {
             "type": "number",
@@ -2425,7 +2591,7 @@
       },
       "AirdropDrainOutcome": {
         "type": "object",
-        "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` \u2014 there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint).\n`{ success: true, amount }` \u2014 the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` \u2014 the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.\n",
+        "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` — there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint).\n`{ success: true, amount }` — the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` — the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.\n",
         "required": [
           "success",
           "amount"
@@ -2541,7 +2707,7 @@
           },
           "executed": {
             "type": "integer",
-            "description": "Positions on-chain but not yet resolved. Distinct from total_settled \u2014 settled means market resolution + payout distributed."
+            "description": "Positions on-chain but not yet resolved. Distinct from total_settled — settled means market resolution + payout distributed."
           },
           "total_settled": {
             "type": "integer"
@@ -2613,7 +2779,7 @@
       },
       "VaultPositionSummary": {
         "type": "object",
-        "description": "Lightweight position summary for the vault response.\n\nCaller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral.\nDon't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned \u2014 for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.\n",
+        "description": "Lightweight position summary for the vault response.\n\nCaller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral.\nDon't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned — for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.\n",
         "properties": {
           "position_id": {
             "type": "string",
@@ -2640,6 +2806,18 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "PnlPoint": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "pnl": {
+            "type": "number"
           }
         }
       }

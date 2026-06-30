@@ -79,8 +79,14 @@
             "group": "Markets",
             "pages": [
               "api-reference/markets/list",
-              "api-reference/markets/get",
-              "api-reference/markets/exclusion-groups"
+              "api-reference/markets/get"
+            ]
+          },
+          {
+            "group": "Parlays",
+            "pages": [
+              "api-reference/parlays/list",
+              "api-reference/parlays/get"
             ]
           },
           {
@@ -109,7 +115,8 @@
               "api-reference/funds/wallet-withdraw",
               "api-reference/funds/delegation-status",
               "api-reference/funds/enable-trading",
-              "api-reference/funds/portfolio"
+              "api-reference/funds/portfolio",
+              "api-reference/funds/pnl"
             ]
           }
         ]
