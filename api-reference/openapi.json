@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis RFQ API",
     "version": "2.1.0",
-    "description": "Public REST surface for the Totalis parlay RFQ platform — a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker — there is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: 100 req/min anonymous, 300 req/min authenticated. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
+    "description": "Public REST surface for the Totalis parlay RFQ platform — a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement. **Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope. **Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker — there is no separate MM role. Admin endpoints are out of scope for this public reference. **Rate limiting**: 100 req/min anonymous, 300 req/min authenticated. Responses include `X-RateLimit-*` headers. Request body limit: 256KB. **Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
   },
   "servers": [
     {
@@ -31,31 +31,61 @@
     }
   ],
   "paths": {
+    "/v1/api-keys/{prefix}": {
+      "delete": {
+        "operationId": "revokeApiKey",
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Revoke an API key",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "prefix",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          }
+        }
+      }
+    },
     "/markets": {
       "get": {
         "operationId": "listMarkets",
-        "summary": "List Markets",
-        "description": "List active markets grouped by event across supported venues (Kalshi and Polymarket). Filters: `category`, `venue`, `subcategory` (validated against the selected category), `frequency` (`daily`/`weekly`/`monthly`/`hourly`), `date_filter` (time bucket), and `search`. Pagination is cursor-based at the event level. The response includes `available_subcategories` and `available_frequencies` so clients can drive filter chips from the same result set.",
         "tags": [
           "Markets"
         ],
-        "security": [],
+        "summary": "List markets grouped by event",
         "parameters": [
           {
             "name": "category",
             "in": "query",
-            "description": "Filter by category. Pass `all` to disable the default category filter.",
+            "description": "Filter by category. Pass 'all' to disable the default category filter.",
             "schema": {
               "type": "string",
               "enum": [
-                "politics",
-                "sports",
                 "crypto",
-                "finance",
                 "economics",
+                "finance",
+                "sports",
+                "politics",
+                "tech",
                 "entertainment",
                 "weather",
-                "tech",
                 "all"
               ]
             }
@@ -63,7 +93,7 @@
           {
             "name": "venue",
             "in": "query",
-            "description": "Filter by venue. Omit to include all venues.",
+            "description": "Filter by venue (kalshi or polymarket). Omit to include all venues.",
             "schema": {
               "$ref": "#/components/schemas/Venue"
             }
@@ -71,7 +101,7 @@
           {
             "name": "subcategory",
             "in": "query",
-            "description": "Filter events by subcategory. Valid values depend on the selected `category` (requires `category` to also be set).",
+            "description": "Filter events by subcategory. Valid values depend on the selected `category` (e.g. Crypto → btc/eth/sol/other; Finance → stocks/indices/etfs/earnings). Requires `category` to also be set.",
             "schema": {
               "$ref": "#/components/schemas/SubcategorySlug"
             }
@@ -79,7 +109,7 @@
           {
             "name": "frequency",
             "in": "query",
-            "description": "Filter events by the cadence of the underlying series. `other` is intentionally rejected — it's a residual response bucket, not a filter target.",
+            "description": "Filter events by the cadence of the underlying series: `daily`, `weekly`, `monthly`, or `hourly`. Only meaningful for categories that drive timeframe pills (Crypto, Finance, Economics, Entertainment). Monthly markets are also subject to a 7-day visibility window — see G1 spec §1.1. `hourly` is admitted as a filter post-0048 (after the 19 hourly series were re-enabled). Per-category validity is enforced server-side by the join against `series_whitelist.frequency`: requesting `?frequency=hourly&category=entertainment` returns an empty grid (no hourly entertainment series exist today) rather than 400. `other` is intentionally NOT a valid filter input — it's a residual bucket on `Market.frequency` for irregular-cadence series, not a chip target. Passing `?frequency=other` returns 400.",
             "schema": {
               "type": "string",
               "enum": [
@@ -93,16 +123,13 @@
           {
             "name": "date_filter",
             "in": "query",
-            "description": "Time bucket filter. If omitted, a default 7-day horizon is applied. Pass `all` to retrieve all active markets regardless of close date.",
+            "description": "Time bucket filter. If omitted, a default 7-day horizon is applied. Pass 'all' to retrieve all active markets regardless of close date.",
             "schema": {
               "type": "string",
               "enum": [
                 "1h",
                 "1h-1d",
                 "1d-7d",
-                "today",
-                "this_week",
-                "this_month",
                 "all"
               ]
             }
@@ -110,7 +137,6 @@
           {
             "name": "search",
             "in": "query",
-            "description": "Full-text search across event/market titles.",
             "schema": {
               "type": "string"
             }
@@ -121,7 +147,7 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Events per page. Default 21, max 100. The product `limit × markets_per_event` must not exceed 2000.",
+            "description": "Events per page. Default 21 for /markets. The product limit × markets_per_event must not exceed 2000.",
             "schema": {
               "type": "integer",
               "default": 21,
@@ -132,18 +158,35 @@
           {
             "name": "markets_per_event",
             "in": "query",
-            "description": "Max markets returned per event group. Default 10, max 50.",
+            "description": "Max markets returned per event group. The full count is always in total_markets. Default 10, max 50. The product limit × markets_per_event must not exceed 2000.",
             "schema": {
               "type": "integer",
-              "default": 10,
               "minimum": 1,
-              "maximum": 50
+              "maximum": 50,
+              "default": 10
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Events grouped by event_ticker, plus subcategory/frequency facets for the current result set",
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "example": "public, max-age=60, stale-while-revalidate=300"
+                }
+              },
+              "X-Response-Truncated": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                },
+                "description": "Present when the response was truncated to fit the 2MB size budget. Fewer events than requested are returned; use cursor to fetch more."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -155,7 +198,7 @@
                         "events": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/EventGroup"
+                            "$ref": "#/components/schemas/MarketEvent"
                           }
                         }
                       }
@@ -173,12 +216,14 @@
                             },
                             "available_subcategories": {
                               "type": "array",
+                              "description": "Subcategory slugs present in the (category, date_filter, search, frequency) result set, ignoring `subcategory` itself. Omitted when the selected category has no subcategories defined.",
                               "items": {
                                 "$ref": "#/components/schemas/SubcategorySlug"
                               }
                             },
                             "available_frequencies": {
                               "type": "array",
+                              "description": "Frequency values present in the (category, date_filter, search, subcategory) result set, ignoring `frequency` itself. One of daily/weekly/monthly/hourly in declaration order; never includes `other` (residual bucket, not a filter target). Omitted when the selected category has no timeframe pills (i.e. anything outside Crypto/Finance/Economics/Entertainment). Categories without active hourly series (Economics, Entertainment today) simply omit `hourly` from the array — no special-casing client-side.",
                               "items": {
                                 "type": "string",
                                 "enum": [
@@ -210,18 +255,16 @@
     "/markets/{ticker}": {
       "get": {
         "operationId": "getMarket",
-        "summary": "Get Market",
-        "description": "Fetch a single Kalshi market by ticker or a single Polymarket market by condition ID. When `venue` is omitted, the API infers Polymarket for condition IDs that look like `0x...`; otherwise it looks up the market as Kalshi.",
         "tags": [
           "Markets"
         ],
-        "security": [],
+        "summary": "Get single market by ticker or condition ID",
+        "description": "Returns one Kalshi market by ticker or one Polymarket market by condition ID. When `venue` is omitted, the API infers Polymarket for condition IDs that look like `0x...` and otherwise checks Kalshi.",
         "parameters": [
           {
             "name": "ticker",
             "in": "path",
             "required": true,
-            "description": "Kalshi market ticker or Polymarket `condition_id`.",
             "schema": {
               "type": "string",
               "maxLength": 160,
@@ -232,7 +275,6 @@
             "name": "venue",
             "in": "query",
             "required": false,
-            "description": "Optional venue hint. Use this when the caller already knows whether the ticker belongs to Kalshi or Polymarket.",
             "schema": {
               "$ref": "#/components/schemas/Venue"
             }
@@ -240,7 +282,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Market details",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
@@ -263,245 +305,13 @@
         }
       }
     },
-    "/v1/me": {
-      "get": {
-        "operationId": "getOrCreateUser",
-        "summary": "Get Profile",
-        "description": "Get the authenticated user's profile. Auto-creates a user record on first call. Pass `?ref=<invite-code>` on first login to auto-redeem an invite code; when redemption succeeds the response includes `auto_redeemed: true` and, where configured, an `airdrop` outcome.",
-        "tags": [
-          "User"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "ref",
-            "in": "query",
-            "description": "Referral / invite code to auto-redeem on first login.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "User profile",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/User"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/v1/username": {
-      "put": {
-        "operationId": "updateUsername",
-        "summary": "Update Username",
-        "description": "Change the authenticated user's display name. Must be 3–20 characters, alphanumeric and underscores only.",
-        "tags": [
-          "User"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 20,
-                    "pattern": "^[a-zA-Z0-9_]+$",
-                    "description": "New username (3–20 chars, alphanumeric + underscores)."
-                  }
-                }
-              },
-              "example": {
-                "username": "trader_123"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Username updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "username": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          }
-        }
-      }
-    },
-    "/v1/username/check": {
-      "get": {
-        "operationId": "checkUsername",
-        "summary": "Check Username",
-        "description": "Check whether a username is available. Must match 3–20 chars, alphanumeric + underscores.",
-        "tags": [
-          "User"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "username",
-            "in": "query",
-            "required": true,
-            "description": "Candidate username.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Availability result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "available": {
-                          "type": "boolean"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
     "/v1/api-keys": {
-      "post": {
-        "operationId": "createApiKey",
-        "summary": "Create API Key",
-        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` — save it immediately. Subsequent listings only show the prefix. Requires Privy JWT auth (web dashboard); cannot be called with an existing API key.",
-        "tags": [
-          "API Keys"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Optional display name for the key."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "API key created (full key visible once)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "data"
-                  ],
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/ApiKeyFull"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      },
       "get": {
         "operationId": "listApiKeys",
-        "summary": "List API Keys",
-        "description": "List the authenticated user's API keys. Only metadata and prefixes are returned — the original secret is never re-exposed.",
         "tags": [
           "API Keys"
         ],
+        "summary": "List API keys",
         "security": [
           {
             "PrivyJWT": []
@@ -512,7 +322,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List of API keys",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
@@ -533,21 +343,76 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createApiKey",
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create API key",
+        "security": [
+          {
+            "PrivyJWT": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Optional display name for the key"
+                  },
+                  "preset": {
+                    "type": "string",
+                    "description": "Scope-bundle preset. The canonical list is SCOPE_PRESETS in api-key-scopes.ts (not re-enumerated here, to avoid drift as presets are added). Overridden by `scopes` if both are sent; defaults to `trading` if neither."
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Explicit scope list. Clamped to the creator's own scopes."
+                  },
+                  "confirm_withdraw": {
+                    "type": "boolean",
+                    "description": "Required (true) when the requested scopes include `funds:withdraw`."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created (full key shown once)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ApiKeyFull"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
-    "/v1/api-keys/{prefix}": {
-      "delete": {
-        "operationId": "revokeApiKey",
-        "summary": "Revoke API Key",
-        "description": "Revoke one of the authenticated user's API keys by prefix. Takes effect immediately on all subsequent requests. Returns `204 No Content`.",
+    "/v1/me": {
+      "get": {
+        "operationId": "getOrCreateUser",
         "tags": [
-          "API Keys"
+          "User"
         ],
+        "summary": "Get or auto-create user profile",
         "security": [
           {
             "PrivyJWT": []
@@ -558,77 +423,61 @@
         ],
         "parameters": [
           {
-            "name": "prefix",
-            "in": "path",
-            "required": true,
-            "description": "Key prefix returned by `listApiKeys` / `createApiKey` (`key_prefix`).",
+            "name": "ref",
+            "in": "query",
             "schema": {
               "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "API key revoked"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
-    "/v1/wallet": {
-      "get": {
-        "operationId": "getWallet",
-        "summary": "Get Wallet",
-        "description": "Get the authenticated user's embedded Solana wallet address, wallet/vault balances, and the aggregated `locked_amount` across active RFQs and vault positions.",
-        "tags": [
-          "User"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
+            },
+            "description": "Referral code to auto-redeem on first login"
           },
           {
-            "ApiKey": []
+            "$ref": "#/components/parameters/DeviceFingerprint"
+          },
+          {
+            "name": "invite",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "22-char invite-link token to auto-redeem on first login"
+          },
+          {
+            "name": "referral",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-HJ-NP-Za-hj-np-z2-9]{8}$"
+            },
+            "description": "8-char referral code for attribution and auto-approve on first login"
           }
         ],
         "responses": {
           "200": {
-            "description": "Wallet snapshot",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "data"
-                  ],
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/Wallet"
+                      "$ref": "#/components/schemas/User"
                     }
                   }
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
     },
-    "/v1/wallet/blockhash": {
+    "/v1/pnl": {
       "get": {
-        "operationId": "getBlockhash",
-        "summary": "Get Blockhash",
-        "description": "Latest Solana blockhash for client-side transaction construction. Useful for browser clients that do not have direct RPC access.",
+        "operationId": "getPnlV1",
         "tags": [
-          "User"
+          "Portfolio"
         ],
+        "summary": "Realized P&L timeseries (programmatic /v1 surface)",
+        "description": "Realized P&L per day over the requested window — the `/v1` counterpart of `/app/pnl-chart`,\nreachable by API-key principals. Returns the caller's own timeseries. Stats totals (wins/losses/realized P&L) are on\n`GET /v1/portfolio`.",
         "security": [
           {
             "PrivyJWT": []
@@ -637,9 +486,25 @@
             "ApiKey": []
           }
         ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1D",
+                "1W",
+                "1M",
+                "ALL"
+              ],
+              "default": "1W"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Latest blockhash",
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
@@ -647,136 +512,14 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": [
-                        "blockhash",
-                        "last_valid_block_height"
-                      ],
                       "properties": {
-                        "blockhash": {
-                          "type": "string"
-                        },
-                        "last_valid_block_height": {
-                          "type": "integer"
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PnlPoint"
+                          }
                         }
                       }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/v1/wallet/submit-tx": {
-      "post": {
-        "operationId": "submitTransaction",
-        "summary": "Submit Transaction",
-        "description": "Submit a client-signed serialized Solana transaction. Used for wallet delegation and other user-signed flows from browser clients without direct RPC access. Rate-limited to 10 requests/minute.",
-        "tags": [
-          "User"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "transaction"
-                ],
-                "properties": {
-                  "transaction": {
-                    "type": "string",
-                    "description": "Base64-encoded serialized Solana transaction."
-                  }
-                }
-              },
-              "example": {
-                "transaction": "AQAAAA..."
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Transaction broadcast",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "required": [
-                        "signature"
-                      ],
-                      "properties": {
-                        "signature": {
-                          "type": "string",
-                          "description": "Solana transaction signature."
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          }
-        }
-      }
-    },
-    "/v1/vault": {
-      "get": {
-        "operationId": "getUserVault",
-        "tags": [
-          "Vault"
-        ],
-        "summary": "Get user vault state and active positions",
-        "description": "Returns the user's vault balance and active positions. Returns data: null\n(200 OK) if the user has no vault yet (vault is created on first trade).\n",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK — vault state or null if no vault exists",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "nullable": true,
-                      "allOf": [
-                        {
-                          "$ref": "#/components/schemas/UserVaultResponse"
-                        }
-                      ]
                     }
                   }
                 }
@@ -793,7 +536,7 @@
           "User"
         ],
         "summary": "Consolidated portfolio (balance, stats, counts, summary)",
-        "description": "Returns the user's full portfolio in a single batched query: vault balance,\ntrading stats, RFQ status counts, and active-bet summary. Balance is null\nwhen the user has no vault (never traded).\n",
+        "description": "Returns the user's full portfolio in a single batched query: vault balance,\ntrading stats, RFQ status counts, and active-bet summary. Balance is null\nwhen the user has no vault (never traded).",
         "security": [
           {
             "PrivyJWT": []
@@ -821,278 +564,14 @@
         }
       }
     },
-    "/v1/wallet/delegation-status": {
-      "get": {
-        "operationId": "getDelegationStatus",
-        "tags": [
-          "User"
-        ],
-        "summary": "Check TEE wallet delegation status",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/DelegationStatus"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/wallet/enable-trading": {
-      "post": {
-        "operationId": "enableTrading",
-        "tags": [
-          "User"
-        ],
-        "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
-        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "allOf": [
-                        {
-                          "$ref": "#/components/schemas/DelegationStatus"
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "airdrop": {
-                              "allOf": [
-                                {
-                                  "$ref": "#/components/schemas/AirdropDrainOutcome"
-                                }
-                              ],
-                              "nullable": true,
-                              "description": "Outcome of the pending-airdrop drain.\n`null` when nothing was staged for this\nuser (most common — pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape.\n"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
-    "/v1/wallet/withdraw": {
-      "post": {
-        "operationId": "withdrawFromWallet",
-        "tags": [
-          "User"
-        ],
-        "summary": "Withdraw USDC from the embedded wallet to an external address",
-        "description": "Sends USDC out of the caller's embedded wallet ATA to an arbitrary\non-curve Solana address. Uses Privy's session-signer delegation\n(set up via /v1/wallet/enable-trading) and Privy's native gas\nsponsorship — the user is not prompted to sign and never needs SOL.\n\nChained vault-tap: when the requested `amount_usdc` exceeds the\ncaller's ATA-available balance, the handler first issues\n`withdraw_from_vault` (vault PDA → owner ATA) for the shortfall,\nwaits for that TX to confirm, then issues the external SPL transfer.\nThe `vault_signature` / `vault_amount` fields surface the intermediate\nTX when this happens. If the vault tap succeeds but the external\ntransfer fails to construct or broadcast, the response is **502**\nwith `error.code: PARTIAL_VAULT_ONLY` and the vault TX surfaced under\n`error.details.vault_signature` / `error.details.vault_amount`. The\ncaller can retry with the same amount; the pre-flight will see the\nATA is now sufficient and skip the vault tap. 502 (rather than 200)\nis deliberate: the idempotency middleware caches only 2xx, so\nsame-key retries against a 502 re-enter the handler instead of\nreplaying a cached partial response.\n\nIdempotency-Key is honored: a duplicate request with the same key\nreplays the cached 2xx response without re-issuing on-chain TXs.\n",
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "recipient",
-                  "amount_usdc"
-                ],
-                "properties": {
-                  "recipient": {
-                    "type": "string",
-                    "description": "Destination Solana wallet address (base58). Must be\non-curve — PDAs, program IDs, and token-account\naddresses are rejected because funds sent to a\nderived ATA-of-an-ATA are unrecoverable.\n"
-                  },
-                  "amount_usdc": {
-                    "type": "number",
-                    "minimum": 1e-06,
-                    "description": "USDC amount to send. Minimum is one USDC base unit\n(1e-6). Must be ≤ the caller's total spendable pool\n(ATA + vault free_balance − in-flight RFQ holds);\nrequests exceeding this are rejected with 400.\n"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Withdrawal submitted. `signature` is the external SPL transfer\nsignature. `vault_signature` and `vault_amount` are present\nonly when the request required a vault → ATA hop.\n",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "signature": {
-                          "type": "string",
-                          "description": "External SPL transfer signature."
-                        },
-                        "explorer_url": {
-                          "type": "string",
-                          "description": "Solscan URL for the external SPL signature."
-                        },
-                        "vault_signature": {
-                          "type": "string",
-                          "description": "On-chain `withdraw_from_vault` signature.\nPresent only when the request required a vault\n→ ATA hop to cover a shortfall.\n"
-                        },
-                        "vault_amount": {
-                          "type": "number",
-                          "description": "USDC amount moved from vault to ATA before the\nexternal transfer. Present only when\n`vault_signature` is present.\n"
-                        },
-                        "recipient_ata_created": {
-                          "type": "boolean",
-                          "description": "Present (true) when the recipient had no USDC token\naccount and this transaction created one (the\ncreate-and-chargeback path, gated by\nWITHDRAW_ATA_AUTOCREATE). The fee-payer fronts the\n~0.002 SOL account rent and bills it back in USDC, so\nthe recipient receives `delivered_usdc` and the treasury\nkeeps `chargeback_usdc`. The create is non-idempotent, so\na confirmed response means this tx created the account\n(a race where it already existed reverts and retries\nvia the standard path, with no chargeback).\n"
-                        },
-                        "chargeback_usdc": {
-                          "type": "number",
-                          "description": "USDC withheld from the requested amount to reimburse\nthe one-time recipient-ATA rent. Present only with\n`recipient_ata_created`.\n"
-                        },
-                        "delivered_usdc": {
-                          "type": "number",
-                          "description": "USDC actually delivered to the recipient\n(`amount_usdc − chargeback_usdc`). Present only with\n`recipient_ata_created`.\n"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "409": {
-            "description": "The caller's embedded wallet is no longer delegated for\nserver-side signing. Re-enabling trading from the app restores\nthe session signer.\n",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "502": {
-            "description": "Ambiguous partial state — returned as 5xx (not 200) so\nIdempotency-Key callers retry against the handler instead of\nreplaying a cached partial response. Two codes:\n\n`PARTIAL_VAULT_ONLY` — the vault tap succeeded but the external SPL\ntransfer failed to construct/broadcast. Funds moved from vault to\nATA; retry the same request to complete the external leg (the\npre-flight sees the updated ATA and skips the vault tap). Returned\nonly when the vault tap fired this request; a same-key retry against\nan already-topped-up ATA skips the tap (`shortfall = 0`) and a\nsubsequent SPL failure surfaces as a normal 500.\n\n`WITHDRAW_SUBMITTED_UNCONFIRMED` — only on the recipient-ATA\ncreate-and-chargeback path (WITHDRAW_ATA_AUTOCREATE), where broadcast\nand confirmation are separate steps: the transaction was broadcast\n(`details.signature` present) but confirmation timed out, so it may\nhave landed. Do NOT blind-retry — verify the recipient balance first,\nsince a retry would re-send via the now-existing ATA and double-pay.\n",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "PARTIAL_VAULT_ONLY",
-                            "WITHDRAW_SUBMITTED_UNCONFIRMED"
-                          ]
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "details": {
-                          "type": "object",
-                          "properties": {
-                            "signature": {
-                              "type": "string",
-                              "description": "The broadcast transaction signature. Present on\nWITHDRAW_SUBMITTED_UNCONFIRMED — the tx may have\nlanded; check it before retrying.\n"
-                            },
-                            "vault_signature": {
-                              "type": "string"
-                            },
-                            "vault_amount": {
-                              "type": "number"
-                            },
-                            "chargeback_usdc": {
-                              "type": "number",
-                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been withheld for the recipient-ATA rent.\n"
-                            },
-                            "delivered_usdc": {
-                              "type": "number",
-                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been delivered to the recipient.\n"
-                            },
-                            "partial": {
-                              "type": "string",
-                              "enum": [
-                                "vault_only",
-                                "submitted_unconfirmed"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/rfqs": {
       "get": {
         "operationId": "listRfqsV1",
         "tags": [
           "RFQs"
         ],
-        "summary": "List parlays",
-        "description": "List your parlays (RFQs), newest first, with cursor pagination. Filter by status (`?status=settled`, or comma-separated `?status=open,quoted`); `?include=quotes` embeds each parlay's quotes.",
+        "summary": "List RFQs (programmatic /v1 surface)",
+        "description": "Same as `GET /rfqs`, on the programmatic `/v1` contract surface.",
         "security": [
           {
             "PrivyJWT": []
@@ -1174,8 +653,8 @@
         "tags": [
           "RFQs"
         ],
-        "summary": "Get parlay",
-        "description": "Fetch one of your parlays (RFQs) by id, with its quotes. Once the parlay is terminal the response also carries its settlement detail — per-leg outcomes, final status, payout, and the settle/buyback transaction signature. An id you don't own returns 404.",
+        "summary": "Get RFQ by ID (programmatic /v1 surface; quotes always populated)",
+        "description": "Same as `GET /rfqs/{id}`, on the programmatic `/v1` contract surface.",
         "security": [
           {
             "PrivyJWT": []
@@ -1217,14 +696,13 @@
         }
       }
     },
-    "/v1/pnl": {
+    "/v1/username/check": {
       "get": {
-        "operationId": "getPnlV1",
+        "operationId": "checkUsername",
         "tags": [
-          "Portfolio"
+          "User"
         ],
-        "summary": "P&L timeseries",
-        "description": "Realized P&L per day over the requested window (`1D` / `1W` / `1M` / `ALL`; default `1W`). Stats totals (wins / losses / realized P&L) are on `GET /v1/portfolio`.",
+        "summary": "Check username availability",
         "security": [
           {
             "PrivyJWT": []
@@ -1235,17 +713,11 @@
         ],
         "parameters": [
           {
-            "name": "period",
+            "name": "username",
             "in": "query",
+            "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "1D",
-                "1W",
-                "1M",
-                "ALL"
-              ],
-              "default": "1W"
+              "type": "string"
             }
           }
         ],
@@ -1260,10 +732,465 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "points": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/PnlPoint"
+                        "available": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vault": {
+      "get": {
+        "operationId": "getUserVault",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Get user vault state and active positions",
+        "description": "Returns the user's vault balance and active positions. Returns data: null\n(200 OK) if the user has no vault yet (vault is created on first trade).",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK — vault state or null if no vault exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "nullable": true,
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/UserVaultResponse"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet": {
+      "get": {
+        "operationId": "getWallet",
+        "tags": [
+          "User"
+        ],
+        "summary": "Get wallet balances",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Wallet"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet/blockhash": {
+      "get": {
+        "operationId": "getBlockhash",
+        "tags": [
+          "User"
+        ],
+        "summary": "Latest Solana blockhash for client-side transaction construction",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "blockhash",
+                        "last_valid_block_height"
+                      ],
+                      "properties": {
+                        "blockhash": {
+                          "type": "string"
+                        },
+                        "last_valid_block_height": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/wallet/delegation-status": {
+      "get": {
+        "operationId": "getDelegationStatus",
+        "tags": [
+          "User"
+        ],
+        "summary": "Check TEE wallet delegation status",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DelegationStatus"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet/enable-trading": {
+      "post": {
+        "operationId": "enableTrading",
+        "tags": [
+          "User"
+        ],
+        "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
+        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself. 2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/DelegationStatus"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "airdrop": {
+                              "allOf": [
+                                {
+                                  "$ref": "#/components/schemas/AirdropDrainOutcome"
+                                }
+                              ],
+                              "nullable": true,
+                              "description": "Outcome of the pending-airdrop drain. `null` when nothing was staged for this\nuser (most common — pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape."
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/wallet/submit-tx": {
+      "post": {
+        "operationId": "submitTransaction",
+        "tags": [
+          "User"
+        ],
+        "summary": "Submit a client-signed serialized Solana transaction",
+        "description": "Rate-limited: 10 requests/min. Used for delegation and other user-signed transactions.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transaction"
+                ],
+                "properties": {
+                  "transaction": {
+                    "type": "string",
+                    "description": "Base64-encoded serialized Solana transaction"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "signature"
+                      ],
+                      "properties": {
+                        "signature": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/wallet/withdraw": {
+      "post": {
+        "operationId": "withdrawFromWallet",
+        "tags": [
+          "User"
+        ],
+        "summary": "Withdraw USDC from the embedded wallet to an external address",
+        "description": "Sends USDC out of the caller's embedded wallet ATA to an arbitrary\non-curve Solana address. Uses Privy's session-signer delegation\n(set up via /v1/wallet/enable-trading) and Privy's native gas\nsponsorship — the user is not prompted to sign and never needs SOL. Chained vault-tap: when the requested `amount_usdc` exceeds the\ncaller's ATA-available balance, the handler first issues\n`withdraw_from_vault` (vault PDA → owner ATA) for the shortfall,\nwaits for that TX to confirm, then issues the external SPL transfer. The `vault_signature` / `vault_amount` fields surface the intermediate\nTX when this happens. If the vault tap succeeds but the external\ntransfer fails to construct or broadcast, the response is **502**\nwith `error.code: PARTIAL_VAULT_ONLY` and the vault TX surfaced under\n`error.details.vault_signature` / `error.details.vault_amount`. The\ncaller can retry with the same amount; the pre-flight will see the\nATA is now sufficient and skip the vault tap. 502 (rather than 200)\nis deliberate: the idempotency middleware caches only 2xx, so\nsame-key retries against a 502 re-enter the handler instead of\nreplaying a cached partial response. Idempotency-Key is honored: a duplicate request with the same key\nreplays the cached 2xx response without re-issuing on-chain TXs.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "recipient",
+                  "amount_usdc"
+                ],
+                "properties": {
+                  "recipient": {
+                    "type": "string",
+                    "description": "Destination Solana wallet address (base58). Must be\non-curve — PDAs, program IDs, and token-account\naddresses are rejected because funds sent to a\nderived ATA-of-an-ATA are unrecoverable."
+                  },
+                  "amount_usdc": {
+                    "type": "number",
+                    "minimum": 1e-06,
+                    "description": "USDC amount to send. Minimum is one USDC base unit\n(1e-6). Must be ≤ the caller's total spendable pool\n(ATA + vault free_balance − in-flight RFQ holds);\nrequests exceeding this are rejected with 400."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawal submitted. `signature` is the external SPL transfer\nsignature. `vault_signature` and `vault_amount` are present\nonly when the request required a vault → ATA hop.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "signature": {
+                          "type": "string",
+                          "description": "External SPL transfer signature."
+                        },
+                        "explorer_url": {
+                          "type": "string",
+                          "description": "Solscan URL for the external SPL signature."
+                        },
+                        "vault_signature": {
+                          "type": "string",
+                          "description": "On-chain `withdraw_from_vault` signature. Present only when the request required a vault\n→ ATA hop to cover a shortfall."
+                        },
+                        "vault_amount": {
+                          "type": "number",
+                          "description": "USDC amount moved from vault to ATA before the\nexternal transfer. Present only when\n`vault_signature` is present."
+                        },
+                        "recipient_ata_created": {
+                          "type": "boolean",
+                          "description": "Present (true) when the recipient had no USDC token\naccount and this transaction created one (the\ncreate-and-chargeback path, gated by\nWITHDRAW_ATA_AUTOCREATE). The fee-payer fronts the\n~0.002 SOL account rent and bills it back in USDC, so\nthe recipient receives `delivered_usdc` and the treasury\nkeeps `chargeback_usdc`. The create is non-idempotent, so\na confirmed response means this tx created the account\n(a race where it already existed reverts and retries\nvia the standard path, with no chargeback)."
+                        },
+                        "chargeback_usdc": {
+                          "type": "number",
+                          "description": "USDC withheld from the requested amount to reimburse\nthe one-time recipient-ATA rent. Present only with\n`recipient_ata_created`."
+                        },
+                        "delivered_usdc": {
+                          "type": "number",
+                          "description": "USDC actually delivered to the recipient\n(`amount_usdc − chargeback_usdc`). Present only with\n`recipient_ata_created`."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The caller's embedded wallet is no longer delegated for\nserver-side signing. Re-enabling trading from the app restores\nthe session signer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "description": "Ambiguous partial state — returned as 5xx (not 200) so\nIdempotency-Key callers retry against the handler instead of\nreplaying a cached partial response. Two codes:\n\n`PARTIAL_VAULT_ONLY` — the vault tap succeeded but the external SPL\ntransfer failed to construct/broadcast. Funds moved from vault to\nATA; retry the same request to complete the external leg (the\npre-flight sees the updated ATA and skips the vault tap). Returned\nonly when the vault tap fired this request; a same-key retry against\nan already-topped-up ATA skips the tap (`shortfall = 0`) and a\nsubsequent SPL failure surfaces as a normal 500. `WITHDRAW_SUBMITTED_UNCONFIRMED` — only on the recipient-ATA\ncreate-and-chargeback path (WITHDRAW_ATA_AUTOCREATE), where broadcast\nand confirmation are separate steps: the transaction was broadcast\n(`details.signature` present) but confirmation timed out, so it may\nhave landed. Do NOT blind-retry — verify the recipient balance first,\nsince a retry would re-send via the now-existing ATA and double-pay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "PARTIAL_VAULT_ONLY",
+                            "WITHDRAW_SUBMITTED_UNCONFIRMED"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "object",
+                          "properties": {
+                            "signature": {
+                              "type": "string",
+                              "description": "The broadcast transaction signature. Present on\nWITHDRAW_SUBMITTED_UNCONFIRMED — the tx may have\nlanded; check it before retrying."
+                            },
+                            "vault_signature": {
+                              "type": "string"
+                            },
+                            "vault_amount": {
+                              "type": "number"
+                            },
+                            "chargeback_usdc": {
+                              "type": "number",
+                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been withheld for the recipient-ATA rent."
+                            },
+                            "delivered_usdc": {
+                              "type": "number",
+                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been delivered to the recipient."
+                            },
+                            "partial": {
+                              "type": "string",
+                              "enum": [
+                                "vault_only",
+                                "submitted_unconfirmed"
+                              ]
+                            }
                           }
                         }
                       }
@@ -1275,93 +1202,81 @@
           }
         }
       }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "PrivyJWT": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Privy JWT issued to the web dashboard. Sent as `Authorization: Bearer <jwt>`. The Privy session signer underpins all wallet-signed actions."
-      },
-      "ApiKey": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-API-Key",
-        "description": "Programmatic API key. Sent as `X-API-Key: <key>`. Generate one from the Totalis dashboard. The same header is accepted on the WebSocket auth message."
-      }
     },
-    "parameters": {
-      "CursorParam": {
-        "name": "cursor",
-        "in": "query",
-        "description": "Opaque pagination cursor from a previous response's `meta.cursor`. Do not construct manually.",
-        "schema": {
-          "type": "string"
-        }
-      },
-      "LimitParam": {
-        "name": "limit",
-        "in": "query",
-        "description": "Page size.",
-        "schema": {
-          "type": "integer",
-          "default": 20,
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "MmLimitParam": {
-        "name": "limit",
-        "in": "query",
-        "description": "Page size (MM endpoints default to 50, max 100).",
-        "schema": {
-          "type": "integer",
-          "default": 50,
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "IdempotencyKey": {
-        "name": "Idempotency-Key",
-        "in": "header",
-        "description": "Client-generated UUID. Successful (2xx) responses are cached for 24h and replayed on retry with the same key. The request body is not part of the cache key — use a fresh UUID whenever the payload differs (e.g. updated odds), otherwise the original response is replayed. Non-2xx responses are not cached.",
-        "schema": {
-          "type": "string",
-          "format": "uuid"
-        }
-      }
-    },
-    "responses": {
-      "BadRequest": {
-        "description": "Validation error",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorEnvelope"
-            }
+    "/v1/username": {
+      "put": {
+        "operationId": "updateUsername",
+        "tags": [
+          "User"
+        ],
+        "summary": "Update display name",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
           }
-        }
-      },
-      "Unauthorized": {
-        "description": "Missing or invalid authentication",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorEnvelope"
-            },
-            "example": {
-              "error": {
-                "code": "UNAUTHORIZED",
-                "message": "Missing or invalid authentication"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 20,
+                    "pattern": "^[a-zA-Z0-9_]+$"
+                  }
+                }
               }
             }
           }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
         }
-      },
-      "Forbidden": {
-        "description": "Authenticated caller is not allowed to perform this action",
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid authentication",
         "content": {
           "application/json": {
             "schema": {
@@ -1372,32 +1287,6 @@
       },
       "NotFound": {
         "description": "Resource not found",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorEnvelope"
-            },
-            "example": {
-              "error": {
-                "code": "NOT_FOUND",
-                "message": "Resource not found"
-              }
-            }
-          }
-        }
-      },
-      "Conflict": {
-        "description": "Resource conflict (duplicate, already taken, invalid status transition, etc.)",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorEnvelope"
-            }
-          }
-        }
-      },
-      "RateLimited": {
-        "description": "Rate limit exceeded",
         "content": {
           "application/json": {
             "schema": {
@@ -1416,8 +1305,28 @@
           }
         }
       },
-      "ServiceUnavailable": {
-        "description": "Temporary upstream or infrastructure failure",
+      "RateLimited": {
+        "description": "Rate limit exceeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Validation error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Resource conflict (duplicate, already taken, etc.)",
         "content": {
           "application/json": {
             "schema": {
@@ -1428,51 +1337,149 @@
       }
     },
     "schemas": {
-      "ErrorEnvelope": {
+      "LegOutcome": {
+        "type": "string",
+        "enum": [
+          "win",
+          "loss",
+          "push",
+          "pending"
+        ]
+      },
+      "PortfolioSummary": {
         "type": "object",
-        "required": [
-          "error"
-        ],
+        "description": "Derived portfolio-level aggregates from active positions.",
         "properties": {
-          "error": {
-            "$ref": "#/components/schemas/ErrorBody"
+          "active_count": {
+            "type": "integer",
+            "description": "Number of active (non-terminal) RFQs"
+          },
+          "active_bet_total": {
+            "type": "number",
+            "description": "Sum of bet_amount across active RFQs"
+          },
+          "portfolio_value": {
+            "type": "number",
+            "description": "Gross vault balance (deposited USDC). Does not include unrealized P&L."
           }
         }
       },
-      "ErrorBody": {
+      "MarketEvent": {
         "type": "object",
         "required": [
-          "code",
-          "message"
+          "event_ticker",
+          "series_ticker",
+          "display_shape",
+          "category",
+          "total_markets",
+          "markets"
         ],
         "properties": {
-          "code": {
+          "event_ticker": {
+            "type": "string"
+          },
+          "series_ticker": {
+            "type": "string"
+          },
+          "series_title": {
+            "type": "string",
+            "nullable": true
+          },
+          "event_title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Venue-side event header (descriptive long form) — Kalshi `event.title` from /events (e.g. \"Netflix MMA Special: Rousey vs Carano\"); Polymarket `event.title` from Gamma, trimmed. Distinct from `series_title` (the underlying series name) and from each market's per-row `title`. Use for surfaces with room (dialog header). Null for rows synced before this field was persisted or where the venue fetch transiently failed."
+          },
+          "event_sub_title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Compact event header — Kalshi `event.sub_title` from /events (e.g. \"Rousey vs Carano\", \"SF vs ATH (May 16)\", \"In Jul 2026\"). Always null on Polymarket: Gamma's `event.title` is already compact and has no sub-title analogue. Use for surfaces where space is tight (card row). Null for Kalshi rows synced before this field was persisted; the frontend should fall back to `event_title` in that case."
+          },
+          "display_shape": {
             "type": "string",
             "enum": [
-              "VALIDATION_ERROR",
-              "UNAUTHORIZED",
-              "FORBIDDEN",
-              "NOT_FOUND",
-              "CONFLICT",
-              "RATE_LIMITED",
-              "PAYLOAD_TOO_LARGE",
-              "INTERNAL_ERROR",
-              "SERVICE_UNAVAILABLE"
+              "binary",
+              "updown",
+              "sports_game",
+              "multi_outcome",
+              "strike_ladder"
             ],
-            "description": "Machine-readable error code."
+            "description": "Card-rendering discriminant derived per event group in the cache pipeline. The frontend's CARD_VARIANTS map keys on this value to select the component for each event card. Phase 2.2 wires the dispatcher; Phases 3–5 swap in per-shape components."
           },
-          "message": {
+          "category": {
+            "type": "string"
+          },
+          "image_url": {
             "type": "string",
-            "description": "Human-readable error message."
+            "nullable": true
           },
-          "details": {
-            "type": "object",
-            "description": "Additional error context."
+          "total_markets": {
+            "type": "integer"
           },
-          "retry_after": {
-            "type": "integer",
+          "markets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Market"
+            }
+          },
+          "game": {
             "nullable": true,
-            "description": "Seconds until retry; set on 429 responses."
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GameInfo"
+              }
+            ]
+          }
+        }
+      },
+      "UserVaultResponse": {
+        "type": "object",
+        "description": "Vault state with active position summaries (GET /v1/vault response). Returns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.",
+        "properties": {
+          "vault_pda": {
+            "type": "string"
+          },
+          "vault_token_account": {
+            "type": "string"
+          },
+          "gross_balance": {
+            "type": "number"
+          },
+          "locked_collateral": {
+            "type": "number"
+          },
+          "free_balance": {
+            "type": "number"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VaultPositionSummary"
+            }
+          }
+        }
+      },
+      "PortfolioData": {
+        "type": "object",
+        "description": "Consolidated portfolio response from GET /v1/portfolio.",
+        "properties": {
+          "balance": {
+            "nullable": true,
+            "description": "Null when user has no vault (never traded)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortfolioBalance"
+              }
+            ]
+          },
+          "stats": {
+            "$ref": "#/components/schemas/UserStats"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RfqCounts"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PortfolioSummary"
           }
         }
       },
@@ -1500,53 +1507,6 @@
           }
         }
       },
-      "Venue": {
-        "type": "string",
-        "enum": [
-          "kalshi",
-          "polymarket"
-        ],
-        "description": "Source venue for a market."
-      },
-      "Side": {
-        "type": "string",
-        "enum": [
-          "yes",
-          "no"
-        ],
-        "description": "Bet side."
-      },
-      "WinnerSide": {
-        "type": "string",
-        "enum": [
-          "user",
-          "mm"
-        ],
-        "description": "Winner of a settled parlay position."
-      },
-      "LegOutcome": {
-        "type": "string",
-        "enum": [
-          "win",
-          "loss",
-          "push",
-          "pending"
-        ]
-      },
-      "RfqStatus": {
-        "type": "string",
-        "enum": [
-          "open",
-          "quoted",
-          "accepted",
-          "confirmed",
-          "executed",
-          "cancelled",
-          "expired",
-          "settled",
-          "bought_back"
-        ]
-      },
       "QuoteStatus": {
         "type": "string",
         "enum": [
@@ -1557,14 +1517,86 @@
           "rejected",
           "expired",
           "withdrawn"
+        ]
+      },
+      "GameInfo": {
+        "type": "object",
+        "required": [
+          "teams"
         ],
-        "description": "Lifecycle status of a quote."
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameTeam"
+            }
+          },
+          "draw": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GameTeam"
+              }
+            ]
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Privy DID (did:privy:...) - internal identifier, not exposed on public endpoints"
+          },
+          "username": {
+            "type": "string",
+            "description": "Display name. Auto-assigned a friendly random handle (e.g. GoldenFalcon) on first login; user can update to a 3-20 char alphanumeric/underscore name via PUT /v1/username."
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "wallet_address": {
+            "type": "string",
+            "nullable": true
+          },
+          "approved": {
+            "type": "boolean",
+            "description": "Set to true when user redeems a valid invite code or is admin-approved"
+          },
+          "waitlisted": {
+            "type": "boolean",
+            "description": "Always present. true when approved=false and user is on the waitlist; false otherwise."
+          },
+          "auto_redeemed": {
+            "type": "boolean",
+            "description": "Only present when the ?ref param successfully redeemed an invite code in this exact request."
+          },
+          "airdrop": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AirdropOutcome"
+              }
+            ],
+            "nullable": true,
+            "description": "Welcome airdrop outcome from the auto-redeem path. Present\nalongside `auto_redeemed: true`. `null` is possible when the\ninvite link/code has no airdrop configured, or when the user\nwas already credited on a prior approval. See\n`AirdropOutcome` for the non-null shape."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "PositionStatus": {
         "type": "string",
-        "description": "Vault position lifecycle. `pending`/`processing` are intermediate states before on-chain creation; `settling`/`cancelling` are intermediate states for settlement/cancellation; `settled_win`/`settled_loss`/`cancelled` are terminal; the `*_mm_release` and `expired` states cover the permissionless-expiry path; the buyback path is `active → bought_back_pending_db → bought_back` (with `reconciling_bought_back_db` as the short-lived reconciler sentinel); `error` means retries are exhausted and manual intervention is required.",
+        "description": "Position lifecycle status. On-chain states: Active, SettledWin, SettledLoss, Cancelled, Expired. DB adds intermediate states for async processing: pending, processing, settling, cancelling, error. External-signer (headless) path: commit → awaiting_signature → (client returns the signed tx) → active. Two-step expiry path: active → expired_pending_mm_release → expired (with reconciling_mm_release as short-lived sentinel). Early-cashout (buyback) path: active → bought_back_pending_db → bought_back (with reconciling_bought_back_db as the reconciler sentinel).",
         "enum": [
           "pending",
+          "awaiting_signature",
           "processing",
           "active",
           "settling",
@@ -1581,57 +1613,261 @@
           "error"
         ]
       },
-      "SubcategorySlug": {
+      "RfqStatus": {
         "type": "string",
-        "description": "Subcategory wire format (lowercase snake_case). Valid values depend on the selected `category` and are enforced server-side.",
         "enum": [
-          "nba",
-          "ncaa",
-          "nfl",
-          "nhl",
-          "mlb",
-          "ufc",
-          "lol",
-          "epl",
-          "efl",
-          "la_liga",
-          "world_cup",
-          "bundesliga",
-          "liga_portugal",
-          "ligue_1",
-          "f1",
-          "ipl",
-          "btc",
-          "eth",
-          "sol",
-          "stocks",
-          "indices",
-          "etfs",
-          "earnings",
-          "rates",
-          "inflation",
-          "commodities",
-          "fx",
-          "jobs",
-          "ai",
-          "companies",
-          "other"
+          "open",
+          "quoted",
+          "accepted",
+          "confirmed",
+          "executed",
+          "cancelled",
+          "expired",
+          "settled",
+          "bought_back"
         ]
+      },
+      "ApiKeySummary": {
+        "type": "object",
+        "properties": {
+          "key_prefix": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "revoked",
+              "expired"
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "request_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "Venue": {
+        "type": "string",
+        "enum": [
+          "kalshi",
+          "polymarket"
+        ]
+      },
+      "AirdropDrainOutcome": {
+        "type": "object",
+        "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` — there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint). `{ success: true, amount }` — the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` — the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.",
+        "required": [
+          "success",
+          "amount"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": "number",
+            "description": "USDC amount (whole dollars)"
+          }
+        }
+      },
+      "PnlPoint": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "pnl": {
+            "type": "number"
+          }
+        }
+      },
+      "GameTeam": {
+        "type": "object",
+        "required": [
+          "name",
+          "ticker",
+          "price",
+          "side"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          }
+        }
+      },
+      "AirdropOutcome": {
+        "type": "object",
+        "description": "Invite-link airdrop outcome for the auto-redeem / invite-link path. `kind` identifies which grant path produced the outcome so clients\ncan route welcome and parlay-gated grants to different UI flows. Under the deferred-airdrop flow (TT-airdrop-bug 2026-05-13),\n`success: true` with `pending: true` means the amount was staged\nfor the selected grant path and will mint later when that path's\ncondition is satisfied. `success: false` (always paired with\n`pending: false`) means staging failed; the approval itself\nstill landed.",
+        "required": [
+          "success",
+          "amount",
+          "pending",
+          "kind"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": "number",
+            "description": "USDC amount (whole dollars, e.g. 10)"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "True when the amount is staged but not yet minted —\nwaiting on the relevant grant condition to drain it. False\non the failure branch (`success: false`); the staging write\ndidn't land so there's nothing to mint."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "welcome",
+              "parlay"
+            ],
+            "description": "`welcome` grants mint after wallet delegation via\n`POST /v1/wallet/enable-trading`; `parlay` grants mint\nafter the user's cumulative executed parlay bet_amount\nreaches the snapshotted threshold."
+          }
+        }
+      },
+      "VaultPositionSummary": {
+        "type": "object",
+        "description": "Lightweight position summary for the vault response. Caller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral. Don't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned — for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.",
+        "properties": {
+          "position_id": {
+            "type": "string",
+            "description": "16-byte position ID (hex encoded)"
+          },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_stake": {
+            "type": "number",
+            "description": "Bettor side of the trade. The caller's stake on the\nbettor-side vault response; the counterparty's stake on\nthe maker-side vault response."
+          },
+          "mm_risk": {
+            "type": "number",
+            "description": "Maker side of the trade. The counterparty's collateral on\nthe bettor-side vault response; the caller's own\ncollateral on the maker-side vault response."
+          },
+          "total_payout": {
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PositionStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Settlement": {
+        "type": "object",
+        "required": [
+          "id",
+          "rfq_id",
+          "winner",
+          "payout",
+          "user_stake",
+          "mm_risk",
+          "fee_amount",
+          "settle_tx",
+          "settled_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rfq_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "winner": {
+            "$ref": "#/components/schemas/WinnerSide"
+          },
+          "payout": {
+            "type": "number",
+            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. bet_amount * payout_odds). NOT just the MM-side movement. For MM PnL on a loss, use -(payout - user_stake) = -mm_risk."
+          },
+          "user_stake": {
+            "type": "number",
+            "description": "Bettor's stake at settle time. Surfaced so the MM dashboard can\nderive PnL without a second fetch — MM win = +user_stake - fee,\nMM loss = -(payout - user_stake) = -mm_risk."
+          },
+          "mm_risk": {
+            "type": "number",
+            "description": "Maker's max risk at settle time. Equal to payout - user_stake; the\nMM dashboard renders loss-side PnL directly off this field."
+          },
+          "fee_amount": {
+            "type": "number",
+            "description": "Protocol fee deducted from the winner's payout."
+          },
+          "settle_tx": {
+            "type": "string"
+          },
+          "settled_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "Market": {
         "type": "object",
+        "required": [
+          "exclusion_keys"
+        ],
         "properties": {
           "ticker": {
-            "type": "string",
-            "description": "Unique market identifier on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned by this API."
+            "type": "string"
           },
           "event_ticker": {
-            "type": "string",
-            "description": "Event identifier the market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
+            "type": "string"
           },
           "series_ticker": {
+            "type": "string"
+          },
+          "series_title": {
             "type": "string",
-            "description": "Series identifier the event belongs to. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug` — Polymarket has no native series concept, so we key whitelisting on the market slug."
+            "nullable": true
+          },
+          "event_title": {
+            "type": "string",
+            "nullable": true
+          },
+          "event_sub_title": {
+            "type": "string",
+            "nullable": true
           },
           "title": {
             "type": "string"
@@ -1651,7 +1887,7 @@
           "bet_group": {
             "type": "string",
             "nullable": true,
-            "description": "Polymarket-only: section label for the row (e.g. \"Match O/U 21.5\"). Always null on Kalshi rows."
+            "description": "Polymarket-only today: the section label Gamma calls `groupItemTitle` with the parent event-title prefix stripped (e.g. `\"Match O/U 21.5\"`, `\"↑ $200,000\"`, `\"Oklahoma City Thunder\"`). Frontends prefer it as the row's primary label over `yes_sub_title` when set. Null for every Kalshi row (Kalshi's per-market `title` is already informative) and null for Polymarket markets that ARE the event (single-market events / moneyline of a multi-market event — render from `title` instead). Stripping uses an exact-prefix match with a word/punct boundary, falling back to the raw `groupItemTitle` if the prefix doesn't match — never partially stripped. See TT-683."
           },
           "category": {
             "type": "string"
@@ -1663,7 +1899,7 @@
           "frequency": {
             "type": "string",
             "nullable": true,
-            "description": "Cadence of the underlying series: daily/weekly/monthly/hourly/other. Null for categories without timeframe pills."
+            "description": "Cadence of the underlying series: daily | weekly | monthly | hourly | other. NULL only for categories without timeframe pills. All five values can appear on responses; the `?frequency=` filter accepts daily / weekly / monthly / hourly (post-0048 admit) but rejects `other` — see the `frequency` query param description below for the filter-vs-response asymmetry."
           },
           "venue": {
             "$ref": "#/components/schemas/Venue"
@@ -1689,7 +1925,7 @@
           "price_to_beat": {
             "type": "number",
             "nullable": true,
-            "description": "Reference price for Polymarket up/down markets. Null on Kalshi and on non-up/down Polymarket markets."
+            "description": "Reference price (\"strike\") for Polymarket \"Up or Down\" markets —\nthe spot at window-start that the final close must exceed for\n\"Up\" to win. Sources, in order:\n  1. Gamma `event.eventMetadata.priceToBeat` — populated for\n     crypto up/down markets. 2. For stock daily up/down markets, Gamma leaves the field\n     null; marketd enriches it from Pyth Hermes (prior\n     NYSE trading day's regular-session close — the same source\n     Polymarket cites for resolution). See TT-654 /\n     `services/marketd/internal/fetchers/pyth/hermes.go`. NULL for Kalshi markets, for non-up/down Polymarket markets,\nfor up/down markets whose window has not yet opened (common\npre-start for 5m / 15m series), and for unsupported tickers\nor transient Pyth failures."
           },
           "volume": {
             "type": "integer"
@@ -1703,99 +1939,118 @@
           "venue_url": {
             "type": "string",
             "nullable": true,
-            "description": "Canonical market URL on its source venue."
+            "description": "Canonical market URL regardless of venue (Kalshi or Polymarket)"
           },
           "open_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "close_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
+          },
+          "strike_date": {
+            "type": "string",
+            "nullable": true
           },
           "expiration_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
+          },
+          "expected_expiration_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "resolution_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "trading_ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "image_url": {
+            "type": "string",
+            "nullable": true
           },
           "exclusion_keys": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Parlay-correlation keys. Two markets **cannot co-exist in the same parlay if (and only if) their `exclusion_keys` arrays intersect** — i.e. share at least one string. Apply a pure set-intersection; there is no rule table to maintain client-side. The keys encode every correlation rule (cross-series exclusion groups, threshold ladders, same-game sports family/kind/participant correlation, Polymarket sub-events). Keys are opaque and namespaced by reason and scope (e.g. `kp:<gameKey>:moneyline|spread`, `grp:<idx>:<eventKey>`, `fam:<gameKey>:<series>`), and are derived solely from the market itself, so a selected leg can snapshot its keys and compare them later. The plain one-leg-per-event rule (same `event_ticker`) is intentionally not encoded here. Always present; an empty array means the market participates in no correlation rule."
+            "description": "Parlay-correlation keys. Two markets cannot co-exist in the same\nparlay **iff their `exclusion_keys` arrays intersect** (share at\nleast one string). Frontends apply pure set-intersection — they hold\nno correlation rule tables of their own; the keys encode every rule\n(cross-series exclusion groups, threshold ladders, sports same-game\nfamily/kind/participant correlation, Polymarket physical sub-events). Keys are opaque, namespaced by reason+scope (e.g. `kp:<gameKey>:…`,\n`grp:<idx>:<eventKey>`, `fam:…`), and derived solely from this\nmarket, so a selected leg can snapshot its keys and compare later. Does NOT encode the plain one-leg-per-event rule (same\n`event_ticker`). The submit-time authority is the server's parlay\nvalidation; these keys mirror it. Empty when the market participates\nin no correlation rule."
+          },
+          "synced_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
-      "EventGroup": {
+      "Wallet": {
         "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "description": "Solana wallet address. Null if no wallet linked."
+          },
+          "sol_balance": {
+            "type": "number"
+          },
+          "usdc_balance": {
+            "type": "number"
+          },
+          "vault_balance": {
+            "type": "number",
+            "description": "Gross USDC balance currently held in the caller's Totalis vault. Resolved by the returned `address`; returns 0 when no vault row\nexists for that wallet. Includes both free vault cash and locked\ncollateral. Add to `usdc_balance` for the caller's total on-chain\nUSDC across wallet ATA and vault; subtract `locked_amount` from\nthat total for an available-cash view."
+          },
+          "locked_amount": {
+            "type": "number",
+            "description": "Every USDC the caller has committed across roles, summed:\nin-flight RFQs (bet_amount of open/quoted/accepted/confirmed\ntickets where the caller is the bettor), the caller's\nbettor-side active vault position stakes\n(`SUM(vault_positions.user_stake)` for active/settling/\ncancelling), and the caller's maker-side vault\n`locked_collateral`. The FE relies on this single field\nrather than re-summing on the client. Reconciliation note: this is the union across every role the\ncaller owns. `GET /v1/vault.locked_collateral` only reports\none vault (bettor preferred, maker fallback), so for a\ndual-role account `locked_amount` can exceed\n`/v1/vault.locked_collateral` — do not derive \"in positions\"\nas a subtraction of the two. Balance-math note: `vault_balance` is gross, so vault locked\ncollateral is intentionally represented in both `vault_balance`\nand `locked_amount`. Available cash is\n`usdc_balance + vault_balance - locked_amount`; do not add\n`/v1/vault.locked_collateral` to `locked_amount` again."
+          },
+          "has_traded": {
+            "type": "boolean",
+            "description": "True once any of the caller's parlays has reached `executed` or\n`settled` (the on-chain vault position landed). Informational\naccount state; withdrawals are allowed regardless of this value."
+          }
+        }
+      },
+      "Cashout": {
+        "type": "object",
+        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the\nbuyback analogue of Settlement. realized_pnl is the user's net P&L\n(stake nets out; the directional `amount` is the realized delta, less\nthe profit fee on the profiting side and the create-time taker fee).",
         "required": [
-          "event_ticker",
-          "series_ticker",
-          "category",
-          "total_markets",
-          "markets"
+          "realized_pnl",
+          "amount",
+          "mm_pays_user"
         ],
         "properties": {
-          "event_ticker": {
+          "realized_pnl": {
+            "type": "number",
+            "description": "User's realized P&L from the early cashout (USDC, signed)."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Directional buyback transfer (USDC, >= 0)."
+          },
+          "mm_pays_user": {
+            "type": "boolean",
+            "description": "True when the MM paid the user (user was up on the position)."
+          },
+          "cashed_out_at": {
             "type": "string",
-            "description": "Event identifier. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
-          },
-          "series_ticker": {
-            "type": "string",
-            "description": "Series identifier. **Kalshi**: series ticker (e.g. `KXBTC`). **Polymarket**: Gamma `market_slug`."
-          },
-          "series_title": {
-            "type": "string",
-            "nullable": true
-          },
-          "event_title": {
-            "type": "string",
-            "nullable": true
-          },
-          "event_sub_title": {
-            "type": "string",
-            "nullable": true
-          },
-          "category": {
-            "type": "string"
-          },
-          "image_url": {
-            "type": "string",
-            "nullable": true
-          },
-          "total_markets": {
-            "type": "integer"
-          },
-          "markets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Market"
-            }
-          }
-        }
-      },
-      "ExclusionGroup": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "scope": {
-            "type": "string",
-            "enum": [
-              "event",
-              "series"
-            ]
-          },
-          "tickers": {
-            "type": "array",
-            "description": "Identifiers belonging to this exclusion group. When `scope=event`, these are event identifiers (Kalshi event ticker like `KXBTC-25FEB07`, or Polymarket Gamma `event_slug`). When `scope=series`, these are series identifiers (Kalshi series ticker like `KXBTC`, or Polymarket Gamma `market_slug`). Values are compared against `Leg.event_ticker` / `Market.series_ticker` to detect conflicts.",
-            "items": {
-              "type": "string"
-            }
-          },
-          "description": {
-            "type": "string"
+            "format": "date-time",
+            "nullable": true,
+            "description": "Time the position was bought back / cashed out (the buyback fee insert = finalize moment). The buyback analogue of settled_at; clients sort the History cashed-out row by this. Absent on legacy rows without a fee."
           }
         }
       },
@@ -1864,6 +2119,27 @@
           },
           "outcome": {
             "$ref": "#/components/schemas/LegOutcome"
+          }
+        }
+      },
+      "PortfolioBalance": {
+        "type": "object",
+        "description": "Caller's vault balance (DB-cached, no RPC). Null only when the\ncaller has no vault row at all. For dual-role accounts the\nbettor-side vault is preferred and the maker-side row is used\nas a fallback (same rules as `GET /v1/vault`).",
+        "properties": {
+          "gross_balance": {
+            "type": "number"
+          },
+          "locked_collateral": {
+            "type": "number"
+          },
+          "free_balance": {
+            "type": "number"
+          },
+          "vault_pda": {
+            "type": "string"
+          },
+          "vault_token_account": {
+            "type": "string"
           }
         }
       },
@@ -2007,686 +2283,36 @@
           }
         }
       },
-      "Cashout": {
+      "Side": {
+        "type": "string",
+        "enum": [
+          "yes",
+          "no"
+        ]
+      },
+      "UserStats": {
         "type": "object",
-        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the\nbuyback analogue of Settlement. realized_pnl is the user's net P&L\n(stake nets out; the directional `amount` is the realized delta, less\nthe profit fee on the profiting side and the create-time taker fee).\n",
-        "required": [
-          "realized_pnl",
-          "amount",
-          "mm_pays_user"
-        ],
         "properties": {
+          "total_parlays": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer"
+          },
+          "losses": {
+            "type": "integer"
+          },
+          "total_wagered": {
+            "type": "number"
+          },
           "realized_pnl": {
-            "type": "number",
-            "description": "User's realized P&L from the early cashout (USDC, signed)."
-          },
-          "amount": {
-            "type": "number",
-            "description": "Directional buyback transfer (USDC, >= 0)."
-          },
-          "mm_pays_user": {
-            "type": "boolean",
-            "description": "True when the MM paid the user (user was up on the position)."
-          },
-          "cashed_out_at": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "Time the position was bought back / cashed out (the buyback fee insert = finalize moment). The buyback analogue of settled_at; clients sort the History cashed-out row by this. Absent on legacy rows without a fee."
-          }
-        }
-      },
-      "MmRfqLeg": {
-        "type": "object",
-        "description": "Subset of a leg surfaced to market makers — drops display-only fields, keeps the price snapshot needed for quoting.",
-        "required": [
-          "leg_index",
-          "market_ticker",
-          "event_ticker",
-          "side",
-          "venue",
-          "market_title",
-          "current_yes_price",
-          "current_no_price"
-        ],
-        "properties": {
-          "leg_index": {
-            "type": "integer",
-            "description": "Zero-based leg position within the RFQ."
-          },
-          "market_ticker": {
-            "type": "string",
-            "description": "Unique market identifier on the leg's venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Yes/no CLOB token ids are not returned — resolve them client-side via Polymarket's CLOB if needed."
-          },
-          "event_ticker": {
-            "type": "string",
-            "description": "Event identifier the leg's market belongs to. **Kalshi**: event ticker (e.g. `KXBTC-25FEB07`). **Polymarket**: Gamma `event_slug` (falls back to `market_slug` when no parent event exists)."
-          },
-          "side": {
-            "$ref": "#/components/schemas/Side"
-          },
-          "venue": {
-            "$ref": "#/components/schemas/Venue"
-          },
-          "market_title": {
-            "type": "string"
-          },
-          "current_yes_price": {
-            "type": "number",
-            "description": "Yes price at RFQ creation, decimal (0-1)."
-          },
-          "current_no_price": {
-            "type": "number",
-            "description": "No price at RFQ creation, decimal (0-1)."
-          }
-        }
-      },
-      "MmRfq": {
-        "type": "object",
-        "description": "Open RFQ visible to market makers.",
-        "required": [
-          "id",
-          "user_id",
-          "status",
-          "bet_amount",
-          "user_stake",
-          "implied_probability",
-          "expires_at",
-          "created_at",
-          "legs"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "user_id": {
-            "type": "string",
-            "description": "Privy DID of the bettor (intentionally surfaced to MMs)."
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "open"
-            ],
-            "description": "MMs only see RFQs available for quoting."
-          },
-          "bet_amount": {
-            "type": "number",
-            "description": "The user's gross wager (USDC)."
-          },
-          "user_stake": {
-            "type": "number",
-            "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
-          },
-          "implied_probability": {
-            "type": "number",
-            "description": "Decimal probability (0-1)."
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "legs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MmRfqLeg"
-            }
-          }
-        }
-      },
-      "Quote": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "rfq_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "payout_odds": {
-            "type": "number",
-            "minimum": 1.0001,
-            "maximum": 1000,
-            "description": "Multiplier on the net stake (`user_stake`) that produces the total payout if the parlay wins. When the taker fee is off, `user_stake == bet_amount`."
-          },
-          "user_cost": {
-            "type": "number",
-            "description": "Net stake the MM quotes on = bet_amount - taker_fee (== bet_amount when the taker fee is off)."
-          },
-          "mm_cost": {
-            "type": "number",
-            "description": "Market maker's max risk = `total_payout - user_cost`."
-          },
-          "total_payout": {
-            "type": "number",
-            "description": "Total payout on a win = `user_cost + mm_cost`."
-          },
-          "leg_prices": {
-            "type": "array",
-            "description": "Per-leg price snapshot captured at submit time. `leg_odds` is a decimal (0-1).",
-            "items": {
-              "type": "object",
-              "required": [
-                "leg_id",
-                "leg_odds"
-              ],
-              "properties": {
-                "leg_id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "leg_odds": {
-                  "type": "number",
-                  "description": "Implied per-leg price, decimal (0-1)."
-                }
-              }
-            }
-          },
-          "status": {
-            "$ref": "#/components/schemas/QuoteStatus"
-          },
-          "valid_until": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
+            "type": "number"
           },
           "updated_at": {
             "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "QuoteMmView": {
-        "description": "Quote with MM-only fields surfaced on MM endpoints.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Quote"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "market_maker_id": {
-                "type": "string"
-              },
-              "mm_wallet_address": {
-                "type": "string"
-              }
-            }
-          }
-        ]
-      },
-      "CreateRfqRequest": {
-        "type": "object",
-        "required": [
-          "legs",
-          "bet_amount"
-        ],
-        "properties": {
-          "legs": {
-            "type": "array",
-            "minItems": 2,
-            "maxItems": 5,
-            "description": "Parlay legs (2-5 required). Each leg references a market by ticker on a specific venue.",
-            "items": {
-              "type": "object",
-              "required": [
-                "market_ticker",
-                "side",
-                "venue"
-              ],
-              "properties": {
-                "market_ticker": {
-                  "type": "string",
-                  "description": "Identifier of the underlying market on its venue. **Kalshi**: market ticker (e.g. `KXBTC-25FEB07-T100000`). **Polymarket**: `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`); not the gamma id, question id, or market slug. Look this up via `GET /markets` (`Market.ticker`) — there is no separate yes/no CLOB token id field; both sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`."
-                },
-                "side": {
-                  "$ref": "#/components/schemas/Side"
-                },
-                "venue": {
-                  "$ref": "#/components/schemas/Venue"
-                }
-              }
-            }
-          },
-          "bet_amount": {
-            "type": "number",
-            "minimum": 1,
-            "maximum": 100,
-            "description": "USDC. Max 100. Must be a positive finite number."
-          },
-          "expires_in_seconds": {
-            "type": "integer",
-            "minimum": 30,
-            "maximum": 86400,
-            "default": 300,
-            "description": "RFQ lifetime in seconds. Floor 30s, cap 24h. Defaults to 300."
-          }
-        }
-      },
-      "CancelRfqRequest": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "Optional cancellation reason. Defaults to \"User cancelled\". Truncated to 500 chars."
-          }
-        }
-      },
-      "SubmitQuoteRequest": {
-        "type": "object",
-        "required": [
-          "rfq_id",
-          "payout_odds"
-        ],
-        "properties": {
-          "rfq_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "RFQ to quote."
-          },
-          "payout_odds": {
-            "type": "number",
-            "minimum": 1.0001,
-            "maximum": 1000,
-            "description": "Multiplier (1.0001x – 1000x). Must be a finite number."
-          },
-          "valid_for_seconds": {
-            "type": "integer",
-            "minimum": 10,
-            "maximum": 600,
-            "default": 60,
-            "description": "Quote validity window. 10s – 10min. Defaults to 60s."
-          },
-          "leg_prices": {
-            "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value — the request field is named `odds`, the response field is named `leg_odds`.",
-            "items": {
-              "type": "object",
-              "required": [
-                "leg_id",
-                "odds"
-              ],
-              "properties": {
-                "leg_id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "odds": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1,
-                  "description": "Implied per-leg price, decimal (0-1)."
-                }
-              }
-            }
-          }
-        }
-      },
-      "AcceptQuoteResponse": {
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "properties": {
-          "data": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "example": "accepted"
-              },
-              "quote_id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "confirmation_deadline": {
-                "type": "string",
-                "format": "date-time",
-                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
-              }
-            }
-          }
-        }
-      },
-      "ConfirmQuoteResponse": {
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "properties": {
-          "data": {
-            "type": "object",
-            "properties": {
-              "status": {
-                "type": "string",
-                "example": "confirmed"
-              },
-              "quote_id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "execution_id": {
-                "type": "string",
-                "format": "uuid",
-                "description": "Identifier for the queued vault-position-creation job."
-              }
-            }
-          }
-        }
-      },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Privy DID — internal identifier, not exposed on public endpoints."
-          },
-          "username": {
-            "type": "string",
-            "description": "Display name. Auto-set to the wallet address on first login; can be updated via `PUT /v1/username` to a 3-20 char alphanumeric."
-          },
-          "email": {
-            "type": "string",
-            "nullable": true
-          },
-          "wallet_address": {
-            "type": "string",
-            "nullable": true
-          },
-          "approved": {
-            "type": "boolean",
-            "description": "True once the user has redeemed a valid invite code or has been admin-approved."
-          },
-          "waitlisted": {
-            "type": "boolean",
-            "description": "True when `approved=false` and the user is on the waitlist; false otherwise. Always present."
-          },
-          "auto_redeemed": {
-            "type": "boolean",
-            "description": "Only present when the `?ref` param successfully redeemed an invite code in this exact request."
-          },
-          "airdrop": {
-            "nullable": true,
-            "description": "Welcome-airdrop outcome from the auto-redeem path. Present alongside `auto_redeemed: true`. `null` when the invite has no airdrop configured or the user was already credited.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AirdropOutcome"
-              }
-            ]
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "AirdropOutcome": {
-        "type": "object",
-        "description": "Welcome airdrop outcome. `success: true` with `pending: true` means the amount was staged and will mint on the user's next `POST /v1/wallet/enable-trading` call. `success: false` means staging failed.",
-        "required": [
-          "success",
-          "amount",
-          "pending"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "amount": {
-            "type": "number",
-            "description": "USDC (whole dollars)."
-          },
-          "pending": {
-            "type": "boolean"
-          }
-        }
-      },
-      "Wallet": {
-        "type": "object",
-        "properties": {
-          "address": {
-            "type": "string",
-            "nullable": true,
-            "description": "Solana wallet address (base58). Null if no wallet is linked yet."
-          },
-          "sol_balance": {
-            "type": "number"
-          },
-          "usdc_balance": {
-            "type": "number"
-          },
-          "vault_balance": {
-            "type": "number",
-            "description": "Gross USDC balance currently held in the caller's Totalis vault. Resolved by the returned `address`; returns 0 when no vault row exists for that wallet. Includes both free vault cash and locked collateral. Add to `usdc_balance` for total on-chain USDC across wallet and vault; subtract `locked_amount` from that total for an available-cash view."
-          },
-          "locked_amount": {
-            "type": "number",
-            "description": "Every USDC the caller has committed across roles: in-flight RFQs, bettor-side vault position stakes, and maker-side `locked_collateral`. Because `vault_balance` is gross, vault locked collateral is intentionally represented in both `vault_balance` and `locked_amount`; compute available cash as `usdc_balance + vault_balance - locked_amount` and do not add `/v1/vault.locked_collateral` again."
-          },
-          "has_traded": {
-            "type": "boolean",
-            "description": "True once any of the caller's parlays has reached `executed` or `settled`. Informational account state; withdrawals are allowed regardless of this value."
-          }
-        }
-      },
-      "ApiKeyFull": {
-        "type": "object",
-        "description": "Returned only on creation; the full `key` is visible exactly once.",
-        "properties": {
-          "key": {
-            "type": "string",
-            "description": "Full API key (only shown once)."
-          },
-          "key_prefix": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "ApiKeySummary": {
-        "type": "object",
-        "properties": {
-          "key_prefix": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "revoked",
-              "expired"
-            ]
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "last_used_at": {
-            "type": "string",
             "format": "date-time",
-            "nullable": true
-          },
-          "request_count": {
-            "type": "integer"
-          }
-        }
-      },
-      "Settlement": {
-        "type": "object",
-        "required": [
-          "id",
-          "rfq_id",
-          "winner",
-          "payout",
-          "user_stake",
-          "mm_risk",
-          "fee_amount",
-          "settle_tx",
-          "settled_at"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "rfq_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "winner": {
-            "$ref": "#/components/schemas/WinnerSide"
-          },
-          "payout": {
-            "type": "number",
-            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. bet_amount * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
-          },
-          "user_stake": {
-            "type": "number",
-            "description": "Bettor's stake at settle time. Surfaced so the MM dashboard can\nderive PnL without a second fetch — MM win = +user_stake - fee,\nMM loss = -(payout - user_stake) = -mm_risk.\n"
-          },
-          "mm_risk": {
-            "type": "number",
-            "description": "Maker's max risk at settle time. Equal to payout - user_stake; the\nMM dashboard renders loss-side PnL directly off this field.\n"
-          },
-          "fee_amount": {
-            "type": "number",
-            "description": "Protocol fee deducted from the winner's payout."
-          },
-          "settle_tx": {
-            "type": "string"
-          },
-          "settled_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "AirdropDrainOutcome": {
-        "type": "object",
-        "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` — there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint).\n`{ success: true, amount }` — the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` — the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.\n",
-        "required": [
-          "success",
-          "amount"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "amount": {
-            "type": "number",
-            "description": "USDC amount (whole dollars)"
-          }
-        }
-      },
-      "DelegationStatus": {
-        "type": "object",
-        "properties": {
-          "ready": {
-            "type": "boolean",
-            "description": "True if a wallet is linked and delegation can proceed"
-          },
-          "delegated": {
-            "type": "boolean",
-            "description": "True if TEE wallet delegation is active (server can sign)"
-          },
-          "address": {
-            "type": "string",
-            "description": "Solana wallet address (base58). Empty string if no wallet linked."
-          },
-          "wallet_id": {
-            "type": "string",
-            "description": "Privy embedded wallet ID (used for delegation API calls)"
-          }
-        }
-      },
-      "PortfolioBalance": {
-        "type": "object",
-        "description": "Caller's vault balance (DB-cached, no RPC). Null only when the\ncaller has no vault row at all. For dual-role accounts the\nbettor-side vault is preferred and the maker-side row is used\nas a fallback (same rules as `GET /v1/vault`).\n",
-        "properties": {
-          "gross_balance": {
-            "type": "number"
-          },
-          "locked_collateral": {
-            "type": "number"
-          },
-          "free_balance": {
-            "type": "number"
-          },
-          "vault_pda": {
-            "type": "string"
-          },
-          "vault_token_account": {
-            "type": "string"
-          }
-        }
-      },
-      "PortfolioData": {
-        "type": "object",
-        "description": "Consolidated portfolio response from GET /v1/portfolio.",
-        "properties": {
-          "balance": {
             "nullable": true,
-            "description": "Null when user has no vault (never traded)",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PortfolioBalance"
-              }
-            ]
-          },
-          "stats": {
-            "$ref": "#/components/schemas/UserStats"
-          },
-          "counts": {
-            "$ref": "#/components/schemas/RfqCounts"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/PortfolioSummary"
-          }
-        }
-      },
-      "PortfolioSummary": {
-        "type": "object",
-        "description": "Derived portfolio-level aggregates from active positions.",
-        "properties": {
-          "active_count": {
-            "type": "integer",
-            "description": "Number of active (non-terminal) RFQs"
-          },
-          "active_bet_total": {
-            "type": "number",
-            "description": "Sum of bet_amount across active RFQs"
-          },
-          "portfolio_value": {
-            "type": "number",
-            "description": "Gross vault balance (deposited USDC). Does not include unrealized P&L."
+            "description": "Null when the user has never settled a trade (no rfq.user_stats row yet)."
           }
         }
       },
@@ -2724,102 +2350,238 @@
           }
         }
       },
-      "UserStats": {
+      "SubcategorySlug": {
+        "type": "string",
+        "description": "Subcategory wire format (lowercase snake_case). See `src/market-taxonomy.ts:SUBCATEGORIES_BY_CATEGORY` for the canonical taxonomy keyed by category. Valid values depend on the selected `category` and are enforced server-side.",
+        "enum": [
+          "nba",
+          "ncaa",
+          "nfl",
+          "nhl",
+          "mlb",
+          "ufc",
+          "lol",
+          "epl",
+          "efl",
+          "la_liga",
+          "world_cup",
+          "bundesliga",
+          "liga_portugal",
+          "ligue_1",
+          "f1",
+          "ipl",
+          "other",
+          "btc",
+          "eth",
+          "sol",
+          "up_down",
+          "stocks",
+          "indices",
+          "etfs",
+          "earnings",
+          "rates",
+          "inflation",
+          "commodities",
+          "fx",
+          "usa",
+          "global"
+        ]
+      },
+      "DelegationStatus": {
         "type": "object",
         "properties": {
-          "total_parlays": {
-            "type": "integer"
+          "ready": {
+            "type": "boolean",
+            "description": "True if a wallet is linked and delegation can proceed"
           },
-          "wins": {
-            "type": "integer"
+          "delegated": {
+            "type": "boolean",
+            "description": "True if TEE wallet delegation is active (server can sign)"
           },
-          "losses": {
-            "type": "integer"
-          },
-          "total_wagered": {
-            "type": "number"
-          },
-          "realized_pnl": {
-            "type": "number"
-          },
-          "updated_at": {
+          "address": {
             "type": "string",
-            "format": "date-time",
+            "description": "Solana wallet address (base58). Empty string if no wallet linked."
+          },
+          "wallet_id": {
+            "type": "string",
+            "description": "Privy embedded wallet ID (used for delegation API calls)"
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "VALIDATION_ERROR",
+              "UNAUTHORIZED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "CONFLICT",
+              "RATE_LIMITED",
+              "PAYLOAD_TOO_LARGE",
+              "INTERNAL_ERROR",
+              "SERVICE_UNAVAILABLE"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          },
+          "retry_after": {
+            "type": "integer",
             "nullable": true,
-            "description": "Null when the user has never settled a trade (no rfq.user_stats row yet)."
+            "description": "Seconds until retry (set on 429)"
           }
         }
       },
-      "UserVaultResponse": {
+      "ErrorEnvelope": {
         "type": "object",
-        "description": "Vault state with active position summaries (GET /v1/vault response).\nReturns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.\n",
+        "required": [
+          "error"
+        ],
         "properties": {
-          "vault_pda": {
-            "type": "string"
-          },
-          "vault_token_account": {
-            "type": "string"
-          },
-          "gross_balance": {
-            "type": "number"
-          },
-          "locked_collateral": {
-            "type": "number"
-          },
-          "free_balance": {
-            "type": "number"
-          },
-          "positions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/VaultPositionSummary"
-            }
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
           }
         }
       },
-      "VaultPositionSummary": {
+      "Quote": {
         "type": "object",
-        "description": "Lightweight position summary for the vault response.\n\nCaller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral.\nDon't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned — for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.\n",
         "properties": {
-          "position_id": {
+          "id": {
             "type": "string",
-            "description": "16-byte position ID (hex encoded)"
+            "format": "uuid"
           },
           "rfq_id": {
             "type": "string",
             "format": "uuid"
           },
-          "user_stake": {
-            "type": "number",
-            "description": "Bettor side of the trade. The caller's stake on the\nbettor-side vault response; the counterparty's stake on\nthe maker-side vault response.\n"
+          "payout_odds": {
+            "type": "number"
           },
-          "mm_risk": {
-            "type": "number",
-            "description": "Maker side of the trade. The counterparty's collateral on\nthe bettor-side vault response; the caller's own\ncollateral on the maker-side vault response.\n"
+          "user_cost": {
+            "type": "number"
+          },
+          "mm_cost": {
+            "type": "number"
           },
           "total_payout": {
             "type": "number"
           },
           "status": {
-            "$ref": "#/components/schemas/PositionStatus"
+            "$ref": "#/components/schemas/QuoteStatus"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time"
           },
           "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
             "type": "string",
             "format": "date-time"
           }
         }
       },
-      "PnlPoint": {
+      "WinnerSide": {
+        "type": "string",
+        "enum": [
+          "user",
+          "mm"
+        ]
+      },
+      "ApiKeyFull": {
         "type": "object",
+        "description": "Returned on creation only (full key visible once)",
         "properties": {
-          "date": {
-            "type": "string",
-            "format": "date"
+          "key": {
+            "type": "string"
           },
-          "pnl": {
-            "type": "number"
+          "key_prefix": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
+      }
+    },
+    "parameters": {
+      "DeviceFingerprint": {
+        "name": "X-Device-Fingerprint",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "description": "Client-computed device fingerprint (e.g. a FingerprintJS visitorId). Optional anti-sybil signal captured for account-linkage clustering and investigation. Surveillance-only — it is stored and linked, never used to gate, limit, or block a request."
+      },
+      "CursorParam": {
+        "name": "cursor",
+        "in": "query",
+        "schema": {
+          "type": "string"
+        },
+        "description": "Opaque pagination cursor from a previous response's meta.cursor. Do not construct manually."
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Client-generated UUID. Cached responses returned within 24h TTL."
+      },
+      "LimitParam": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 100
+        },
+        "description": "Page size"
+      }
+    },
+    "securitySchemes": {
+      "PrivyJWT": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Privy JWT issued to the web dashboard. Sent as `Authorization: Bearer <jwt>`. The Privy session signer underpins all wallet-signed actions."
+      },
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Programmatic API key. Sent as `X-API-Key: <key>`. Generate one from the Totalis dashboard. The same header is accepted on the WebSocket auth message."
       }
     }
   }
