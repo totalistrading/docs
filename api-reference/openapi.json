@@ -77,7 +77,7 @@
           {
             "name": "frequency",
             "in": "query",
-            "description": "Filter events by the cadence of the underlying series: `daily`, `weekly`, `monthly`, or `hourly`. Only meaningful for categories that drive timeframe pills (Crypto, Finance, Economics, Entertainment). Monthly markets are also subject to a 7-day visibility window — see G1 spec §1.1. `hourly` is admitted as a filter post-0048 (after the 19 hourly series were re-enabled). Per-category validity is enforced server-side by the join against `series_whitelist.frequency`: requesting `?frequency=hourly&category=entertainment` returns an empty grid (no hourly entertainment series exist today) rather than 400. `other` is intentionally NOT a valid filter input — it's a residual bucket on `Market.frequency` for irregular-cadence series, not a chip target. Passing `?frequency=other` returns 400.",
+            "description": "Filter events by the cadence of the underlying series: `daily`, `weekly`, `monthly`, or `hourly`. Only meaningful for categories that drive timeframe pills (Crypto, Finance, Economics, Entertainment). Monthly markets are also subject to a 7-day visibility window — see G1 spec §1.1.\n\n`hourly` is admitted as a filter post-0048 (after the 19 hourly series were re-enabled). Per-category validity is enforced server-side by the join against `series_whitelist.frequency`: requesting `?frequency=hourly&category=entertainment` returns an empty grid (no hourly entertainment series exist today) rather than 400.\n\n`other` is intentionally NOT a valid filter input — it's a residual bucket on `Market.frequency` for irregular-cadence series, not a chip target. Passing `?frequency=other` returns 400.",
             "schema": {
               "type": "string",
               "enum": [
@@ -536,7 +536,7 @@
           "User"
         ],
         "summary": "Consolidated portfolio (balance, stats, counts, summary)",
-        "description": "Returns the user's full portfolio in a single batched query: vault balance,\ntrading stats, RFQ status counts, and active-bet summary. Balance is null\nwhen the user has no vault (never traded).",
+        "description": "Returns the user's full portfolio in a single batched query: vault balance,\ntrading stats, RFQ status counts, and active-bet summary. Balance is null\nwhen the user has no vault (never traded).\n",
         "security": [
           {
             "PrivyJWT": []
@@ -571,7 +571,7 @@
           "RFQs"
         ],
         "summary": "List RFQs (programmatic /v1 surface)",
-        "description": "Same as `GET /rfqs`, on the programmatic `/v1` contract surface.",
+        "description": "Same as `GET /rfqs`, on the programmatic `/v1` contract surface. Lists the caller's own\ncustodial RFQs, newest first, with cursor pagination and an optional status filter.",
         "security": [
           {
             "PrivyJWT": []
@@ -654,7 +654,7 @@
           "RFQs"
         ],
         "summary": "Get RFQ by ID (programmatic /v1 surface; quotes always populated)",
-        "description": "Same as `GET /rfqs/{id}`, on the programmatic `/v1` contract surface.",
+        "description": "Same as `GET /rfqs/{id}`, on the programmatic `/v1` contract surface. Returns one of the\ncaller's own custodial RFQs by id, with its quotes — and, once terminal, its settlement detail. An id you don't own returns 404.",
         "security": [
           {
             "PrivyJWT": []
@@ -821,7 +821,7 @@
           "Vault"
         ],
         "summary": "Get user vault state and active positions",
-        "description": "Returns the user's vault balance and active positions. Returns data: null\n(200 OK) if the user has no vault yet (vault is created on first trade).",
+        "description": "Returns the user's vault balance and active positions. Returns data: null\n(200 OK) if the user has no vault yet (vault is created on first trade).\n",
         "security": [
           {
             "PrivyJWT": []
@@ -978,7 +978,7 @@
           "User"
         ],
         "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
-        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself. 2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.",
+        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
         "security": [
           {
             "PrivyJWT": []
@@ -1010,7 +1010,7 @@
                                 }
                               ],
                               "nullable": true,
-                              "description": "Outcome of the pending-airdrop drain. `null` when nothing was staged for this\nuser (most common — pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape."
+                              "description": "Outcome of the pending-airdrop drain.\n`null` when nothing was staged for this\nuser (most common — pre-approval, or\nalready drained on a prior call). See\n`AirdropDrainOutcome` for the non-null\nshape.\n"
                             }
                           }
                         }
@@ -1105,7 +1105,7 @@
           "User"
         ],
         "summary": "Withdraw USDC from the embedded wallet to an external address",
-        "description": "Sends USDC out of the caller's embedded wallet ATA to an arbitrary\non-curve Solana address. Uses Privy's session-signer delegation\n(set up via /v1/wallet/enable-trading) and Privy's native gas\nsponsorship — the user is not prompted to sign and never needs SOL. Chained vault-tap: when the requested `amount_usdc` exceeds the\ncaller's ATA-available balance, the handler first issues\n`withdraw_from_vault` (vault PDA → owner ATA) for the shortfall,\nwaits for that TX to confirm, then issues the external SPL transfer. The `vault_signature` / `vault_amount` fields surface the intermediate\nTX when this happens. If the vault tap succeeds but the external\ntransfer fails to construct or broadcast, the response is **502**\nwith `error.code: PARTIAL_VAULT_ONLY` and the vault TX surfaced under\n`error.details.vault_signature` / `error.details.vault_amount`. The\ncaller can retry with the same amount; the pre-flight will see the\nATA is now sufficient and skip the vault tap. 502 (rather than 200)\nis deliberate: the idempotency middleware caches only 2xx, so\nsame-key retries against a 502 re-enter the handler instead of\nreplaying a cached partial response. Idempotency-Key is honored: a duplicate request with the same key\nreplays the cached 2xx response without re-issuing on-chain TXs.",
+        "description": "Sends USDC out of the caller's embedded wallet ATA to an arbitrary\non-curve Solana address. Uses Privy's session-signer delegation\n(set up via /v1/wallet/enable-trading) and Privy's native gas\nsponsorship — the user is not prompted to sign and never needs SOL.\n\nChained vault-tap: when the requested `amount_usdc` exceeds the\ncaller's ATA-available balance, the handler first issues\n`withdraw_from_vault` (vault PDA → owner ATA) for the shortfall,\nwaits for that TX to confirm, then issues the external SPL transfer.\nThe `vault_signature` / `vault_amount` fields surface the intermediate\nTX when this happens. If the vault tap succeeds but the external\ntransfer fails to construct or broadcast, the response is **502**\nwith `error.code: PARTIAL_VAULT_ONLY` and the vault TX surfaced under\n`error.details.vault_signature` / `error.details.vault_amount`. The\ncaller can retry with the same amount; the pre-flight will see the\nATA is now sufficient and skip the vault tap. 502 (rather than 200)\nis deliberate: the idempotency middleware caches only 2xx, so\nsame-key retries against a 502 re-enter the handler instead of\nreplaying a cached partial response.\n\nIdempotency-Key is honored: a duplicate request with the same key\nreplays the cached 2xx response without re-issuing on-chain TXs.\n",
         "security": [
           {
             "PrivyJWT": []
@@ -1132,12 +1132,12 @@
                 "properties": {
                   "recipient": {
                     "type": "string",
-                    "description": "Destination Solana wallet address (base58). Must be\non-curve — PDAs, program IDs, and token-account\naddresses are rejected because funds sent to a\nderived ATA-of-an-ATA are unrecoverable."
+                    "description": "Destination Solana wallet address (base58). Must be\non-curve — PDAs, program IDs, and token-account\naddresses are rejected because funds sent to a\nderived ATA-of-an-ATA are unrecoverable.\n"
                   },
                   "amount_usdc": {
                     "type": "number",
                     "minimum": 1e-06,
-                    "description": "USDC amount to send. Minimum is one USDC base unit\n(1e-6). Must be ≤ the caller's total spendable pool\n(ATA + vault free_balance − in-flight RFQ holds);\nrequests exceeding this are rejected with 400."
+                    "description": "USDC amount to send. Minimum is one USDC base unit\n(1e-6). Must be ≤ the caller's total spendable pool\n(ATA + vault free_balance − in-flight RFQ holds);\nrequests exceeding this are rejected with 400.\n"
                   }
                 }
               }
@@ -1146,7 +1146,7 @@
         },
         "responses": {
           "200": {
-            "description": "Withdrawal submitted. `signature` is the external SPL transfer\nsignature. `vault_signature` and `vault_amount` are present\nonly when the request required a vault → ATA hop.",
+            "description": "Withdrawal submitted. `signature` is the external SPL transfer\nsignature. `vault_signature` and `vault_amount` are present\nonly when the request required a vault → ATA hop.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -1165,23 +1165,23 @@
                         },
                         "vault_signature": {
                           "type": "string",
-                          "description": "On-chain `withdraw_from_vault` signature. Present only when the request required a vault\n→ ATA hop to cover a shortfall."
+                          "description": "On-chain `withdraw_from_vault` signature.\nPresent only when the request required a vault\n→ ATA hop to cover a shortfall.\n"
                         },
                         "vault_amount": {
                           "type": "number",
-                          "description": "USDC amount moved from vault to ATA before the\nexternal transfer. Present only when\n`vault_signature` is present."
+                          "description": "USDC amount moved from vault to ATA before the\nexternal transfer. Present only when\n`vault_signature` is present.\n"
                         },
                         "recipient_ata_created": {
                           "type": "boolean",
-                          "description": "Present (true) when the recipient had no USDC token\naccount and this transaction created one (the\ncreate-and-chargeback path, gated by\nWITHDRAW_ATA_AUTOCREATE). The fee-payer fronts the\n~0.002 SOL account rent and bills it back in USDC, so\nthe recipient receives `delivered_usdc` and the treasury\nkeeps `chargeback_usdc`. The create is non-idempotent, so\na confirmed response means this tx created the account\n(a race where it already existed reverts and retries\nvia the standard path, with no chargeback)."
+                          "description": "Present (true) when the recipient had no USDC token\naccount and this transaction created one (the\ncreate-and-chargeback path, gated by\nWITHDRAW_ATA_AUTOCREATE). The fee-payer fronts the\n~0.002 SOL account rent and bills it back in USDC, so\nthe recipient receives `delivered_usdc` and the treasury\nkeeps `chargeback_usdc`. The create is non-idempotent, so\na confirmed response means this tx created the account\n(a race where it already existed reverts and retries\nvia the standard path, with no chargeback).\n"
                         },
                         "chargeback_usdc": {
                           "type": "number",
-                          "description": "USDC withheld from the requested amount to reimburse\nthe one-time recipient-ATA rent. Present only with\n`recipient_ata_created`."
+                          "description": "USDC withheld from the requested amount to reimburse\nthe one-time recipient-ATA rent. Present only with\n`recipient_ata_created`.\n"
                         },
                         "delivered_usdc": {
                           "type": "number",
-                          "description": "USDC actually delivered to the recipient\n(`amount_usdc − chargeback_usdc`). Present only with\n`recipient_ata_created`."
+                          "description": "USDC actually delivered to the recipient\n(`amount_usdc − chargeback_usdc`). Present only with\n`recipient_ata_created`.\n"
                         }
                       }
                     }
@@ -1197,7 +1197,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
-            "description": "The caller's embedded wallet is no longer delegated for\nserver-side signing. Re-enabling trading from the app restores\nthe session signer.",
+            "description": "The caller's embedded wallet is no longer delegated for\nserver-side signing. Re-enabling trading from the app restores\nthe session signer.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -1213,7 +1213,7 @@
             "$ref": "#/components/responses/InternalError"
           },
           "502": {
-            "description": "Ambiguous partial state — returned as 5xx (not 200) so\nIdempotency-Key callers retry against the handler instead of\nreplaying a cached partial response. Two codes:\n\n`PARTIAL_VAULT_ONLY` — the vault tap succeeded but the external SPL\ntransfer failed to construct/broadcast. Funds moved from vault to\nATA; retry the same request to complete the external leg (the\npre-flight sees the updated ATA and skips the vault tap). Returned\nonly when the vault tap fired this request; a same-key retry against\nan already-topped-up ATA skips the tap (`shortfall = 0`) and a\nsubsequent SPL failure surfaces as a normal 500. `WITHDRAW_SUBMITTED_UNCONFIRMED` — only on the recipient-ATA\ncreate-and-chargeback path (WITHDRAW_ATA_AUTOCREATE), where broadcast\nand confirmation are separate steps: the transaction was broadcast\n(`details.signature` present) but confirmation timed out, so it may\nhave landed. Do NOT blind-retry — verify the recipient balance first,\nsince a retry would re-send via the now-existing ATA and double-pay.",
+            "description": "Ambiguous partial state — returned as 5xx (not 200) so\nIdempotency-Key callers retry against the handler instead of\nreplaying a cached partial response. Two codes:\n\n`PARTIAL_VAULT_ONLY` — the vault tap succeeded but the external SPL\ntransfer failed to construct/broadcast. Funds moved from vault to\nATA; retry the same request to complete the external leg (the\npre-flight sees the updated ATA and skips the vault tap). Returned\nonly when the vault tap fired this request; a same-key retry against\nan already-topped-up ATA skips the tap (`shortfall = 0`) and a\nsubsequent SPL failure surfaces as a normal 500.\n\n`WITHDRAW_SUBMITTED_UNCONFIRMED` — only on the recipient-ATA\ncreate-and-chargeback path (WITHDRAW_ATA_AUTOCREATE), where broadcast\nand confirmation are separate steps: the transaction was broadcast\n(`details.signature` present) but confirmation timed out, so it may\nhave landed. Do NOT blind-retry — verify the recipient balance first,\nsince a retry would re-send via the now-existing ATA and double-pay.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -1237,7 +1237,7 @@
                           "properties": {
                             "signature": {
                               "type": "string",
-                              "description": "The broadcast transaction signature. Present on\nWITHDRAW_SUBMITTED_UNCONFIRMED — the tx may have\nlanded; check it before retrying."
+                              "description": "The broadcast transaction signature. Present on\nWITHDRAW_SUBMITTED_UNCONFIRMED — the tx may have\nlanded; check it before retrying.\n"
                             },
                             "vault_signature": {
                               "type": "string"
@@ -1247,11 +1247,11 @@
                             },
                             "chargeback_usdc": {
                               "type": "number",
-                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been withheld for the recipient-ATA rent."
+                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been withheld for the recipient-ATA rent.\n"
                             },
                             "delivered_usdc": {
                               "type": "number",
-                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been delivered to the recipient."
+                              "description": "On WITHDRAW_SUBMITTED_UNCONFIRMED, the USDC that\nwould have been delivered to the recipient.\n"
                             },
                             "partial": {
                               "type": "string",
@@ -1379,7 +1379,7 @@
     "schemas": {
       "AirdropDrainOutcome": {
         "type": "object",
-        "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` — there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint). `{ success: true, amount }` — the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` — the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.",
+        "description": "Outcome of the pending-airdrop drain performed by\n`POST /v1/wallet/enable-trading`. Narrower than\n`AirdropOutcome` — there is no `pending` field because the drain\nis the terminal step (either the mint landed or it didn't; the\namount is never left in a staged state by this endpoint).\n`{ success: true, amount }` — the staged amount minted\nsuccessfully on-chain. `{ success: false, amount }` — the mint\nattempt failed and the pending amount has been restored; the\nuser can retry on their next call.\n",
         "required": [
           "success",
           "amount"
@@ -1396,7 +1396,7 @@
       },
       "AirdropOutcome": {
         "type": "object",
-        "description": "Invite-link airdrop outcome for the auto-redeem / invite-link path. `kind` identifies which grant path produced the outcome so clients\ncan route welcome and parlay-gated grants to different UI flows. Under the deferred-airdrop flow (TT-airdrop-bug 2026-05-13),\n`success: true` with `pending: true` means the amount was staged\nfor the selected grant path and will mint later when that path's\ncondition is satisfied. `success: false` (always paired with\n`pending: false`) means staging failed; the approval itself\nstill landed.",
+        "description": "Invite-link airdrop outcome for the auto-redeem / invite-link path.\n`kind` identifies which grant path produced the outcome so clients\ncan route welcome and parlay-gated grants to different UI flows.\n\nUnder the deferred-airdrop flow (TT-airdrop-bug 2026-05-13),\n`success: true` with `pending: true` means the amount was staged\nfor the selected grant path and will mint later when that path's\ncondition is satisfied. `success: false` (always paired with\n`pending: false`) means staging failed; the approval itself\nstill landed.\n",
         "required": [
           "success",
           "amount",
@@ -1413,7 +1413,7 @@
           },
           "pending": {
             "type": "boolean",
-            "description": "True when the amount is staged but not yet minted —\nwaiting on the relevant grant condition to drain it. False\non the failure branch (`success: false`); the staging write\ndidn't land so there's nothing to mint."
+            "description": "True when the amount is staged but not yet minted —\nwaiting on the relevant grant condition to drain it. False\non the failure branch (`success: false`); the staging write\ndidn't land so there's nothing to mint.\n"
           },
           "kind": {
             "type": "string",
@@ -1421,7 +1421,7 @@
               "welcome",
               "parlay"
             ],
-            "description": "`welcome` grants mint after wallet delegation via\n`POST /v1/wallet/enable-trading`; `parlay` grants mint\nafter the user's cumulative executed parlay bet_amount\nreaches the snapshotted threshold."
+            "description": "`welcome` grants mint after wallet delegation via\n`POST /v1/wallet/enable-trading`; `parlay` grants mint\nafter the user's cumulative executed parlay bet_amount\nreaches the snapshotted threshold.\n"
           }
         }
       },
@@ -1497,7 +1497,7 @@
       },
       "Cashout": {
         "type": "object",
-        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the\nbuyback analogue of Settlement. realized_pnl is the user's net P&L\n(stake nets out; the directional `amount` is the realized delta, less\nthe profit fee on the profiting side and the create-time taker fee).",
+        "description": "Early-cashout (buyback) summary attached to a bought_back RFQ — the\nbuyback analogue of Settlement. realized_pnl is the user's net P&L\n(stake nets out; the directional `amount` is the realized delta, less\nthe profit fee on the profiting side and the create-time taker fee).\n",
         "required": [
           "realized_pnl",
           "amount",
@@ -1801,7 +1801,7 @@
           "price_to_beat": {
             "type": "number",
             "nullable": true,
-            "description": "Reference price (\"strike\") for Polymarket \"Up or Down\" markets —\nthe spot at window-start that the final close must exceed for\n\"Up\" to win. Sources, in order:\n  1. Gamma `event.eventMetadata.priceToBeat` — populated for\n     crypto up/down markets. 2. For stock daily up/down markets, Gamma leaves the field\n     null; marketd enriches it from Pyth Hermes (prior\n     NYSE trading day's regular-session close — the same source\n     Polymarket cites for resolution). See TT-654 /\n     `services/marketd/internal/fetchers/pyth/hermes.go`. NULL for Kalshi markets, for non-up/down Polymarket markets,\nfor up/down markets whose window has not yet opened (common\npre-start for 5m / 15m series), and for unsupported tickers\nor transient Pyth failures."
+            "description": "Reference price (\"strike\") for Polymarket \"Up or Down\" markets —\nthe spot at window-start that the final close must exceed for\n\"Up\" to win.\n\nSources, in order:\n  1. Gamma `event.eventMetadata.priceToBeat` — populated for\n     crypto up/down markets.\n  2. For stock daily up/down markets, Gamma leaves the field\n     null; marketd enriches it from Pyth Hermes (prior\n     NYSE trading day's regular-session close — the same source\n     Polymarket cites for resolution). See TT-654 /\n     `services/marketd/internal/fetchers/pyth/hermes.go`.\n\nNULL for Kalshi markets, for non-up/down Polymarket markets,\nfor up/down markets whose window has not yet opened (common\npre-start for 5m / 15m series), and for unsupported tickers\nor transient Pyth failures.\n"
           },
           "volume": {
             "type": "integer"
@@ -1865,7 +1865,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Parlay-correlation keys. Two markets cannot co-exist in the same\nparlay **iff their `exclusion_keys` arrays intersect** (share at\nleast one string). Frontends apply pure set-intersection — they hold\nno correlation rule tables of their own; the keys encode every rule\n(cross-series exclusion groups, threshold ladders, sports same-game\nfamily/kind/participant correlation, Polymarket physical sub-events). Keys are opaque, namespaced by reason+scope (e.g. `kp:<gameKey>:…`,\n`grp:<idx>:<eventKey>`, `fam:…`), and derived solely from this\nmarket, so a selected leg can snapshot its keys and compare later. Does NOT encode the plain one-leg-per-event rule (same\n`event_ticker`). The submit-time authority is the server's parlay\nvalidation; these keys mirror it. Empty when the market participates\nin no correlation rule."
+            "description": "Parlay-correlation keys. Two markets cannot co-exist in the same\nparlay **iff their `exclusion_keys` arrays intersect** (share at\nleast one string). Frontends apply pure set-intersection — they hold\nno correlation rule tables of their own; the keys encode every rule\n(cross-series exclusion groups, threshold ladders, sports same-game\nfamily/kind/participant correlation, Polymarket physical sub-events).\nKeys are opaque, namespaced by reason+scope (e.g. `kp:<gameKey>:…`,\n`grp:<idx>:<eventKey>`, `fam:…`), and derived solely from this\nmarket, so a selected leg can snapshot its keys and compare later.\nDoes NOT encode the plain one-leg-per-event rule (same\n`event_ticker`). The submit-time authority is the server's parlay\nvalidation; these keys mirror it. Empty when the market participates\nin no correlation rule.\n"
           },
           "synced_at": {
             "type": "string",
@@ -1979,7 +1979,7 @@
       },
       "PortfolioBalance": {
         "type": "object",
-        "description": "Caller's vault balance (DB-cached, no RPC). Null only when the\ncaller has no vault row at all. For dual-role accounts the\nbettor-side vault is preferred and the maker-side row is used\nas a fallback (same rules as `GET /v1/vault`).",
+        "description": "Caller's vault balance (DB-cached, no RPC). Null only when the\ncaller has no vault row at all. For dual-role accounts the\nbettor-side vault is preferred and the maker-side row is used\nas a fallback (same rules as `GET /v1/vault`).\n",
         "properties": {
           "gross_balance": {
             "type": "number"
@@ -2042,7 +2042,7 @@
       },
       "PositionStatus": {
         "type": "string",
-        "description": "Position lifecycle status. On-chain states: Active, SettledWin, SettledLoss, Cancelled, Expired. DB adds intermediate states for async processing: pending, processing, settling, cancelling, error. External-signer (headless) path: commit → awaiting_signature → (client returns the signed tx) → active. Two-step expiry path: active → expired_pending_mm_release → expired (with reconciling_mm_release as short-lived sentinel). Early-cashout (buyback) path: active → bought_back_pending_db → bought_back (with reconciling_bought_back_db as the reconciler sentinel).",
+        "description": "Position lifecycle status. On-chain states: Active, SettledWin, SettledLoss, Cancelled, Expired.\nDB adds intermediate states for async processing: pending, processing, settling, cancelling, error.\nExternal-signer (headless) path: commit → awaiting_signature → (client returns the signed tx) → active.\nTwo-step expiry path: active → expired_pending_mm_release → expired (with reconciling_mm_release as short-lived sentinel).\nEarly-cashout (buyback) path: active → bought_back_pending_db → bought_back (with reconciling_bought_back_db as the reconciler sentinel).\n",
         "enum": [
           "pending",
           "awaiting_signature",
@@ -2329,15 +2329,15 @@
           },
           "payout": {
             "type": "number",
-            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. bet_amount * payout_odds). NOT just the MM-side movement. For MM PnL on a loss, use -(payout - user_stake) = -mm_risk."
+            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. bet_amount * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
           },
           "user_stake": {
             "type": "number",
-            "description": "Bettor's stake at settle time. Surfaced so the MM dashboard can\nderive PnL without a second fetch — MM win = +user_stake - fee,\nMM loss = -(payout - user_stake) = -mm_risk."
+            "description": "Bettor's stake at settle time. Surfaced so the MM dashboard can\nderive PnL without a second fetch — MM win = +user_stake - fee,\nMM loss = -(payout - user_stake) = -mm_risk.\n"
           },
           "mm_risk": {
             "type": "number",
-            "description": "Maker's max risk at settle time. Equal to payout - user_stake; the\nMM dashboard renders loss-side PnL directly off this field."
+            "description": "Maker's max risk at settle time. Equal to payout - user_stake; the\nMM dashboard renders loss-side PnL directly off this field.\n"
           },
           "fee_amount": {
             "type": "number",
@@ -2434,7 +2434,7 @@
               }
             ],
             "nullable": true,
-            "description": "Welcome airdrop outcome from the auto-redeem path. Present\nalongside `auto_redeemed: true`. `null` is possible when the\ninvite link/code has no airdrop configured, or when the user\nwas already credited on a prior approval. See\n`AirdropOutcome` for the non-null shape."
+            "description": "Welcome airdrop outcome from the auto-redeem path. Present\nalongside `auto_redeemed: true`. `null` is possible when the\ninvite link/code has no airdrop configured, or when the user\nwas already credited on a prior approval. See\n`AirdropOutcome` for the non-null shape.\n"
           },
           "created_at": {
             "type": "string",
@@ -2470,7 +2470,7 @@
       },
       "UserVaultResponse": {
         "type": "object",
-        "description": "Vault state with active position summaries (GET /v1/vault response). Returns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.",
+        "description": "Vault state with active position summaries (GET /v1/vault response).\nReturns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.\n",
         "properties": {
           "vault_pda": {
             "type": "string"
@@ -2497,7 +2497,7 @@
       },
       "VaultPositionSummary": {
         "type": "object",
-        "description": "Lightweight position summary for the vault response. Caller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral. Don't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned — for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.",
+        "description": "Lightweight position summary for the vault response.\n\nCaller-relative reading: `user_stake` and `mm_risk` are\nside-of-trade labels, not caller-relative ones. When\n`UserVaultResponse` returns the bettor-side vault, `user_stake`\nis the caller's own stake. When it returns the maker-side\nvault (pure-MM accounts), `user_stake` is the counterparty\nbettor's stake and `mm_risk` is the caller's own collateral.\nDon't display `user_stake` as \"my stake\" without branching on\nwhich vault was returned — for aggregate \"USDC committed\",\nprefer `wallet.locked_amount`, which is role-agnostic.\n",
         "properties": {
           "position_id": {
             "type": "string",
@@ -2509,11 +2509,11 @@
           },
           "user_stake": {
             "type": "number",
-            "description": "Bettor side of the trade. The caller's stake on the\nbettor-side vault response; the counterparty's stake on\nthe maker-side vault response."
+            "description": "Bettor side of the trade. The caller's stake on the\nbettor-side vault response; the counterparty's stake on\nthe maker-side vault response.\n"
           },
           "mm_risk": {
             "type": "number",
-            "description": "Maker side of the trade. The counterparty's collateral on\nthe bettor-side vault response; the caller's own\ncollateral on the maker-side vault response."
+            "description": "Maker side of the trade. The counterparty's collateral on\nthe bettor-side vault response; the caller's own\ncollateral on the maker-side vault response.\n"
           },
           "total_payout": {
             "type": "number"
@@ -2550,15 +2550,15 @@
           },
           "vault_balance": {
             "type": "number",
-            "description": "Gross USDC balance currently held in the caller's Totalis vault. Resolved by the returned `address`; returns 0 when no vault row\nexists for that wallet. Includes both free vault cash and locked\ncollateral. Add to `usdc_balance` for the caller's total on-chain\nUSDC across wallet ATA and vault; subtract `locked_amount` from\nthat total for an available-cash view."
+            "description": "Gross USDC balance currently held in the caller's Totalis vault.\nResolved by the returned `address`; returns 0 when no vault row\nexists for that wallet. Includes both free vault cash and locked\ncollateral. Add to `usdc_balance` for the caller's total on-chain\nUSDC across wallet ATA and vault; subtract `locked_amount` from\nthat total for an available-cash view.\n"
           },
           "locked_amount": {
             "type": "number",
-            "description": "Every USDC the caller has committed across roles, summed:\nin-flight RFQs (bet_amount of open/quoted/accepted/confirmed\ntickets where the caller is the bettor), the caller's\nbettor-side active vault position stakes\n(`SUM(vault_positions.user_stake)` for active/settling/\ncancelling), and the caller's maker-side vault\n`locked_collateral`. The FE relies on this single field\nrather than re-summing on the client. Reconciliation note: this is the union across every role the\ncaller owns. `GET /v1/vault.locked_collateral` only reports\none vault (bettor preferred, maker fallback), so for a\ndual-role account `locked_amount` can exceed\n`/v1/vault.locked_collateral` — do not derive \"in positions\"\nas a subtraction of the two. Balance-math note: `vault_balance` is gross, so vault locked\ncollateral is intentionally represented in both `vault_balance`\nand `locked_amount`. Available cash is\n`usdc_balance + vault_balance - locked_amount`; do not add\n`/v1/vault.locked_collateral` to `locked_amount` again."
+            "description": "Every USDC the caller has committed across roles, summed:\nin-flight RFQs (bet_amount of open/quoted/accepted/confirmed\ntickets where the caller is the bettor), the caller's\nbettor-side active vault position stakes\n(`SUM(vault_positions.user_stake)` for active/settling/\ncancelling), and the caller's maker-side vault\n`locked_collateral`. The FE relies on this single field\nrather than re-summing on the client.\n\nReconciliation note: this is the union across every role the\ncaller owns. `GET /v1/vault.locked_collateral` only reports\none vault (bettor preferred, maker fallback), so for a\ndual-role account `locked_amount` can exceed\n`/v1/vault.locked_collateral` — do not derive \"in positions\"\nas a subtraction of the two.\n\nBalance-math note: `vault_balance` is gross, so vault locked\ncollateral is intentionally represented in both `vault_balance`\nand `locked_amount`. Available cash is\n`usdc_balance + vault_balance - locked_amount`; do not add\n`/v1/vault.locked_collateral` to `locked_amount` again.\n"
           },
           "has_traded": {
             "type": "boolean",
-            "description": "True once any of the caller's parlays has reached `executed` or\n`settled` (the on-chain vault position landed). Informational\naccount state; withdrawals are allowed regardless of this value."
+            "description": "True once any of the caller's parlays has reached `executed` or\n`settled` (the on-chain vault position landed). Informational\naccount state; withdrawals are allowed regardless of this value.\n"
           }
         }
       },
