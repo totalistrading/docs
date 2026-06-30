@@ -1,5 +1,5 @@
 ---
-title: 'Funding Your Wallet'
+title: 'Funding your wallet'
 description: 'How to get USDC into your Totalis embedded wallet — there is no deposit endpoint; you fund by sending USDC on-chain to your wallet address, and trades auto-fund the vault from there.'
 ---
 
@@ -9,9 +9,9 @@ There is **no deposit endpoint**. You fund your account by sending USDC directly
   If you came here looking for a `POST .../deposit` call, there isn't one, and you don't need it. Funding is an on-chain transfer; the vault is funded automatically when you trade. See [Why there's no deposit endpoint](#why-theres-no-deposit-endpoint) below.
 </Note>
 
-## Prerequisite: Trading Must Be Enabled
+## Enable trading first
 
-Before your wallet can trade or withdraw, it must be **delegated** — you grant Totalis's key quorum permission to sign transactions on your behalf inside the Privy TEE. See [Vault Architecture → Privy TEE Wallets](/guides/vault-architecture#privy-tee-wallets-with-session-signers) for the full model.
+Before your wallet can trade or withdraw, it must be **delegated** — you grant Totalis permission to sign transactions on your behalf inside a secure enclave. See [Vaults & custody](/guides/vault-architecture) for the model.
 
 <Warning>
   Enabling trading is an **interactive, user-side action**. The Privy client SDK (`addSessionSigners()`) must be called from a browser or app where you approve a consent dialog — it **cannot currently be completed through the REST API alone**. `POST /v1/wallet/enable-trading` only *confirms* delegation status; it does not grant it.
@@ -19,7 +19,7 @@ Before your wallet can trade or withdraw, it must be **delegated** — you grant
   Until the wallet is delegated, placing a parlay and `POST /v1/wallet/withdraw` will be rejected. You can check the current state any time with [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
 </Warning>
 
-## Funding Steps
+## Fund your wallet
 
 <Steps>
   <Step title="Get your wallet address">
@@ -55,9 +55,9 @@ Before your wallet can trade or withdraw, it must be **delegated** — you grant
   </Step>
 </Steps>
 
-## Why There's No Deposit Endpoint
+## Why there's no deposit endpoint
 
-Totalis uses persistent on-chain vaults for collateral (see [Vault Architecture](/guides/vault-architecture)). You might expect to "deposit" USDC into your vault before betting — but that step is handled for you:
+Totalis uses persistent on-chain vaults for collateral (see [Vaults & custody](/guides/vault-architecture)). You might expect to "deposit" USDC into your vault before betting — but that step is handled for you:
 
 - **Funding** lands in your wallet's token account (the on-chain transfer above).
 - **Placing a parlay** builds a single atomic `create_position` transaction that pulls your stake from the wallet into the vault and locks it — in one step. You never pre-stage the vault.
@@ -77,5 +77,5 @@ curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
 ```
 
 <Note>
-  Withdrawals require the wallet to be delegated (trading enabled) — the same [prerequisite](#prerequisite-trading-must-be-enabled) as placing trades.
+  Withdrawals require the wallet to be delegated (trading enabled) — the same [prerequisite](#enable-trading-first) as placing trades.
 </Note>

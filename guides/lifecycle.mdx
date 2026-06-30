@@ -1,39 +1,28 @@
 ---
-title: 'RFQ Lifecycle'
-description: 'Complete Totalis parlay lifecycle — from RFQ creation through market maker quoting, acceptance, on-chain Solana vault position creation, and settlement.'
+title: 'How parlays work'
+description: 'The path a parlay takes from a quote request, through market-maker pricing and acceptance, to on-chain settlement — and how to close one early.'
 ---
 
-An RFQ (Request for Quote) goes through several stages from creation to on-chain settlement. In the current app flow, the frontend first opens a live quote request while the user builds the slip; only when the user submits does Totalis atomically create a real RFQ with the selected quote already accepted.
+A parlay starts as a **quote request** — your legs, priced live by market makers — and becomes a real **position** the moment you accept a quote. From there it settles automatically when the underlying markets resolve, or you can close it early.
 
-## Status Flow
+You'll see this progression in the `status` field on the parlay (RFQ) object:
 
 ```
 open → quoted → accepted → confirmed → executed → settled
-  ↓       ↓        │                       │
-  │       │        │                       └─ user cashes out early → bought_back
-  │       │        ├─ MM misses deadline, RFQ still within expires_at → open  (quote → withdrawn)
-  │       │        └─ MM misses deadline, RFQ past expires_at        → expired (quote → expired)
-expired  cancelled
+                                          │
+                                          └─ closed early → bought_back
 ```
 
-Once a position is on-chain (`executed`), the user can close it early instead of waiting for settlement. A completed early cashout is the terminal `bought_back` status — see [Early Cashout](#early-cashout) below.
+A parlay can also end at `cancelled` or `expired` before it's funded.
 
-A few status nuances worth knowing:
-
-- **`rejected` (quotes)** never comes from a missed confirmation. It's set on sibling pending quotes when the user accepts a different one on the same RFQ, and on the target quote of `POST /rfqs/{id}/quotes/{quoteId}/reject`.
-- **`withdrawn` (quotes)** covers MM-initiated cancellation of a pending quote, and is also what the system writes back onto the previously-accepted quote when the MM misses confirmation and the RFQ reopens.
-- **`expired` (quotes)** is used for pending quotes whose own `valid_until` lapses, and for the accepted quote when the RFQ itself expires.
-- **`bought_back` (RFQ)** is the terminal status for a position closed early via [Early Cashout](#early-cashout), distinct from `settled`. It is a separate flow with its own **cashout-request** lifecycle (`active → committing → committed`, or `declined` / `expired` / `cancelled`).
-
-## Step-by-Step Flow
+## Place a parlay
 
 <Steps>
-  <Step title="User Builds a Live Quote Request">
-    The user adds 2–5 legs to the parlay builder. Each leg references a market on its source venue (`kalshi` or `polymarket`) and a side (`yes`/`no`). The frontend creates or updates a short-lived quote request instead of immediately creating a real RFQ.
+  <Step title="Open a quote request">
+    Add 2–5 legs and a bet amount. Each leg names a market and a side (`yes` / `no`). The `market_ticker` is venue-specific:
 
-    `market_ticker` is venue-polymorphic — see [Create Quote Request](/api-reference/quote-service/create) for the full field reference:
-    - **Kalshi**: the Kalshi market ticker (e.g. `KXBTC-25FEB07-T100000`).
-    - **Polymarket**: the `condition_id`, the 0x-prefixed hex string from Polymarket's CTF (e.g. `0x4d2…`). Not the gamma id, question id, or market slug. Both yes and no sides of a Polymarket binary share the same `condition_id` and are distinguished by `side`; CLOB token ids are not part of the RFQ surface.
+    - **Kalshi** — the market ticker, e.g. `KXBTC-25FEB07-T100000`.
+    - **Polymarket** — the `condition_id` (the `0x`-prefixed hex string), not the slug or question id. Both sides of a binary share one `condition_id`, distinguished by `side`.
 
     ```bash
     POST /v1/quote-requests
@@ -46,161 +35,105 @@ A few status nuances worth knowing:
     }
     ```
 
-    The system validates that each market exists in the cache, enforces leg-exclusion rules (see [Get Exclusion Groups](/api-reference/markets/exclusion-groups)), versions the request, and broadcasts it to all connected market makers via the Quote Service SSE stream.
-
-    **Quote request status: `active`**
+    Totalis validates each market, applies leg-exclusion rules (correlated legs can't be combined), and broadcasts the request to market makers. See [Create quote request](/api-reference/quote-service/create) for the full field reference.
   </Step>
 
-  <Step title="Market Makers Submit Draft Quotes">
-    Market makers subscribe to the [Quote Service SSE stream](/api-reference/quote-service-mm/stream) (`GET /v1/mm/quote-requests/stream`) and submit draft quotes with their payout odds.
+  <Step title="Market makers quote it">
+    Makers stream the request and submit quotes with payout odds. You watch them arrive live on the quote-request [stream](/api-reference/quote-service/stream). Each quote carries:
 
-    ```bash
-    PUT /v1/mm/quote-requests/<quote-request-id>/quote
-    {
-      "request_version": 3,
-      "request_hash": "sha256...",
-      "payout_odds": 4.0,
-      "expires_in_ms": 15000,
-      "leg_prices": [
-        { "leg_id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "leg_odds": 0.42 },
-        { "leg_id": "6e854379-57bb-487a-aec3-197fdd861fc8", "leg_odds": 0.58 }
-      ]
-    }
-    ```
-
-    The payout is calculated as:
-    - **user_cost** = bet_amount (e.g. $25)
-    - **total_payout** = bet_amount × payout_odds (e.g. $100)
-    - **mm_cost** (MM's max risk) = total_payout − user_cost (e.g. $75)
-
-    **Quote request status: `active`**
+    - **`user_cost`** — your stake (the bet amount).
+    - **`total_payout`** — `bet_amount × payout_odds`, what you receive if every leg wins.
+    - **`payout_odds`** — the multiple on your stake.
   </Step>
 
-  <Step title="User Commits the Best Quote">
-    The frontend shows the best active draft quote. When the user submits, the server selects the best still-valid quote for the displayed version and creates the real RFQ plus accepted quote atomically.
+  <Step title="Commit the best quote">
+    Accept a quote to lock the trade. Totalis selects the best still-valid quote for the version you saw and creates the parlay with that quote already accepted.
 
     ```bash
-    POST /v1/quote-requests/<quote-request-id>/commit
+    POST /v1/quote-requests/<id>/commit
     {
       "expected_version": 3,
-      "displayed_quote_id": "quote-uuid",
-      "displayed_quote_book_seq": 5,
+      "displayed_quote_id": "<quote-id>",
       "min_payout_odds_seen": 4.0
     }
     ```
 
-    The response returns the real `rfq_id`, `quote_id`, selected `mm_id`, payout odds, and `confirmation_deadline` — the timestamp by which the market maker must confirm.
-
-    **Status: `accepted`**
+    The response returns the real `rfq_id`, the accepted quote, and the payout odds. **Status: `accepted`.**
   </Step>
 
-  <Step title="Market Maker Confirms">
-    The market maker confirms before the deadline. Confirmation enqueues vault position creation.
+  <Step title="The parlay funds on-chain">
+    The maker confirms, and your stake and the maker's collateral lock atomically in [on-chain Solana vaults](/guides/vault-architecture). Gas is sponsored — you only ever need USDC.
 
-    ```bash
-    POST /mm/quotes/<quote-id>/confirm
-    ```
-
-    If the MM misses the deadline, the RFQ expiry sweep handles it based on the RFQ's own `expires_at`:
-
-    - **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote it again) and the accepted quote becomes `withdrawn`.
-    - **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.
-
-    **Status (on successful confirm): `confirmed`**
+    Status moves to `confirmed`, then `executed` once the position is live on-chain. If the maker doesn't confirm in time, the parlay reopens for other makers (or expires if its window has passed) and your funds are never touched.
   </Step>
 
-  <Step title="On-Chain Vault Position Creation">
-    The vault job service executes a single atomic Solana transaction via the `parlay_vaults` program. The fee payer covers gas so users and MMs only need USDC in their vaults. User/MM signatures are obtained via Privy session signers.
+  <Step title="It settles automatically">
+    When every leg's market has resolved, the position settles:
 
-    **`create_position`** — both the user's stake and the MM's collateral are locked atomically in their persistent vaults. The MM's collateral is calculated via ILP (Integer Linear Programming) to reflect incremental worst-case exposure across the maker's portfolio, not the full risk amount.
+    - **All legs win** — you receive the full payout (the maker's collateral, minus a protocol fee on profit).
+    - **Any leg loses** — your stake transfers to the maker (minus fee).
 
-    The transaction signature and position PDA are stored in the database and displayed in the UI with links to Solana Explorer.
-
-    <Card title="Vault Architecture" icon="link" href="/guides/vault-architecture">
-      Learn more about the vault architecture, Privy session-signer integration, and gas-sponsored transactions.
-    </Card>
-
-    **Status: `executed`**
-  </Step>
-
-  <Step title="Settlement">
-    A background service polls venue resolution feeds and settles positions once all leg markets have resolved. Settlement transfers funds between vaults and deducts a protocol fee on profit:
-
-    - **All legs win** — MM's risk amount (minus fee) is transferred from the MM vault to the user vault (`settled_win`).
-    - **Any leg loses** — User's stake (minus fee) is transferred from the user vault to the MM vault (`settled_loss`).
-
-    **Status: `settled`**
+    **Status: `settled`.** Read the outcome and transaction signatures from [`GET /v1/rfqs/{id}`](/api-reference/parlays/get).
   </Step>
 </Steps>
 
-## Early Cashout
+## Closing early (cashout)
 
-Instead of waiting for settlement, the user can close an `executed` (on-chain, active) position early by accepting a **buyback** price from the position's market maker. The user's stake is always refunded; the buyback `amount` is the directional net on top of it — the MM pays the user when the position is in profit, the user pays the MM when it's underwater — gross of a profit fee carved on-chain.
+Once a parlay is live (`executed`), you don't have to wait for settlement — you can close it by accepting a **buyback** price from the maker that backs it. Your stake is always returned; the buyback amount is the net on top: the maker pays you when you're in profit, you pay the maker when you're underwater (gross of a profit fee).
 
-This runs as a separate **cashout request** with its own lifecycle, distinct from the RFQ status:
+A cashout is its own short-lived request, separate from the parlay's status:
 
 ```
-active → committing → committed     (success → RFQ becomes bought_back)
-  │
-  ├─ MM refuses to quote (near-decided / unpriceable leg) → declined
-  ├─ TTL (~90 s) elapses with no commit                    → expired
-  └─ cancelled
+active → committing → committed     (success → the parlay becomes bought_back)
+   │
+   ├─ maker can't price it (a leg is already decided) → declined
+   └─ no quote within the window                      → expired
 ```
 
 <Steps>
-  <Step title="User Requests a Cashout">
-    The frontend creates a cashout request for the position's on-chain `position_id` and opens an SSE stream for the live buyback quote.
-
+  <Step title="Request a cashout">
     ```bash
     POST /v1/cashout-requests
-    { "position_id": "<hex-position-id>" }
+    { "position_id": "<position-id>" }
 
-    GET  /v1/cashout-requests/<id>/stream   # SSE: best_quote + status frames
+    GET  /v1/cashout-requests/<id>/stream   # SSE: live buyback quote + status
     ```
-
-    **Cashout request status: `active`**
   </Step>
-
-  <Step title="The MM Prices or Declines the Buyback">
-    The single counterparty MM re-values the position at live odds and either submits a buyback quote or refuses. See [How to Become a Market Maker → Pricing Buybacks](/guides/market-maker#pricing-early-cashout-buybacks).
-
-    - **Quote** — [`PUT /v1/mm/cashout-requests/<id>/quote`](/api-reference/quote-service-mm/cashout-quote) → a `best_quote` (carrying the net the user receives) appears on the stream.
-    - **Permanent refuse** — a leg is already decided or out-of-band — [`POST /v1/mm/cashout-requests/<id>/decline`](/api-reference/quote-service-mm/cashout-decline) → the stream emits a terminal `declined`.
-    - **Transient refuse** — no live price for a leg right now — the MM stays silent; the request rides its TTL and `expired`s if no quote arrives.
+  <Step title="The maker prices it">
+    The backing maker re-values the position at current odds and either streams a buyback quote or declines (if a leg is already decided). The quote carries the net you'd receive.
   </Step>
-
-  <Step title="User Commits">
-    The user accepts the live quote; the buyback is driven on-chain through the vault buyback lane.
-
+  <Step title="Commit">
     ```bash
     POST /v1/cashout-requests/<id>/commit
     ```
 
-    **Cashout request status: `committing`** while the on-chain buyback is in flight. An indeterminate result is left `committing` for the reconciler rather than reverted, so a retry can never double-spend.
-  </Step>
-
-  <Step title="Buyback Finalize">
-    Once the on-chain `buyback_position` confirms, the finalize step releases the user's stake, records the buyback fee row and `buyback_tx`, and flips the RFQ to `bought_back`. Realized P&L and the cashout time are surfaced on the RFQ's `cashout` object.
-
-    **Cashout request status: `committed` · RFQ status: `bought_back`**
+    The buyback executes on-chain. Once it confirms, your stake is released, the realized P&L lands on the parlay's `cashout` object, and the parlay becomes **`bought_back`**.
   </Step>
 </Steps>
 
-## Background Services
+## Status reference
 
-Two background services manage the vault position lifecycle:
+The `status` on a parlay (RFQ):
 
-- **vault-job-service** — processes pending positions: resolves Privy wallets, calculates ILP exposure, executes `create_position`.
-- **vault-settlement-service** — polls market results, settles or cancels active positions based on outcomes.
+| Status | Meaning |
+| --- | --- |
+| `open` | Awaiting quotes (or reopened after a maker missed confirmation). |
+| `quoted` | At least one maker has quoted. |
+| `accepted` | You committed a quote; awaiting maker confirmation. |
+| `confirmed` | Maker confirmed; funding on-chain. |
+| `executed` | Live on-chain — eligible for early cashout. |
+| `settled` | Resolved and paid out. |
+| `bought_back` | Closed early via cashout. |
+| `cancelled` / `expired` | Ended before funding; no funds moved. |
 
-## Validation Rules
+Quotes carry their own status — `withdrawn` (the maker pulled it), `expired` (its validity lapsed), or `rejected` (you accepted a different quote on the same request).
+
+## Limits
 
 | Parameter | Constraint |
-|-----------|-----------|
+| --- | --- |
 | Legs per parlay | 2–5 |
 | Bet amount | 1–100 USDC |
 | Payout odds | 1.0001× – 1000× |
-| Quote request expiry | Server-set; visible as `expires_at` on the quote request object |
-| RFQ expiration | Fixed at 300 s for RFQs created at commit |
-| Quote validity (`expires_in_ms` on a draft quote) | 5 s – 60 s (default 15 s) |
-| MM confirmation window | Server-controlled; returned on the commit response as `confirmation_deadline`. Missing it reverts the RFQ to `open` (quote → `withdrawn`) or, past `expires_at`, expires both. |
+| Quote validity | 5–60 s (default 15 s) |
+| Parlay expiry | 300 s from commit |

@@ -7,11 +7,11 @@ description: 'Frequently asked questions about Totalis — the derivatives layer
 
 Totalis is the derivatives layer for prediction markets. We let you take bets from different prediction market venues, stack them together, and build custom structured positions like parlays.
 
-Our first product is **custom parlays on prediction markets**. You pick outcomes across multiple markets, combine them into a single leveraged bet, and market makers compete to give you the best payout odds. All trades are facilitated through our infrastructure — a request-for-quote (RFQ) system for price discovery and non-custodial Solana vault settlement.
+Our first product is **custom parlays on prediction markets**. You pick outcomes across multiple markets, combine them into a single leveraged bet, and market makers compete to give you the best payout odds. Trades run on Totalis infrastructure: a request-for-quote (RFQ) system for price discovery, and non-custodial Solana vaults for settlement.
 
 We currently support Kalshi and Polymarket as underlying market venues, with other prediction market platforms coming soon.
 
-## What is a Parlay?
+## What is a parlay?
 
 A parlay is a single bet that combines multiple individual predictions, called **legs**, into one position. To win the payout, you have to correctly predict the outcome of **every** leg — if even one leg loses, the entire parlay loses. Because each leg's odds compound into a larger combined payout, parlays offer **higher reward**, but the requirement that all legs hit also makes them **higher risk** than betting on any single outcome on its own.
 
@@ -27,13 +27,13 @@ We currently offer markets that:
 
 These include structured combinations across sports, macro, politics, crypto, and weather events.
 
-For a detailed and up-to-date list of supported markets, users can query our public API endpoint (https://docs.totalis.trade/api-reference/markets/list).
+For a detailed and up-to-date list of supported markets, users can query the [list markets endpoint](/api-reference/markets/list).
 
 Our focus is on high-frequency, short-duration markets that enable continuous structured positioning and rapid capital turnover.
 
 ## What chain are you on?
 
-Totalis runs on **Solana**. All vaults, positions, and settlements are executed on-chain via our `parlay_vaults` Anchor program. Each participant has a persistent vault that holds their collateral across all positions.
+Totalis runs on **Solana**. Vaults, positions, and settlements all execute on-chain, and each participant has a persistent vault that holds their collateral across positions.
 
 ## What are the bet and leg limits?
 
@@ -45,17 +45,17 @@ Totalis runs on **Solana**. All vaults, positions, and settlements are executed 
 
 ## How does RFQ work exactly?
 
-See the [RFQ Lifecycle guide](/guides/lifecycle) for a detailed walkthrough of the full flow from creation to settlement.
+See [How parlays work](/guides/lifecycle) for a detailed walkthrough of the full flow from creation to settlement.
 
 ## How secure is it?
 
-All funds are held in **Solana vault PDAs** (Program Derived Addresses) — not by Totalis. Each participant has a persistent on-chain vault derived from their wallet address. When a trade is matched, both the user's stake and the market maker's collateral are locked atomically in their vaults via a single `create_position` transaction. Neither party can withdraw locked collateral unilaterally; only the settlement authority can release funds, and only based on the verified outcome from Kalshi.
+Totalis is **non-custodial** — funds sit in on-chain Solana vaults the protocol controls, not in a Totalis account. When a trade is matched, your stake and the maker's collateral lock atomically in those vaults, and neither side can move locked collateral unilaterally; funds release only on the verified market outcome.
 
-Users can optionally grant permission for the server to help sign transactions for smoother UX. We use secure embedded wallets (Privy TEE) where private keys never leave the Trusted Execution Environment.
+Signing is delegated, not surrendered: you grant Totalis permission to sign your trades inside a secure enclave (Privy TEE) where your private key never leaves, and you can revoke it anytime.
 
-Collateral is locked only for the duration of the position and settles automatically upon resolution. Market makers benefit from **portfolio margining** — the system uses ILP (Integer Linear Programming) to calculate incremental worst-case exposure, so hedged or correlated positions require less collateral than naive summation.
+Collateral is locked only while the position is open and settles automatically on resolution. Makers get **portfolio margining** — collateral reflects their incremental worst-case exposure, so hedged positions require less.
 
-For full details, see the [Vault Architecture guide](/guides/vault-architecture).
+For the full model, see [Vaults & custody](/guides/vault-architecture).
 
 ## How does Totalis use its underlying markets?
 
@@ -89,7 +89,7 @@ We are building with a clear path toward U.S. regulatory compliance. As the prod
 
 ## What happens if a market gets cancelled on the underlying venue?
 
-If a market on the underlying venue is cancelled or delisted before all legs in a parlay have resolved, the vault-settlement-service detects the invalid leg and executes `cancel_position`, which unlocks both the user's and market maker's collateral in their respective vaults. No party loses funds due to an external market cancellation.
+If a market on the underlying venue is cancelled or delisted before all legs in a parlay have resolved, Totalis detects the invalid leg and cancels the position, unlocking both the user's and the market maker's collateral. No party loses funds due to an external market cancellation.
 
 ## Will you add markets from other prediction markets? Can I make cross-platform parlays?
 
