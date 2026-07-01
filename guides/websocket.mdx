@@ -7,6 +7,10 @@ The Totalis WebSocket pushes **post-trade events** in real time — quote accept
 
 For **pre-trade** live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
 
+<Note>
+  WebSocket events reach you only while you're connected — missed events are not redelivered. For durable, at-least-once delivery to a server (signed, retried, replayable), use [webhooks](/guides/webhooks); they carry the same lifecycle moments. See [Real-time & data channels](/guides/realtime-and-data) for the full channel map.
+</Note>
+
 ## Connecting
 
 ```

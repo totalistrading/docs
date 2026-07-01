@@ -190,46 +190,65 @@ curl -N https://api.totalis.trade/v1/mm/quote-requests/stream \
 ```
 
 ```javascript JavaScript
-const EventSource = require('eventsource');
-
-const es = new EventSource(
-  'https://api.totalis.trade/v1/mm/quote-requests/stream',
-  { headers: { 'X-API-Key': API_KEY } }
-);
-
-es.addEventListener('connected', (e) => {
-  console.log('Connected as', JSON.parse(e.data).mm_id);
+// Native EventSource can't send an X-API-Key header — read the SSE stream
+// with fetch instead (works in browsers and Node 18+).
+const res = await fetch('https://api.totalis.trade/v1/mm/quote-requests/stream', {
+  headers: { 'X-API-Key': API_KEY, Accept: 'text/event-stream' },
 });
 
-es.addEventListener('quote_request', (e) => {
-  const req = JSON.parse(e.data);
-  console.log('New request:', req.id, req.user_stake ?? req.bet_amount, 'USDC');  // price against net user_stake; falls back to gross bet_amount if absent
-  // req.bet_amount is the gross wager; price + size against user_stake
-});
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+let buffer = '';
 
-es.addEventListener('quote_request:updated', (e) => {
-  const req = JSON.parse(e.data);
-  console.log('Request updated to version', req.version, '— re-price:', req.id);
-  // Your prior-version quote is invalidated; submit a new one
-});
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  buffer += decoder.decode(value, { stream: true });
 
-es.addEventListener('quote_request_expired', (e) => {
-  const { id, reason, won } = JSON.parse(e.data);
-  // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
-  // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
-  const outcome = reason === 'committed'
-    ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
-    : reason;
-  console.log('Request closed:', id, outcome);
-});
+  let sep;
+  while ((sep = buffer.indexOf('\n\n')) !== -1) {
+    const frame = buffer.slice(0, sep);
+    buffer = buffer.slice(sep + 2);
+    const event = frame.match(/^event: (.+)$/m)?.[1];
+    const data = frame.match(/^data: (.+)$/m)?.[1];
+    if (!event || !data) continue;
+    const payload = JSON.parse(data);
 
-es.addEventListener('cashout_request', (e) => {
-  const cr = JSON.parse(e.data);
-  // Distinct from quote_request: the key is cr.cashout_request_id (NOT cr.id).
-  // Single-MM scoped — it's yours to price. Re-value the position and respond on
-  // the cashout endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
-  console.log('Buyback request:', cr.cashout_request_id, 'position', cr.position_id);
-});
+    switch (event) {
+      case 'connected':
+        console.log('Connected as', payload.mm_id);
+        break;
+
+      case 'quote_request':
+        // payload.bet_amount is the gross wager; price + size against net user_stake
+        console.log('New request:', payload.id, payload.user_stake ?? payload.bet_amount, 'USDC');
+        break;
+
+      case 'quote_request:updated':
+        // Your prior-version quote is invalidated; submit a new one
+        console.log('Request updated to version', payload.version, '— re-price:', payload.id);
+        break;
+
+      case 'quote_request_expired': {
+        // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
+        // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+        const { id, reason, won } = payload;
+        const outcome = reason === 'committed'
+          ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
+          : reason;
+        console.log('Request closed:', id, outcome);
+        break;
+      }
+
+      case 'cashout_request':
+        // Distinct from quote_request: the key is payload.cashout_request_id (NOT payload.id).
+        // Single-MM scoped — it's yours to price. Re-value the position and respond on
+        // the cashout endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
+        console.log('Buyback request:', payload.cashout_request_id, 'position', payload.position_id);
+        break;
+    }
+  }
+}
 ```
 
 ```python Python

@@ -40,6 +40,7 @@
           {
             "group": "Guides",
             "pages": [
+              "guides/realtime-and-data",
               "guides/reading-data",
               "guides/webhooks",
               "guides/websocket",

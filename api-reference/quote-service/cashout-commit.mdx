@@ -14,11 +14,13 @@ This endpoint is **idempotent per (request, user)**: a committed result is cache
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
+
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
 
 ## Path Parameters
 
@@ -47,7 +49,7 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this cashout request (`details.reason: not_owner`). |
 | 404 | `NOT_FOUND` | Cashout request not found. |
 | 409 | `CONFLICT` | No live quote (`quote_expired`), request not active, missing wallet info (`missing_wallet`), already locked, or a determinate on-chain failure. See `details.reason`. |
@@ -57,7 +59,7 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/commit \
-  -H "Authorization: Bearer $TOKEN"
+  -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 </RequestExample>
 

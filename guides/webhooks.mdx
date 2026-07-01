@@ -11,6 +11,12 @@ The endpoint belongs to your **account** (the principal), not to the key that cr
 your active keys with the right scope manages it, and revoking one key among several does not stop
 delivery.
 
+<Note>
+  Webhooks are the durable channel — at-least-once, signed, retried. For the same events pushed
+  live to a connected client (a UI or trading bot), use the [WebSocket](/guides/websocket). See
+  [Real-time & data channels](/guides/realtime-and-data) for the full channel map.
+</Note>
+
 ## Configuring your endpoint
 
 Set your endpoint URL and the events you want with `PUT /v1/webhooks` (managing the endpoint needs

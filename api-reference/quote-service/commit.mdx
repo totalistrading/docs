@@ -12,11 +12,13 @@ After a successful commit, the selected market maker receives a `quote:accepted`
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
+
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
 
 ## Path Parameters
 
@@ -72,7 +74,7 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 | Status | Code | Description |
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Missing or invalid commit fields. |
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this quote request. |
 | 404 | `NOT_FOUND` | Quote request not found. |
 | 409 | `CONFLICT` | Commit rejected. See `error.details.reason` above. |
@@ -81,7 +83,7 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/commit \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $TOTALIS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "expected_version": 3,
