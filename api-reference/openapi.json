@@ -207,9 +207,10 @@
         }
       }
     },
-    "/markets/list": {
+    "/v1/markets/list": {
       "get": {
         "operationId": "listMarketsFlat",
+        "security": [],
         "tags": [
           "Markets"
         ],
