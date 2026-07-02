@@ -277,7 +277,7 @@
           {
             "name": "status",
             "in": "query",
-            "description": "Filter by status. Defaults to tradeable markets (`active,open`); pass a comma-separated list, or `all` for every status.",
+            "description": "Filter by status. Defaults to tradeable markets (`active,open`); pass a comma-separated list of `active`, `open`, `closed`, `settled`, `finalized`, or `all`. An empty or unrecognised value returns 400.",
             "schema": {
               "type": "string",
               "default": "active,open"
