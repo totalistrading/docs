@@ -215,7 +215,7 @@
           "Markets"
         ],
         "summary": "List markets (flat)",
-        "description": "Returns a paginated list of individual markets, most-traded first. Unlike the event-grouped `GET /markets`, results aren't grouped by event and are never capped per event, so every market is reachable — including low-volume props like corners and assists. Filter by venue, category, subcategory, or one or more series.\n\nPaginate with `cursor` until it returns `null`; `meta.total` is the total number of matches. For a complete sync, de-duplicate by `ticker` — markets with equal volume aren't guaranteed a stable order between requests. Scoping to a `subcategory` or `series_ticker` set avoids this entirely.",
+        "description": "Returns a paginated list of individual markets, most-traded first. Unlike the event-grouped `GET /markets`, results aren't grouped by event and are never capped per event, so every market is reachable. Filter by venue, category, subcategory, or one or more series.\n\nPaginate with `cursor` until it returns `null`; `meta.total` is the total number of matches. For a complete sync, de-duplicate by `ticker` — markets with equal volume aren't guaranteed a stable order between requests. Scoping to a `subcategory` or `series_ticker` set avoids this entirely.",
         "parameters": [
           {
             "name": "category",
