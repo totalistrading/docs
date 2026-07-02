@@ -268,7 +268,7 @@
           {
             "name": "series_ticker",
             "in": "query",
-            "description": "Restrict to one or more series. Comma-separated for an OR match (e.g. `KXWCAST,KXWCTCORNERS`). Case-sensitive; at most 100 values.",
+            "description": "Restrict to one or more series. Comma-separated for an OR match (e.g. `KXWCAST,KXWCTCORNERS`). Case-sensitive; at most 100 values. Omit for no series restriction; a present-but-empty value returns 400 (a blank identity filter is treated as a caller error, not as 'all series').",
             "schema": {
               "type": "string"
             }
