@@ -97,6 +97,7 @@
             "group": "Markets",
             "pages": [
               "api-reference/markets/list",
+              "api-reference/markets/list-flat",
               "api-reference/markets/get"
             ]
           },

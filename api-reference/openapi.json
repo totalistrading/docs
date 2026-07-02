@@ -207,6 +207,169 @@
         }
       }
     },
+    "/markets/list": {
+      "get": {
+        "operationId": "listMarketsFlat",
+        "tags": [
+          "Markets"
+        ],
+        "summary": "List markets as a flat feed (programmatic)",
+        "description": "A flat, cursor-paginated list of individual markets — the programmatic counterpart to `GET /markets`. Unlike that endpoint this does NOT group by event and imposes NO per-event market cap, so it surfaces every market of a busy game (a World Cup fixture carries 70+ markets across prop series — corners, assists, team totals — that the event-grouped listing truncates away). Intended for market makers and partners that need the full tradeable universe.\n\nEvery filter is applied server-side against the live market index and results are ordered by 24h volume, descending. Pagination is cursor- based: follow `meta.cursor` until it is null. `meta.total` is the full match count. The feed reflects the search index directly (refreshed continuously), so it is a few seconds fresher than the display listing.\n\nTo retrieve every market of a single game/event including its long-tail props, prefer `GET /markets/events/{event_ticker}` — it returns one event's complete market set in a single call.\n",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Filter by top-level category. Omit for all categories.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "crypto",
+                "economics",
+                "finance",
+                "sports",
+                "politics",
+                "tech",
+                "entertainment",
+                "weather",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "venue",
+            "in": "query",
+            "description": "Filter by venue (kalshi or polymarket). Omit to include all venues.",
+            "schema": {
+              "$ref": "#/components/schemas/Venue"
+            }
+          },
+          {
+            "name": "subcategory",
+            "in": "query",
+            "description": "Filter by subcategory (e.g. `world_cup`, `mlb`, `btc`). Valid values depend on the selected `category`; requires `category` to also be set.",
+            "schema": {
+              "$ref": "#/components/schemas/SubcategorySlug"
+            }
+          },
+          {
+            "name": "frequency",
+            "in": "query",
+            "description": "Filter by the cadence of the underlying series. `other` is not a valid filter input.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "daily",
+                "weekly",
+                "monthly",
+                "hourly"
+              ]
+            }
+          },
+          {
+            "name": "series_ticker",
+            "in": "query",
+            "description": "Restrict to one or more series. Comma-separated for an OR match (e.g. `KXWCAST,KXWCTCORNERS`). Case-sensitive; at most 100 values.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by market status. Defaults to tradeable markets only (`active` and `open`). Pass a comma-separated list (e.g. `active,open`) to override, or `all` to include every status regardless of tradeability.",
+            "schema": {
+              "type": "string",
+              "default": "active,open"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CursorParam"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Markets per page. Default 100, max 500. Pagination is bounded to the first 10,000 matches; beyond that, narrow the filters.",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "example": "public, max-age=15, stale-while-revalidate=60"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "markets"
+                      ],
+                      "properties": {
+                        "markets": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Market"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/PaginationMeta"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "description": "Total markets matching the filters across all pages."
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Market index unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/markets/{ticker}": {
       "get": {
         "operationId": "getMarket",
