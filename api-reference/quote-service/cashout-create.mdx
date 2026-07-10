@@ -1,12 +1,12 @@
 ---
 title: "Create Cashout Request"
 api: "POST /v1/cashout-requests"
-description: "Open an early-cashout (buyback) request for an on-chain position."
+description: "Open an early cashout (buyback) request for an on chain position."
 ---
 
-Open a **cashout request** to close an active on-chain position early instead of waiting for settlement. The request is offered to the position's single counterparty market maker, who responds with a live buyback quote on the [stream](/api-reference/quote-service/cashout-stream). Accepting that quote via [Commit](/api-reference/quote-service/cashout-commit) drives the buyback on-chain and flips the RFQ to `bought_back`.
+Open a **cashout request** to close an active on chain position early instead of waiting for settlement. The request is offered to the position's single counterparty market maker, who responds with a live buyback quote on the [stream](/api-reference/quote-service/cashout-stream). Accepting that quote via [Commit](/api-reference/quote-service/cashout-commit) drives the buyback on chain and flips the RFQ to `bought_back`.
 
-The request is keyed on the position's on-chain `position_id` — a 16-byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near-expiry buffer of its market end.
+The request is keyed on the position's on chain `position_id` — a 16 byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near expiry buffer of its market end.
 
 ## Authentication
 
@@ -21,7 +21,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 ## Request Body
 
 <ParamField body="position_id" type="string" required>
-  The position's on-chain id — a 16-byte hex string (32 hex chars), with or without a `0x` prefix.
+  The position's on chain id — a 16 byte hex string (32 hex chars), with or without a `0x` prefix.
 </ParamField>
 
 ## Response
@@ -34,15 +34,15 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="id" type="string">UUID of the cashout request. Use it on the stream, commit, and MM endpoints.</ResponseField>
         <ResponseField name="user_id" type="string">Your user ID.</ResponseField>
         <ResponseField name="target_mm_id" type="string">The position's maker — the single MM this request is offered to.</ResponseField>
-        <ResponseField name="position_id" type="string">The on-chain position id (hex), normalized without the `0x` prefix.</ResponseField>
-        <ResponseField name="position_pda" type="string">On-chain position address, or `null`.</ResponseField>
+        <ResponseField name="position_id" type="string">The on chain position id (hex), normalized without the `0x` prefix.</ResponseField>
+        <ResponseField name="position_pda" type="string">On chain position address, or `null`.</ResponseField>
         <ResponseField name="user_stake" type="number">Your net stake on the position (USDC). Always refunded on a buyback.</ResponseField>
         <ResponseField name="total_payout" type="number">The position's total payout (USDC).</ResponseField>
         <ResponseField name="version" type="integer">Request version, starts at `1`.</ResponseField>
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~90 s), distinct from the position expiry.</ResponseField>
-        <ResponseField name="position_expires_at" type="string">The underlying position's market-end horizon, or `null`.</ResponseField>
+        <ResponseField name="position_expires_at" type="string">The underlying position's market end horizon, or `null`.</ResponseField>
         <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known).</ResponseField>
       </Expandable>
     </ResponseField>
@@ -53,7 +53,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 400 | `VALIDATION_ERROR` | Body is not valid JSON, or `position_id` is not a 16-byte hex string. See `details.issues`. |
+| 400 | `VALIDATION_ERROR` | Body is not valid JSON, or `position_id` is not a 16 byte hex string. See `details.issues`. |
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 404 | `NOT_FOUND` | Position not found, or not owned by you. |
 | 409 | `CONFLICT` | Position is not active, too close to expiry, or has no counterparty MM wallet assigned yet. |

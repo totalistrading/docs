@@ -6,7 +6,7 @@ description: "Retrieve a quote request with all active quotes and the current be
 
 Retrieve a quote request by ID. The response includes the full quote request object, all active quotes for the current version, and the computed best quote (highest payout odds).
 
-Use this endpoint to check the current state of a quote request. For real-time updates, use the [SSE stream](/api-reference/quote-service/stream) instead.
+Use this endpoint to check the current state of a quote request. For real time updates, use the [SSE stream](/api-reference/quote-service/stream) instead.
 
 ## Authentication
 
@@ -41,7 +41,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="total_payout" type="number">Total payout if the parlay wins.</ResponseField>
         <ResponseField name="mm_cost" type="number">USDC the market maker puts at risk.</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
-        <ResponseField name="leg_prices" type="array">Per-leg pricing with `leg_id` and `leg_odds`.</ResponseField>
+        <ResponseField name="leg_prices" type="array">Per leg pricing with `leg_id` and `leg_odds`.</ResponseField>
       </Expandable>
     </ResponseField>
     <ResponseField name="best_quote" type="object">

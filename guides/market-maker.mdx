@@ -8,14 +8,14 @@ Market makers on Totalis stream incoming parlay quote requests via SSE, submit c
 ## How it works
 
 <Steps>
-  <Step title="Connect to the quote-request stream">
+  <Step title="Connect to the quote request stream">
     Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. Maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds.
   </Step>
   <Step title="Submit draft quotes">
     Analyze the legs and submit payout odds via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the exact `version` and `request_hash` you received. Price `payout_odds` and size collateral against the net stake (`user_stake`), not `bet_amount` — `user_stake` is what the vault applies your odds to when the taker fee is on.
   </Step>
   <Step title="Confirm trades">
-    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with selected-MM-only details such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. The user's stake and your collateral lock together in on-chain Solana vaults.
+    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with details visible only to the selected MM, such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. The user's stake and your collateral lock together in on chain Solana vaults.
   </Step>
 </Steps>
 
@@ -48,7 +48,7 @@ A user can close an active position before settlement by accepting a **buyback**
 
 ### Fair value
 
-Re-value the position at live odds: `fair_value = fair_win_prob × total_payout`, where `fair_win_prob` is the parlay's current joint win probability. Convert that to a directional quote by shrinking it with a conservative **exit edge** that is MM-favorable in both directions — you pay less when the user is up, the user pays more when they're down. A **partial-settle** buyback (some legs already resolved and pinned at certainty) uses a wider edge. The user's stake is always refunded separately; your quote is the directional net `amount` on top of it, gross of the profit fee.
+Revalue the position at live odds: `fair_value = fair_win_prob × total_payout`, where `fair_win_prob` is the parlay's current joint win probability. Convert that to a directional quote by shrinking it with a conservative **exit edge** that is MM favorable in both directions — you pay less when the user is up, the user pays more when they're down. A **partial settle** buyback (some legs already resolved and pinned at certainty) uses a wider edge. The user's stake is always refunded separately; your quote is the directional net `amount` on top of it, gross of the profit fee.
 
 ### When to refuse
 
@@ -64,9 +64,9 @@ Pricing runs a fixed sequence of gates, first match wins, with two kinds of outc
 | Already decided | all legs resolved won (settlement pays full value shortly) | permanent decline |
 | Malformed | a leg is missing its ticker or side | permanent decline |
 | No live price | a leg has no trustworthy live book (spread too wide / stale) | transient — stay silent |
-| Near-decided | a leg's live price is outside the `[0.05, 0.95]` odds band, so re-pricing is unreliable | permanent decline |
+| Near decided | a leg's live price is outside the `[0.05, 0.95]` odds band, so repricing is unreliable | permanent decline |
 
-The no-live-price gate refuses a leg whose two-sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale. A leg already resolved and pinned at certainty is exempt from the odds-band check.
+The no live price gate refuses a leg whose two sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale. A leg already resolved and pinned at certainty is exempt from the odds band check.
 
 ## Get set up
 

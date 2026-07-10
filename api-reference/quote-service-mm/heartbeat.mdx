@@ -4,7 +4,7 @@ api: "POST /v1/mm/heartbeat"
 description: "Send a liveness heartbeat to maintain your market maker connection."
 ---
 
-Send a liveness heartbeat to the Quote Service. The server tracks heartbeats to monitor market maker availability. Send a heartbeat at least every 30 seconds to stay within the 60-second TTL.
+Send a liveness heartbeat to the Quote Service. The server tracks heartbeats to monitor market maker availability. Send a heartbeat at least every 30 seconds to stay within the 60 second TTL.
 
 ## Authentication
 
@@ -30,7 +30,7 @@ No request body required.
 
 ## Recommended Cadence
 
-Send a heartbeat every **30 seconds** to stay well within the 60-second TTL. Run this alongside your SSE stream connection.
+Send a heartbeat every **30 seconds** to stay well within the 60 second TTL. Run this alongside your SSE stream connection.
 
 ## Errors
 

@@ -1,12 +1,12 @@
 ---
 title: "Create Quote Request"
 api: "POST /v1/quote-requests"
-description: "Create a new quote request for a multi-leg parlay."
+description: "Create a new quote request for a multi leg parlay."
 ---
 
 Create a new live quote request. Once created, the request is immediately broadcast to all connected market makers who begin submitting competitive prices in real time.
 
-A quote request requires 2-5 legs and a USDC bet amount. Each leg specifies a market ticker, a side (`yes` or `no`), and optionally a venue.
+A quote request requires 2 to 5 legs and a USDC bet amount. Each leg specifies a market ticker, a side (`yes` or `no`), and optionally a venue.
 
 ## Authentication
 
@@ -21,7 +21,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 ## Request Body
 
 <ParamField body="legs" type="array" required>
-  Array of 2-5 parlay legs.
+  Array of 2 to 5 parlay legs.
   <Expandable title="Leg object">
     <ParamField body="market_ticker" type="string" required>
       The market ticker on the venue (e.g., `KXBTC-26JUN01-T72500`).

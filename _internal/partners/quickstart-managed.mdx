@@ -1,16 +1,16 @@
 ---
 title: 'Managed Quickstart'
-description: 'Programmatic parlay trading on Totalis with a Totalis-managed wallet and an API key. Available today.'
+description: 'Programmatic parlay trading on Totalis with a Totalis managed wallet and an API key. Available today.'
 ---
 
-The managed model gives you a Totalis-custodied embedded wallet. You fund it on Solana and trade with an API key. This guide covers authentication, market data, quoting, and funds.
+The managed model gives you a Totalis custodied embedded wallet. You fund it on Solana and trade with an API key. This guide covers authentication, market data, quoting, and funds.
 
 - Base URL: `https://api.totalis.trade`
 - Full reference: [docs.totalis.trade](https://docs.totalis.trade)
 - Authentication: an API key in the `X-API-Key` header.
 
 <Note>
-  Trading requires a one-time delegation that lets Totalis sign on the wallet's behalf. That step is completed in the Totalis app today and cannot yet be done through the API alone. If you need fully programmatic onboarding, use the [headless model](/_internal/partners/headless-integration).
+  Trading requires a one time delegation that lets Totalis sign on the wallet's behalf. That step is completed in the Totalis app today and cannot yet be done through the API alone. If you need fully programmatic onboarding, use the [headless model](/_internal/partners/headless-integration).
 </Note>
 
 ## Authentication
@@ -36,7 +36,7 @@ Keys are scoped. Request only the scopes you need: `markets:read`, `trading:writ
     Submit a parlay of 2 to 5 legs. Market makers compete to price it.
   </Step>
   <Step title="Commit a quote">
-    Committing the chosen quote creates the position on-chain.
+    Committing the chosen quote creates the position on chain.
   </Step>
   <Step title="Settle and withdraw">
     Positions settle automatically at resolution. Withdraw when ready.
@@ -60,7 +60,7 @@ Keys are scoped. Request only the scopes you need: `markets:read`, `trading:writ
 | `GET /markets/{ticker}` | Market detail |
 | `GET /markets/exclusion-groups` | Leg combinations blocked by correlation rules |
 
-`market_ticker` is venue-specific. For Kalshi, use the Kalshi ticker, for example `KXBTC-25FEB07-T100000`. For Polymarket, use the `condition_id` (0x hex) together with `side`.
+`market_ticker` is venue specific. For Kalshi, use the Kalshi ticker, for example `KXBTC-25FEB07-T100000`. For Polymarket, use the `condition_id` (0x hex) together with `side`.
 
 ## Quoting
 
@@ -108,4 +108,4 @@ curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
   -d '{ "recipient": "<solana-address>", "amount_usdc": 50 }'
 ```
 
-Building a multi-user platform with your own custody? See [Headless Integration](/_internal/partners/headless-integration).
+Building a multi user platform with your own custody? See [Headless Integration](/_internal/partners/headless-integration).

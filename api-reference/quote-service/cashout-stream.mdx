@@ -1,10 +1,10 @@
 ---
 title: "Stream Cashout Quote"
 api: "GET /v1/cashout-requests/{id}/stream"
-description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server-Sent Events."
+description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server Sent Events."
 ---
 
-Open a Server-Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote", plus a terminal `status` frame when the request leaves the `active`/`committing` states.
+Open a Server Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote", plus a terminal `status` frame when the request leaves the `active`/`committing` states.
 
 ## Authentication
 
@@ -59,7 +59,7 @@ When no quote is live, `best_quote` is `null`:
 
 ### `status`
 
-Sent once the request leaves `active`/`committing`, then the stream closes. The `status` is the terminal cashout-request state.
+Sent once the request leaves `active`/`committing`, then the stream closes. The `status` is the terminal cashout request state.
 
 ```json
 {
@@ -69,8 +69,8 @@ Sent once the request leaves `active`/`committing`, then the stream closes. The 
 
 | Terminal `status` | Meaning |
 |-------------------|---------|
-| `committed` | Buyback driven on-chain; the RFQ becomes `bought_back`. |
-| `declined` | The MM permanently refused to quote (near-decided / unpriceable leg). |
+| `committed` | Buyback driven on chain; the RFQ becomes `bought_back`. |
+| `declined` | The MM permanently refused to quote (near decided / unpriceable leg). |
 | `expired` | The request's ~90 s TTL elapsed with no commit. |
 | `cancelled` | The request was cancelled. |
 

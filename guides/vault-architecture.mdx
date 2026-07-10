@@ -1,9 +1,9 @@
 ---
 title: 'Vaults & custody'
-description: 'How Totalis holds collateral: non-custodial on-chain Solana vaults, delegated signing, gas sponsorship, and automatic settlement.'
+description: 'How Totalis holds collateral: noncustodial on chain Solana vaults, delegated signing, gas sponsorship, and automatic settlement.'
 ---
 
-Totalis is **non-custodial**. Your funds sit in an on-chain Solana vault that the protocol's program controls — not in a Totalis-held account. You enable trading once by delegating signing permission, and from then on placing, settling, and closing parlays happens without you signing each transaction by hand.
+Totalis is **noncustodial**. Your funds sit in an on chain Solana vault that the protocol's program controls — not in a Totalis held account. You enable trading once by delegating signing permission, and from then on placing, settling, and closing parlays happens without you signing each transaction by hand.
 
 ![Totalis vault flow: persistent vaults, atomic position creation, and settlement](/vault_architecture.png)
 
@@ -23,7 +23,7 @@ Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). You f
 
 Your wallet is a Privy embedded wallet whose private key lives inside a **Trusted Execution Environment (TEE)** — it never leaves the enclave, and not even Privy can extract it.
 
-To trade, you grant Totalis permission to sign on your behalf inside that enclave (a one-time consent in the app — see [Enable trading](/guides/funding#enable-trading-first)). This is **semi-custodial**: you explicitly grant the permission and can revoke it at any time. Totalis can sign your trades, but never holds or can move your key.
+To trade, you grant Totalis permission to sign on your behalf inside that enclave (a one time consent in the app — see [Enable trading](/guides/funding#enable-trading-first)). This is **semicustodial**: you explicitly grant the permission and can revoke it at any time. Totalis can sign your trades, but never holds or can move your key.
 
 ## Gas is sponsored
 
@@ -43,11 +43,11 @@ The fee rate is fixed onto each position when it's created, so settlement always
 
 ## Capital efficiency for makers
 
-Market makers don't lock the full risk of every position independently. Totalis margins a maker's book as a portfolio: collateral reflects their **incremental worst-case exposure**, so hedged or offsetting positions require less locked capital than the naive sum. This is what lets makers quote deep, competitive odds.
+Market makers don't lock the full risk of every position independently. Totalis margins a maker's book as a portfolio: collateral reflects their **incremental worst case exposure**, so hedged or offsetting positions require less locked capital than the naive sum. This is what lets makers quote deep, competitive odds.
 
 ## Why this design
 
-- **Non-custodial** — collateral is locked in on-chain vaults the program controls; Totalis never holds your funds.
+- **Noncustodial** — collateral is locked in on chain vaults the program controls; Totalis never holds your funds.
 - **Verifiable** — every vault, position, and settlement is on the Solana blockchain.
-- **Atomic** — position creation is one transaction with no partial-failure states.
-- **Low overhead** — one reused vault per participant keeps on-chain costs down.
+- **Atomic** — position creation is one transaction with no partial failure states.
+- **Low overhead** — one reused vault per participant keeps on chain costs down.

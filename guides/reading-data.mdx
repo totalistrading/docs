@@ -5,7 +5,7 @@ description: 'Pull your account state on demand — portfolio, parlay history, s
 
 The push channels ([webhooks](/guides/webhooks) and the [WebSocket](/guides/websocket)) tell you
 when things happen; the read endpoints let you **pull** state on demand — for backfill,
-reconciliation, and on-demand display. See [Real-time & data channels](/guides/realtime-and-data)
+reconciliation, and on demand display. See [Real-time & data channels](/guides/realtime-and-data)
 for how the channels fit together.
 
 Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v1`. Market data at
@@ -28,7 +28,7 @@ Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v
 
 [`GET /v1/rfqs`](/api-reference/parlays/list) takes two query params:
 
-- **`status`** — comma-joined, e.g. `?status=executed,settled`. See the
+- **`status`** — comma joined, e.g. `?status=executed,settled`. See the
   [status reference](/guides/lifecycle#status-reference) for the full set.
 - **`include=quotes`** — attach each parlay's `quotes` array. Without it, `quotes` is `null`
   (not requested); with it, an empty array means no quotes were submitted.
@@ -40,7 +40,7 @@ Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v
 
 <Note>
   Everything on the read surface is **realized**. `portfolio.summary.portfolio_value` is your
-  deposited USDC — it does not mark open positions to market, and there is no unrealized-P&L field.
+  deposited USDC — it does not mark open positions to market, and there is no unrealized P&L field.
   To value open positions yourself, price each leg against the live [`/markets`](/api-reference/markets/list) data.
 </Note>
 
@@ -48,8 +48,8 @@ Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v
 
 [`GET /v1/wallet`](/api-reference/user/get-wallet) returns every balance in one call:
 `usdc_balance` (your wallet), `vault_balance` (gross USDC in your vault, including locked
-collateral), and `locked_amount` (everything you've committed — in-flight RFQs, stakes on live
-positions, and maker-side collateral).
+collateral), and `locked_amount` (everything you've committed — in flight RFQs, stakes on live
+positions, and maker side collateral).
 
 - **Total USDC you control** = `usdc_balance + vault_balance`
 - **Available cash** = `usdc_balance + vault_balance − locked_amount`
@@ -60,7 +60,7 @@ Don't subtract `/v1/vault`'s `locked_collateral` on top — it's already inside 
 
 `GET /v1/rfqs/{id}` is the source of truth for how a parlay resolved. Once it's terminal the response
 carries the full settlement detail: each leg's `outcome`, the terminal `status`
-(`settled` / `cancelled` / `bought_back`), the payout, and the on-chain transaction signatures
+(`settled` / `cancelled` / `bought_back`), the payout, and the on chain transaction signatures
 (`settle_tx`, `cancel_tx`, `buyback_tx`). A parlay id you don't own returns `404`.
 
 ## Reconciling
@@ -71,7 +71,7 @@ A typical reconcile loop:
    until `has_more` is false) to enumerate terminal parlays.
 2. For any you haven't recorded, fetch [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) for the
    settlement detail and tx signatures.
-3. Cross-check realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
+3. Cross check realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
    against [`GET /v1/vault`](/api-reference/funds/get-vault).
 
 <Note>

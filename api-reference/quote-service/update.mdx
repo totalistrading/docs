@@ -29,7 +29,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 Same fields as [Create Quote Request](/api-reference/quote-service/create).
 
 <ParamField body="legs" type="array" required>
-  Array of 2-5 parlay legs.
+  Array of 2 to 5 parlay legs.
   <Expandable title="Leg object">
     <ParamField body="market_ticker" type="string" required>
       The market ticker on the venue.
@@ -44,7 +44,7 @@ Same fields as [Create Quote Request](/api-reference/quote-service/create).
 </ParamField>
 
 <ParamField body="bet_amount" type="number" required>
-  USDC bet amount (1-100).
+  USDC bet amount (1 to 100).
 </ParamField>
 
 ## Response

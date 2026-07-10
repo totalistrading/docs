@@ -1,14 +1,14 @@
 ---
 title: "Decline Cashout"
 api: "POST /v1/mm/cashout-requests/{id}/decline"
-description: "Permanently refuse to quote an early-cashout (buyback) request."
+description: "Permanently refuse to quote an early cashout (buyback) request."
 ---
 
 Permanently refuse to quote a cashout request when the position can't be priced and won't become priceable on retry — a leg is already decided, unrecognized, or its live odds sit outside the band. The user's [stream](/api-reference/quote-service/cashout-stream) surfaces a terminal `status: declined` immediately instead of waiting out the ~90 s TTL.
 
 Use this only for a **permanent** decline. For a **transient** refuse (a leg has no trustworthy live price right now), submit nothing and stay silent — the request rides its TTL so a later quote can still land. See [Pricing Early-Cashout Buybacks → When to Refuse](/guides/market-maker#when-to-refuse).
 
-This endpoint is single-MM scoped and idempotent: declining an already-terminal request is a no-op (`noop: true`).
+This endpoint is single MM scoped and idempotent: declining an already terminal request is a noop (`noop: true`).
 
 ## Authentication
 
@@ -32,7 +32,7 @@ No body.
 
 <ResponseField name="data" type="object">
   <Expandable title="data">
-    <ResponseField name="status" type="string">`"declined"` (or the request's existing terminal status on a no-op).</ResponseField>
+    <ResponseField name="status" type="string">`"declined"` (or the request's existing terminal status on a noop).</ResponseField>
     <ResponseField name="noop" type="boolean">`true` when the request was already terminal and nothing changed.</ResponseField>
   </Expandable>
 </ResponseField>
