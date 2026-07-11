@@ -1,0 +1,16 @@
+---
+title: 'List Markets (Flat)'
+description: 'A flat, paginated feed of every individual market — ungrouped and never truncated. Built for market makers and partners syncing the full tradeable universe.'
+openapi: 'GET /v1/markets/list'
+---
+
+<Note>
+  **Building parlays?** Every market carries an `exclusion_keys` array. Two
+  markets can share a parlay only if their arrays don't intersect — a plain
+  set-intersection check, with no correlation rules to maintain client-side.
+</Note>
+
+<Tip>
+  Need every market for a single game? `GET /markets/events/{event_ticker}`
+  returns one event's complete market set in a single request.
+</Tip>
