@@ -4,27 +4,29 @@ api: "POST /v1/quote-requests/{id}/commit"
 description: "Lock in the best available quote and create a trade."
 ---
 
-Commit the best available quote on an active quote request. The server re-validates all markets, selects the best quote that meets your `min_payout_odds_seen` threshold, and creates the trade atomically.
+Commit the best available quote on an active quote request. The server revalidates all markets, selects the best quote that meets your `min_payout_odds_seen` threshold, and creates the trade atomically.
 
-The request body includes protection fields that tie the commit to exactly what you last saw, preventing stale-price execution.
+The request body includes fields that tie the commit to exactly what you last saw, preventing stale price execution.
 
-After a successful commit, the selected market maker receives a `quote:accepted` event and must confirm the trade before the `confirmation_deadline`. The selected market maker may also receive `mm_quote:accepted` on its private `mm:quotes:{mm_id}` channel with the final quote economics and exact exposure legs for immediate local risk reservation. From there, the vault settlement flow takes over.
+After a successful commit, the selected market maker receives a `quote:accepted` event and must confirm the trade before the `confirmation_deadline`. It may also receive `mm_quote:accepted` on its private `mm:quotes:{mm_id}` channel, with the final quote economics and exact exposure legs for immediate local risk reservation. From there, the vault settlement flow takes over.
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
 
-## Path Parameters
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
 </ParamField>
 
-## Request Body
+## Request body
 
 <ParamField body="expected_version" type="integer" required>
   The quote request `version` you are committing against. The commit is rejected if the version has changed since you last received it, indicating the request was modified.
@@ -55,7 +57,7 @@ Authorization: Bearer <jwt>
   </Expandable>
 </ResponseField>
 
-## Rejection Reasons
+## Rejection reasons
 
 When a commit is rejected with `409 Conflict`, the `error.details.reason` field explains why:
 
@@ -72,7 +74,7 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 | Status | Code | Description |
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Missing or invalid commit fields. |
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this quote request. |
 | 404 | `NOT_FOUND` | Quote request not found. |
 | 409 | `CONFLICT` | Commit rejected. See `error.details.reason` above. |
@@ -81,7 +83,7 @@ When a commit is rejected with `409 Conflict`, the `error.details.reason` field 
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/commit \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $TOTALIS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "expected_version": 3,

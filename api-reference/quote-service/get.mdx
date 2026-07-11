@@ -6,17 +6,19 @@ description: "Retrieve a quote request with all active quotes and the current be
 
 Retrieve a quote request by ID. The response includes the full quote request object, all active quotes for the current version, and the computed best quote (highest payout odds).
 
-Use this endpoint to check the current state of a quote request. For real-time updates, use the [SSE stream](/api-reference/quote-service/stream) instead.
+Use this endpoint to check the current state of a quote request. For real time updates, use the [SSE stream](/api-reference/quote-service/stream) instead.
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `positions:read` scope.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
 
-## Path Parameters
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
@@ -39,7 +41,7 @@ Authorization: Bearer <jwt>
         <ResponseField name="total_payout" type="number">Total payout if the parlay wins.</ResponseField>
         <ResponseField name="mm_cost" type="number">USDC the market maker puts at risk.</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
-        <ResponseField name="leg_prices" type="array">Per-leg pricing with `leg_id` and `leg_odds`.</ResponseField>
+        <ResponseField name="leg_prices" type="array">Per leg pricing with `leg_id` and `leg_odds`.</ResponseField>
       </Expandable>
     </ResponseField>
     <ResponseField name="best_quote" type="object">
@@ -52,14 +54,14 @@ Authorization: Bearer <jwt>
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this quote request. |
 | 404 | `NOT_FOUND` | Quote request not found. |
 
 <RequestExample>
 ```bash
 curl https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40 \
-  -H "Authorization: Bearer $TOKEN"
+  -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 </RequestExample>
 

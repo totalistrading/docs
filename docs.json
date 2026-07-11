@@ -26,34 +26,39 @@
             "pages": [
               "index",
               "guides/quickstart",
-              "guides/authentication"
-            ]
-          },
-          {
-            "group": "Core concepts",
-            "pages": [
-              "guides/lifecycle",
-              "guides/funding",
-              "guides/vault-architecture"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/reading-data",
-              "guides/webhooks",
-              "guides/websocket",
-              "guides/live-quote-requests",
-              "guides/market-maker"
-            ]
-          },
-          {
-            "group": "Resources",
-            "pages": [
-              "guides/faq",
-              "guides/world-cup-reward-pool",
-              "terms-of-service",
-              "privacy-policy"
+              "guides/authentication",
+              {
+                "group": "Core concepts",
+                "expanded": false,
+                "pages": [
+                  "guides/lifecycle",
+                  "guides/funding",
+                  "guides/vault-architecture"
+                ]
+              },
+              {
+                "group": "Guides",
+                "expanded": false,
+                "pages": [
+                  "guides/realtime-and-data",
+                  "guides/event-catalog",
+                  "guides/reading-data",
+                  "guides/live-quote-requests",
+                  "guides/websocket",
+                  "guides/webhooks",
+                  "guides/market-maker"
+                ]
+              },
+              {
+                "group": "Resources",
+                "expanded": false,
+                "pages": [
+                  "guides/faq",
+                  "guides/world-cup-reward-pool",
+                  "terms-of-service",
+                  "privacy-policy"
+                ]
+              }
             ]
           }
         ]
@@ -64,88 +69,97 @@
           {
             "group": "Overview",
             "pages": [
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Quote service",
-            "pages": [
-              "api-reference/quote-service/create",
-              "api-reference/quote-service/update",
-              "api-reference/quote-service/get",
-              "api-reference/quote-service/commit",
-              "api-reference/quote-service/cancel",
-              "api-reference/quote-service/stream",
-              "api-reference/quote-service/cashout-create",
-              "api-reference/quote-service/cashout-stream",
-              "api-reference/quote-service/cashout-commit"
-            ]
-          },
-          {
-            "group": "Market maker",
-            "pages": [
-              "api-reference/quote-service-mm/stream",
-              "api-reference/quote-service-mm/submit-quote",
-              "api-reference/quote-service-mm/withdraw-quote",
-              "api-reference/quote-service-mm/heartbeat",
-              "api-reference/quote-service-mm/cashout-quote",
-              "api-reference/quote-service-mm/cashout-decline",
-              "api-reference/mm/confirm-quote"
-            ]
-          },
-          {
-            "group": "Markets",
-            "pages": [
-              "api-reference/markets/list",
-              "api-reference/markets/list-flat",
-              "api-reference/markets/get"
-            ]
-          },
-          {
-            "group": "Parlays",
-            "pages": [
-              "api-reference/parlays/list",
-              "api-reference/parlays/get"
-            ]
-          },
-          {
-            "group": "Account",
-            "pages": [
-              "api-reference/user/get-profile",
-              "api-reference/user/update-username",
-              "api-reference/user/check-username",
-              "api-reference/user/get-wallet",
-              "api-reference/user/get-blockhash",
-              "api-reference/user/submit-tx"
-            ]
-          },
-          {
-            "group": "API keys",
-            "pages": [
-              "api-reference/user/list-api-keys",
-              "api-reference/user/create-api-key",
-              "api-reference/user/revoke-api-key"
-            ]
-          },
-          {
-            "group": "Funds & vault",
-            "pages": [
-              "api-reference/funds/get-vault",
-              "api-reference/funds/wallet-withdraw",
-              "api-reference/funds/delegation-status",
-              "api-reference/funds/enable-trading",
-              "api-reference/funds/portfolio",
-              "api-reference/funds/pnl"
-            ]
-          },
-          {
-            "group": "Webhooks",
-            "pages": [
-              "api-reference/webhooks/get-config",
-              "api-reference/webhooks/set-config",
-              "api-reference/webhooks/rotate-secret",
-              "api-reference/webhooks/list-deliveries",
-              "api-reference/webhooks/redeliver"
+              "api-reference/introduction",
+              {
+                "group": "Quote service",
+                "expanded": false,
+                "pages": [
+                  "api-reference/quote-service/create",
+                  "api-reference/quote-service/update",
+                  "api-reference/quote-service/get",
+                  "api-reference/quote-service/commit",
+                  "api-reference/quote-service/cancel",
+                  "api-reference/quote-service/stream",
+                  "api-reference/quote-service/cashout-create",
+                  "api-reference/quote-service/cashout-get",
+                  "api-reference/quote-service/cashout-stream",
+                  "api-reference/quote-service/cashout-cancel",
+                  "api-reference/quote-service/cashout-commit"
+                ]
+              },
+              {
+                "group": "Market maker",
+                "expanded": false,
+                "pages": [
+                  "api-reference/quote-service-mm/stream",
+                  "api-reference/quote-service-mm/submit-quote",
+                  "api-reference/quote-service-mm/withdraw-quote",
+                  "api-reference/quote-service-mm/heartbeat",
+                  "api-reference/quote-service-mm/cashout-quote",
+                  "api-reference/quote-service-mm/cashout-decline",
+                  "api-reference/mm/confirm-quote"
+                ]
+              },
+              {
+                "group": "Markets",
+                "expanded": false,
+                "pages": [
+                  "api-reference/markets/list",
+                  "api-reference/markets/get"
+                ]
+              },
+              {
+                "group": "Parlays",
+                "expanded": false,
+                "pages": [
+                  "api-reference/parlays/list",
+                  "api-reference/parlays/get"
+                ]
+              },
+              {
+                "group": "Account",
+                "expanded": false,
+                "pages": [
+                  "api-reference/user/get-profile",
+                  "api-reference/user/update-username",
+                  "api-reference/user/check-username",
+                  "api-reference/user/get-wallet",
+                  "api-reference/user/get-blockhash",
+                  "api-reference/user/submit-tx"
+                ]
+              },
+              {
+                "group": "API keys",
+                "expanded": false,
+                "pages": [
+                  "api-reference/user/list-api-keys",
+                  "api-reference/user/create-api-key",
+                  "api-reference/user/revoke-api-key"
+                ]
+              },
+              {
+                "group": "Funds & vault",
+                "expanded": false,
+                "pages": [
+                  "api-reference/funds/get-vault",
+                  "api-reference/funds/wallet-withdraw",
+                  "api-reference/funds/delegation-status",
+                  "api-reference/funds/enable-trading",
+                  "api-reference/funds/portfolio",
+                  "api-reference/funds/pnl"
+                ]
+              },
+              {
+                "group": "Webhooks",
+                "expanded": false,
+                "pages": [
+                  "api-reference/webhooks/get-config",
+                  "api-reference/webhooks/set-config",
+                  "api-reference/webhooks/rotate-secret",
+                  "api-reference/webhooks/list-deliveries",
+                  "api-reference/webhooks/redeliver"
+                ]
+              }
             ]
           }
         ]

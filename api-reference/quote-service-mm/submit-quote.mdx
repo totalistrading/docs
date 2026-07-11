@@ -6,12 +6,12 @@ description: "Submit a price quote for an active quote request, or replace your 
 
 Submit a quote for an active quote request. If you already have an active quote for the same request version, it is replaced atomically. Only one active quote per market maker per request version is allowed.
 
-When the user updates their request (changing legs or bet amount), the `version` and `request_hash` change, and your existing quote is automatically invalidated. Listen for `quote_request:updated` events on the [SSE stream](/api-reference/quote-service-mm/stream) to detect version changes and re-price.
+When the user updates their request (changing legs or bet amount), the `version` and `request_hash` change, and your existing quote is automatically invalidated. Listen for `quote_request:updated` events on the [SSE stream](/api-reference/quote-service-mm/stream) to detect version changes and reprice.
 
 <Note>
-**Moving to a new version takes no withdraw.** A quote is scoped to a single `(request, version)` pair. When the request advances to a new `version`, your prior-version quote is invalidated automatically — it leaves the book at once, can no longer be accepted, and never blocks a new submission. To quote the new version, simply `PUT` again with the new `request_version` and `request_hash` from the latest `quote_request:updated` event. There is no need to [withdraw](/api-reference/quote-service-mm/withdraw-quote) the old quote first.
+**Moving to a new version needs no withdraw.** A quote is scoped to a single `(request, version)` pair. When the request advances to a new `version`, your prior version quote is invalidated automatically — it leaves the book at once, can no longer be accepted, and never blocks a new submission. To quote the new version, `PUT` again with the new `request_version` and `request_hash` from the latest `quote_request:updated` event. You don't need to [withdraw](/api-reference/quote-service-mm/withdraw-quote) the old quote first.
 
-A `409` with `reason: version_mismatch` is **not** caused by an outstanding prior quote. It means the `request_version` and/or `request_hash` in your body no longer match the live request — you priced a stale version, or the slip changed again while you were pricing. Re-read the latest stream event and submit with both current values (they must both match).
+A `409` with `reason: version_mismatch` is **not** caused by an outstanding prior quote. It means the `request_version` and/or `request_hash` in your body no longer match the live request — you priced a stale version, or the slip changed again while you were pricing. Reread the latest stream event and submit with both current values (they must both match).
 </Note>
 
 ## Authentication
@@ -22,13 +22,13 @@ API key required. Pass your market maker API key in the `X-API-Key` header.
 X-API-Key: <key>
 ```
 
-## Path Parameters
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
 </ParamField>
 
-## Request Body
+## Request body
 
 <ParamField body="request_version" type="integer" required>
   The version of the quote request you priced. Must match the current version from the SSE stream.
@@ -43,7 +43,7 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer">
-  How long this quote is valid, in milliseconds. Range: 5000-60000. Default: 15000.
+  How long this quote is valid, in milliseconds. Range: 5000 to 60000. Default: 15000.
 </ParamField>
 
 ## Response
@@ -60,9 +60,9 @@ Returns `201 Created` for a new quote or `200 OK` when replacing an existing quo
         <ResponseField name="request_version" type="integer">The request version this quote is for.</ResponseField>
         <ResponseField name="request_hash" type="string">The request hash this quote is for.</ResponseField>
         <ResponseField name="payout_odds" type="number">The payout multiplier.</ResponseField>
-        <ResponseField name="user_cost" type="number">Cost to the user in USDC (server-derived from `bet_amount`).</ResponseField>
-        <ResponseField name="total_payout" type="number">Total payout in USDC (server-derived from `bet_amount * payout_odds`).</ResponseField>
-        <ResponseField name="mm_cost" type="number">Your risk in USDC (server-derived: `total_payout - user_cost`).</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC (server derived from `bet_amount`).</ResponseField>
+        <ResponseField name="total_payout" type="number">Total payout in USDC (server derived from `bet_amount * payout_odds`).</ResponseField>
+        <ResponseField name="mm_cost" type="number">Your risk in USDC (server derived: `total_payout - user_cost`).</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
       </Expandable>
     </ResponseField>
@@ -71,7 +71,7 @@ Returns `201 Created` for a new quote or `200 OK` when replacing an existing quo
   </Expandable>
 </ResponseField>
 
-## Conflict Reasons
+## Conflict reasons
 
 When a submit is rejected with `409 Conflict`, the `error.details.reason` field explains why:
 
@@ -80,7 +80,7 @@ When a submit is rejected with `409 Conflict`, the `error.details.reason` field 
 | `not_found` | Quote request ID does not exist. |
 | `expired` | Quote request has expired. |
 | `not_active` | Quote request is committed, cancelled, or otherwise inactive. |
-| `version_mismatch` | Your `request_version` and/or `request_hash` don't match the live request — you priced a stale version, or it changed while you were pricing. Re-read the latest `quote_request` / `quote_request:updated` event and submit both current values. This is **not** caused by a still-open prior quote, so there is nothing to withdraw. |
+| `version_mismatch` | Your `request_version` and/or `request_hash` don't match the live request — you priced a stale version, or it changed while you were pricing. Reread the latest `quote_request` / `quote_request:updated` event and submit both current values. This is **not** caused by a still open prior quote — nothing to withdraw. |
 | `self_quote` | You cannot quote your own requests. |
 
 ## Errors

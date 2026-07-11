@@ -1,11 +1,15 @@
 ---
 title: 'WebSocket'
-description: 'Real-time trade confirmations and position updates via WebSocket.'
+description: 'Real time trade confirmations and position updates via WebSocket.'
 ---
 
-The Totalis WebSocket pushes **post-trade events** in real time — quote acceptances and confirmations, and position settlements. Connect, authenticate, subscribe to the channels you need, and handle events as they arrive.
+The Totalis WebSocket pushes **posttrade events** in real time — quote acceptances and confirmations, and position settlements. Connect, authenticate, subscribe to the channels you need, and handle events as they arrive.
 
-For **pre-trade** live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
+For **pretrade** live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
+
+<Note>
+  WebSocket events reach you only while you're connected — missed events are not redelivered. For durable, at least once delivery to a server (signed, retried, replayable), use [webhooks](/guides/webhooks); they carry most of the same lifecycle moments, plus one WebSocket doesn't (early cashout buyback — see the [event catalog](/guides/event-catalog#the-websocket-buyback-gap)). See [Real time & data channels](/guides/realtime-and-data) for the full channel map.
+</Note>
 
 ## Connecting
 
@@ -51,9 +55,9 @@ After authenticating, subscribe to channels to receive events:
 | Event | Description | Data |
 |-------|-------------|------|
 | `quote:accepted` | A user committed your quote. You must confirm it before the deadline. | `{ quote_id, rfq_id, confirmation_deadline }` |
-| `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
+| `mm_quote:accepted` | MM only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
-| `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
+| `quote:executed` | On chain vault position created. | `{ quote_id, rfq_id }` |
 | `quote:expired` | Quote expired before confirmation. | `{ quote_id, rfq_id }` |
 | `quote:rejected` | Another quote was accepted instead. | `{ quote_id, rfq_id, reason }` |
 | `quote:withdrawn` | You withdrew the quote. | `{ quote_id, rfq_id }` |
@@ -91,7 +95,13 @@ After authenticating, subscribe to channels to receive events:
 }
 ```
 
+<Note>
+  **`draft_quote_id` is undocumented.** It appears nowhere else in the API contract, and its relationship to the accepted `quote_id` above isn't specified — treat it as informational only, and use `quote_id` (the value valid for confirmation) rather than `draft_quote_id` for any action. If your integration needs to know what this field represents, raise it with Totalis support rather than assuming a meaning.
+</Note>
+
 ### Position events
+
+`position_pda` is the on chain account address for the position, not a lookup key. To fetch or reference a position through the API, use `rfq_id` (or `position_id`, once it's [set on the RFQ](/api-reference/parlays/get)) instead.
 
 | Event | Description | Data |
 |-------|-------------|------|
@@ -100,7 +110,7 @@ After authenticating, subscribe to channels to receive events:
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
 
-## Keep-alive
+## Keep alive
 
 Send periodic pings to keep the connection open:
 
@@ -134,7 +144,7 @@ ws.onmessage = (event) => {
 
   if (msg.type === 'quote:accepted') {
     console.log('Quote accepted! Confirm before:', msg.data.confirmation_deadline);
-    // POST https://api.totalis.trade/mm/quotes/{quoteId}/confirm
+    // POST https://api.totalis.trade/v1/mm/quotes/{quoteId}/confirm
   }
 
   if (msg.type === 'mm_quote:accepted') {

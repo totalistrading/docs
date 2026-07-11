@@ -1,0 +1,114 @@
+---
+title: "Get Cashout Request"
+api: "GET /v1/cashout-requests/{id}"
+description: "Retrieve a cashout request with its live buyback quote."
+---
+
+<Note>
+  This endpoint mirrors [Get quote request](/api-reference/quote-service/get) and reuses the cashout request and quote fields documented in [Create cashout request](/api-reference/quote-service/cashout-create) and [Stream cashout quote](/api-reference/quote-service/cashout-stream) — but its response shape has **not been verified against the live API**. Confirm field names and shapes with engineering before treating this page as authoritative.
+</Note>
+
+Retrieve a cashout request by ID. The response includes the full cashout request object and its current best (buyback) quote, if one is live.
+
+Use this endpoint to check the current state of a cashout request. For real time updates, use the [SSE stream](/api-reference/quote-service/cashout-stream) instead.
+
+## Authentication
+
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `positions:read` scope.
+
+```
+X-API-Key: <your-api-key>
+```
+
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="cashout_request" type="object">
+      The cashout request object.
+      <Expandable title="cashout_request">
+        <ResponseField name="id" type="string">UUID of the cashout request. Use it on the stream, commit, and MM endpoints.</ResponseField>
+        <ResponseField name="user_id" type="string">Your user ID.</ResponseField>
+        <ResponseField name="target_mm_id" type="string">The position's maker — the single MM this request is offered to.</ResponseField>
+        <ResponseField name="position_id" type="string">The on chain position id (hex), normalized without the `0x` prefix.</ResponseField>
+        <ResponseField name="position_pda" type="string">On chain position address, or `null`.</ResponseField>
+        <ResponseField name="user_stake" type="number">Your net stake on the position (USDC). Always refunded on a buyback.</ResponseField>
+        <ResponseField name="total_payout" type="number">The position's total payout (USDC).</ResponseField>
+        <ResponseField name="version" type="integer">Request version.</ResponseField>
+        <ResponseField name="book_seq" type="integer">Quote book sequence number.</ResponseField>
+        <ResponseField name="status" type="string">`active`, `committing`, `committed`, `declined`, `expired`, or `cancelled`.</ResponseField>
+        <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~90 s), distinct from the position expiry.</ResponseField>
+        <ResponseField name="position_expires_at" type="string">The underlying position's market end horizon, or `null`.</ResponseField>
+        <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known).</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="best_quote" type="object">
+      The market maker's current buyback quote, or `null` if none is live.
+      <Expandable title="best_quote">
+        <ResponseField name="id" type="string">Quote UUID.</ResponseField>
+        <ResponseField name="market_maker_id" type="string">The backing market maker's ID.</ResponseField>
+        <ResponseField name="buyback_price" type="number">The directional buyback `amount` the MM quoted (USDC, ≥ 0), gross of the profit fee.</ResponseField>
+        <ResponseField name="mm_pays_user" type="boolean">`true` when the MM pays the user (position is in profit); `false` when the user pays the MM.</ResponseField>
+        <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
+        <ResponseField name="net_received" type="number">The net cash the user walks away with after the buyback (USDC, ≥ 0). Present only when computable; omitted otherwise.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | You do not own this cashout request. |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+
+<RequestExample>
+```bash curl
+curl https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd \
+  -H "X-API-Key: $TOTALIS_API_KEY"
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "data": {
+    "cashout_request": {
+      "id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
+      "user_id": "did:privy:cm3abc...",
+      "target_mm_id": "mm-uuid-1234",
+      "position_id": "9f86d08818844f86d08818844f86d088",
+      "position_pda": "7Xc3...PDA",
+      "user_stake": 24.75,
+      "total_payout": 100,
+      "version": 1,
+      "book_seq": 3,
+      "status": "active",
+      "expires_at": "2026-06-01T18:46:00.000Z",
+      "position_expires_at": "2026-06-02T00:00:00.000Z",
+      "legs": [
+        { "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6", "market_ticker": "KXBTC-26JUN01-T72500", "event_ticker": "KXBTC-26JUN01", "side": "yes", "venue": "kalshi" }
+      ]
+    },
+    "best_quote": {
+      "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
+      "market_maker_id": "mm-uuid-1234",
+      "buyback_price": 41.5,
+      "mm_pays_user": true,
+      "valid_until": "2026-06-01T18:45:45.000Z",
+      "net_received": 66.25
+    }
+  }
+}
+```
+</ResponseExample>

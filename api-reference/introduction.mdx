@@ -3,7 +3,7 @@ title: 'API overview'
 description: 'The Totalis REST + SSE API — base URL, authentication, response envelope, pagination, and errors.'
 ---
 
-The Totalis API is REST over HTTPS with JSON bodies, plus Server-Sent Events (SSE) for real-time quote streams. The wire format is `snake_case`.
+The Totalis API is REST over HTTPS with JSON bodies. It adds Server Sent Events (SSE) for live quote pricing and a [WebSocket](/guides/websocket) for post trade events, all in `snake_case`. Not sure which channel fits your integration? Start with [Real time & data channels](/guides/realtime-and-data).
 
 ## Base URL
 
@@ -19,7 +19,7 @@ Send your API key in the `X-API-Key` header on every request:
 X-API-Key: <your-api-key>
 ```
 
-The web dashboard authenticates with Privy instead, sending `Authorization: Bearer <jwt>`. Either scheme works on any authenticated endpoint, except that minting a new API key (`POST /v1/api-keys`) requires a Privy JWT or a key with the `keys:manage` scope. Each key is scoped — see [Authentication](/guides/authentication) for the catalog.
+The web dashboard authenticates with Privy instead, sending `Authorization: Bearer <jwt>`. Either scheme works on any authenticated endpoint. The exception is minting a new API key (`POST /v1/api-keys`), which requires a Privy JWT or a key with the `keys:manage` scope. Each key is scoped — see [Authentication](/guides/authentication) for the catalog.
 
 ## Response envelope
 
@@ -29,7 +29,7 @@ Successful responses wrap the resource in `data`:
 { "data": { /* resource */ } }
 ```
 
-List endpoints add cursor-based pagination in `meta`:
+List endpoints add cursor based pagination in `meta`:
 
 ```json
 {

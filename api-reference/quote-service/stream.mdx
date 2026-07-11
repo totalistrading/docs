@@ -1,26 +1,28 @@
 ---
 title: "Stream Quote Updates"
 api: "GET /v1/quote-requests/{id}/stream"
-description: "Subscribe to real-time best-quote updates for a quote request via Server-Sent Events."
+description: "Subscribe to real time best quote updates for a quote request via Server Sent Events."
 ---
 
-Open a Server-Sent Events (SSE) stream to receive real-time best-quote updates for a specific quote request. As market makers submit, update, and withdraw quotes, you receive the current best offer automatically.
+Open a Server Sent Events (SSE) stream to receive real time best quote updates for a specific quote request. As market makers submit, update, and withdraw quotes, you receive the current best offer automatically.
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `positions:read` scope.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
 
-## Path Parameters
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
 </ParamField>
 
-## SSE Event Types
+## SSE event types
 
 ### `best_quote`
 
@@ -65,7 +67,7 @@ Sent when the quote request transitions out of the `active` state (committed, ca
 }
 ```
 
-Immediately after `status`, the stream also emits one **terminal event** matching the outcome, then closes. Listen for either the generic `status` event or the specific one below.
+Immediately after `status`, the stream emits one **terminal event** matching the outcome, then closes. Listen for either the generic `status` event or the specific one below.
 
 ### `committed`
 
@@ -98,7 +100,7 @@ The quote request reached its `expires_at` without being committed.
 }
 ```
 
-## Integration Guide
+## Integration guide
 
 1. Open the SSE stream after creating or updating a quote request.
 2. On each `best_quote` event, update your displayed payout odds and store the `book_seq` and best quote `id`.
@@ -109,44 +111,56 @@ The quote request reached its `expires_at` without being committed.
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this quote request. |
 | 404 | `NOT_FOUND` | Quote request not found. |
 
 <RequestExample>
 ```bash curl
 curl -N https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/stream \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $TOTALIS_API_KEY" \
   -H "Accept: text/event-stream"
 ```
 
 ```javascript JavaScript
-const eventSource = new EventSource(
-  'https://api.totalis.trade/v1/quote-requests/1a6d1f06.../stream',
-  { headers: { 'Authorization': `Bearer ${token}` } }
-);
+// Native EventSource can't send an X-API-Key header — read the SSE stream
+// with fetch instead (works in browsers and Node 18+).
+async function streamQuotes(id, apiKey) {
+  const res = await fetch(
+    `https://api.totalis.trade/v1/quote-requests/${id}/stream`,
+    { headers: { 'X-API-Key': apiKey, Accept: 'text/event-stream' } }
+  );
 
-eventSource.addEventListener('best_quote', (e) => {
-  const data = JSON.parse(e.data);
-  console.log('Best quote:', data.best_quote);
-  console.log('Book seq:', data.book_seq);
-});
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-eventSource.addEventListener('committed', (e) => {
-  const data = JSON.parse(e.data);
-  console.log('RFQ created:', data.rfq_id);
-  eventSource.close();
-});
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
 
-eventSource.addEventListener('cancelled', () => {
-  console.log('Quote request cancelled');
-  eventSource.close();
-});
+    let sep;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const event = frame.match(/^event: (.+)$/m)?.[1];
+      const data = frame.match(/^data: (.+)$/m)?.[1];
+      if (!event || !data) continue;
+      const payload = JSON.parse(data);
 
-eventSource.addEventListener('expired', () => {
-  console.log('Quote request expired');
-  eventSource.close();
-});
+      if (event === 'best_quote') {
+        console.log('Best quote:', payload.best_quote, 'book_seq:', payload.book_seq);
+      } else if (event === 'committed') {
+        console.log('RFQ created:', payload.rfq_id);
+        return; // the stream closes after a terminal event
+      } else if (event === 'cancelled' || event === 'expired') {
+        console.log('Terminal:', event);
+        return;
+      }
+    }
+  }
+}
 ```
 
 ```python Python
@@ -155,7 +169,7 @@ import json
 
 url = 'https://api.totalis.trade/v1/quote-requests/1a6d1f06.../stream'
 headers = {
-    'Authorization': f'Bearer {token}',
+    'X-API-Key': api_key,
     'Accept': 'text/event-stream',
 }
 
