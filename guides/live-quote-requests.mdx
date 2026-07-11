@@ -56,6 +56,7 @@ If a commit fails, `error.details.reason` tells you why:
 | `QUOTE_CHANGED` | The request was updated since your last fetch. Refetch and try again. |
 | `MARKET_NOT_LIVE` | One or more markets expired, halted, or were delisted. Remove the affected legs. |
 | `QUOTE_EXPIRED` | All quotes expired. Wait for a fresh quote and retry. |
+| `COMMIT_FAILED` | The commit couldn't be completed — for example, no eligible market maker had sufficient collateral. Not retryable; the trade did not happen. |
 | `COMMIT_FAILED_RETRYABLE` | Temporary error. Retry after a short delay. |
 
 ## For market makers
@@ -87,7 +88,7 @@ Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm
 
 Send [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) every 30 seconds to signal liveness. The TTL is 60 seconds.
 
-## SSE Event Format
+## SSE event format
 
 Events on the user stream (`/v1/quote-requests/{id}/stream`):
 

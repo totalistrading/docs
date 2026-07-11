@@ -1,0 +1,256 @@
+---
+title: 'API Improvement Proposals (Internal)'
+description: 'Consolidated engineering/product proposals from competitive analysis and cross channel contract audits — not for public documentation'
+---
+
+<Warning>
+  This page is internal and should NOT be included in the public Mintlify navigation (docs.json). It's a working proposals document for engineering and product, not a runbook or customer facing reference.
+</Warning>
+
+This document consolidates two independent research passes:
+
+1. A **competitive analysis** of the Totalis API surface against Kalshi, Polymarket, Stripe, Alpaca, and Coinbase conventions — surfacing gaps in what the API and docs currently offer (Section 1).
+2. A **cross channel audit** of SSE, WebSocket, webhook, and REST contracts — surfacing naming and structural inconsistencies that require an actual API/backend change, not just a docs fix (Section 2).
+
+A parallel docs only mitigation (a glossary / event catalog page) is being shipped separately to help readers navigate the Section 2 inconsistencies in the interim. That page is a mitigation, not a substitute — the items in Section 2 still require contract changes to be durably fixed.
+
+---
+
+## Section 1: API surface gaps
+
+Findings from a competitive analysis against Kalshi, Polymarket, Stripe, Alpaca, and Coinbase conventions. Ordered by priority (highest value first).
+
+### Summary table
+
+| # | Gap | Type | Difficulty | Primary beneficiary |
+|---|-----|------|------------|----------------------|
+| 1 | Idempotency-Key inconsistency | Docs + minor API | Low | Quant firms / all automated trading |
+| 2 | No sandbox/devnet trading environment | Product/API | Medium high | Hobbyists + institutional testers |
+| 3 | No status/health endpoint or public incident page | Product/API | Low | Unattended bots / all integrators |
+| 4 | No public changelog / versioning policy | Docs + process | Low (ongoing) | Quant firms running production capital |
+| 5 | No historical price/odds or trade print data | Product/API | Medium high | Quant backtesting, MM fair value calibration |
+| 6 | No order book depth (top of book only) | Product/API | Medium | MMs / analytics builders |
+| 7 | Market metadata lacks resolution criteria/rules text | Product/API | Low medium | All users, settlement trust |
+| 8 | No batch/bulk quote submission for MMs | Product/API | Medium | Market makers |
+| 9 | Rate limits flat and undocumented per role | Docs + product | Low (doc) / higher (build) | High volume MMs/partners |
+| 10 | No unrealized mark to market / exposure view | Product/API | Medium | MMs running a risk book |
+| 11 | No kill switch/pause quoting endpoint for MMs | Product/API | Low medium | Market makers |
+| 12 | MM SSE stream is all or nothing (no filtering) | Product/API | Medium | Market makers at scale |
+| 13 | No aggregate rollup across BYOW sub accounts | Product/API | Medium high | BYOW/headless partners |
+| 14 | No CSV/bulk export for reconciliation | Product/API | Low | Reconciliation / tax reporting |
+| 15 | No SDKs, no discoverable OpenAPI/Postman, no webhook test sender | Docs/packaging | Low medium | Hobbyists, all integrators |
+
+---
+
+### 1. Idempotency-Key inconsistency
+
+**What it is:** A full `Idempotency-Key` header mechanism already exists in `openapi.json` — client generated UUID, 24h cache of 2xx responses — and is wired into `POST /v1/wallet/withdraw`. It appears on no other trade affecting POST: quote request create, commit, `mm/quotes/{id}/confirm`, cashout request create. It also isn't documented anywhere in prose.
+
+**Why it matters:** Commit and cashout commit have their own separate version+hash freshness checks, which is a different guarantee than "did my POST land after a client side timeout." Quant firms need idempotency protection on every state changing call, not just withdrawals — a retried commit or quote accept after a timeout should be a no op, not a double fire risk.
+
+**Type:** Primarily a docs gap on top of an existing mechanism, plus a small extension to wire it onto the remaining endpoints.
+
+**Difficulty:** Low — extend existing middleware to the other trade affecting POSTs and document it.
+
+### 2. No sandbox/devnet trading environment
+
+**What it is:** No way to run the full quote → commit → confirm → settle lifecycle without real USDC on Solana mainnet.
+
+**Why it matters:** Kalshi has a demo environment; Alpaca has paper trading that "mirrors production exactly." Without this, hobbyist onboarding is blocked (no way to try the API before funding a wallet), and institutional integrators can't test error paths — `insufficient_balance`, `mm_confirmation_timeout`, `awaiting_signature_cap`, indeterminate commit 503s — without financial exposure.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Medium high — needs a devnet deployed vault program and test price feeds. Likely the highest leverage integration fix on this list, despite the cost.
+
+### 3. No status/health endpoint or public incident page
+
+**What it is:** No `GET /status`, no status page referenced anywhere in the docs; the ToS explicitly disclaims uptime guarantees.
+
+**Why it matters:** Kalshi ships a `GetExchangeStatus` endpoint; most fintech APIs run a public status page. Without one, integrators can't distinguish "Totalis is degraded" from "my key/network is broken" — a critical gap for unattended bots that need to decide whether to fail over, retry, or alert a human.
+
+**Type:** Product/API capability gap (trivial in scope).
+
+**Difficulty:** Low — statuspage.io (or equivalent) plus a trivial health route. High value relative to cost.
+
+### 4. No public changelog / API versioning or deprecation policy
+
+**What it is:** `openapi.json` has an internal version string but no changelog page and no deprecation notice convention.
+
+**Why it matters:** Kalshi publishes a dated changelog with an RSS feed. Silent schema changes are a real operational risk for a quant firm running production capital against the API — a field rename or removal with no notice can silently break a reconciliation pipeline.
+
+**Type:** Docs + process gap.
+
+**Difficulty:** Low to start (a changelog page), but requires ongoing discipline to maintain as a real deprecation policy.
+
+### 5. No historical price/odds or trade print data
+
+**What it is:** `GET /markets` only exposes a live snapshot (bid/ask/last_price/volume/open_interest) — no OHLC/candlestick history, no trade print/tape endpoint.
+
+**Why it matters:** Kalshi has `historical/market-candlesticks` and `historical/trades`; Polymarket has `/prices-history`. This matters for quant backtesting and MM fair value calibration — both currently have to source this data from Kalshi/Polymarket directly, which undercuts Totalis's own "aggregation layer" value proposition.
+
+**Type:** Likely a product/API capability gap, but possibly "expose what's already stored" rather than from scratch — Totalis likely already ingests this data to quote live. Still real engineering plus a retention policy decision.
+
+**Difficulty:** Medium high.
+
+### 6. No order book depth, only top of book
+
+**What it is:** The Market schema only has top of book bid/ask, no depth of book.
+
+**Why it matters:** Matters mainly for MMs and analytics builders wanting depth aware fair value inputs. Less relevant for end users, since Totalis is RFQ based rather than a CLOB — which is why it ranks lower than most other gaps despite being a common exchange API feature.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Medium.
+
+### 7. Market metadata lacks resolution criteria/rules text
+
+**What it is:** No analog to Kalshi's `rules_primary` field in market metadata.
+
+**Why it matters:** Settlement correctness depends on referencing venue outcomes as oracles. Surfacing resolution criteria directly through Totalis — rather than requiring integrators to cross reference Kalshi/Polymarket themselves — reduces settlement disputes and builds institutional trust.
+
+**Type:** Product/API capability gap, but a shallow one since underlying venues already publish this text.
+
+**Difficulty:** Low medium.
+
+### 8. No batch/bulk quote submission for market makers
+
+**What it is:** `PUT /v1/mm/quote-requests/{id}/quote` is one at a time.
+
+**Why it matters:** An MM auto quoting across many concurrently open RFQs must issue one HTTP call per repricing event, which is latency inefficient and pressures the flat 300 req/min cap. Most trading APIs offer batch order operations. A `PUT /v1/mm/quotes/batch` accepting an array would be architecturally consistent with the existing surface.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Medium.
+
+### 9. Rate limits are flat and undocumented per role
+
+**What it is:** A single flat tier (100/min unauthenticated, 300/min authenticated), with no visibility into whether MM scoped keys or high volume partners get higher tiers.
+
+**Why it matters:** Kalshi runs usage tiers with a self service limits check endpoint. An MM repricing across many open RFQs on every tick hits a real ceiling under the current flat cap. At minimum, the docs should state whether tiering exists or can be requested.
+
+**Type:** Docs gap at minimum; product gap if tiering needs to be built.
+
+**Difficulty:** Low to document; higher to actually build tiering.
+
+### 10. No unrealized mark to market or granular exposure view
+
+**What it is:** `reading-data.mdx` explicitly states the read surface is realized only — there's no unrealized P&L field, and integrators must self derive valuation from `/markets` plus the position list.
+
+**Why it matters:** For an MM running a real risk book, unrealized mark to market is a primitive an institutional risk desk expects natively — notable since Totalis already computes portfolio level worst case collateral internally for its own risk purposes.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Medium.
+
+### 11. No kill switch/pause quoting endpoint for MMs
+
+**What it is:** No way for an MM to say "stop sending me quote requests" short of disconnecting the SSE stream and letting the 60s heartbeat TTL lapse.
+
+**Why it matters:** A `POST /v1/mm/pause` (with a corresponding resume) would be a standard risk control primitive, and is safer and more auditable than relying on a connection timeout to signal intent.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Low medium.
+
+### 12. MM SSE stream is all or nothing
+
+**What it is:** `GET /v1/mm/quote-requests/stream` broadcasts every active quote request platform wide, with no filtering by category, venue, or minimum `bet_amount`.
+
+**Why it matters:** Every MM must build client side filtering today. This becomes more pressing as Totalis adds venues and market count grows. A `?category=` / `?venue=` / `?min_bet_amount=` query param scope — mirroring filters that already exist on `GET /markets` — would be a natural, low risk extension.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Medium.
+
+### 13. BYOW/headless partners have no aggregate rollup across sub accounts
+
+**What it is:** Per `_internal/partners/headless-integration.mdx`, `GET /v1/wallet`, `/v1/vault`, and `/v1/portfolio` all ignore `X-Subaccount` and don't return a sub account's vault. A principal managing many end user sub accounts has no single call to see total balances/exposure across its book.
+
+**Why it matters:** This is the biggest operational gap for the persona the BYOW model was built for. A `GET /v1/accounts/summary` aggregate endpoint would directly address it.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Medium high, but high value — arguably rivals #2 in leverage for the BYOW segment specifically.
+
+### 14. No CSV/bulk export for reconciliation or tax reporting
+
+**What it is:** The documented reconcile loop is manual cursor pagination through `GET /v1/rfqs?status=settled` plus per id detail fetches — functional, but no one shot export.
+
+**Why it matters:** Coinbase and most exchanges provide bulk export. Lower priority since a workaround already exists, but this is a recurring ask at tax time.
+
+**Type:** Product/API capability gap.
+
+**Difficulty:** Low.
+
+### 15. No official SDKs, no discoverable OpenAPI/Postman download, no webhook test send tool
+
+**What it is:** An `openapi.json` already exists in this repo but isn't surfaced anywhere in the docs site as a downloadable spec or Postman collection; every code sample is hand rolled curl/JS/Python. Separately, `webhooks.mdx` documents replaying real deliveries but has no synthetic test event sender (Stripe ships this).
+
+**Why it matters:** Meaningful friction for hobbyists in particular — signing, SSE reconnect via `last_event_id`, and webhook HMAC verification are all easy to get subtly wrong by hand, and the docs already show scars from exactly these mistakes.
+
+**Type:** Docs/packaging gap — all three items are additive and nonbreaking.
+
+**Difficulty:** Low medium.
+
+---
+
+### Explicitly out of scope
+
+Two categories were considered and deliberately **not** recommended:
+
+- **Configurable server side auto quoting policy** — would contradict the RFQ model's premise that MMs bring their own pricing logic.
+- **Anything requiring Totalis to custody funds** beyond the existing vault/delegation model.
+
+---
+
+## Section 2: Cross channel naming/contract inconsistencies
+
+Findings from an SSE/WebSocket/webhook/REST audit. These require an actual API/backend contract change, not just a docs fix — the durable fix is listed under each item.
+
+### 1. The same economic fields silently rename mid lifecycle
+
+`user_cost` (quote stage) becomes `user_stake` (settlement stage); `mm_cost` becomes `mm_risk`; `total_payout` becomes `payout`. This creates real reconciliation risk for anyone joining pretrade and posttrade data — not merely an aesthetic complaint.
+
+**Recommended fix:** Canonicalize to one name per concept across the whole lifecycle. This is a breaking change and needs a deprecation path (e.g. dual emit both names for a transition window before removing the old ones).
+
+### 2. MM SSE stream's inconsistent event name family
+
+On the same stream, "quote_request, but different" is spelled three ways: `quote_request` (new), `quote_request:updated` (colon), `quote_request_expired` (underscore, not `quote_request:expired`). The docs already flag this with a `<Warning>` rather than fixing it.
+
+**Recommended fix:** Rename for consistency, e.g. standardize on `quote_request:expired`.
+
+### 3. Three names for market maker identity
+
+`mm_id` (SSE connected/heartbeat, WS channel placeholder), `market_maker_id` (Quote objects, WS event payloads), `target_mm_id` (cashout create response).
+
+**Recommended fix:** Consolidate to one field name across all three channels.
+
+### 4. Cashout/buyback has no WebSocket event at all
+
+Despite docs claiming WebSocket and webhooks "carry the same lifecycle moments," `position.bought_back` exists only as a webhook event. A bot holding only a WebSocket connection — the docs' own recommended channel for latency sensitive trading bots — gets no real time signal that a position was bought out.
+
+**Recommended fix:** Add a `position:bought_back` WebSocket event so the WS channel actually matches the webhook catalog.
+
+### 5. Undocumented `draft_quote_id`
+
+Appears once, unexplained, in the `mm_quote:accepted` WebSocket payload example, alongside `quote_id`, with no definition anywhere of what a "draft" quote is versus an accepted one.
+
+**Recommended fix:** Either define it properly in the contract, or remove it if it has no external use.
+
+### 6. Missing cashout request GET (single) and cancel endpoints
+
+The documented API surface is missing single resource GET and cancel endpoints for cashout requests, despite `lifecycle.mdx`'s own state diagram showing a `cancelled` terminal cashout state.
+
+**Note:** Docs are being updated separately to document these as existing, previously undocumented endpoints, based on internal confirmation. Their exact response schema wasn't independently verifiable, since they sit outside `openapi.json` — a schema review is still warranted before treating the docs update as authoritative.
+
+### 7. Structural root cause: `quote-service` pages sit outside the OpenAPI spec
+
+`quote-service`, `quote-service-mm`, and `mm/confirm-quote` are hand authored docs pages that sit entirely outside `api-reference/openapi.json`, which drives every other section (funds, parlays, user, webhooks, markets). There's no single schema of record for the highest traffic part of the API — which is almost certainly why terminology has drifted (nothing mechanically forces `mm_cost` and `mm_risk` to reconcile to one name).
+
+**Recommended fix:** Bring `quote-service`/`quote-service-mm` into the OpenAPI spec, or maintain a shared internal schema source that both draw from. This is the highest leverage structural fix on this list — it would make cross references mechanically checkable instead of relying on prose diligence, and would likely prevent recurrence of findings #1–#5 above.
+
+### 8. Four different event naming grammars across channels, with no stated rationale
+
+SSE uses bare/underscore names, WebSocket uses `resource:verb` colon namespaced, webhooks use `resource.verb` dot namespaced. A parallel docs only fix explains this to readers, but the underlying inconsistency remains. SSE and WebSocket are both entirely Totalis controlled wire formats, unlike webhooks, which might reasonably mirror external webhook provider conventions. Standardizing on one separator between SSE and WebSocket specifically would reduce the inconsistency.
+
+**Recommended fix:** Pick one separator convention for SSE and WebSocket (leave webhooks as is, since dot namespacing is a defensible external convention on its own).

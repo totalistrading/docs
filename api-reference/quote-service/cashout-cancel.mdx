@@ -1,0 +1,55 @@
+---
+title: "Cancel Cashout Request"
+api: "POST /v1/cashout-requests/{id}/cancel"
+description: "Cancel an active cashout (buyback) request."
+---
+
+<Note>
+  This endpoint mirrors [Cancel quote request](/api-reference/quote-service/cancel) — but its response shape has **not been verified against the live API**. Confirm field names and shapes with engineering before treating this page as authoritative.
+</Note>
+
+Cancel an active cashout request. The backing market maker's pending buyback quote, if any, is invalidated and the request is removed from the live stream. Returns `204 No Content` on success.
+
+You can only cancel a cashout request while its status is `active`. `cancelled` is a documented terminal status on the [cashout-request stream](/api-reference/quote-service/cashout-stream#status) — this endpoint produces it.
+
+## Authentication
+
+API key required. Pass your API key in the `X-API-Key` header.
+
+```
+X-API-Key: <your-api-key>
+```
+
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## Response
+
+Returns `204 No Content` with no response body.
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | You do not own this cashout request. |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+| 409 | `CONFLICT` | Cashout request is not `active` — already `committing`, `committed`, `declined`, `expired`, or `cancelled`. |
+
+<RequestExample>
+```bash curl
+curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/cancel \
+  -H "X-API-Key: $TOTALIS_API_KEY"
+```
+</RequestExample>
+
+<ResponseExample>
+```bash 204
+# No response body
+```
+</ResponseExample>

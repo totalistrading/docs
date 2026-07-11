@@ -4,7 +4,7 @@ Documentation for the Totalis Parlay RFQ API, built with [Mintlify](https://mint
 
 ## Development
 
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
+Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally:
 
 ```
 npm i -g mint

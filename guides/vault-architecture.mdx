@@ -3,9 +3,42 @@ title: 'Vaults & custody'
 description: 'How Totalis holds collateral: noncustodial on chain Solana vaults, delegated signing, gas sponsorship, and automatic settlement.'
 ---
 
-Totalis is **noncustodial**. Your funds sit in an on chain Solana vault that the protocol's program controls — not in a Totalis held account. You enable trading once by delegating signing permission, and from then on placing, settling, and closing parlays happens without you signing each transaction by hand.
+Totalis is **noncustodial**. Your funds sit in an on chain Solana vault that the protocol's program controls — not in a Totalis held account. You enable trading once by delegating signing permission — after that, placing, settling, and closing a parlay needs no signature from you.
 
-![Totalis vault flow: persistent vaults, atomic position creation, and settlement](/vault_architecture.png)
+```mermaid
+%%{init: {'themeVariables': {'edgeLabelBackground': '#1f2020', 'lineColor': '#ffffff'}}}%%
+flowchart LR
+    UW["User Wallet<br/>(Privy TEE)"]
+    MW["Market Maker Wallet<br/>(Privy TEE)"]
+
+    subgraph onchain["Solana on chain"]
+        direction LR
+        UV["User Vault PDA<br/>holds USDC"]
+        MV["MM Vault PDA<br/>holds USDC"]
+        VC["VaultConfig PDA<br/>stores roles + fee_bps (1%)"]
+        POS["Position PDA<br/>locks user_stake + mm_collateral<br/>(parlay legs + status)"]
+        FV["Fee Vault (cold wallet)<br/>collects protocol revenue"]
+
+        UV -- "lock user_stake" --> POS
+        MV -- "lock mm_collateral" --> POS
+        VC -. "reads roles + fee_bps" .-> POS
+        POS -- "fee (1% of profit, winning side)" --> FV
+    end
+
+    subgraph offchain["Off chain"]
+        direction TB
+        ORACLE["Off chain oracle<br/>creates positions<br/>monitors outcomes<br/>settles / cancels"]
+        API["Kalshi / Polymarket API<br/>market outcomes"]
+        ORACLE -- "polls outcomes" --> API
+    end
+
+    UW -- "deposit (USDC)" --> UV
+    UV -- "payout (if user wins)" --> UW
+    MW -- "deposit (USDC)" --> MV
+    MV -- "payout (if MM wins)" --> MW
+    ORACLE -- "create_position" --> POS
+    ORACLE -- "settle / cancel" --> POS
+```
 
 ## Your vault
 
@@ -23,7 +56,7 @@ Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). You f
 
 Your wallet is a Privy embedded wallet whose private key lives inside a **Trusted Execution Environment (TEE)** — it never leaves the enclave, and not even Privy can extract it.
 
-To trade, you grant Totalis permission to sign on your behalf inside that enclave (a one time consent in the app — see [Enable trading](/guides/funding#enable-trading-first)). This is **semicustodial**: you explicitly grant the permission and can revoke it at any time. Totalis can sign your trades, but never holds or can move your key.
+To trade, you grant Totalis permission to sign on your behalf inside that enclave (a one time consent in the app — see [Enable trading](/guides/funding#enable-trading-first)). This is **semicustodial**: you can revoke the permission any time, and Totalis can sign your trades but never holds or can move your key.
 
 ## Gas is sponsored
 
@@ -33,7 +66,7 @@ Totalis pays the network fees for trading and settlement, so your wallet only ev
 
 When you accept a quote, your stake and the maker's collateral lock together in a **single atomic transaction** — there's no window where one side is funded and the other isn't.
 
-At settlement, funds move between vaults and a protocol fee is taken **on profit only**:
+Totalis charges two fees: a 1% taker fee on your stake, charged upfront when you place the trade, and a protocol fee taken **on profit only** when funds move between vaults at settlement:
 
 - **You win** — you receive the maker's collateral, minus the fee on your profit.
 - **You lose** — your stake transfers to the maker, minus the fee.

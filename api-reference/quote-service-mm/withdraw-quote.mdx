@@ -7,7 +7,7 @@ description: "Withdraw your active quote from a quote request before the user co
 Withdraw your active quote from a quote request. If the quote has already expired naturally, the response indicates `already_expired` instead of returning an error.
 
 <Note>
-Withdraw only when you want to **retract a quote on the current version** that you no longer want to honor — for example, your price moved before the user committed. You do **not** need to withdraw when the request changes `version`: your prior version quote is invalidated automatically. To quote the new version, just [submit](/api-reference/quote-service-mm/submit-quote) again with the new `request_version` and `request_hash`.
+Withdraw only to retract a **current version** quote you no longer want to honor — for example, your price moved before the user committed. You do **not** need to withdraw when the request changes `version`: your prior version quote is invalidated automatically. To quote the new version, [submit](/api-reference/quote-service-mm/submit-quote) again with the new `request_version` and `request_hash`.
 </Note>
 
 ## Authentication
@@ -18,13 +18,13 @@ API key required. Pass your market maker API key in the `X-API-Key` header.
 X-API-Key: <key>
 ```
 
-## Path Parameters
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
 </ParamField>
 
-## Request Body (optional)
+## Request body (optional)
 
 <ParamField body="request_version" type="integer">
   The request version your quote was submitted for. Defaults to the current version if omitted.

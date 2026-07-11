@@ -14,7 +14,7 @@ Totalis offers two integration models. Each exposes the same trading surface for
 
 ## Choosing a Model
 
-The managed model is the fastest way to go live. Totalis provisions and custodies an embedded wallet. You fund it and trade with an API key. The only step that is not yet programmatic is a single delegation that authorizes Totalis to sign on the wallet's behalf.
+The managed model is the fastest way to go live. Totalis provisions and custodies an embedded wallet. You fund it and trade with an API key. The only step that isn't yet programmatic is a single delegation authorizing Totalis to sign on the wallet's behalf.
 
 The headless model keeps custody with you. Your keys, or your end users' keys, stay inside your own infrastructure. For every on chain action, Totalis builds the transaction and returns it unsigned, you sign it, and Totalis broadcasts and settles it. No part of the flow touches a browser, and there is no delegation step. A single API principal manages any number of sub accounts, each end user with its own vault. Partners running their own platform use this model.
 

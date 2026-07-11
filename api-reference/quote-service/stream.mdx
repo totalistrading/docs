@@ -16,13 +16,13 @@ X-API-Key: <your-api-key>
 
 A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
 
-## Path Parameters
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
 </ParamField>
 
-## SSE Event Types
+## SSE event types
 
 ### `best_quote`
 
@@ -67,7 +67,7 @@ Sent when the quote request transitions out of the `active` state (committed, ca
 }
 ```
 
-Immediately after `status`, the stream also emits one **terminal event** matching the outcome, then closes. Listen for either the generic `status` event or the specific one below.
+Immediately after `status`, the stream emits one **terminal event** matching the outcome, then closes. Listen for either the generic `status` event or the specific one below.
 
 ### `committed`
 
@@ -100,7 +100,7 @@ The quote request reached its `expires_at` without being committed.
 }
 ```
 
-## Integration Guide
+## Integration guide
 
 1. Open the SSE stream after creating or updating a quote request.
 2. On each `best_quote` event, update your displayed payout odds and store the `book_seq` and best quote `id`.

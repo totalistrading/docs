@@ -1,12 +1,12 @@
 ---
 title: "Confirm Quote"
-api: "POST /mm/quotes/{quoteId}/confirm"
+api: "POST /v1/mm/quotes/{quoteId}/confirm"
 description: "Confirm an accepted quote to lock in the trade and begin vault settlement."
 ---
 
-Confirm an accepted quote to finalize the trade. This triggers an atomic Solana transaction that locks the user's stake and your collateral in their respective vaults.
+Confirming an accepted quote triggers an atomic Solana transaction that locks the user's stake and your collateral in their respective vaults.
 
-You receive a `quote:accepted` WebSocket event when a user commits your quote. You must confirm before the `confirmation_deadline` returned in that event. The selected market maker may also receive `mm_quote:accepted` on the same `mm:quotes:{mm_id}` channel with richer quote economics and `exposure_legs`; use it for local risk reservation or analytics. Both events carry the same accepted `quote_id`, and either value is valid for confirmation. Do not rely on delivery order between the two events. If you miss the deadline, the trade is unwound and the RFQ reopens for other market makers.
+You receive a `quote:accepted` WebSocket event when a user commits your quote, and must confirm before the `confirmation_deadline` in that event. You may also receive `mm_quote:accepted` on the same `mm:quotes:{mm_id}` channel, with richer quote economics and `exposure_legs`, for local risk reservation or analytics. Both events carry the same `quote_id` — either is valid for confirmation, and delivery order between them isn't guaranteed. If you miss the deadline, the trade unwinds and the RFQ reopens for other market makers.
 
 **Base URL:** `https://api.totalis.trade`
 
@@ -18,13 +18,13 @@ API key required. Pass your market maker API key in the `X-API-Key` header.
 X-API-Key: <key>
 ```
 
-## Path Parameters
+## Path parameters
 
 <ParamField path="quoteId" type="string" required>
   The accepted quote ID (UUID). This is the `quote_id` from the `quote:accepted` WebSocket event, and matches `quote_id` on the optional `mm_quote:accepted` detail event.
 </ParamField>
 
-## Request Body
+## Request body
 
 No request body required.
 
@@ -51,7 +51,7 @@ No request body required.
 
 <RequestExample>
 ```bash
-curl -X POST https://api.totalis.trade/mm/quotes/d4e5f6a7-8901-bcde-f234-567890abcdef/confirm \
+curl -X POST https://api.totalis.trade/v1/mm/quotes/d4e5f6a7-8901-bcde-f234-567890abcdef/confirm \
   -H "X-API-Key: $API_KEY"
 ```
 
@@ -61,7 +61,7 @@ ws.on('message', async (msg) => {
   const event = JSON.parse(msg);
   if (event.type === 'quote:accepted') {
     const res = await fetch(
-      `https://api.totalis.trade/mm/quotes/${event.data.quote_id}/confirm`,
+      `https://api.totalis.trade/v1/mm/quotes/${event.data.quote_id}/confirm`,
       {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
@@ -80,7 +80,7 @@ import requests
 quote_id = "d4e5f6a7-8901-bcde-f234-567890abcdef"
 
 resp = requests.post(
-    f"https://api.totalis.trade/mm/quotes/{quote_id}/confirm",
+    f"https://api.totalis.trade/v1/mm/quotes/{quote_id}/confirm",
     headers={"X-API-Key": API_KEY},
 )
 data = resp.json()["data"]

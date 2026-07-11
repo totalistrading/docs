@@ -4,7 +4,7 @@ api: "GET /v1/cashout-requests/{id}/stream"
 description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server Sent Events."
 ---
 
-Open a Server Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote", plus a terminal `status` frame when the request leaves the `active`/`committing` states.
+Open a Server Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote". It also sends a terminal `status` frame when the request leaves the `active`/`committing` states.
 
 ## Authentication
 
@@ -16,13 +16,13 @@ X-API-Key: <your-api-key>
 
 A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
 
-## Path Parameters
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The cashout request ID (UUID).
 </ParamField>
 
-## SSE Event Types
+## SSE event types
 
 ### `best_quote`
 
@@ -66,6 +66,8 @@ Sent once the request leaves `active`/`committing`, then the stream closes. The 
   "status": "committed"
 }
 ```
+
+This is a single event — the stream closes right after it. That's different from the [quote-request stream](/api-reference/quote-service/stream#status), where `status` is followed immediately by a second, more specific terminal event (`committed`, `cancelled`, or `expired`) before the stream closes. The cashout stream skips that second event: `status` alone is the terminal signal here.
 
 | Terminal `status` | Meaning |
 |-------------------|---------|
