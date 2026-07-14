@@ -10,13 +10,15 @@ You can only cancel a quote request while its status is `active`.
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
 
-## Path Parameters
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The quote request ID (UUID).
@@ -30,7 +32,7 @@ Returns `204 No Content` with no response body.
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this quote request. |
 | 404 | `NOT_FOUND` | Quote request not found. |
 | 409 | `CONFLICT` | Quote request is already committed, cancelled, or expired. |
@@ -38,7 +40,7 @@ Returns `204 No Content` with no response body.
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/cancel \
-  -H "Authorization: Bearer $TOKEN"
+  -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 </RequestExample>
 

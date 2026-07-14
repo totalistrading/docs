@@ -11,6 +11,12 @@ The endpoint belongs to your **account** (the principal), not to the key that cr
 your active keys with the right scope manages it, and revoking one key among several does not stop
 delivery.
 
+<Note>
+  Webhooks are the durable channel — at-least-once, signed, retried. For the same events pushed
+  live to a connected client (a UI or trading bot), use the [WebSocket](/guides/websocket). See
+  [Real time & data channels](/guides/realtime-and-data) for the full channel map.
+</Note>
+
 ## Configuring your endpoint
 
 Set your endpoint URL and the events you want with `PUT /v1/webhooks` (managing the endpoint needs
@@ -44,15 +50,6 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
 
 ## Event catalog
 
-| Event | Required scope | `data` fields |
-| --- | --- | --- |
-| `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
-| `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
-| `position.bought_back` | `positions:read` | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
-| `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
-| `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
-| `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
-
 <Note>
   **`parlay.status_changed`** tracks an RFQ's live progression — `status` is one of `accepted`,
   `confirmed`, `executed`, or `cancelled` (`accepted_quote_id` is set once a quote is accepted, else
@@ -61,6 +58,15 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
   `parlay.status_changed` (`status: "cancelled"`) and `position.cancelled` — dedupe on
   `X-Totalis-Event-Id` if you subscribe to both.
 </Note>
+
+| Event | Required scope | `data` fields |
+| --- | --- | --- |
+| `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `positions:read` | `rfq_id`, `amount` (the directional buyback amount, net on top of the refunded stake — see `mm_pays_user` for direction), `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
+| `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
+| `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 
 ## Delivery format
 

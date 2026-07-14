@@ -40,6 +40,8 @@
           {
             "group": "Guides",
             "pages": [
+              "guides/realtime-and-data",
+              "guides/event-catalog",
               "guides/reading-data",
               "guides/webhooks",
               "guides/websocket",
@@ -77,7 +79,9 @@
               "api-reference/quote-service/cancel",
               "api-reference/quote-service/stream",
               "api-reference/quote-service/cashout-create",
+              "api-reference/quote-service/cashout-get",
               "api-reference/quote-service/cashout-stream",
+              "api-reference/quote-service/cashout-cancel",
               "api-reference/quote-service/cashout-commit"
             ]
           },

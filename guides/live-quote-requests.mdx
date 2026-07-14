@@ -11,7 +11,7 @@ All endpoints use the `/v1/` prefix on the Quote Service base URL.
 
 <Steps>
   <Step title="Create a quote request">
-    Call [`POST /v1/quote-requests`](/api-reference/quote-service/create) with your parlay legs and bet amount. You can update legs or bet amount with [`PATCH /v1/quote-requests/{id}`](/api-reference/quote-service/update) -- each change bumps the `version` and invalidates stale quotes.
+    Call [`POST /v1/quote-requests`](/api-reference/quote-service/create) with your parlay legs and bet amount. You can update legs or bet amount with [`PATCH /v1/quote-requests/{id}`](/api-reference/quote-service/update) — each change bumps the `version` and invalidates stale quotes.
   </Step>
   <Step title="Stream live pricing">
     Open an SSE connection to [`GET /v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream) to receive `best_quote` events as market makers submit and update their offers. Each event includes `book_seq` (monotonically increasing) and the current best payout multiplier.
@@ -56,6 +56,7 @@ If a commit fails, `error.details.reason` tells you why:
 | `QUOTE_CHANGED` | The request was updated since your last fetch. Re-fetch and try again. |
 | `MARKET_NOT_LIVE` | One or more markets expired, halted, or were delisted. Remove the affected legs. |
 | `QUOTE_EXPIRED` | All quotes expired. Wait for a fresh quote and retry. |
+| `COMMIT_FAILED` | The commit couldn't be completed — for example, no eligible market maker had sufficient collateral. Not retryable; the trade did not happen. |
 | `COMMIT_FAILED_RETRYABLE` | Temporary error. Retry after a short delay. |
 
 ## For market makers
@@ -66,7 +67,7 @@ Connect to the [MM SSE stream](/api-reference/quote-service-mm/stream) to receiv
 
 ### Submitting quotes
 
-Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version -- submitting again replaces your previous quote. Send only the fields below; the server derives `user_cost`, `total_payout`, and `mm_cost` from `payout_odds` and the request's `bet_amount`.
+Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version — submitting again replaces your previous quote. Send only the fields below; the server derives `user_cost`, `total_payout`, and `mm_cost` from `payout_odds` and the request's `bet_amount`.
 
 ```json
 {
@@ -77,17 +78,17 @@ Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/su
 }
 ```
 
-Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically -- just re-price and `PUT` a new quote with the new `version` and `request_hash`. You don't need to withdraw the old one.
+Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically — just re-price and `PUT` a new quote with the new `version` and `request_hash`. You don't need to withdraw the old one.
 
 ### Withdrawing quotes
 
-Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote on the **current** version before the user commits it -- for example, if your price moved and you want to stand down. This is not part of the version-change flow: a new `version` already invalidates your prior quote, so you don't withdraw to re-quote.
+Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote on the **current** version before the user commits it — for example, if your price moved and you want to stand down. This is not part of the version-change flow: a new `version` already invalidates your prior quote, so you don't withdraw to re-quote.
 
 ### Heartbeat
 
 Send [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) every 30 seconds to signal liveness. The TTL is 60 seconds.
 
-## SSE Event Format
+## SSE event format
 
 Events on the user stream (`/v1/quote-requests/{id}/stream`):
 
@@ -106,7 +107,7 @@ Events on the user stream (`/v1/quote-requests/{id}/stream`):
 }
 ```
 
-When no quotes are active, `best_quote` is `null`. Store `book_seq` and `best_quote.id` from the latest event -- you'll need them for the commit request.
+When no quotes are active, `best_quote` is `null`. Store `book_seq` and `best_quote.id` from the latest event — you'll need them for the commit request.
 
 ## Quote request object
 

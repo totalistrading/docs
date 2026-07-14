@@ -1,0 +1,33 @@
+.nodeLabel,
+.label,
+.label text,
+span.nodeLabel,
+.edgeLabel,
+.edgeLabel p {
+  font-weight: 600 !important;
+  color: white !important;
+  fill: white !important;
+}
+
+.node rect,
+.node polygon,
+.node circle,
+.node ellipse,
+.node path {
+  stroke: white !important;
+}
+
+.cluster rect {
+  fill: #1f2020 !important;
+  stroke: rgba(255, 255, 255, 0.4) !important;
+  stroke-dasharray: 4 !important;
+}
+
+.cluster text,
+.cluster-label text,
+.cluster span,
+.cluster-label span {
+  color: white !important;
+  fill: white !important;
+  font-weight: 600 !important;
+}
