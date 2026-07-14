@@ -214,13 +214,13 @@
         "tags": [
           "Markets"
         ],
-        "summary": "List markets (flat)",
-        "description": "Returns a paginated list of individual markets, most-traded first. Unlike the event-grouped `GET /markets`, results aren't grouped by event and are never capped per event, so every market is reachable. Filter by venue, category, subcategory, or one or more series.\n\nPaginate with `cursor` until it returns `null`; `meta.total` is the total number of matches. For a complete sync, de-duplicate by `ticker` — markets with equal volume aren't guaranteed a stable order between requests. Scoping to a `subcategory` or `series_ticker` set avoids this entirely.",
+        "summary": "List markets as a flat feed (programmatic)",
+        "description": "A flat, cursor-paginated list of individual markets — the programmatic counterpart to `GET /markets`. Unlike that endpoint this does NOT group by event and imposes NO per-event market cap, so it surfaces every market of a busy game (a World Cup fixture carries 70+ markets across prop series — corners, assists, team totals — that the event-grouped listing truncates away). Intended for market makers and partners that need the full tradeable universe.\n\nEvery filter is applied server-side against the live market index and results are ordered by 24h volume, descending. Pagination is cursor- based: follow `meta.cursor` until it is null. `meta.total` is the full match count. The feed reflects the search index directly (refreshed continuously), so it is a few seconds fresher than the display listing.\n\n**Completeness is best-effort, not gap-free.** Ordering is by a single key (24h volume) and the long tail this feed targets — props like assists and corners — clusters at volume 0, one large tie group whose internal order is not stable across index mutations (markets re-sync every few minutes; de-whitelisted markets are evicted). Paging offset by offset over several seconds can therefore skip or repeat a market inside that tie group. **Consumers doing a full sync should de-duplicate by `ticker`** and, ideally, re-run periodically rather than treating one pass as authoritative. Narrow filters (a `series_ticker` set or `subcategory`) shrink the result to a stable, fully-enumerable page or two and sidestep this entirely — the recommended pattern for MMs.\n\nTo retrieve every market of a single game/event including its long-tail props, prefer `GET /markets/events/{event_ticker}` — it returns one event's complete market set in a single call.\n",
         "parameters": [
           {
             "name": "category",
             "in": "query",
-            "description": "Filter by category, e.g. `sports` or `crypto`.",
+            "description": "Filter by top-level category. Omit for all categories.",
             "schema": {
               "type": "string",
               "enum": [
@@ -239,7 +239,7 @@
           {
             "name": "venue",
             "in": "query",
-            "description": "Filter by venue: `kalshi` or `polymarket`.",
+            "description": "Filter by venue (kalshi or polymarket). Omit to include all venues.",
             "schema": {
               "$ref": "#/components/schemas/Venue"
             }
@@ -247,7 +247,7 @@
           {
             "name": "subcategory",
             "in": "query",
-            "description": "Filter by subcategory, e.g. `world_cup`. Requires `category`.",
+            "description": "Filter by subcategory (e.g. `world_cup`, `mlb`, `btc`). Valid values depend on the selected `category`; requires `category` to also be set.",
             "schema": {
               "$ref": "#/components/schemas/SubcategorySlug"
             }
@@ -255,7 +255,7 @@
           {
             "name": "frequency",
             "in": "query",
-            "description": "Filter by series cadence: `daily`, `weekly`, `monthly`, or `hourly`.",
+            "description": "Filter by the cadence of the underlying series. `other` is not a valid filter input.",
             "schema": {
               "type": "string",
               "enum": [
@@ -269,7 +269,7 @@
           {
             "name": "series_ticker",
             "in": "query",
-            "description": "Filter by one or more series, comma-separated and case-sensitive, e.g. `KXWCAST,KXWCTCORNERS`. Up to 100.",
+            "description": "Restrict to one or more series. Comma-separated for an OR match (e.g. `KXWCAST,KXWCTCORNERS`). Case-sensitive; at most 100 values. Omit for no series restriction; a present-but-empty value returns 400 (a blank identity filter is treated as a caller error, not as 'all series').",
             "schema": {
               "type": "string"
             }
@@ -277,7 +277,7 @@
           {
             "name": "status",
             "in": "query",
-            "description": "Filter by status. Defaults to tradeable markets (`active,open`); pass a comma-separated list of `active`, `open`, `closed`, `settled`, `finalized`, or `all`. An empty or unrecognised value returns 400.",
+            "description": "Filter by market status. Omit for tradeable markets only (default `active,open`). Pass a comma-separated list of `active`, `open`, `closed`, `settled`, `finalized` to override, or `all` to include every status regardless of tradeability. An empty value or an unrecognized status returns 400 (an empty value is rejected rather than silently widening to all statuses).",
             "schema": {
               "type": "string",
               "default": "active,open"
@@ -289,7 +289,7 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Number of markets per page, from 1 to 500. Defaults to 100. Only the first 10,000 matches are reachable — narrow the filters to page further.",
+            "description": "Markets per page. Default 100, max 500. Pagination is bounded to the first 10,000 matches; beyond that, narrow the filters.",
             "schema": {
               "type": "integer",
               "default": 100,

@@ -1,16 +1,31 @@
 ---
-title: 'List Markets (Flat)'
-description: 'A flat, paginated feed of every individual market — ungrouped and never truncated. Built for market makers and partners syncing the full tradeable universe.'
+title: 'List Markets (Flat Feed)'
+description: 'A flat, cursor-paginated feed of individual markets — the programmatic counterpart to List Markets. No event grouping and no per-event cap, so it surfaces every market of a busy game, including long-tail props. Built for market makers and partners that need the full tradeable universe.'
 openapi: 'GET /v1/markets/list'
 ---
 
 <Note>
-  **Building parlays?** Every market carries an `exclusion_keys` array. Two
-  markets can share a parlay only if their arrays don't intersect — a plain
-  set-intersection check, with no correlation rules to maintain client-side.
+  **When to use this instead of [List Markets](/api-reference/markets/list).**
+  `GET /markets` groups markets by event and caps how many markets it returns
+  per event (`markets_per_event`), so it's built for display — a single busy
+  game (e.g. a World Cup fixture with 70+ markets across corners, assists, team
+  totals, and other prop series) will have its lower-volume props truncated
+  away. `GET /markets/list` is the programmatic feed: it returns individual
+  markets with **no grouping and no per-event cap**, so nothing is dropped.
+  Filter with `series_ticker`, `subcategory`, `category`, `venue`, `status`, or
+  `frequency`, and page through with `meta.cursor` until it is `null`.
 </Note>
 
-<Tip>
-  Need every market for a single game? `GET /markets/events/{event_ticker}`
-  returns one event's complete market set in a single request.
-</Tip>
+<Note>
+  **Pulling one game's full market set?** If you already know the event, you can
+  also call `GET /markets/events/{event_ticker}`, which returns that single
+  event's complete, untruncated market list in one call.
+</Note>
+
+<Note>
+  **Building parlays?** Every market carries an `exclusion_keys` array. Two
+  markets cannot be combined in the same parlay **if (and only if) their
+  `exclusion_keys` intersect** — a pure set-intersection, no correlation rule
+  tables to maintain client-side. See the `exclusion_keys` field in the
+  response schema below.
+</Note>
