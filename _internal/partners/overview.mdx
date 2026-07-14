@@ -1,26 +1,26 @@
 ---
 title: 'Partner Integration'
-description: 'Two ways to integrate trading on Totalis: managed custody, available today, and headless noncustodial, in development.'
+description: 'Two ways to integrate trading on Totalis: managed custody, available today, and headless non-custodial, in development.'
 ---
 
 Totalis offers two integration models. Each exposes the same trading surface for markets, quoting, and settlement. They differ in who holds the signing keys for the underlying Solana wallet.
 
-| | Managed (custodial) | Headless (noncustodial) |
+| | Managed (custodial) | Headless (non-custodial) |
 | --- | --- | --- |
 | Status | Available today | In development |
-| Keys held by | Totalis managed wallet | You or your end users |
-| Onboarding | One time delegation | Fully programmatic |
+| Keys held by | Totalis-managed wallet | You or your end-users |
+| Onboarding | One-time delegation | Fully programmatic |
 | Best for | Individuals, quick clients | Platforms that custody their own users |
 
 ## Choosing a Model
 
-The managed model is the fastest way to go live. Totalis provisions and custodies an embedded wallet. You fund it and trade with an API key. The only step that isn't yet programmatic is a single delegation authorizing Totalis to sign on the wallet's behalf.
+The managed model is the fastest way to go live. Totalis provisions and custodies an embedded wallet. You fund it and trade with an API key. The only step that is not yet programmatic is a single delegation that authorizes Totalis to sign on the wallet's behalf.
 
-The headless model keeps custody with you. Your keys, or your end users' keys, stay inside your own infrastructure. For every on chain action, Totalis builds the transaction and returns it unsigned, you sign it, and Totalis broadcasts and settles it. No part of the flow touches a browser, and there is no delegation step. A single API principal manages any number of sub accounts, each end user with its own vault. Partners running their own platform use this model.
+The headless model keeps custody with you. Your keys, or your end-users' keys, stay inside your own infrastructure. For every on-chain action, Totalis builds the transaction and returns it unsigned, you sign it, and Totalis broadcasts and settles it. No part of the flow touches a browser, and there is no delegation step. A single API principal manages any number of sub-accounts, each end-user with its own vault. Partners running their own platform use this model.
 
 <CardGroup cols={2}>
   <Card title="Managed Quickstart" href="/_internal/partners/quickstart-managed">
-    Trade today with a Totalis managed wallet and an API key.
+    Trade today with a Totalis-managed wallet and an API key.
   </Card>
   <Card title="Headless Integration" href="/_internal/partners/headless-integration">
     Keep custody of your keys while Totalis builds and settles. Preview.

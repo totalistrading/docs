@@ -1,28 +1,26 @@
 ---
 title: "Stream Cashout Quote"
 api: "GET /v1/cashout-requests/{id}/stream"
-description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server Sent Events."
+description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server-Sent Events."
 ---
 
-Open a Server Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote". It also sends a terminal `status` frame when the request leaves the `active`/`committing` states.
+Open a Server-Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote", plus a terminal `status` frame when the request leaves the `active`/`committing` states.
 
 ## Authentication
 
-API key required. Pass your API key in the `X-API-Key` header.
+Bearer token required. Pass your JWT in the `Authorization` header.
 
 ```
-X-API-Key: <your-api-key>
+Authorization: Bearer <jwt>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
-
-## Path parameters
+## Path Parameters
 
 <ParamField path="id" type="string" required>
   The cashout request ID (UUID).
 </ParamField>
 
-## SSE event types
+## SSE Event Types
 
 ### `best_quote`
 
@@ -59,7 +57,7 @@ When no quote is live, `best_quote` is `null`:
 
 ### `status`
 
-Sent once the request leaves `active`/`committing`, then the stream closes. The `status` is the terminal cashout request state.
+Sent once the request leaves `active`/`committing`, then the stream closes. The `status` is the terminal cashout-request state.
 
 ```json
 {
@@ -67,12 +65,10 @@ Sent once the request leaves `active`/`committing`, then the stream closes. The 
 }
 ```
 
-This is a single event — the stream closes right after it. That's different from the [quote-request stream](/api-reference/quote-service/stream#status), where `status` is followed immediately by a second, more specific terminal event (`committed`, `cancelled`, or `expired`) before the stream closes. The cashout stream skips that second event: `status` alone is the terminal signal here.
-
 | Terminal `status` | Meaning |
 |-------------------|---------|
-| `committed` | Buyback driven on chain; the RFQ becomes `bought_back`. |
-| `declined` | The MM permanently refused to quote (near decided / unpriceable leg). |
+| `committed` | Buyback driven on-chain; the RFQ becomes `bought_back`. |
+| `declined` | The MM permanently refused to quote (near-decided / unpriceable leg). |
 | `expired` | The request's ~90 s TTL elapsed with no commit. |
 | `cancelled` | The request was cancelled. |
 
@@ -80,53 +76,35 @@ This is a single event — the stream closes right after it. That's different fr
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
 | 403 | `FORBIDDEN` | You do not own this cashout request. |
 | 404 | `NOT_FOUND` | Cashout request not found. |
 
 <RequestExample>
 ```bash curl
 curl -N https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/stream \
-  -H "X-API-Key: $TOTALIS_API_KEY" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Accept: text/event-stream"
 ```
 
 ```javascript JavaScript
-// Native EventSource can't send an X-API-Key header — read the SSE stream
-// with fetch instead (works in browsers and Node 18+).
-async function streamCashout(id, apiKey) {
-  const res = await fetch(
-    `https://api.totalis.trade/v1/cashout-requests/${id}/stream`,
-    { headers: { 'X-API-Key': apiKey, Accept: 'text/event-stream' } }
-  );
+const EventSource = require('eventsource');
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
+const es = new EventSource(
+  'https://api.totalis.trade/v1/cashout-requests/c3d4e5f6.../stream',
+  { headers: { 'Authorization': `Bearer ${token}` } }
+);
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) return;
-    buffer += decoder.decode(value, { stream: true });
+es.addEventListener('best_quote', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Buyback quote:', data.best_quote);
+});
 
-    let sep;
-    while ((sep = buffer.indexOf('\n\n')) !== -1) {
-      const frame = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
-      const event = frame.match(/^event: (.+)$/m)?.[1];
-      const data = frame.match(/^data: (.+)$/m)?.[1];
-      if (!event || !data) continue;
-      const payload = JSON.parse(data);
-
-      if (event === 'best_quote') {
-        console.log('Buyback quote:', payload.best_quote);
-      } else if (event === 'status') {
-        console.log('Terminal:', payload.status);
-        return; // the stream closes after the terminal status
-      }
-    }
-  }
-}
+es.addEventListener('status', (e) => {
+  const { status } = JSON.parse(e.data);
+  console.log('Terminal:', status);
+  es.close();
+});
 ```
 </RequestExample>
 

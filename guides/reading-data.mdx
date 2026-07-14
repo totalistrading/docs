@@ -1,15 +1,11 @@
 ---
-title: 'Reading your data'
+title: 'Reading Your Data'
 description: 'Pull your account state on demand — portfolio, parlay history, settlement outcomes, P&L, and balances — to complement the webhook push channel.'
 ---
 
-The push channels ([webhooks](/guides/webhooks) and the [WebSocket](/guides/websocket)) tell you
-when things happen; the read endpoints let you **pull** state on demand — for backfill,
-reconciliation, and display. See [Real time & data channels](/guides/realtime-and-data)
-for how the channels fit together.
-
-Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v1`. Market data at
-`/markets` is public — no key needed.
+[Webhooks](/guides/webhooks) push events as they happen; the read endpoints let you **pull** the same
+state on demand — for backfill, reconciliation, and on-demand display. All of these accept a scoped
+API key (`*:read` scopes) and live under `/v1`.
 
 ## What to read
 
@@ -17,50 +13,15 @@ Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v
 | --- | --- | --- |
 | Balance + stats + status counts in one call | [`GET /v1/portfolio`](/api-reference/funds/portfolio) | `positions:read` + `balances:read` |
 | Vault balance + active positions | [`GET /v1/vault`](/api-reference/funds/get-vault) | `balances:read` |
-| Wallet address, all balances, locked funds | [`GET /v1/wallet`](/api-reference/user/get-wallet) | `balances:read` |
 | Your parlays, paginated (filter by status) | [`GET /v1/rfqs`](/api-reference/parlays/list) | `positions:read` |
 | One parlay's detail + settlement outcome | [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) | `positions:read` |
 | Realized P&L timeseries | [`GET /v1/pnl`](/api-reference/funds/pnl) | `positions:read` |
-| Your profile (username, wallet address) | [`GET /v1/me`](/api-reference/user/get-profile) | `account:read` |
-| Live market data (prices, volume, open interest) | [`GET /markets`](/api-reference/markets/list) | none — public |
-
-## Filtering parlays
-
-[`GET /v1/rfqs`](/api-reference/parlays/list) takes two query params:
-
-- **`status`** — comma joined, e.g. `?status=executed,settled`. See the
-  [status reference](/guides/lifecycle#status-reference) for the full set.
-- **`include=quotes`** — attach each parlay's `quotes` array. Without it, `quotes` is `null`
-  (not requested); with it, an empty array means no quotes were submitted.
-
-## P&L windows
-
-[`GET /v1/pnl`](/api-reference/funds/pnl) returns realized P&L per day. Pick the window with
-`?period=1D|1W|1M|ALL` (default `1W`).
-
-<Note>
-  Everything on the read surface is **realized**. `portfolio.summary.portfolio_value` is your
-  deposited USDC — it does not mark open positions to market, and there is no unrealized P&L field.
-  To value open positions yourself, price each leg against the live [`/markets`](/api-reference/markets/list) data.
-</Note>
-
-## Balances
-
-[`GET /v1/wallet`](/api-reference/user/get-wallet) returns every balance in one call:
-`usdc_balance` (your wallet), `vault_balance` (gross USDC in your vault, including locked
-collateral), and `locked_amount` (everything you've committed — in flight RFQs, stakes on live
-positions, and maker side collateral).
-
-- **Total USDC you control** = `usdc_balance + vault_balance`
-- **Available cash** = `usdc_balance + vault_balance − locked_amount`
-
-Don't subtract `/v1/vault`'s `locked_collateral` on top — it's already inside `locked_amount`.
 
 ## Settlement outcomes
 
 `GET /v1/rfqs/{id}` is the source of truth for how a parlay resolved. Once it's terminal the response
 carries the full settlement detail: each leg's `outcome`, the terminal `status`
-(`settled` / `cancelled` / `bought_back`), the payout, and the on chain transaction signatures
+(`settled` / `cancelled` / `bought_back`), the payout, and the on-chain transaction signatures
 (`settle_tx`, `cancel_tx`, `buyback_tx`). A parlay id you don't own returns `404`.
 
 ## Reconciling
@@ -71,7 +32,7 @@ A typical reconcile loop:
    until `has_more` is false) to enumerate terminal parlays.
 2. For any you haven't recorded, fetch [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) for the
    settlement detail and tx signatures.
-3. Cross check realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
+3. Cross-check realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
    against [`GET /v1/vault`](/api-reference/funds/get-vault).
 
 <Note>

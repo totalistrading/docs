@@ -1,27 +1,25 @@
 ---
 title: "Create Quote Request"
 api: "POST /v1/quote-requests"
-description: "Create a new quote request for a multi leg parlay."
+description: "Create a new quote request for a multi-leg parlay."
 ---
 
-Create a new live quote request. It's immediately broadcast to all connected market makers, who begin submitting competitive prices in real time.
+Create a new live quote request. Once created, the request is immediately broadcast to all connected market makers who begin submitting competitive prices in real time.
 
-A quote request requires 2 to 5 legs and a USDC bet amount. Each leg specifies a market ticker, a side (`yes` or `no`), and optionally a venue.
+A quote request requires 2-5 legs and a USDC bet amount. Each leg specifies a market ticker, a side (`yes` or `no`), and optionally a venue.
 
 ## Authentication
 
-API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
+Bearer token required. Pass your JWT in the `Authorization` header.
 
 ```
-X-API-Key: <your-api-key>
+Authorization: Bearer <jwt>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
-
-## Request body
+## Request Body
 
 <ParamField body="legs" type="array" required>
-  Array of 2 to 5 parlay legs.
+  Array of 2-5 parlay legs.
   <Expandable title="Leg object">
     <ParamField body="market_ticker" type="string" required>
       The market ticker on the venue (e.g., `KXBTC-26JUN01-T72500`).
@@ -68,12 +66,12 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Invalid legs, side, venue, or bet amount. See `details.issues` for specifics. |
 | 400 | `VALIDATION_ERROR` | Market validation failed (market not found, expired, or exclusion conflict). See `details.leg_errors`. |
-| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
 
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests \
-  -H "X-API-Key: $TOTALIS_API_KEY" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "legs": [

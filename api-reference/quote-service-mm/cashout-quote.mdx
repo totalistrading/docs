@@ -1,14 +1,14 @@
 ---
 title: "Submit Buyback Quote"
 api: "PUT /v1/mm/cashout-requests/{id}/quote"
-description: "Price an early cashout (buyback) request as the position's counterparty market maker."
+description: "Price an early-cashout (buyback) request as the position's counterparty market maker."
 ---
 
-Submit or replace a **buyback quote** for a cashout request on a position you make the market for. You receive cashout requests on the same [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to, as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event (carrying `cashout_request_id` + `position_id`) — scoped to you, never broadcast. Quote the directional `amount` on top of the user's stake (which is always refunded); the server computes the unit boundary economics and surfaces the net to the user on their stream.
+Submit or replace a **buyback quote** for a cashout request on a position you make the market for. You receive cashout requests on the same [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to, as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event (carrying `cashout_request_id` + `position_id`) — scoped to you, never broadcast. Quote the directional `amount` on top of the user's stake (which is always refunded); the server computes the unit-boundary economics and surfaces the net to the user on their stream.
 
-A cashout request is offered to a **single** market maker — the position's existing maker. You can only quote requests targeted at you; otherwise the request returns `403`. Resubmitting replaces your live quote atomically.
+A cashout request is offered to a **single** market maker — the position's existing maker. You can only quote requests targeted at you; otherwise the request returns `403`. Re-submitting replaces your live quote atomically.
 
-For pricing rules and the refuse gates, see [Market making → Pricing early cashouts](/guides/market-maker#pricing-early-cashouts).
+For pricing rules and the refuse gates, see [How to Become a Market Maker → Pricing Early-Cashout Buybacks](/guides/market-maker#pricing-early-cashout-buybacks).
 
 ## Authentication
 
@@ -18,13 +18,13 @@ API key required. Pass your market maker API key in the `X-API-Key` header.
 X-API-Key: <key>
 ```
 
-## Path parameters
+## Path Parameters
 
 <ParamField path="id" type="string" required>
   The cashout request ID (UUID).
 </ParamField>
 
-## Request body
+## Request Body
 
 <ParamField body="buyback_price" type="number" required>
   Your directional buyback `amount` in USDC (≥ 0), gross of the profit fee. This is the net on top of the refunded stake — what the MM pays the user (when `mm_pays_user` is `true`) or the user pays the MM.
@@ -35,7 +35,7 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer">
-  How long this quote is valid, in milliseconds. Range: 5000 to 60000. Default: 15000.
+  How long this quote is valid, in milliseconds. Range: 5000-60000. Default: 15000.
 </ParamField>
 
 ## Response
@@ -65,7 +65,7 @@ Returns `201 Created` for a new quote or `200 OK` when replacing an existing quo
 
 | Status | Code | Description |
 |--------|------|-------------|
-| 400 | `VALIDATION_ERROR` | Invalid body (negative price, out of range `expires_in_ms`, or failed buyback economics). See `details`. |
+| 400 | `VALIDATION_ERROR` | Invalid body (negative price, out-of-range `expires_in_ms`, or failed buyback economics). See `details`. |
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You are not the counterparty MM for this position (`details.reason: not_target_mm`). |
 | 404 | `NOT_FOUND` | Cashout request not found. |

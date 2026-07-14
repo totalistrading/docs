@@ -1,17 +1,16 @@
 ---
 title: 'How parlays work'
-description: 'The path a parlay takes from a quote request, through market maker pricing and acceptance, to on chain settlement — and how to close one early.'
+description: 'The path a parlay takes from a quote request, through market-maker pricing and acceptance, to on-chain settlement — and how to close one early.'
 ---
 
 A parlay starts as a **quote request** — your legs, priced live by market makers — and becomes a real **position** the moment you accept a quote. From there it settles automatically when the underlying markets resolve, or you can close it early.
 
 You'll see this progression in the `status` field on the parlay (RFQ) object:
 
-```mermaid
-%%{init: {'themeVariables': {'edgeLabelBackground': '#1f2020', 'primaryTextColor': '#ffffff', 'lineColor': '#ffffff', 'primaryBorderColor': '#ffffff'}}}%%
-flowchart LR
-    open --> quoted --> accepted --> confirmed --> executed --> settled
-    executed -. closed early .-> bought_back
+```
+open → quoted → accepted → confirmed → executed → settled
+                                          │
+                                          └─ closed early → bought_back
 ```
 
 A parlay can also end at `cancelled` or `expired` before it's funded.
@@ -20,10 +19,10 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
 
 <Steps>
   <Step title="Open a quote request">
-    Add 2–5 legs and a bet amount. Each leg names a market and a side (`yes` / `no`). The `market_ticker` is venue specific:
+    Add 2–5 legs and a bet amount. Each leg names a market and a side (`yes` / `no`). The `market_ticker` is venue-specific:
 
     - **Kalshi** — the market ticker, e.g. `KXBTC-25FEB07-T100000`.
-    - **Polymarket** — the `condition_id` (the `0x` prefixed hex string), not the slug or question id. Both sides of a binary share one `condition_id`, distinguished by `side`.
+    - **Polymarket** — the `condition_id` (the `0x`-prefixed hex string), not the slug or question id. Both sides of a binary share one `condition_id`, distinguished by `side`.
 
     ```bash
     POST /v1/quote-requests
@@ -36,22 +35,19 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
     }
     ```
 
-    Totalis validates each market, applies leg exclusion rules (correlated legs can't be combined), and broadcasts the request to market makers. See [Create quote request](/api-reference/quote-service/create) for the full field reference.
-
-    The amount actually locked is your bet amount minus a 1% taker fee, charged upfront when you place the trade — so don't expect the locked stake to exactly match `bet_amount`.
+    Totalis validates each market, applies leg-exclusion rules (correlated legs can't be combined), and broadcasts the request to market makers. See [Create quote request](/api-reference/quote-service/create) for the full field reference.
   </Step>
 
   <Step title="Market makers quote it">
-    Makers stream the request and submit quotes with payout odds. You watch them arrive live on the quote request [stream](/api-reference/quote-service/stream). Each quote carries:
+    Makers stream the request and submit quotes with payout odds. You watch them arrive live on the quote-request [stream](/api-reference/quote-service/stream). Each quote carries:
 
     - **`user_cost`** — your stake (the bet amount).
     - **`total_payout`** — `bet_amount × payout_odds`, what you receive if every leg wins.
     - **`payout_odds`** — the multiple on your stake.
-    - **`book_seq`** — the SSE event's sequence number, carried alongside the quote. You'll need it later to prove your pricing was current when you commit.
   </Step>
 
   <Step title="Commit the best quote">
-    Accept a quote to lock the trade. Totalis selects the best still valid quote for the version you saw and creates the parlay with that quote already accepted.
+    Accept a quote to lock the trade. Totalis selects the best still-valid quote for the version you saw and creates the parlay with that quote already accepted.
 
     ```bash
     POST /v1/quote-requests/<id>/commit
@@ -66,10 +62,10 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
     The response returns the real `rfq_id`, the accepted quote, and the payout odds. **Status: `accepted`.**
   </Step>
 
-  <Step title="The parlay funds on chain">
-    The maker confirms, and your stake and the maker's collateral lock atomically in [on chain Solana vaults](/guides/vault-architecture). Gas is sponsored — you only ever need USDC.
+  <Step title="The parlay funds on-chain">
+    The maker confirms, and your stake and the maker's collateral lock atomically in [on-chain Solana vaults](/guides/vault-architecture). Gas is sponsored — you only ever need USDC.
 
-    Status moves to `confirmed`, then `executed` once the position is live on chain. If the maker doesn't confirm in time, the parlay reopens for other makers (or expires if its window has passed) and your funds are never touched.
+    Status moves to `confirmed`, then `executed` once the position is live on-chain. If the maker doesn't confirm in time, the parlay reopens for other makers (or expires if its window has passed) and your funds are never touched.
   </Step>
 
   <Step title="It settles automatically">
@@ -86,22 +82,18 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
 
 Once a parlay is live (`executed`), you don't have to wait for settlement — you can close it by accepting a **buyback** price from the maker that backs it. Your stake is always returned; the buyback amount is the net on top: the maker pays you when you're in profit, you pay the maker when you're underwater (gross of a profit fee).
 
-A cashout is its own short lived request, separate from the parlay's status:
+A cashout is its own short-lived request, separate from the parlay's status:
 
-```mermaid
-%%{init: {'themeVariables': {'edgeLabelBackground': '#1f2020', 'primaryTextColor': '#ffffff', 'lineColor': '#ffffff', 'primaryBorderColor': '#ffffff'}}}%%
-flowchart LR
-    active --> committing --> committed
-    committed -. success .-> bought_back
-    active -- maker can't price it --> declined
-    active -- no quote in time --> expired
-    active -- you cancel --> cancelled
+```
+active → committing → committed     (success → the parlay becomes bought_back)
+   │
+   ├─ maker can't price it (a leg is already decided) → declined
+   ├─ no quote within the window                      → expired
+   └─ you cancel the request                          → cancelled
 ```
 
 <Steps>
   <Step title="Request a cashout">
-    Read `position_id` from the parlay object ([`GET /v1/rfqs/{id}`](/api-reference/parlays/get)) once it's `executed` — it's set there and used to open the cashout.
-
     ```bash
     POST /v1/cashout-requests
     { "position_id": "<position-id>" }
@@ -110,14 +102,14 @@ flowchart LR
     ```
   </Step>
   <Step title="The maker prices it">
-    The backing maker revalues the position at current odds and either streams a buyback quote or declines (if a leg is already decided). The quote carries the net you'd receive.
+    The backing maker re-values the position at current odds and either streams a buyback quote or declines (if a leg is already decided). The quote carries the net you'd receive.
   </Step>
   <Step title="Commit">
     ```bash
     POST /v1/cashout-requests/<id>/commit
     ```
 
-    The buyback executes on chain. Once it confirms, your stake is released, the realized P&L lands on the parlay's `cashout` object, and the parlay becomes **`bought_back`**.
+    The buyback executes on-chain. Once it confirms, your stake is released, the realized P&L lands on the parlay's `cashout` object, and the parlay becomes **`bought_back`**.
   </Step>
 </Steps>
 
@@ -130,8 +122,8 @@ The `status` on a parlay (RFQ):
 | `open` | Awaiting quotes (or reopened after a maker missed confirmation). |
 | `quoted` | At least one maker has quoted. |
 | `accepted` | You committed a quote; awaiting maker confirmation. |
-| `confirmed` | Maker confirmed; funding on chain. |
-| `executed` | Live on chain — eligible for early cashout. |
+| `confirmed` | Maker confirmed; funding on-chain. |
+| `executed` | Live on-chain — eligible for early cashout. |
 | `settled` | Resolved and paid out. |
 | `bought_back` | Closed early via cashout. |
 | `cancelled` / `expired` | Ended before funding; no funds moved. |

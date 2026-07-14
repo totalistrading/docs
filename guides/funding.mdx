@@ -9,7 +9,7 @@ You fund your account by sending USDC to your Solana wallet address. Once it lan
 
 Before you can place a parlay or withdraw, your wallet must be **delegated**: you grant Totalis permission to sign transactions on your behalf inside a secure enclave. See [Vaults & custody](/guides/vault-architecture) for how that works.
 
-Enabling trading is a one time **interactive** step — you approve a consent dialog in the app. It can't be done from the REST API alone (`POST /v1/wallet/enable-trading` only reports status; it doesn't grant the permission). Check the current state with [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
+Enabling trading is a one-time **interactive** step — you approve a consent dialog in the app. It can't be done from the REST API alone (`POST /v1/wallet/enable-trading` only reports status; it doesn't grant the permission). Check the current state with [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
 
 ## Send USDC to your wallet
 
