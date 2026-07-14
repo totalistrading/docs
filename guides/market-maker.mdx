@@ -8,14 +8,14 @@ Market makers on Totalis stream incoming parlay quote requests via SSE, submit c
 ## How it works
 
 <Steps>
-  <Step title="Connect to the quote request stream">
-    Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. Maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds. See the [event summary table](/api-reference/quote-service-mm/stream#sse-event-types) for every event name this stream sends — including a spelling inconsistency worth knowing about up front.
+  <Step title="Connect to the quote-request stream">
+    Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. Maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds.
   </Step>
   <Step title="Submit draft quotes">
     Analyze the legs and submit payout odds via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the exact `version` and `request_hash` you received. Price `payout_odds` and size collateral against the net stake (`user_stake`), not `bet_amount` — `user_stake` is what the vault applies your odds to when the taker fee is on.
   </Step>
   <Step title="Confirm trades">
-    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with details visible only to the selected MM, such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. The user's stake and your collateral lock together in on chain Solana vaults.
+    When a user commits your quote, Totalis creates a real accepted RFQ and sends `quote:accepted`. The same `mm:quotes:{mm_id}` subscription may also receive `mm_quote:accepted` with selected-MM-only details such as `user_id`, final quote economics, and exposure legs. Confirm with [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before the deadline to lock in the trade. The user's stake and your collateral lock together in on-chain Solana vaults.
   </Step>
 </Steps>
 
@@ -33,13 +33,13 @@ For most market makers, the integration surface should stay small:
 | Send liveness heartbeat | [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) |
 | Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
 | Receive accepted trade details | `mm_quote:accepted` on `mm:quotes:{mm_id}` |
-| Confirm an accepted quote | [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
+| Confirm an accepted quote | [`POST /mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
 
 Use [`GET /v1/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 
 ## Pricing early cashouts
 
-A user can close an active position before settlement by accepting a **buyback** price from you, its counterparty MM. You receive cashout requests on the same SSE stream you already subscribe to (`GET /v1/mm/quote-requests/stream`), as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event scoped to you and never broadcast. Respond with one of:
+A user can close an active position before settlement by accepting a **buyback** price from you, its counterparty MM. You receive cashout requests on the same SSE stream you already subscribe to (`GET /v1/mm/quote-requests/stream`), delivered as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event — scoped to you, never broadcast — and respond with one of:
 
 | Action | Endpoint |
 | --- | --- |
@@ -48,11 +48,11 @@ A user can close an active position before settlement by accepting a **buyback**
 
 ### Fair value
 
-Revalue the position at live odds: `fair_value = fair_win_prob × total_payout`, where `fair_win_prob` is the parlay's current joint win probability. Convert that to a directional quote by shrinking it with a conservative **exit edge** that is MM favorable in both directions — you pay less when the user is up, the user pays more when they're down. A **partial settle** buyback (some legs already resolved and pinned at certainty) uses a wider edge. The user's stake is always refunded separately; your quote is the directional net `amount` on top of it, gross of the profit fee.
+Re-value the position at live odds: `fair_value = fair_win_prob × total_payout`, where `fair_win_prob` is the parlay's current joint win probability. Convert that to a directional quote by shrinking it with a conservative **exit edge** that is MM-favorable in both directions — you pay less when the user is up, the user pays more when they're down. A **partial-settle** buyback (some legs already resolved and pinned at certainty) uses a wider edge. The user's stake is always refunded separately; your quote is the directional net `amount` on top of it, gross of the profit fee.
 
 ### When to refuse
 
-Pricing runs a fixed sequence of gates; the first match wins. There are two kinds of outcome:
+Pricing runs a fixed sequence of gates, first match wins, with two kinds of outcome:
 
 - **Permanent decline** — the position can't be priced and won't become priceable on retry. Call the decline endpoint; the user sees an instant `declined`.
 - **Transient refuse** — a leg has no trustworthy live price right now (a wide book or a feed blip). Submit nothing and stay silent; the request rides its ~90 s TTL so a later quote can still land.
@@ -64,9 +64,9 @@ Pricing runs a fixed sequence of gates; the first match wins. There are two kind
 | Already decided | all legs resolved won (settlement pays full value shortly) | permanent decline |
 | Malformed | a leg is missing its ticker or side | permanent decline |
 | No live price | a leg has no trustworthy live book (spread too wide / stale) | transient — stay silent |
-| Near decided | a leg's live price is outside the `[0.05, 0.95]` odds band, so repricing is unreliable | permanent decline |
+| Near-decided | a leg's live price is outside the `[0.05, 0.95]` odds band, so re-pricing is unreliable | permanent decline |
 
-The no live price gate refuses a leg whose two sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale. A leg already resolved and pinned at certainty is exempt from the odds band check.
+The no-live-price gate refuses a leg whose two-sided spread exceeds the venue cap (Polymarket 5%, Kalshi 7%) or whose book is stale. A leg already resolved and pinned at certainty is exempt from the odds-band check.
 
 ## Get set up
 
@@ -87,4 +87,4 @@ The no live price gate refuses a leg whose two sided spread exceeds the venue ca
 
 ## Provide liquidity at scale
 
-To provide liquidity on Totalis at scale, contact [founders@totalis.trade](mailto:founders@totalis.trade) to discuss onboarding, integration, and partnership terms.
+If you're interested in providing liquidity on Totalis at scale, contact us at [founders@totalis.trade](mailto:founders@totalis.trade) to discuss onboarding, integration support, and partnership terms.

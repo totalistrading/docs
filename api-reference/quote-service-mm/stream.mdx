@@ -1,10 +1,10 @@
 ---
 title: "Stream Quote Requests"
 api: "GET /v1/mm/quote-requests/stream"
-description: "Subscribe to all active quote requests in real time via Server Sent Events."
+description: "Subscribe to all active quote requests in real time via Server-Sent Events."
 ---
 
-Open a Server Sent Events (SSE) stream to receive all active quote requests in real time. This is the primary integration path for market makers — use it instead of polling. The stream emits new requests as they arrive, updates when requests change, and notifies when requests expire.
+Open a Server-Sent Events (SSE) stream to receive all active quote requests in real time. This is the primary integration path for market makers -- use it instead of polling. The stream emits new requests as they arrive, updates when requests change, and notifies when requests expire.
 
 ## Authentication
 
@@ -14,19 +14,7 @@ API key required. Pass your market maker API key in the `X-API-Key` header.
 X-API-Key: <key>
 ```
 
-## SSE event types
-
-This stream sends seven event names. Their spelling isn't consistent: `quote_request` and `quote_request_expired` are underscore separated, while `quote_request:updated` is colon separated. The subsections below — and their `<Warning>`s — cover why:
-
-| Event | Fires when |
-| --- | --- |
-| `connected` | Once, immediately after connecting. |
-| `snapshot_begin` | Start of the initial active request snapshot (on connect or reconnect). |
-| `quote_request` | A new quote request is created, or an active one is replayed during the snapshot. |
-| `quote_request:updated` | A request you've already seen bumps to a new `version` (legs or bet amount edited). |
-| `snapshot_complete` | The initial snapshot finishes; the stream switches to incremental updates only. |
-| `quote_request_expired` | A previously seen request is no longer active (committed, cancelled, or expired). |
-| `cashout_request` | A cashout (buyback) request opens on a position you back — scoped to you alone. |
+## SSE Event Types
 
 ### `connected`
 
@@ -87,7 +75,7 @@ Sent when a **new** quote request is created, and once for each active request r
 
 ### `quote_request:updated`
 
-Sent when a request you have **already seen** changes to a new `version` — the user edited the legs or the bet amount. The payload is identical to `quote_request` (with the incremented `version` and new `request_hash`). Any quote you submitted for the prior version is automatically invalidated; reprice and submit a new quote against the new `version` and `request_hash`. You do not need to withdraw the prior quote — it never blocks the new submission.
+Sent when a request you have **already seen** changes to a new `version` — the user edited the legs or the bet amount. The payload is identical to `quote_request` (with the incremented `version` and new `request_hash`). Any quote you submitted for the prior version is automatically invalidated; re-price and submit a new quote against the new `version` and `request_hash`. You do not need to withdraw the prior quote — it never blocks the new submission.
 
 <Warning>
 This is a distinct event name from `quote_request`. If your client only registers a listener for `quote_request`, it will miss every version bump. Register a listener for `quote_request:updated` as well (or, with a raw SSE parser, branch on the `event:` field).
@@ -121,7 +109,7 @@ Sent when the initial snapshot is finished. After this, the stream switches to i
 
 ### `quote_request_expired`
 
-Sent when a previously seen quote request is no longer active. Remove it from your local state. The `reason` field tells you why it closed, and lets you distinguish a lost auction from an abandoned or timed out one:
+Sent when a previously seen quote request is no longer active. Remove it from your local state. The `reason` field tells you why it closed, and lets you distinguish a lost auction from an abandoned or timed-out one:
 
 | `reason` | Meaning |
 |----------|---------|
@@ -129,9 +117,9 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 | `cancelled` | The user abandoned the request before committing to any quote. |
 | `expired` | The request reached `expires_at` with no commit. |
 
-`won` is `true` only when `reason` is `committed` **and your quote was the one selected**; otherwise `false` (including every `cancelled`/`expired` close). A `committed` close with `won: false` means you were outbid — the user took another market maker's quote. The winning maker's identity and odds are never disclosed.
+`won` is `true` only when `reason` is `committed` **and your quote was the one selected**; otherwise `false` (including every `cancelled`/`expired` close). A `committed` close with `won: false` means you were out-bid — the user took another market maker's quote. The winning maker's identity and odds are never disclosed.
 
-`won` is **omitted** on the rare `committed` close where the outcome is indeterminate (e.g. the event was produced by a previous server instance during a deploy). Treat an absent `won` as *unknown* — don't record it as a loss.
+`won` is **omitted** on the rare `committed` close where the outcome is indeterminate (e.g. the event was produced by a previous server instance during a deploy). Treat an absent `won` as *unknown* — do not record it as a loss.
 
 ```json
 {
@@ -143,10 +131,10 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 
 ### `cashout_request`
 
-Sent when a user opens an [early cashout (buyback) request](/api-reference/quote-service/cashout-create) on a position **you** make the market for, and once for each active cashout replayed during the initial snapshot. These arrive on the same stream but are **scoped to you alone** (single MM, never broadcast). Price them with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) or refuse with [`POST /v1/mm/cashout-requests/{id}/decline`](/api-reference/quote-service-mm/cashout-decline).
+Sent when a user opens an [early-cashout (buyback) request](/api-reference/quote-service/cashout-create) on a position **you** make the market for — and once for each active cashout replayed during the initial snapshot. These arrive on this same stream but are **scoped to you alone** (single-MM, never broadcast). Price them with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) or refuse with [`POST /v1/mm/cashout-requests/{id}/decline`](/api-reference/quote-service-mm/cashout-decline).
 
 <Warning>
-This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a buyback request apart from a forward quote request.
+This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a buyback request apart from a forward quote request.
 </Warning>
 
 ```json
@@ -179,14 +167,14 @@ Every SSE event includes an `id:` field. Persist this value. On reconnect, pass 
 GET /v1/mm/quote-requests/stream?last_event_id=evt_abc123
 ```
 
-The taker fee rate is read once per connection (server side), so `user_stake` on a long lived stream reflects the rate in effect when you connected. If the fee rate changes, reconnect to pick up `user_stake` values computed at the new rate.
+The taker-fee rate is read once per connection (server-side), so `user_stake` on a long-lived stream reflects the rate in effect when you connected. If the fee rate changes, reconnect to pick up `user_stake` values computed at the new rate.
 
 ## Notes
 
 - **Net stake.** `user_stake` is the net stake the MM underwrites: `user_stake = bet_amount − taker_fee`, where `taker_fee = floor(bet_amount_micro × taker_fee_bps / 10000)` is computed in integer microUSDC (1 USDC = 1e6 micro) — e.g. a 25.00 bet at 100 bps gives a 0.25 fee and `user_stake` 24.75. Price `payout_odds` and size collateral against `user_stake`, **not** `bet_amount`. `bet_amount` stays the user's gross wager but is not the quoting base when the taker fee is on (`taker_fee_bps > 0`); when the fee is off, `user_stake == bet_amount`.
 - The stream automatically excludes quote requests created by your own user account.
 - Keep the connection alive and send a [heartbeat](/api-reference/quote-service-mm/heartbeat) at least every 30 seconds to signal liveness.
-- A version change arrives as `quote_request:updated` (a new request arrives as `quote_request`). Your prior version quote is invalidated automatically — it leaves the book immediately and never blocks a new quote. Reprice and [submit](/api-reference/quote-service-mm/submit-quote) a new quote with the updated `version` and `request_hash`; you don't need to withdraw the old one.
+- A version change arrives as a `quote_request:updated` event (a new request arrives as `quote_request`). When the `version` changes, any quote you submitted for the prior version is automatically invalidated — it leaves the book immediately and never blocks a new quote. Re-price and [submit](/api-reference/quote-service-mm/submit-quote) a new quote with the updated `version` and `request_hash`; you do not need to withdraw the old one.
 
 ## Errors
 
@@ -202,65 +190,46 @@ curl -N https://api.totalis.trade/v1/mm/quote-requests/stream \
 ```
 
 ```javascript JavaScript
-// Native EventSource can't send an X-API-Key header — read the SSE stream
-// with fetch instead (works in browsers and Node 18+).
-const res = await fetch('https://api.totalis.trade/v1/mm/quote-requests/stream', {
-  headers: { 'X-API-Key': API_KEY, Accept: 'text/event-stream' },
+const EventSource = require('eventsource');
+
+const es = new EventSource(
+  'https://api.totalis.trade/v1/mm/quote-requests/stream',
+  { headers: { 'X-API-Key': API_KEY } }
+);
+
+es.addEventListener('connected', (e) => {
+  console.log('Connected as', JSON.parse(e.data).mm_id);
 });
 
-const reader = res.body.getReader();
-const decoder = new TextDecoder();
-let buffer = '';
+es.addEventListener('quote_request', (e) => {
+  const req = JSON.parse(e.data);
+  console.log('New request:', req.id, req.user_stake ?? req.bet_amount, 'USDC');  // price against net user_stake; falls back to gross bet_amount if absent
+  // req.bet_amount is the gross wager; price + size against user_stake
+});
 
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  buffer += decoder.decode(value, { stream: true });
+es.addEventListener('quote_request:updated', (e) => {
+  const req = JSON.parse(e.data);
+  console.log('Request updated to version', req.version, '— re-price:', req.id);
+  // Your prior-version quote is invalidated; submit a new one
+});
 
-  let sep;
-  while ((sep = buffer.indexOf('\n\n')) !== -1) {
-    const frame = buffer.slice(0, sep);
-    buffer = buffer.slice(sep + 2);
-    const event = frame.match(/^event: (.+)$/m)?.[1];
-    const data = frame.match(/^data: (.+)$/m)?.[1];
-    if (!event || !data) continue;
-    const payload = JSON.parse(data);
+es.addEventListener('quote_request_expired', (e) => {
+  const { id, reason, won } = JSON.parse(e.data);
+  // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
+  // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+  const outcome = reason === 'committed'
+    ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
+    : reason;
+  console.log('Request closed:', id, outcome);
+});
 
-    switch (event) {
-      case 'connected':
-        console.log('Connected as', payload.mm_id);
-        break;
-
-      case 'quote_request':
-        // payload.bet_amount is the gross wager; price + size against net user_stake
-        console.log('New request:', payload.id, payload.user_stake ?? payload.bet_amount, 'USDC');
-        break;
-
-      case 'quote_request:updated':
-        // Your prior-version quote is invalidated; submit a new one
-        console.log('Request updated to version', payload.version, '— re-price:', payload.id);
-        break;
-
-      case 'quote_request_expired': {
-        // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
-        // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
-        const { id, reason, won } = payload;
-        const outcome = reason === 'committed'
-          ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
-          : reason;
-        console.log('Request closed:', id, outcome);
-        break;
-      }
-
-      case 'cashout_request':
-        // Distinct from quote_request: the key is payload.cashout_request_id (NOT payload.id).
-        // Single-MM scoped — it's yours to price. Re-value the position and respond on
-        // the cashout endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
-        console.log('Buyback request:', payload.cashout_request_id, 'position', payload.position_id);
-        break;
-    }
-  }
-}
+es.addEventListener('cashout_request', (e) => {
+  const cr = JSON.parse(e.data);
+  // Distinct from quote_request: the key is cr.cashout_request_id (NOT cr.id).
+  // Single-MM scoped — it's yours to price. Re-value the position and respond on
+  // the cashout endpoints: PUT /v1/mm/cashout-requests/{id}/quote, or decline.
+  console.log('Buyback request:', cr.cashout_request_id, 'position', cr.position_id);
+});
 ```
 
 ```python Python

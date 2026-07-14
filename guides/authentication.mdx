@@ -5,10 +5,10 @@ description: 'How to authenticate against the Totalis REST API and WebSocket —
 
 The Totalis API accepts two authentication schemes:
 
-- **API key** — for programmatic clients (bots, scripts, server side integrations). Sent as the `X-API-Key` header. Works on both REST and WebSocket.
+- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header. Works on both REST and WebSocket.
 - **Privy JWT** — used by the web dashboard. Sent as `Authorization: Bearer <jwt>`. The session signer underpinning the JWT also signs vault transactions in the browser.
 
-Either scheme works on every authenticated endpoint, with one exception: `POST /v1/api-keys` (create a new API key) requires a Privy JWT, or an API key that holds the `keys:manage` scope.
+Either scheme is accepted on every authenticated endpoint, with one exception: `POST /v1/api-keys` (create a new API key) requires a Privy JWT — you cannot mint new API keys with an existing API key unless that key holds the `keys:manage` scope.
 
 ## Getting your API key
 
@@ -17,7 +17,7 @@ Generate an API key from the [Totalis Dashboard](https://app.totalis.trade):
 1. Log in to [app.totalis.trade](https://app.totalis.trade)
 2. Navigate to your account settings
 3. Create a new API key, name it, and **choose its scopes** (see below)
-4. Copy the full key immediately
+4. Copy the full key immediately — it is only shown once
 
 <Warning>
   The full API key is only displayed at creation time. Save it securely — you will not be able to retrieve it later.
@@ -43,7 +43,7 @@ For WebSocket connections, authenticate after connecting:
 
 ## Scopes
 
-Every API key carries a set of **scopes** — the capabilities you select at creation. A request to an endpoint whose scope the key lacks is rejected with `403` (`insufficient_scope`). Grant only what a given integration needs.
+Every API key carries a set of **scopes** that bound what it can do — a key is granted only the capabilities you select at creation, and a request to an endpoint whose scope the key lacks is rejected with `403` (`insufficient_scope`). Grant the least a given integration needs.
 
 | Scope | Grants | Risk |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ Every API key carries a set of **scopes** — the capabilities you select at cre
 | `mm:quote` | Read RFQs and submit/confirm quotes as a market maker. | medium |
 
 <Note>
-  A read only integration (dashboards, reconciliation) needs only the `*:read` scopes. A trading bot
+  A read-only integration (dashboards, reconciliation) needs only the `*:read` scopes. A trading bot
   adds `trading:write` (and `funds:deposit` if it tops up the vault). Reserve `funds:withdraw`,
   `tx:sign`, and `keys:manage` for keys that genuinely need them — each can move funds or escalate.
 </Note>

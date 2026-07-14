@@ -5,17 +5,19 @@ description: 'Frequently asked questions about Totalis — the derivatives layer
 
 ## What is Totalis?
 
-Totalis is the derivatives layer for prediction markets: you pick outcomes across multiple markets and venues, combine them into a single leveraged bet — a **parlay** — and market makers compete to give you the best payout odds. Trades run on Totalis infrastructure: a quote request system for price discovery, and noncustodial Solana vaults for settlement.
+Totalis is the derivatives layer for prediction markets. We let you take bets from different prediction market venues, stack them together, and build custom structured positions like parlays.
 
-Totalis supports Kalshi and Polymarket as underlying market venues today, with more prediction market platforms coming.
+Our first product is **custom parlays on prediction markets**. You pick outcomes across multiple markets, combine them into a single leveraged bet, and market makers compete to give you the best payout odds. Trades run on Totalis infrastructure: a request-for-quote (RFQ) system for price discovery, and non-custodial Solana vaults for settlement.
+
+We currently support Kalshi and Polymarket as underlying market venues, with other prediction market platforms coming soon.
 
 ## What is a parlay?
 
-A parlay combines multiple individual predictions, called **legs**, into one bet. Every leg has to win for the parlay to pay out — one loss loses the whole bet. Because each leg's odds compound into a larger combined payout, parlays offer **higher reward**, but the requirement that every leg hits also makes them **higher risk** than betting on any single outcome on its own.
+A parlay is a single bet that combines multiple individual predictions, called **legs**, into one position. To win the payout, you have to correctly predict the outcome of **every** leg — if even one leg loses, the entire parlay loses. Because each leg's odds compound into a larger combined payout, parlays offer **higher reward**, but the requirement that all legs hit also makes them **higher risk** than betting on any single outcome on its own.
 
 ## What markets does Totalis offer?
 
-Totalis lists markets that:
+We currently offer markets that:
 
 - Are recurring
 
@@ -25,75 +27,79 @@ Totalis lists markets that:
 
 These include structured combinations across sports, macro, politics, crypto, and weather events.
 
-For the current list, query the [list markets endpoint](/api-reference/markets/list).
+For a detailed and up-to-date list of supported markets, users can query the [list markets endpoint](/api-reference/markets/list).
 
-Totalis focuses on high frequency, short duration markets that support rapid capital turnover.
+Our focus is on high-frequency, short-duration markets that enable continuous structured positioning and rapid capital turnover.
 
 ## What chain are you on?
 
-Totalis runs on **Solana**. Vaults, positions, and settlements all execute on chain, and each participant has a persistent vault that holds their collateral across positions.
+Totalis runs on **Solana**. Vaults, positions, and settlements all execute on-chain, and each participant has a persistent vault that holds their collateral across positions.
 
 ## What are the bet and leg limits?
 
 | Parameter | Limit |
 |-----------|-------|
-| Legs per parlay | 2 to 5 |
-| Bet amount | $1 to $100 USDC |
-| Payout odds | 1.0001x to 1000x |
+| Legs per parlay | 2 - 5 |
+| Bet amount | $1 - $100 USDC |
+| Payout odds | 1.0001x - 1000x |
 
-## How does trading work?
+## How does RFQ work exactly?
 
 See [How parlays work](/guides/lifecycle) for a detailed walkthrough of the full flow from creation to settlement.
 
 ## How secure is it?
 
-Totalis is **noncustodial** — funds sit in on chain Solana vaults the protocol controls, not in a Totalis account. When a trade is matched, your stake and the maker's collateral lock atomically in those vaults, and neither side can move locked collateral unilaterally; funds release only on the verified market outcome.
+Totalis is **non-custodial** — funds sit in on-chain Solana vaults the protocol controls, not in a Totalis account. When a trade is matched, your stake and the maker's collateral lock atomically in those vaults, and neither side can move locked collateral unilaterally; funds release only on the verified market outcome.
 
 Signing is delegated, not surrendered: you grant Totalis permission to sign your trades inside a secure enclave (Privy TEE) where your private key never leaves, and you can revoke it anytime.
 
-Collateral is locked only while the position is open and settles automatically on resolution. Makers get **portfolio margining** — collateral reflects their incremental worst case exposure, so hedged positions require less.
+Collateral is locked only while the position is open and settles automatically on resolution. Makers get **portfolio margining** — collateral reflects their incremental worst-case exposure, so hedged positions require less.
 
 For the full model, see [Vaults & custody](/guides/vault-architecture).
 
 ## How does Totalis use its underlying markets?
 
-Totalis uses underlying prediction market platforms as **data and resolution layers — not execution venues**. It ingests market data (prices, probabilities, metadata) from platforms like Kalshi and Polymarket, and references these markets as the source of truth for event definitions and final outcomes (oracles).
+Totalis uses underlying prediction market platforms as **data and resolution layers — not execution venues**. We ingest market data (prices, probabilities, metadata) from platforms like Kalshi and Polymarket, and we reference these markets as sources of truth for event definitions and final outcomes (oracles).
 
-When you place a parlay on Totalis, the trade doesn't route to any underlying platform. Your position is **synthetic and self contained within Totalis**, which handles execution, clearing, and settlement internally, then pays out based on the referenced markets' final outcome.
+When a user places a parlay on Totalis, the trade does not get routed to any underlying platform. The entire position is **synthetic and self-contained within Totalis**. Totalis handles execution, clearing, and settlement internally. Final payouts are determined based on the referenced market outcomes.
 
-This design gives you:
+This design allows us to:
 
-- Cross market and cross venue combinations in a single parlay
-- No liquidity fragmentation across platforms
-- Capital efficient, portfolio level risk management
+- Offer cross-market and cross-venue combinations
+- Avoid liquidity fragmentation across platforms
+- Enable capital-efficient, portfolio-level risk management
 
 ## How does collateral minimization work?
 
-Without portfolio level netting, each parlay would post collateral in isolation: a $12,000 max payout parlay needs $12,000 in the vault, an $8,000 max payout parlay needs another $8,000, and so on. That's wasteful when positions are **mutually exclusive** (they can't both come true) — the true worst case is only one parlay hitting, not both.
+Right now, if you're a market maker quoting parlays on Kalshi, each trade is treated in isolation.
 
 ![Isolated collateral posting per parlay](/collateral_minimization.png)
 
-Totalis margins market makers at the **portfolio level** instead: it computes the true worst case loss across all possible outcome states for your whole book and only requires collateral for that scenario. Modeled across 3 to 5 leg parlays spanning 1000 markets, this cuts required collateral by 30 to 40% compared to posting each trade in isolation.
+A $12,000 max payout parlay needs $12,000 in the vault, a $8,000 max payout needs another $8,000, and so on. It's simple but wasteful when these positions are **mutually exclusive** (they cannot both come true). The true worst case here is one parlay hitting ($12,000), never both.
+
+Totalis evaluates risk at the **portfolio level**, not trade-by-trade. We compute the **true worst-case loss across all possible outcome states**, and only require collateral for that scenario. Scaled up to millions of parlays, this significantly improves capital efficiency for market makers.
+
+We ran a simulated test quoting random combinations of 3–5 leg parlays across 1000 markets, and found that the real worst-case collateral required is 30–40% less than the collateral needed if each trade were treated in isolation.
 
 ## Is Totalis available to U.S. persons? What's the path to U.S. regulation?
 
 Totalis currently operates offshore and is not available to U.S. persons.
 
-Totalis intends to pursue the registrations required to operate as a regulated event derivatives platform in the U.S., including the appropriate CFTC licenses, as the product matures.
+We are building with a clear path toward U.S. regulatory compliance. As the product matures, we intend to pursue the appropriate registrations with the CFTC, including licenses required to operate a regulated event derivatives platform. Our long-term goal is to become a fully compliant, U.S.-regulated venue for structured prediction market products.
 
 ## What happens if a market gets cancelled on the underlying venue?
 
-If a market on the underlying venue is cancelled or delisted before all legs in a parlay have resolved, Totalis detects the invalid leg, cancels the position, and unlocks your collateral and the market maker's. No party loses funds to an external market cancellation.
+If a market on the underlying venue is cancelled or delisted before all legs in a parlay have resolved, Totalis detects the invalid leg and cancels the position, unlocking both the user's and the market maker's collateral. No party loses funds due to an external market cancellation.
 
-## Will you add markets from other prediction markets? Can I make cross platform parlays?
+## Will you add markets from other prediction markets? Can I make cross-platform parlays?
 
-Yes. Totalis is built as a venue agnostic derivatives layer designed to aggregate markets across prediction market platforms.
+Yes. Totalis is built as a venue-agnostic derivatives layer — our infrastructure is designed to aggregate markets across prediction market platforms. 
 
 ## Can't I just do this on Kalshi?
 
-Kalshi only offers combos on specific sports markets with limited options, because it has to create an orderbook for every combination — which doesn't scale.
+Kalshi only offers combos on specific sports markets with very limited options. This is because Kalshi has to create an orderbook for every single combination of their combos, which is highly inefficient.
 
-Totalis takes a different approach, sitting on top of prediction markets as a derivatives layer and using a quote request system to price any combination of outcomes. You can construct parlays on markets across sports, crypto, weather, entertainment, and economic events, and eventually combine bets across multiple venues in a single parlay.
+Totalis takes a different approach — we sit on top of prediction markets as a derivatives layer and use an RFQ system to price any combination of outcomes. This means you can construct parlays on markets across sports, crypto, weather, entertainment, and economic events, and eventually combine bets across multiple venues in a single parlay.
 
 ## How does Totalis make money?
 
@@ -104,5 +110,5 @@ Totalis charges two fees:
 
 For example, if you make a $10 bet that pays out $100 ($90 in profit):
 
-- Totalis takes **$0.10** (1% of your $10 stake) when you place the bet.
-- If you win the parlay, Totalis takes **$0.90** (1% of your $90 profit).
+- We take **$0.10** (1% of your $10 stake) when you place the bet.
+- If you win the parlay, we take **$0.90** (1% of your $90 profit).
