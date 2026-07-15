@@ -10,13 +10,15 @@ The request is keyed on the position's on-chain `position_id` — a 16-byte hex 
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
 
-## Request Body
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Request body
 
 <ParamField body="position_id" type="string" required>
   The position's on-chain id — a 16-byte hex string (32 hex chars), with or without a `0x` prefix.
@@ -52,7 +54,7 @@ Authorization: Bearer <jwt>
 | Status | Code | Description |
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Body is not valid JSON, or `position_id` is not a 16-byte hex string. See `details.issues`. |
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 404 | `NOT_FOUND` | Position not found, or not owned by you. |
 | 409 | `CONFLICT` | Position is not active, too close to expiry, or has no counterparty MM wallet assigned yet. |
 | 503 | `SERVICE_UNAVAILABLE` | Eligibility/economics read failed, or no counterparty MM is resolvable yet; retry. |
@@ -60,7 +62,7 @@ Authorization: Bearer <jwt>
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/cashout-requests \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $TOTALIS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "position_id": "9f86d08818844f86d08818844f86d088" }'
 ```

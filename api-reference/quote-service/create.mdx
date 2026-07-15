@@ -4,19 +4,21 @@ api: "POST /v1/quote-requests"
 description: "Create a new quote request for a multi-leg parlay."
 ---
 
-Create a new live quote request. Once created, the request is immediately broadcast to all connected market makers who begin submitting competitive prices in real time.
+Create a new live quote request. It's immediately broadcast to all connected market makers, who begin submitting competitive prices in real time.
 
 A quote request requires 2-5 legs and a USDC bet amount. Each leg specifies a market ticker, a side (`yes` or `no`), and optionally a venue.
 
 ## Authentication
 
-Bearer token required. Pass your JWT in the `Authorization` header.
+API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
-Authorization: Bearer <jwt>
+X-API-Key: <your-api-key>
 ```
 
-## Request Body
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+
+## Request body
 
 <ParamField body="legs" type="array" required>
   Array of 2-5 parlay legs.
@@ -66,12 +68,12 @@ Authorization: Bearer <jwt>
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Invalid legs, side, venue, or bet amount. See `details.issues` for specifics. |
 | 400 | `VALIDATION_ERROR` | Market validation failed (market not found, expired, or exclusion conflict). See `details.leg_errors`. |
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/quote-requests \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-API-Key: $TOTALIS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "legs": [

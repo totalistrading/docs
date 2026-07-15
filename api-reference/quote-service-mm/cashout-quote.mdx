@@ -8,7 +8,7 @@ Submit or replace a **buyback quote** for a cashout request on a position you ma
 
 A cashout request is offered to a **single** market maker — the position's existing maker. You can only quote requests targeted at you; otherwise the request returns `403`. Re-submitting replaces your live quote atomically.
 
-For pricing rules and the refuse gates, see [How to Become a Market Maker → Pricing Early-Cashout Buybacks](/guides/market-maker#pricing-early-cashout-buybacks).
+For pricing rules and the refuse gates, see [Market making → Pricing early cashouts](/guides/market-maker#pricing-early-cashouts).
 
 ## Authentication
 
@@ -18,13 +18,13 @@ API key required. Pass your market maker API key in the `X-API-Key` header.
 X-API-Key: <key>
 ```
 
-## Path Parameters
+## Path parameters
 
 <ParamField path="id" type="string" required>
   The cashout request ID (UUID).
 </ParamField>
 
-## Request Body
+## Request body
 
 <ParamField body="buyback_price" type="number" required>
   Your directional buyback `amount` in USDC (≥ 0), gross of the profit fee. This is the net on top of the refunded stake — what the MM pays the user (when `mm_pays_user` is `true`) or the user pays the MM.
