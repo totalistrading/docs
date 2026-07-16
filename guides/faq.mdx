@@ -38,7 +38,7 @@ Totalis runs on **Solana**. Vaults, positions, and settlements all execute on-ch
 | Parameter | Limit |
 |-----------|-------|
 | Legs per parlay | 2 to 5 |
-| Bet amount | $1 to $100 USDC |
+| Bet amount | \$1 to \$100 USDC |
 | Payout odds | 1.0001x to 1000x |
 
 ## How does trading work?
@@ -69,7 +69,7 @@ This design gives you:
 
 ## How does collateral minimization work?
 
-Without portfolio-level netting, each parlay would post collateral in isolation: a $12,000 max payout parlay needs $12,000 in the vault, an $8,000 max payout parlay needs another $8,000, and so on. That's wasteful when positions are **mutually exclusive** (they can't both come true) — the true worst case is only one parlay hitting, not both.
+Without portfolio-level netting, each parlay would post collateral in isolation: a \$12,000 max payout parlay needs \$12,000 in the vault, an \$8,000 max payout parlay needs another \$8,000, and so on. That's wasteful when positions are **mutually exclusive** (they can't both come true) — the true worst case is only one parlay hitting, not both.
 
 ![Isolated collateral posting per parlay](/collateral_minimization.png)
 
@@ -102,7 +102,7 @@ Totalis charges two fees:
 - A **1% taker fee** on your stake, charged upfront when you place the bet.
 - A **1% fee on the profit** earned by the winning side of each trade.
 
-For example, if you make a $10 bet that pays out $100 ($90 in profit):
+For example, if you make a \$10 bet that pays out \$100 (\$90 in profit):
 
-- Totalis takes **$0.10** (1% of your $10 stake) when you place the bet.
-- If you win the parlay, Totalis takes **$0.90** (1% of your $90 profit).
+- Totalis takes **\$0.10** (1% of your \$10 stake) when you place the bet.
+- If you win the parlay, Totalis takes **\$0.90** (1% of your \$90 profit).
