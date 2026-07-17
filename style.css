@@ -32,37 +32,57 @@ span.nodeLabel,
   font-weight: 600 !important;
 }
 
-/* Footer: single compact line */
+/* Footer: single compact line, laid out as an explicit grid so
+   [logo, legal links] group on the left and [socials, attribution,
+   theme toggle] group on the right, with one flexible spacer column
+   between them instead of the links floating in leftover flex space */
 #footer > div {
-  flex-direction: row !important;
+  display: grid !important;
+  grid-template-columns: auto auto 1fr auto auto auto;
   align-items: center !important;
-  justify-content: space-between !important;
-  gap: 2rem !important;
+  column-gap: 2rem !important;
   padding-top: 1.25rem !important;
   padding-bottom: 1.25rem !important;
 }
 
-/* hide the divider between the footer's two rows */
+/* hide the divider between the footer's two former rows */
 #footer > div > .h-\[1px\] {
   display: none !important;
 }
 
-/* logo | links | socials on one row at every width */
-#footer > div > div:first-child {
-  flex-direction: row !important;
-  align-items: center !important;
-  flex: 1 1 auto !important;
-  gap: 2rem !important;
+/* dissolve the two row wrappers so their children become direct grid
+   items, placeable on the explicit column track above */
+#footer > div > div:first-child,
+#footer > div > div:last-child {
+  display: contents !important;
 }
 
 #footer > div > div:first-child > div:first-child {
+  grid-column: 1;
+  display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
   min-width: 0 !important;
   gap: 1rem !important;
 }
 
-/* keep the legal links horizontal at every width */
+#footer > div > div:first-child > div:nth-child(2) {
+  grid-column: 2;
+}
+
+#footer > div > div:first-child > div:last-child {
+  grid-column: 4;
+}
+
+#footer > div > div:last-child > div:first-child {
+  grid-column: 5;
+}
+
+#footer > div > div:last-child > div:last-child {
+  grid-column: 6;
+}
+
+/* keep the legal links horizontal */
 #footer div:has(> a[href="/terms-of-service"]) {
   flex-direction: row !important;
   align-items: center !important;
@@ -70,16 +90,27 @@ span.nodeLabel,
   gap: 2rem !important;
 }
 
-/* don't let link labels wrap mid-word on small screens */
+/* don't let link labels shrink/truncate once the row gets tight */
 #footer div:has(> a[href="/terms-of-service"]) > a {
   max-width: none !important;
   white-space: nowrap !important;
+  overflow: visible !important;
+  flex-shrink: 0 !important;
 }
 
-/* on screens too narrow for one line, wrap whole items instead of squishing */
-#footer > div,
-#footer > div > div:first-child,
-#footer div:has(> a[href="/terms-of-service"]) {
-  flex-wrap: wrap;
-  row-gap: 0.75rem !important;
+/* on screens too narrow for one grid row, stack into two centered rows */
+@media (max-width: 767px) {
+  #footer > div {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    row-gap: 0.75rem !important;
+  }
+
+  #footer > div > div:first-child > div:first-child,
+  #footer > div > div:first-child > div:nth-child(2),
+  #footer > div > div:first-child > div:last-child,
+  #footer > div > div:last-child > div:first-child,
+  #footer > div > div:last-child > div:last-child {
+    grid-column: 1;
+  }
 }
