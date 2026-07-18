@@ -94,6 +94,7 @@
               "api-reference/quote-service-mm/heartbeat",
               "api-reference/quote-service-mm/cashout-quote",
               "api-reference/quote-service-mm/cashout-decline",
+              "api-reference/mm/list-quotes",
               "api-reference/mm/confirm-quote"
             ]
           },
@@ -202,6 +203,56 @@
   },
   "openapi": [
     "/api-reference/openapi.json"
+  ],
+  "redirects": [
+    {
+      "source": "/api-reference/mm/submit-quote",
+      "destination": "/api-reference/quote-service-mm/submit-quote"
+    },
+    {
+      "source": "/api-reference/mm/withdraw-quote",
+      "destination": "/api-reference/quote-service-mm/withdraw-quote"
+    },
+    {
+      "source": "/api-reference/mm/submit-quote-request-quote",
+      "destination": "/api-reference/quote-service-mm/submit-quote"
+    },
+    {
+      "source": "/api-reference/mm/withdraw-quote-request-quote",
+      "destination": "/api-reference/quote-service-mm/withdraw-quote"
+    },
+    {
+      "source": "/api-reference/mm/list-rfqs",
+      "destination": "/api-reference/quote-service-mm/stream"
+    },
+    {
+      "source": "/api-reference/mm/list-quote-requests",
+      "destination": "/api-reference/quote-service-mm/stream"
+    },
+    {
+      "source": "/api-reference/rfqs/create",
+      "destination": "/api-reference/quote-service/create"
+    },
+    {
+      "source": "/api-reference/rfqs/get",
+      "destination": "/api-reference/quote-service/get"
+    },
+    {
+      "source": "/api-reference/rfqs/list",
+      "destination": "/guides/reading-data"
+    },
+    {
+      "source": "/api-reference/rfqs/list-quotes",
+      "destination": "/api-reference/quote-service/get"
+    },
+    {
+      "source": "/api-reference/rfqs/accept-quote",
+      "destination": "/api-reference/quote-service/commit"
+    },
+    {
+      "source": "/api-reference/rfqs/cancel",
+      "destination": "/api-reference/quote-service/cancel"
+    }
   ],
   "seo": {
     "metatags": {

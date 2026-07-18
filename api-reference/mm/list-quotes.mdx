@@ -1,0 +1,130 @@
+---
+title: "List Quotes"
+api: "GET /v1/mm/quotes"
+description: "List your quotes and their lifecycle status. Filter by status or RFQ, with cursor pagination."
+---
+
+List every quote of yours that reached the committed trade lifecycle, newest first. A quote appears here when a user commits one of your quote service drafts: it arrives in `accepted` status, moves to `confirmed` when you [confirm it](/api-reference/mm/confirm-quote), or ends `expired` if the confirmation window lapses.
+
+This is your reconciliation read. If your WebSocket connection drops and you miss a `quote:accepted` event, poll with `status=accepted` and confirm anything still open — a quote whose window already lapsed rejects the confirm with `409`, so a late attempt is safe.
+
+**Base URL:** `https://api.totalis.trade`
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Query parameters
+
+<ParamField query="status" type="string">
+  Return only quotes in this status. One of `accepted`, `confirmed`, `expired`, `pending`, `executed`, `rejected`, `withdrawn` — in the current flow you will see `accepted`, `confirmed`, and `expired`. An unrecognized value is ignored and the response is unfiltered.
+</ParamField>
+
+<ParamField query="rfq_id" type="string">
+  Return only quotes on this RFQ (UUID).
+</ParamField>
+
+<ParamField query="limit" type="integer">
+  Page size. Default 50, maximum 100.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Opaque pagination cursor. Pass the `meta.cursor` value from the previous page to fetch the next one.
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="quotes" type="array">
+      Quotes ordered newest first.
+      <Expandable title="quote">
+        <ResponseField name="id" type="string">Quote UUID. Matches `quote_id` on the `quote:accepted` and `mm_quote:accepted` WebSocket events.</ResponseField>
+        <ResponseField name="parlay_ticket_id" type="string">The RFQ this quote belongs to. Matches the `rfq_id` filter.</ResponseField>
+        <ResponseField name="market_maker_id" type="string">Your market maker ID.</ResponseField>
+        <ResponseField name="payout_odds" type="number">The payout multiplier you quoted.</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC.</ResponseField>
+        <ResponseField name="total_payout" type="number">Total payout in USDC if the parlay wins.</ResponseField>
+        <ResponseField name="mm_cost" type="number">Your risk in USDC (`total_payout - user_cost`).</ResponseField>
+        <ResponseField name="taker_fee" type="number">Taker fee locked on the quote in USDC. `0` while the taker fee is off.</ResponseField>
+        <ResponseField name="valid_until" type="string">ISO 8601 timestamp when the quote's pricing validity ended.</ResponseField>
+        <ResponseField name="status" type="string">Lifecycle status: `accepted` (committed by the user, awaiting your confirmation), `confirmed` (locked in), or `expired` (confirmation window lapsed and the trade unwound).</ResponseField>
+        <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+        <ResponseField name="updated_at" type="string">ISO 8601 timestamp of the last status change.</ResponseField>
+        <ResponseField name="mm_wallet_address" type="string">Your wallet address backing the quote's collateral. May be omitted.</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  <Expandable title="meta">
+    <ResponseField name="cursor" type="string">Cursor for the next page. `null` on the last page.</ResponseField>
+    <ResponseField name="has_more" type="boolean">`true` if more pages exist.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | `rfq_id` is not a valid UUID. |
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+
+<RequestExample>
+```bash
+curl "https://api.totalis.trade/v1/mm/quotes?status=accepted&limit=50" \
+  -H "X-API-Key: $API_KEY"
+```
+
+```python Python
+import requests
+
+# Reconcile on startup or after a WebSocket drop: confirm any
+# committed quote you haven't confirmed yet.
+resp = requests.get(
+    "https://api.totalis.trade/v1/mm/quotes",
+    headers={"X-API-Key": API_KEY},
+    params={"status": "accepted"},
+)
+for quote in resp.json()["data"]["quotes"]:
+    requests.post(
+        f"https://api.totalis.trade/v1/mm/quotes/{quote['id']}/confirm",
+        headers={"X-API-Key": API_KEY},
+    )
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "data": {
+    "quotes": [
+      {
+        "id": "d4e5f6a7-8901-bcde-f234-567890abcdef",
+        "parlay_ticket_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+        "market_maker_id": "mm-uuid-1234",
+        "payout_odds": 4.25,
+        "user_cost": 25,
+        "total_payout": 106.25,
+        "mm_cost": 81.25,
+        "taker_fee": 0,
+        "valid_until": "2026-06-01T18:45:45.000Z",
+        "status": "accepted",
+        "created_at": "2026-06-01T18:45:30.000Z",
+        "updated_at": "2026-06-01T18:45:30.000Z",
+        "mm_wallet_address": "7sKq...9fGh"
+      }
+    ]
+  },
+  "meta": {
+    "cursor": null,
+    "has_more": false
+  }
+}
+```
+</ResponseExample>
