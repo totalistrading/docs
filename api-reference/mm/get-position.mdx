@@ -1,0 +1,119 @@
+---
+title: "Get Position"
+api: "GET /v1/mm/positions/{id}"
+description: "Fetch one of your active market-maker positions by its RFQ id, with full parlay legs."
+---
+
+Resolve a single RFQ id to your position and its full parlay legs. This is the by-id counterpart of [List Positions](/api-reference/mm/list-positions): pass an `rfq_id` you already hold — for example one returned by [Get Vault](/api-reference/funds/get-vault) — to expand it into the underlying legs.
+
+Scoped to you as the market maker. If the id is not one of your active positions — because it belongs to another maker, does not exist, or has already settled — the response is `404`, so it never reveals another maker's book.
+
+**Base URL:** `https://api.totalis.trade`
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The RFQ (parlay ticket) id — the `rfq_id` from [List Positions](/api-reference/mm/list-positions) or [Get Vault](/api-reference/funds/get-vault). Must be a UUID.
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="position" type="object">
+      The position. Same shape as each entry in [List Positions](/api-reference/mm/list-positions).
+      <Expandable title="position">
+        <ResponseField name="position_pda" type="string">On-chain position PDA.</ResponseField>
+        <ResponseField name="rfq_id" type="string">The RFQ (parlay ticket) id — matches the `id` path parameter.</ResponseField>
+        <ResponseField name="user_id" type="string">The counterparty bettor's Privy DID (`did:privy:...`).</ResponseField>
+        <ResponseField name="market_maker_id" type="string">Your market maker Privy DID (`did:privy:...`).</ResponseField>
+        <ResponseField name="user_stake" type="number">The bettor's stake in USDC.</ResponseField>
+        <ResponseField name="mm_risk" type="number">Your maximum risk (max loss) in USDC.</ResponseField>
+        <ResponseField name="mm_collateral_locked" type="number">Collateral locked on-chain for this position in USDC. `null` before it lands.</ResponseField>
+        <ResponseField name="total_payout" type="number">Total pot paid to the winner if the parlay resolves (`user_stake + mm_risk`).</ResponseField>
+        <ResponseField name="status" type="string">Position status (`active` or an in-flight release state — see [List Positions](/api-reference/mm/list-positions)).</ResponseField>
+        <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+        <ResponseField name="legs" type="array">The parlay legs, in leg order. Each leg has the fields documented in [List Positions](/api-reference/mm/list-positions).</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 404 | `NOT_FOUND` | The id is malformed, or is not one of your active positions. |
+
+<RequestExample>
+```bash
+curl "https://api.totalis.trade/v1/mm/positions/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40" \
+  -H "X-API-Key: $API_KEY"
+```
+
+```python Python
+import requests
+
+resp = requests.get(
+    f"https://api.totalis.trade/v1/mm/positions/{rfq_id}",
+    headers={"X-API-Key": API_KEY},
+)
+if resp.status_code == 404:
+    print("Not one of your active positions")
+else:
+    position = resp.json()["data"]["position"]
+    for leg in position["legs"]:
+        print(leg["market_title"], leg["side"])
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "data": {
+    "position": {
+      "position_pda": "7sKq9fGh2mNp4rTv6wXy8zAb1cDe3fGh5jKl7mNp9qRs",
+      "rfq_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+      "user_id": "did:privy:cmabc123def456ghi789jkl",
+      "market_maker_id": "did:privy:cmxyz987uvw654rst321opq",
+      "user_stake": 25,
+      "mm_risk": 81.25,
+      "mm_collateral_locked": 81.25,
+      "total_payout": 106.25,
+      "status": "active",
+      "created_at": "2026-06-01T18:45:45.000Z",
+      "legs": [
+        {
+          "market_title": "Lakers",
+          "event_title": "NBA Finals Winner",
+          "side": "yes",
+          "outcome": "yes",
+          "yes_sub_title": "Los Angeles Lakers",
+          "no_sub_title": null,
+          "selection_label": "Lakers",
+          "bet_group": null,
+          "venue": "kalshi",
+          "event_ticker": "KXNBAFINALS-26",
+          "market_ticker": "KXNBAFINALS-26-LAL",
+          "exclusivity_group": "KXNBAFINALS-26",
+          "exclusivity_group_kind": "partition",
+          "venue_url": "https://kalshi.com/markets/kxnbafinals",
+          "market_resolved": false,
+          "market_result": null,
+          "market_resolved_at": null
+        }
+      ]
+    }
+  }
+}
+```
+</ResponseExample>

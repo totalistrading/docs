@@ -95,7 +95,9 @@
               "api-reference/quote-service-mm/cashout-quote",
               "api-reference/quote-service-mm/cashout-decline",
               "api-reference/mm/list-quotes",
-              "api-reference/mm/confirm-quote"
+              "api-reference/mm/confirm-quote",
+              "api-reference/mm/list-positions",
+              "api-reference/mm/get-position"
             ]
           },
           {
