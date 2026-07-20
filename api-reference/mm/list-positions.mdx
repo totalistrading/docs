@@ -47,7 +47,7 @@ X-API-Key: <key>
         <ResponseField name="market_maker_id" type="string">Your market maker Privy DID (`did:privy:...`).</ResponseField>
         <ResponseField name="user_stake" type="number">The bettor's stake in USDC.</ResponseField>
         <ResponseField name="mm_risk" type="number">Your maximum risk (max loss) in USDC.</ResponseField>
-        <ResponseField name="mm_collateral_locked" type="number">Collateral locked on-chain for this position in USDC. `null` before it lands.</ResponseField>
+        <ResponseField name="mm_collateral_locked" type="number | null">Collateral locked on-chain for this position in USDC. `null` before it lands.</ResponseField>
         <ResponseField name="total_payout" type="number">Total pot paid to the winner if the parlay resolves (`user_stake + mm_risk`).</ResponseField>
         <ResponseField name="status" type="string">Position status. `active` for a live position; `expired_pending_mm_release`, `reconciling_mm_release`, `bought_back_pending_db`, and `reconciling_bought_back_db` are in-flight release states in which your collateral is still held.</ResponseField>
         <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
@@ -80,7 +80,7 @@ X-API-Key: <key>
 
 <ResponseField name="meta" type="object">
   <Expandable title="meta">
-    <ResponseField name="has_more" type="boolean">`true` if another page may exist (the page came back full). Fetch it by advancing `offset`.</ResponseField>
+    <ResponseField name="has_more" type="boolean">`true` if more pages may exist — set when this page came back full. Because offset pagination only approximates, a follow-up request can still return an empty `positions` array (e.g. if positions settled between pages). Advance `offset` to fetch the next page.</ResponseField>
     <ResponseField name="limit" type="integer">The effective page size applied.</ResponseField>
     <ResponseField name="offset" type="integer">The offset applied.</ResponseField>
   </Expandable>

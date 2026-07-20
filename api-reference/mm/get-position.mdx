@@ -37,7 +37,7 @@ X-API-Key: <key>
         <ResponseField name="market_maker_id" type="string">Your market maker Privy DID (`did:privy:...`).</ResponseField>
         <ResponseField name="user_stake" type="number">The bettor's stake in USDC.</ResponseField>
         <ResponseField name="mm_risk" type="number">Your maximum risk (max loss) in USDC.</ResponseField>
-        <ResponseField name="mm_collateral_locked" type="number">Collateral locked on-chain for this position in USDC. `null` before it lands.</ResponseField>
+        <ResponseField name="mm_collateral_locked" type="number | null">Collateral locked on-chain for this position in USDC. `null` before it lands.</ResponseField>
         <ResponseField name="total_payout" type="number">Total pot paid to the winner if the parlay resolves (`user_stake + mm_risk`).</ResponseField>
         <ResponseField name="status" type="string">Position status (`active` or an in-flight release state — see [List Positions](/api-reference/mm/list-positions)).</ResponseField>
         <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
@@ -63,6 +63,7 @@ curl "https://api.totalis.trade/v1/mm/positions/1a6d1f06-9d4f-47cb-994b-3bdfbbef
 ```python Python
 import requests
 
+rfq_id = "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40"
 resp = requests.get(
     f"https://api.totalis.trade/v1/mm/positions/{rfq_id}",
     headers={"X-API-Key": API_KEY},
