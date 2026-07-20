@@ -1,0 +1,167 @@
+---
+title: "List Positions"
+api: "GET /v1/mm/positions"
+description: "List your active market-maker positions, each with its full parlay legs. Offset paginated, with an optional exposure filter."
+---
+
+Your active positions as the market maker — the trades where a user committed one of your quotes and you confirmed it — each expanded to its full parlay legs. Newest first.
+
+It is the maker-side counterpart to the bettor-scoped RFQ reads, which are keyed to the user who placed the parlay and return `404` for the maker. Use this endpoint to render your live book, reconcile exposure, or resolve an `rfq_id` you already hold (for example one from [Get Vault](/api-reference/funds/get-vault)) to its underlying legs.
+
+Only active positions are returned — the `status` values below cover the live and in-flight release states. Settled trades are not included.
+
+**Base URL:** `https://api.totalis.trade`
+
+## Authentication
+
+API key required. Pass your market maker API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Query parameters
+
+<ParamField query="limit" type="integer">
+  Page size. Default 20, maximum 100.
+</ParamField>
+
+<ParamField query="offset" type="integer">
+  Number of positions to skip, for offset-based pagination. Default 0.
+</ParamField>
+
+<ParamField query="exposure_bucket" type="string">
+  Return only positions whose `mm_risk` falls in a size band. One of `lt_10`, `10_to_100`, `100_to_1000`, `gt_1000`. Bounds are inclusive-lower, exclusive-upper (e.g. `10_to_100` matches `10 <= mm_risk < 100`). Omit for no filter; an unrecognized value is ignored.
+</ParamField>
+
+## Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="data">
+    <ResponseField name="positions" type="array">
+      Active positions, newest first.
+      <Expandable title="position">
+        <ResponseField name="position_pda" type="string">On-chain position PDA.</ResponseField>
+        <ResponseField name="rfq_id" type="string">The RFQ (parlay ticket) id. Pass it to [Get Position](/api-reference/mm/get-position); it also matches the `rfq_id` from [Get Vault](/api-reference/funds/get-vault).</ResponseField>
+        <ResponseField name="user_id" type="string">The counterparty bettor's Privy DID (`did:privy:...`).</ResponseField>
+        <ResponseField name="market_maker_id" type="string">Your market maker Privy DID (`did:privy:...`).</ResponseField>
+        <ResponseField name="user_stake" type="number">The bettor's stake in USDC.</ResponseField>
+        <ResponseField name="mm_risk" type="number">Your maximum risk (max loss) in USDC.</ResponseField>
+        <ResponseField name="mm_collateral_locked" type="number | null">Collateral locked on-chain for this position in USDC. `null` before it lands.</ResponseField>
+        <ResponseField name="total_payout" type="number">Total pot paid to the winner if the parlay resolves (`user_stake + mm_risk`).</ResponseField>
+        <ResponseField name="status" type="string">Position status. `active` for a live position; `expired_pending_mm_release`, `reconciling_mm_release`, `bought_back_pending_db`, and `reconciling_bought_back_db` are in-flight release states in which your collateral is still held.</ResponseField>
+        <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+        <ResponseField name="legs" type="array">
+          The parlay legs, in leg order.
+          <Expandable title="leg">
+            <ResponseField name="market_title" type="string">Per-market label (e.g. `Lakers`). May be null on legacy rows.</ResponseField>
+            <ResponseField name="event_title" type="string">Parent event label (e.g. `NBA Finals Winner`). May be null on legacy rows.</ResponseField>
+            <ResponseField name="side" type="string">The side taken on the leg: `yes` or `no`.</ResponseField>
+            <ResponseField name="outcome" type="string">The bettor's selected outcome for the leg.</ResponseField>
+            <ResponseField name="yes_sub_title" type="string">Yes-side subtitle snapshot (team/option label). May be null.</ResponseField>
+            <ResponseField name="no_sub_title" type="string">No-side subtitle snapshot (team/option label). May be null.</ResponseField>
+            <ResponseField name="selection_label" type="string">Canonical pick label snapshotted at bet time. May be null.</ResponseField>
+            <ResponseField name="bet_group" type="string">Polymarket-only bucket/strike label (e.g. `"$100k-$110k"`). Null for Kalshi and single-market events.</ResponseField>
+            <ResponseField name="venue" type="string">Source venue: `kalshi` or `polymarket`.</ResponseField>
+            <ResponseField name="event_ticker" type="string">Event-level ticker on the source venue.</ResponseField>
+            <ResponseField name="market_ticker" type="string">Market-level ticker on the source venue.</ResponseField>
+            <ResponseField name="exclusivity_group" type="string">Mutual-exclusivity grouping key: legs sharing a value bet into a one-of-N outcome set. `null` when the leg is not part of a group.</ResponseField>
+            <ResponseField name="exclusivity_group_kind" type="string">How members of `exclusivity_group` relate: `binary` (strict two-outcome complements) or `partition` (one-of-N). `null` iff `exclusivity_group` is null.</ResponseField>
+            <ResponseField name="venue_url" type="string">Canonical URL of the leg's market on its source venue. May be null.</ResponseField>
+            <ResponseField name="market_resolved" type="boolean">`true` once the venue has a recognized result for this leg's market.</ResponseField>
+            <ResponseField name="market_result" type="string">Normalized market result: `yes`, `no`, or `invalid`. `null` while unresolved.</ResponseField>
+            <ResponseField name="market_resolved_at" type="string">ISO 8601 time the venue resolved the market. `null` while unresolved.</ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  <Expandable title="meta">
+    <ResponseField name="has_more" type="boolean">`true` if more pages may exist — set when this page came back full. Because offset pagination only approximates, a follow-up request can still return an empty `positions` array (e.g. if positions settled between pages). Advance `offset` to fetch the next page.</ResponseField>
+    <ResponseField name="limit" type="integer">The effective page size applied.</ResponseField>
+    <ResponseField name="offset" type="integer">The offset applied.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+
+<RequestExample>
+```bash
+curl "https://api.totalis.trade/v1/mm/positions?limit=20" \
+  -H "X-API-Key: $API_KEY"
+```
+
+```python Python
+import requests
+
+# Page through your live book and index positions by RFQ id.
+positions, offset = {}, 0
+while True:
+    resp = requests.get(
+        "https://api.totalis.trade/v1/mm/positions",
+        headers={"X-API-Key": API_KEY},
+        params={"limit": 100, "offset": offset},
+    ).json()
+    for p in resp["data"]["positions"]:
+        positions[p["rfq_id"]] = p
+    if not resp["meta"]["has_more"]:
+        break
+    offset += 100
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "data": {
+    "positions": [
+      {
+        "position_pda": "7sKq9fGh2mNp4rTv6wXy8zAb1cDe3fGh5jKl7mNp9qRs",
+        "rfq_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+        "user_id": "did:privy:cmabc123def456ghi789jkl",
+        "market_maker_id": "did:privy:cmxyz987uvw654rst321opq",
+        "user_stake": 25,
+        "mm_risk": 81.25,
+        "mm_collateral_locked": 81.25,
+        "total_payout": 106.25,
+        "status": "active",
+        "created_at": "2026-06-01T18:45:45.000Z",
+        "legs": [
+          {
+            "market_title": "Lakers",
+            "event_title": "NBA Finals Winner",
+            "side": "yes",
+            "outcome": "yes",
+            "yes_sub_title": "Los Angeles Lakers",
+            "no_sub_title": null,
+            "selection_label": "Lakers",
+            "bet_group": null,
+            "venue": "kalshi",
+            "event_ticker": "KXNBAFINALS-26",
+            "market_ticker": "KXNBAFINALS-26-LAL",
+            "exclusivity_group": "KXNBAFINALS-26",
+            "exclusivity_group_kind": "partition",
+            "venue_url": "https://kalshi.com/markets/kxnbafinals",
+            "market_resolved": false,
+            "market_result": null,
+            "market_resolved_at": null
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "has_more": false,
+    "limit": 20,
+    "offset": 0
+  }
+}
+```
+</ResponseExample>
