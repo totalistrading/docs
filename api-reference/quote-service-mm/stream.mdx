@@ -185,7 +185,6 @@ The taker-fee rate is read once per connection (server-side), so `user_stake` on
 
 - **Net stake.** `user_stake` is the net stake the MM underwrites: `user_stake = bet_amount − taker_fee`, where `taker_fee = floor(bet_amount_micro × taker_fee_bps / 10000)` is computed in integer microUSDC (1 USDC = 1e6 micro) — e.g. a 25.00 bet at 100 bps gives a 0.25 fee and `user_stake` 24.75. Price `payout_odds` and size collateral against `user_stake`, **not** `bet_amount`. `bet_amount` stays the user's gross wager but is not the quoting base when the taker fee is on (`taker_fee_bps > 0`); when the fee is off, `user_stake == bet_amount`.
 - The stream automatically excludes quote requests created by your own user account.
-- Keep the connection alive and send a [heartbeat](/api-reference/quote-service-mm/heartbeat) at least every 30 seconds to signal liveness.
 - A version change arrives as `quote_request:updated` (a new request arrives as `quote_request`). Your prior version quote is invalidated automatically — it leaves the book immediately and never blocks a new quote. Re-price and [submit](/api-reference/quote-service-mm/submit-quote) a new quote with the updated `version` and `request_hash`; you don't need to withdraw the old one.
 
 ## Errors

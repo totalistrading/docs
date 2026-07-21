@@ -91,7 +91,6 @@
               "api-reference/quote-service-mm/stream",
               "api-reference/quote-service-mm/submit-quote",
               "api-reference/quote-service-mm/withdraw-quote",
-              "api-reference/quote-service-mm/heartbeat",
               "api-reference/quote-service-mm/cashout-quote",
               "api-reference/quote-service-mm/cashout-decline",
               "api-reference/mm/list-quotes",

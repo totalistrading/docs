@@ -84,10 +84,6 @@ Keep quotes short-lived (default 15s). When the request changes to a new version
 
 Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote on the **current** version before the user commits it — for example, if your price moved and you want to stand down. This is not part of the version-change flow: a new `version` already invalidates your prior quote, so you don't withdraw to re-quote.
 
-### Heartbeat
-
-Send [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) every 30 seconds to signal liveness. The TTL is 60 seconds.
-
 ## SSE event format
 
 Events on the user stream (`/v1/quote-requests/{id}/stream`):
