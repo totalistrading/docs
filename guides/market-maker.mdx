@@ -9,7 +9,7 @@ Market makers on Totalis stream incoming parlay quote requests via SSE, submit c
 
 <Steps>
   <Step title="Connect to the quote-request stream">
-    Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. Maintain a [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds. See the [event summary table](/api-reference/quote-service-mm/stream#sse-event-types) for every event name this stream sends — including a spelling inconsistency worth knowing about up front.
+    Open an SSE connection to [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live quote requests in real time. See the [event summary table](/api-reference/quote-service-mm/stream#sse-event-types) for every event name this stream sends — including a spelling inconsistency worth knowing about up front.
   </Step>
   <Step title="Submit draft quotes">
     Analyze the legs and submit payout odds via [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the exact `version` and `request_hash` you received. Price `payout_odds` and size collateral against the net stake (`user_stake`), not `bet_amount` — `user_stake` is what the vault applies your odds to when the taker fee is on.
@@ -30,7 +30,6 @@ For most market makers, the integration surface should stay small:
 | Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
 | Submit a draft quote | [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) |
 | Withdraw a draft quote | [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) |
-| Send liveness heartbeat | [`POST /v1/mm/heartbeat`](/api-reference/quote-service-mm/heartbeat) |
 | Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
 | Receive accepted trade details | `mm_quote:accepted` on `mm:quotes:{mm_id}` |
 | Confirm an accepted quote | [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |

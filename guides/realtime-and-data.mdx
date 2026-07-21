@@ -63,7 +63,7 @@ Serious integrations often run both: the WebSocket for immediacy, webhooks for t
 
 ### Market maker
 
-1. Stream quote requests and cashout requests from [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream); [heartbeat](/api-reference/quote-service-mm/heartbeat) every 30 seconds.
+1. Stream quote requests and cashout requests from [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream).
 2. [Submit quotes](/api-reference/quote-service-mm/submit-quote) as requests arrive.
 3. Listen on the WebSocket [`mm:quotes:{mm_id}` channel](/guides/websocket#subscribing-to-channels) for `quote:accepted`, then [confirm](/api-reference/mm/confirm-quote) before the deadline.
 4. Keep the durable record with an [MM webhook endpoint](/guides/webhooks) (`?owner_kind=mm`).
