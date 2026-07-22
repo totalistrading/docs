@@ -84,6 +84,8 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
 
 ## Closing early (cashout)
 
+For the full walkthrough, states, and quote fields, see [Cashing out early](/guides/cashout). The short version:
+
 Once a parlay is live (`executed`), you don't have to wait for settlement — you can close it by accepting a **buyback** price from the maker that backs it. Your stake is always returned; the buyback amount is the net on top: the maker pays you when you're in profit, you pay the maker when you're underwater (gross of a profit fee).
 
 A cashout is its own short-lived request, separate from the parlay's status:

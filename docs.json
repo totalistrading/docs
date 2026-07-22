@@ -33,6 +33,7 @@
             "group": "Core concepts",
             "pages": [
               "guides/lifecycle",
+              "guides/cashout",
               "guides/funding",
               "guides/vault-architecture"
             ]
