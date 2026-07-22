@@ -16,7 +16,7 @@ flowchart LR
     committing -. determinate failure .-> active
     active -- maker can't price it --> declined
     active -- ~90s TTL elapses --> expired
-    active -- you cancel --> cancelled
+    active -- cancelled server-side --> cancelled
 ```
 
 ## Before you start
@@ -91,7 +91,7 @@ See [Get parlay](/api-reference/parlays/get) for the full object.
 
     On success the buyback executes on-chain, your stake is released, and the parlay flips to `bought_back`. The realized result lands on the parlay's `cashout` object. See [Commit cashout](/api-reference/quote-service/cashout-commit).
 
-    A quote is only valid until its `valid_until`. If it lapses before you commit, the call returns `409` with `reason: quote_expired`; wait for the next `best_quote` on the stream and commit that one instead.
+    A quote is only valid until its `valid_until`. If it lapses before you commit, the call returns `409` with `reason: quote_expired`; wait for the next `best_quote` on the stream and commit that one instead. Any determinate `409` works the same way: nothing landed on-chain, the request goes back to `active`, and you can commit again once a fresh quote is live. An indeterminate `503` is the one case where you don't retry, covered below.
   </Step>
 </Steps>
 
@@ -120,9 +120,9 @@ The terminal `status` on the stream tells you how the request resolved:
 | `committed` | The buyback landed on-chain. The parlay is now `bought_back`. |
 | `declined` | The maker permanently refused to price it (see below). |
 | `expired` | The ~90 second TTL elapsed with no commit. |
-| `cancelled` | You cancelled the request while it was still `active`. |
+| `cancelled` | The request was cancelled before commit. |
 
-You can walk away from an `active` request at any time with [Cancel cashout request](/api-reference/quote-service/cashout-cancel). Once a request is `committing` or later, it can no longer be cancelled.
+There's no client cancel action for a cashout. If you decide not to close the position, just don't commit: the request expires on its own once its ~90 second TTL elapses. (`cancelled` is a possible terminal status, but it isn't something you trigger from the API.)
 
 ### When the maker declines
 
@@ -148,7 +148,7 @@ If you already know the [quote request flow](/guides/live-quote-requests), a few
 | Item | Value |
 | --- | --- |
 | Request TTL | ~90 s (`expires_at`) |
-| Cancellable while | `active` only |
+| Opting out | don't commit; the request expires (no client cancel) |
 | Commit idempotency | per (request, user), cached 5 min |
 | Stake | always refunded on a successful buyback |
 | Buyback direction | `mm_pays_user` true in profit, false underwater |
