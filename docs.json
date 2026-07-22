@@ -122,7 +122,6 @@
               "api-reference/user/update-username",
               "api-reference/user/check-username",
               "api-reference/user/get-wallet",
-              "api-reference/user/get-blockhash",
               "api-reference/user/submit-tx"
             ]
           },
