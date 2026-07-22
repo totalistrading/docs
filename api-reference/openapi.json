@@ -785,56 +785,6 @@
         }
       }
     },
-    "/v1/wallet/blockhash": {
-      "get": {
-        "operationId": "getBlockhash",
-        "summary": "Get Blockhash",
-        "description": "Latest Solana blockhash for client-side transaction construction. Useful for browser clients that do not have direct RPC access.",
-        "tags": [
-          "User"
-        ],
-        "security": [
-          {
-            "PrivyJWT": []
-          },
-          {
-            "ApiKey": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Latest blockhash",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "required": [
-                        "blockhash",
-                        "last_valid_block_height"
-                      ],
-                      "properties": {
-                        "blockhash": {
-                          "type": "string"
-                        },
-                        "last_valid_block_height": {
-                          "type": "integer"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
-      }
-    },
     "/v1/wallet/submit-tx": {
       "post": {
         "operationId": "submitTransaction",
