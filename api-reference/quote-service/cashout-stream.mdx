@@ -73,7 +73,7 @@ This is a single event — the stream closes right after it. That's different fr
 |-------------------|---------|
 | `committed` | Buyback driven on-chain; the RFQ becomes `bought_back`. |
 | `declined` | The MM permanently refused to quote (near-decided / unpriceable leg). |
-| `expired` | The request's short TTL (~1 s) elapsed with no commit. |
+| `expired` | The request's short TTL (~5 s) elapsed with no commit. |
 | `cancelled` | The request was cancelled. |
 
 ## Errors
