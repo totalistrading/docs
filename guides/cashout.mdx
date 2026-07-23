@@ -132,7 +132,7 @@ A decline isn't the end of the road for the position. The position automatically
 ### When a commit is indeterminate
 
 <Note>
-A commit can return `503` with `details.indeterminate: true`. This does **not** mean the buyback failed. It means the on-chain outcome isn't known yet (a timeout or a transient RPC blip), so the request stays `committing` and a reconciler settles it against on-chain state. Don't treat it as a failure and don't retry blindly, or you risk acting as if nothing happened when it may have. Reopen the stream and wait for the terminal `status`. A determinate failure is a `409`, and only then is it safe to retry.
+A commit can return `503` with `details.indeterminate: true`. This does **not** mean the buyback failed. It means the on-chain outcome isn't known yet (a timeout or a transient RPC blip), so the request stays `committing` and a reconciler settles it against on-chain state. Don't treat it as a failure and don't retry blindly, or you risk acting as if nothing happened when it may have. Reopen the stream and wait for the terminal `status`. A determinate failure is a `409`: nothing landed on-chain, the request reverts to `active` (the edge in the diagram above), and only then is it safe to retry, by committing again once a fresh quote is live.
 </Note>
 
 ## Position takeover
