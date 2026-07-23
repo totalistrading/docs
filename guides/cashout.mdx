@@ -14,7 +14,7 @@ flowchart LR
     active --> committing --> committed
     committing -. determinate failure .-> active
     active -- maker can't price it --> declined
-    active -- ~90s TTL elapses --> expired
+    active -- buyback window (~1s) lapses --> expired
     active -- cancelled server-side --> cancelled
 ```
 
@@ -25,7 +25,7 @@ A position is eligible for cashout when all of the following hold:
 - It is **live on-chain** (the parlay's RFQ status is `executed`).
 - You **own** it.
 - It has a **counterparty market maker** assigned.
-- It is **not inside the near-expiry buffer** of its market end. Close to the underlying's resolution, cashout is refused so you settle normally instead.
+- It is **not inside the near-expiry buffer** of its market end. This is a fixed guard window before the position's market resolves (about 30 seconds by default); once the position is inside it, both cashout and takeover are refused, so you settle normally instead.
 
 You open a cashout against the position's on-chain `position_id`, a 16-byte hex string. Read it from the parlay object once the parlay is `executed`:
 
@@ -50,7 +50,7 @@ See [Get parlay](/api-reference/parlays/get) for the full object.
 
     - **`id`** is the cashout request UUID. You use it on the stream and the commit call.
     - **`user_stake`** is the net stake that comes back to you on any successful buyback.
-    - **`expires_at`** is the request's own TTL horizon, roughly 90 seconds out. That's not the position's market end; that's `position_expires_at`.
+    - **`expires_at`** is the request's own TTL horizon. The buyback window is deliberately short, about a second, so you aren't left waiting on one maker. That's not the position's market end; that's `position_expires_at`.
 
     See [Create cashout request](/api-reference/quote-service/cashout-create) for every field.
   </Step>
@@ -118,16 +118,16 @@ The terminal `status` on the stream tells you how the request resolved:
 | --- | --- |
 | `committed` | The buyback landed on-chain. The parlay is now `bought_back`. |
 | `declined` | The maker permanently refused to price it (see below). |
-| `expired` | The ~90 second TTL elapsed with no commit. |
+| `expired` | The buyback window (about a second) elapsed with no commit. An unfilled buyback also opens a [position takeover](#position-takeover). |
 | `cancelled` | The request was cancelled before commit. |
 
-There's no client cancel action for a cashout. If you decide not to close the position, just don't commit: the request expires on its own once its ~90 second TTL elapses. (`cancelled` is a possible terminal status, but it isn't something you trigger from the API.)
+There's no client cancel action for a cashout. If you decide not to close the position, just don't commit: the request expires on its own within about a second. (`cancelled` is a possible terminal status, but it isn't something you trigger from the API.)
 
 ### When the maker declines
 
 A cashout goes to one maker, so if that maker can't price the buyback, the request ends in `declined`. This usually means a leg is already decided or sits too close to certainty to re-price reliably. The pricing gates that produce a decline are documented for makers under [Pricing early cashouts](/guides/market-maker#pricing-early-cashouts).
 
-A decline isn't the end of the road for the position. A dead-ended buyback, whether the maker declined or the request expired unfilled, automatically escalates to a **position takeover**, covered next.
+A decline isn't the end of the road for the position. A dead-ended buyback automatically escalates to a **position takeover**, covered next. Escalation is immediate when the maker declines, or within about half a second when the short buyback window is lapsing with no live quote.
 
 ### When a commit is indeterminate
 
@@ -139,13 +139,13 @@ A commit can return `503` with `details.indeterminate: true`. This does **not** 
 
 Some positions are backed by a maker that never offers a buyback. To close those, Totalis opens a **takeover**: a broadcast auction where any maker can bid to take over your side of the trade. The winning maker doesn't buy the position back the way your counterparty would. Instead the position is transferred on-chain to that maker, and you're cashed out of it.
 
-A takeover is a separate request from the cashout, with its own auction and quote object. Unlike a cashout it's broadcast to every maker, so bids compete and the highest live bid wins, because that's the most you'd receive.
+A takeover is a separate request from the cashout, with its own auction and quote object. Unlike a cashout it's broadcast to every maker, so bids compete and the highest live bid wins, because that's the most you'd receive. The auction window is longer than the buyback, about 15 seconds.
 
 ### How a takeover starts
 
 There are two ways one opens:
 
-- **Automatically.** When a buyback dead-ends (the counterparty declined, or the cashout request expired unfilled), Totalis opens a takeover for the position on your behalf.
+- **Automatically.** When a buyback dead-ends (the counterparty declined, or its short window lapsed with no live quote), Totalis opens a takeover for the position on your behalf.
 - **On request.** You can open one yourself against the position's on-chain id:
 
   ```bash
@@ -178,14 +178,16 @@ If you already know the [quote request flow](/guides/live-quote-requests), a few
 
 - **One maker, no auction.** The buyback comes from the position's existing counterparty, not a field of competing quotes.
 - **The quote is the price.** Committing executes directly. There is no separate maker confirmation step.
-- **Short TTL.** A request lives about 90 seconds, versus the longer parlay windows.
+- **Two short windows.** The buyback lasts about a second; the takeover auction that can follow runs about 15 seconds. Both are far shorter than the parlay's own windows.
 - **One terminal event.** The stream sends a single `status` frame and closes. It doesn't follow with a second, more specific event the way the quote-request stream does.
 
 ## Reference
 
 | Item | Value |
 | --- | --- |
-| Request TTL | ~90 s (`expires_at`) |
+| Buyback TTL | ~1 s (`expires_at`) |
+| Takeover TTL | ~15 s |
+| Near-expiry buffer | ~30 s before market end; cashout and takeover refused inside it |
 | Opting out | don't commit; the request expires (no client cancel) |
 | Commit idempotency | per (request, user), cached 5 min |
 | Stake | always refunded on a successful buyback |
