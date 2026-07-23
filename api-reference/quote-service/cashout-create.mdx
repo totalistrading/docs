@@ -41,7 +41,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="version" type="integer">Request version, starts at `1`.</ResponseField>
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
-        <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~90 s), distinct from the position expiry.</ResponseField>
+        <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~5 s; the buyback window is intentionally short), distinct from the position expiry.</ResponseField>
         <ResponseField name="position_expires_at" type="string">The underlying position's market-end horizon, or `null`.</ResponseField>
         <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known).</ResponseField>
       </Expandable>

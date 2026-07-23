@@ -33,6 +33,7 @@
             "group": "Core concepts",
             "pages": [
               "guides/lifecycle",
+              "guides/cashout",
               "guides/funding",
               "guides/vault-architecture"
             ]
@@ -82,7 +83,6 @@
               "api-reference/quote-service/cashout-create",
               "api-reference/quote-service/cashout-get",
               "api-reference/quote-service/cashout-stream",
-              "api-reference/quote-service/cashout-cancel",
               "api-reference/quote-service/cashout-commit"
             ]
           },
