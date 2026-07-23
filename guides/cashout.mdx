@@ -1,6 +1,6 @@
 ---
 title: 'Cashing out early'
-description: 'Close an active parlay before settlement by accepting a live buyback price from the market maker that backs it. Your stake comes back either way; the buyback is the net on top.'
+description: 'Close an active parlay before settlement by accepting a live buyback price from the market maker that backs it. If no buyback is available, another maker can take the position over instead.'
 ---
 
 Once a parlay is live on-chain, you don't have to wait for its markets to resolve. You can close it early by opening a **cashout request** and accepting a **buyback** price from the market maker that backs the position.
@@ -10,7 +10,6 @@ Your stake is always returned. The buyback quote is the net amount on top of it:
 A cashout is a short-lived request with its own lifecycle, separate from the parlay's status. It's offered to a single market maker, the same one that took the other side of your trade, so there's no auction here. That one maker either streams you a live buyback quote or refuses.
 
 ```mermaid
-%%{init: {'themeVariables': {'edgeLabelBackground': '#1f2020', 'primaryTextColor': '#ffffff', 'lineColor': '#ffffff', 'primaryBorderColor': '#ffffff'}}}%%
 flowchart LR
     active --> committing --> committed
     committing -. determinate failure .-> active
@@ -126,13 +125,52 @@ There's no client cancel action for a cashout. If you decide not to close the po
 
 ### When the maker declines
 
-A cashout is offered to one maker, so if that maker can't price the position, the request ends in `declined` and there's no fallback maker to pick it up. A decline is permanent for that request. This usually means a leg is already decided or sits too close to certainty to re-price reliably. You can still let the parlay settle normally, and if conditions change you can open a fresh cashout request later. The pricing gates that produce a decline are documented for makers under [Pricing early cashouts](/guides/market-maker#pricing-early-cashouts).
+A cashout goes to one maker, so if that maker can't price the buyback, the request ends in `declined`. This usually means a leg is already decided or sits too close to certainty to re-price reliably. The pricing gates that produce a decline are documented for makers under [Pricing early cashouts](/guides/market-maker#pricing-early-cashouts).
+
+A decline isn't the end of the road for the position. A dead-ended buyback, whether the maker declined or the request expired unfilled, automatically escalates to a **position takeover**, covered next.
 
 ### When a commit is indeterminate
 
 <Note>
 A commit can return `503` with `details.indeterminate: true`. This does **not** mean the buyback failed. It means the on-chain outcome isn't known yet (a timeout or a transient RPC blip), so the request stays `committing` and a reconciler settles it against on-chain state. Don't treat it as a failure and don't retry blindly, or you risk acting as if nothing happened when it may have. Reopen the stream and wait for the terminal `status`. A determinate failure is a `409`, and only then is it safe to retry.
 </Note>
+
+## Position takeover
+
+Some positions are backed by a maker that never offers a buyback. To close those, Totalis opens a **takeover**: a broadcast auction where any maker can bid to take over your side of the trade. The winning maker doesn't buy the position back the way your counterparty would. Instead the position is transferred on-chain to that maker, and you're cashed out of it.
+
+A takeover is a separate request from the cashout, with its own auction and quote object. Unlike a cashout it's broadcast to every maker, so bids compete and the highest live bid wins, because that's the most you'd receive.
+
+### How a takeover starts
+
+There are two ways one opens:
+
+- **Automatically.** When a buyback dead-ends (the counterparty declined, or the cashout request expired unfilled), Totalis opens a takeover for the position on your behalf.
+- **On request.** You can open one yourself against the position's on-chain id:
+
+  ```bash
+  POST /v1/takeover-requests
+  { "position_id": "9f86d08818844f86d08818844f86d088" }
+  ```
+
+An auto-opened takeover is created without a client, so you won't have its request id. Look it up by position id:
+
+```bash
+GET /v1/takeover-requests/by-position/<position_id>    # the live takeover for a position, or 404
+```
+
+### Bidding, then commit
+
+From there it mirrors the cashout flow, with the takeover request id in place of the cashout id:
+
+```bash
+GET  /v1/takeover-requests/<id>/stream    # SSE: the best (highest) live bid
+POST /v1/takeover-requests/<id>/commit    # accept the best bid, transfer on-chain
+```
+
+The stream's `best_quote` carries the highest live bid's `price_micro` (the bid in µUSDC) and `valid_until`. On commit, Totalis takes the highest live bid and drives the on-chain transfer. If that bid can't clear for a buyer-specific reason, it fails over to the next-highest bid automatically, so a commit accepts the best bid that actually settles. The indeterminate-`503` rule from the buyback applies here too: don't retry blindly, reopen the stream and wait for the terminal `status`.
+
+The one maker that can't win a takeover is the position's existing counterparty. Buying back its own position is the cashout path above, not a transfer.
 
 ## How cashout differs from the forward flow
 
