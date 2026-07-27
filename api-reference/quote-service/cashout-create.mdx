@@ -43,7 +43,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="status" type="string">`"active"`</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~90 s), distinct from the position expiry.</ResponseField>
         <ResponseField name="position_expires_at" type="string">The underlying position's market-end horizon, or `null`.</ResponseField>
-        <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known). On Polymarket legs `market_ticker` carries the `condition_id` and `event_ticker` the Gamma event slug, which falls back to the market slug then the `condition_id` — see [Leg fields](/api-reference/quote-service-mm/stream#leg-fields).</ResponseField>
+        <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known). On Polymarket legs `market_ticker` carries the `condition_id` and `event_ticker` the Gamma event slug, which falls back to the market slug then the `condition_id`. See [Leg fields](/api-reference/quote-service-mm/stream#leg-fields).</ResponseField>
       </Expandable>
     </ResponseField>
   </Expandable>
