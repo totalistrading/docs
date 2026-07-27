@@ -164,12 +164,51 @@ This is a distinct event name from `quote_request`, with a different payload —
     }
   ],
   "user_stake": 24.75,
-  "mm_risk": 75,
-  "total_payout": 100,
+  "mm_risk": 74.25,
+  "total_payout": 99,
   "payout_odds": 4.0,
   "expires_at": "2026-06-01T18:46:00.000Z"
 }
 ```
+
+## Leg fields
+
+Legs use the same field names on every event and every venue. What those fields *hold* is venue-specific — the examples above are Kalshi, so read this before you key off them for Polymarket.
+
+| Field | Kalshi | Polymarket |
+|-------|--------|------------|
+| `id` | Our leg id (UUID). Stable for the life of the leg, and **not** a venue identifier — don't look it up against either venue. | Same. |
+| `venue` | `"kalshi"` | `"polymarket"` |
+| `market_ticker` | The Kalshi market ticker, e.g. `KXBTC-26JUN01-T72500`. | The **`condition_id`** — the definitive Polymarket primary key — as `0x`-prefixed hex. This is the field to resolve a Polymarket market by. |
+| `event_ticker` | The Kalshi event ticker, e.g. `KXBTC-26JUN01`. | The Gamma **`event_slug`**, e.g. `will-bitcoin-hit-100k-in-june`. A slug, not a ticker. Always populated, but if Gamma gave us no event slug it falls back to the market slug, then to the `condition_id` — so treat it as a label, not a key. |
+| `side` | `"yes"` or `"no"` | Same. |
+| `resolution` | See below. Present on `cashout_request` legs only. | Same. |
+
+A Polymarket leg:
+
+```json
+{
+  "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+  "event_ticker": "will-bitcoin-hit-100k-in-june",
+  "market_ticker": "0x1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809",
+  "side": "yes",
+  "venue": "polymarket",
+  "resolution": "unresolved"
+}
+```
+
+### `resolution`
+
+Present on `cashout_request` legs. Four values, same on both venues:
+
+| Value | Meaning |
+|-------|---------|
+| `unresolved` | Not settled yet. Price it live. |
+| `won` | Settled in the position's favour on this leg. |
+| `lost` | Settled against the position on this leg. |
+| `void` | The market was cancelled or voided (a Kalshi cancel lands here). Kept distinct from `lost` so you can treat a cancel differently. |
+
+Anything we can't classify — including a value your client doesn't recognise from a future release — arrives as `unresolved`, never as an unknown string. `resolution` is not the same as `side` (always `yes`/`no`).
 
 ## Reconnection
 
