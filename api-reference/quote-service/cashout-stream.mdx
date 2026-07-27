@@ -38,7 +38,8 @@ Sent when the MM's buyback quote changes (submitted, replaced, or expired). The 
     "buyback_price": 41.5,
     "mm_pays_user": true,
     "valid_until": "2026-06-01T18:45:45.000Z",
-    "net_received": 66.25
+    "net_received": 66.25,
+    "net_received_micro": 66250000
   }
 }
 ```
@@ -46,6 +47,7 @@ Sent when the MM's buyback quote changes (submitted, replaced, or expired). The 
 <ResponseField name="buyback_price" type="number">The directional buyback `amount` the MM quoted (USDC, ≥ 0), gross of the profit fee.</ResponseField>
 <ResponseField name="mm_pays_user" type="boolean">`true` when the MM pays the user (position is in profit); `false` when the user pays the MM.</ResponseField>
 <ResponseField name="net_received" type="number">The net cash the user walks away with after the buyback (USDC, ≥ 0) — stake plus/minus the directional amount, net of fees. Present only when computable; omitted otherwise.</ResponseField>
+<ResponseField name="net_received_micro" type="integer">The same figure in µUSDC, the integer the chain credits. Send it back verbatim as `min_net_received_micro` when committing, so the floor cannot drift from what you were shown. Present and omitted under exactly the same conditions as `net_received`.</ResponseField>
 
 When no quote is live, `best_quote` is `null`:
 
@@ -133,7 +135,7 @@ async function streamCashout(id, apiKey) {
 <ResponseExample>
 ```text SSE stream
 event: best_quote
-data: {"book_seq":3,"version":1,"best_quote":{"id":"q1w2e3r4-5678-90ab-cdef-1234567890ab","market_maker_id":"mm-uuid-1234","buyback_price":41.5,"mm_pays_user":true,"valid_until":"2026-06-01T18:45:45.000Z","net_received":66.25}}
+data: {"book_seq":3,"version":1,"best_quote":{"id":"q1w2e3r4-5678-90ab-cdef-1234567890ab","market_maker_id":"mm-uuid-1234","buyback_price":41.5,"mm_pays_user":true,"valid_until":"2026-06-01T18:45:45.000Z","net_received":66.25,"net_received_micro":66250000}}
 
 event: status
 data: {"status":"committed"}
