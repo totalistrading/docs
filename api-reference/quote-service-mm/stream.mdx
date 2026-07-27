@@ -16,7 +16,7 @@ X-API-Key: <key>
 
 ## SSE event types
 
-This stream sends seven event names. Their spelling isn't consistent: `quote_request` and `quote_request_expired` are underscore-separated, while `quote_request:updated` is colon-separated. The subsections below — and their `<Warning>`s — cover why:
+This stream sends eight event names. Their spelling isn't consistent: `quote_request` and `quote_request_expired` are underscore-separated, while `quote_request:updated` is colon-separated. The subsections below, and their `<Warning>`s, cover why:
 
 | Event | Fires when |
 | --- | --- |
@@ -27,6 +27,7 @@ This stream sends seven event names. Their spelling isn't consistent: `quote_req
 | `snapshot_complete` | The initial snapshot finishes; the stream switches to incremental updates only. |
 | `quote_request_expired` | A previously seen request is no longer active (committed, cancelled, or expired). |
 | `cashout_request` | A cashout (buyback) request opens on a position you back — scoped to you alone. |
+| `takeover_request` | A position is offered for takeover. Broadcast to every market maker, not just the position's maker. |
 
 ### `connected`
 
@@ -52,9 +53,12 @@ Sent at the start of the initial snapshot (on new connection or reconnect). All 
 
 Sent when a **new** quote request is created, and once for each active request replayed during the initial snapshot. This is the primary event you price against.
 
+`status` is always `active` here: the snapshot lists active requests only, and the live tail skips anything already terminal or aged out. Terminal transitions arrive as [`quote_request_expired`](#quote_request_expired), never as a `status` change on this event.
+
 ```json
 {
   "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "status": "active",
   "user_id": "did:privy:cm3abc...",
   "input_legs": [
     {"market_ticker": "KXBTC-26JUN01-T72500", "side": "yes", "venue": "kalshi"},
@@ -96,6 +100,7 @@ This is a distinct event name from `quote_request`. If your client only register
 ```json
 {
   "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "status": "active",
   "user_id": "did:privy:cm3abc...",
   "input_legs": [ "..." ],
   "legs": [ "..." ],
@@ -164,12 +169,92 @@ This is a distinct event name from `quote_request`, with a different payload —
     }
   ],
   "user_stake": 24.75,
-  "mm_risk": 75,
-  "total_payout": 100,
+  "mm_risk": 74.25,
+  "total_payout": 99,
   "payout_odds": 4.0,
   "expires_at": "2026-06-01T18:46:00.000Z"
 }
 ```
+
+### `takeover_request`
+
+Sent when a position is offered for **takeover**: a buy-side auction where you bid to take over the bettor side of someone else's position via an on-chain `transfer_position`. Unlike `cashout_request` this is **broadcast to every market maker**, not just the position's maker, and you will receive it for positions you have no prior relationship with.
+
+<Warning>
+These also open **without a user action**: when a cashout goes unfilled near its deadline, the backend escalates it to a broadcast takeover automatically. So this event can arrive even though no seller pressed anything, and it can arrive for a position whose maker is another firm.
+</Warning>
+
+Bid with `PUT /v1/mm/takeover-requests/{id}/quote`, body `{"price_micro": <integer>, "expires_in_ms": <ms>}`. `expires_in_ms` accepts 5000 to 60000 and defaults to 15000. `price_micro` is the raw µUSDC you will pay the seller. The transfer lane moves exactly that amount, with no economics mapping (unlike a buyback quote, which is a price plus a direction). Highest bid wins. Withdraw with `DELETE` on the same path.
+
+The payload carries `version` and, unlike `cashout_request`, **no `payout_odds`**:
+
+```json
+{
+  "takeover_request_id": "b2c3d4e5-6789-abcd-ef01-234567890abc",
+  "position_id": "9f86d08818844f86d08818844f86d088",
+  "legs": [
+    {
+      "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+      "event_ticker": "KXBTC-26JUN01",
+      "market_ticker": "KXBTC-26JUN01-T72500",
+      "side": "yes",
+      "venue": "kalshi",
+      "resolution": "unresolved"
+    }
+  ],
+  "user_stake": 24.75,
+  "mm_risk": 74.25,
+  "total_payout": 99,
+  "version": 1,
+  "expires_at": "2026-06-01T18:46:00.000Z"
+}
+```
+
+## Leg fields
+
+Legs use the same field names on every event and every venue. What those fields *hold* is venue-specific. The examples above are Kalshi, so read this before you key off them for Polymarket.
+
+| Field | Kalshi | Polymarket |
+|-------|--------|------------|
+| `id` | Our leg id (UUID). Stable for the life of the leg, and **not** a venue identifier. Don't look it up against either venue. | Same. |
+| `venue` | `"kalshi"` | `"polymarket"` |
+| `market_ticker` | The Kalshi market ticker, e.g. `KXBTC-26JUN01-T72500`. | The **`condition_id`**, the definitive Polymarket primary key, as `0x`-prefixed hex. This is the field to resolve a Polymarket market by. |
+| `event_ticker` | The Kalshi event ticker, e.g. `KXBTC-26JUN01`. | The Gamma **`event_slug`**, e.g. `will-bitcoin-hit-100k-in-june`. A slug, not a ticker. Always populated, but if Gamma gave us no event slug it falls back to the market slug, then to the `condition_id`. Treat it as a label, not a key. |
+| `side` | `"yes"` or `"no"` | Same. |
+| `resolution` | See below. On `cashout_request` and `takeover_request` legs, never on `quote_request`. | Same. |
+
+Legs are sent verbatim from the backend, so they carry fields beyond the ones above, and the extra set differs by event:
+
+- `quote_request` and `quote_request:updated`: display snapshots (event and market titles, per-side subtitles, `selection_label`, image and venue URLs) plus the collateral-solver snapshot below.
+- `cashout_request` and `takeover_request`: the collateral-solver snapshot (`event_mutually_exclusive`, `scalar_key`, `strike_type`, `floor_strike`, `cap_strike`) and the venue's raw `result`, but none of the display snapshots. Both are built from the same position read, so their legs are identical in shape.
+
+Neither list is exhaustive and both are additive, so parse leniently and ignore keys you don't use.
+
+A Polymarket leg:
+
+```json
+{
+  "id": "8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6",
+  "event_ticker": "will-bitcoin-hit-100k-in-june",
+  "market_ticker": "0x1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809",
+  "side": "yes",
+  "venue": "polymarket",
+  "resolution": "unresolved"
+}
+```
+
+### `resolution`
+
+Present on `cashout_request` and `takeover_request` legs. Four values, same on both venues:
+
+| Value | Meaning |
+|-------|---------|
+| `unresolved` | Not settled yet. Price it live. |
+| `won` | Settled in the position's favour on this leg. |
+| `lost` | Settled against the position on this leg. |
+| `void` | The market was cancelled or voided (a Kalshi cancel lands here). Kept distinct from `lost` so you can treat a cancel differently. |
+
+Anything we can't classify arrives as `unresolved`, never as an unknown string. That includes a value your client doesn't recognise from a future release. `resolution` is not the same as `side` (always `yes`/`no`).
 
 ## Reconnection
 
@@ -313,16 +398,16 @@ event: snapshot_begin
 data: {"page_size":50}
 
 event: quote_request
-data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":25,"user_stake":24.75,"implied_probability":0,"version":1,"request_hash":"sha256:9f86d08...","expires_at":"2026-06-01T18:45:30.000Z"}
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","status":"active","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":25,"user_stake":24.75,"implied_probability":0,"version":1,"request_hash":"sha256:9f86d08...","expires_at":"2026-06-01T18:45:30.000Z"}
 
 event: snapshot_complete
 data: {"pages":1,"total":3}
 
 event: quote_request
-data: {"id":"f7e8d9c0-1234-5678-abcd-ef0123456789","user_id":"did:privy:cm9xyz...","input_legs":[{"market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"legs":[{"id":"d4e5f6a7-8901-23bc-def4-567890abcdef","event_ticker":"KXETH-26JUN01","market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"bet_amount":10,"user_stake":9.90,"implied_probability":0,"version":1,"request_hash":"sha256:b5c6d7e...","expires_at":"2026-06-01T18:50:00.000Z"}
+data: {"id":"f7e8d9c0-1234-5678-abcd-ef0123456789","status":"active","user_id":"did:privy:cm9xyz...","input_legs":[{"market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"legs":[{"id":"d4e5f6a7-8901-23bc-def4-567890abcdef","event_ticker":"KXETH-26JUN01","market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"bet_amount":10,"user_stake":9.90,"implied_probability":0,"version":1,"request_hash":"sha256:b5c6d7e...","expires_at":"2026-06-01T18:50:00.000Z"}
 
 event: quote_request:updated
-data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":50,"user_stake":49.50,"implied_probability":0,"version":2,"request_hash":"sha256:3b1f9c2...","expires_at":"2026-06-01T18:46:10.000Z"}
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","status":"active","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":50,"user_stake":49.50,"implied_probability":0,"version":2,"request_hash":"sha256:3b1f9c2...","expires_at":"2026-06-01T18:46:10.000Z"}
 
 event: quote_request_expired
 data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","reason":"committed","won":false}
