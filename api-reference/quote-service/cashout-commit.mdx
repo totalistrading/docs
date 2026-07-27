@@ -30,7 +30,15 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 ## Request body
 
-No body. The committed quote is the live `best_quote` on the request.
+<ParamField body="min_net_received_micro" type="integer" required>
+  The lowest net you will accept, in µUSDC: the `net_received_micro` from the `best_quote` you are accepting. The server re-derives the current net at commit time and refuses to fill below this, so you are never filled at a worse number than the one you were shown.
+
+  Echo the quote's `net_received_micro` verbatim. Deriving your own integer from the USD `net_received` also works (`Math.round(net_received * 1e6)`), but any rounding difference makes the floor land above the true net and every commit returns `409 price_below_floor`.
+</ParamField>
+
+Required. A commit that does not state a floor is rejected with `400`, rather than filling at whatever the price happens to be.
+
+Two things can move the net between the quote being displayed and the commit arriving: the market maker can replace its quote, and the on-chain profit fee that `net_received` nets out can change. The floor covers both.
 
 ## Response
 
@@ -52,13 +60,14 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this cashout request (`details.reason: not_owner`). |
 | 404 | `NOT_FOUND` | Cashout request not found. |
-| 409 | `CONFLICT` | No live quote (`quote_expired`), request not active, missing wallet info (`missing_wallet`), already locked, or a determinate on-chain failure. See `details.reason`. |
+| 400 | `VALIDATION_ERROR` | Body missing, unreadable, or `min_net_received_micro` absent or not a non-negative integer. See `details.issues`. |
+| 409 | `CONFLICT` | No live quote (`quote_expired`), the net moved below your floor (`price_below_floor`, with `net_received_micro` and `min_net_received_micro` in `details`), request not active, missing wallet info (`missing_wallet`), already locked, or a determinate on-chain failure. See `details.reason`. |
 | 410 | `GONE` | The cashout request expired before commit. |
-| 503 | `SERVICE_UNAVAILABLE` | **Indeterminate** — the buyback may have landed. `details.indeterminate` is `true` and `details.reason` is e.g. `lane_unreachable` / `buyback_in_flight`; the request stays `committing` for the reconciler. Don't retry blindly. |
+| 503 | `SERVICE_UNAVAILABLE` | Either **indeterminate** (the buyback may have landed: `details.indeterminate` is `true`, `details.reason` e.g. `lane_unreachable` / `buyback_in_flight`, the request stays `committing` for the reconciler, don't retry blindly) **or** `fee_unavailable`, where the profit fee could not be confirmed so nothing was attempted. The latter carries `details.indeterminate: false` and is safe to retry. Branch on `details.indeterminate`, never on the status alone. |
 
 <RequestExample>
 ```bash
-curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/commit \
+curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/commit   -H "Content-Type: application/json"   -d '{"min_net_received_micro": 66250000}' \
   -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 </RequestExample>
