@@ -47,7 +47,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="status" type="string">`active`, `committing`, `committed`, `declined`, `expired`, or `cancelled`.</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~90 s), distinct from the position expiry.</ResponseField>
         <ResponseField name="position_expires_at" type="string">The underlying position's market-end horizon, or `null`.</ResponseField>
-        <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known). On Polymarket legs `market_ticker` carries the `condition_id` and `event_ticker` the Gamma event slug — see [Leg fields](/api-reference/quote-service-mm/stream#leg-fields).</ResponseField>
+        <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known). On Polymarket legs `market_ticker` carries the `condition_id` and `event_ticker` the Gamma event slug, which falls back to the market slug then the `condition_id` — see [Leg fields](/api-reference/quote-service-mm/stream#leg-fields).</ResponseField>
       </Expandable>
     </ResponseField>
     <ResponseField name="best_quote" type="object">
@@ -90,7 +90,7 @@ curl https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567
       "position_id": "9f86d08818844f86d08818844f86d088",
       "position_pda": "7Xc3...PDA",
       "user_stake": 24.75,
-      "total_payout": 100,
+      "total_payout": 99,
       "version": 1,
       "book_seq": 3,
       "status": "active",

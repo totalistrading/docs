@@ -52,9 +52,12 @@ Sent at the start of the initial snapshot (on new connection or reconnect). All 
 
 Sent when a **new** quote request is created, and once for each active request replayed during the initial snapshot. This is the primary event you price against.
 
+`status` is always `active` here — you only ever receive requests you can still quote. Terminal transitions arrive as [`quote_request_expired`](#quote_request_expired), not as a `status` change on this event.
+
 ```json
 {
   "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "status": "active",
   "user_id": "did:privy:cm3abc...",
   "input_legs": [
     {"market_ticker": "KXBTC-26JUN01-T72500", "side": "yes", "venue": "kalshi"},
@@ -96,6 +99,7 @@ This is a distinct event name from `quote_request`. If your client only register
 ```json
 {
   "id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
+  "status": "active",
   "user_id": "did:privy:cm3abc...",
   "input_legs": [ "..." ],
   "legs": [ "..." ],
@@ -183,6 +187,8 @@ Legs use the same field names on every event and every venue. What those fields 
 | `event_ticker` | The Kalshi event ticker, e.g. `KXBTC-26JUN01`. | The Gamma **`event_slug`**, e.g. `will-bitcoin-hit-100k-in-june`. A slug, not a ticker. Always populated, but if Gamma gave us no event slug it falls back to the market slug, then to the `condition_id` — so treat it as a label, not a key. |
 | `side` | `"yes"` or `"no"` | Same. |
 | `resolution` | See below. Present on `cashout_request` legs only. | Same. |
+
+Legs are sent verbatim from the backend, so a leg can also carry snapshot fields not listed above — event and market titles, per-side subtitles, image and venue URLs, strike geometry (`scalar_key`, `strike_type`, `floor_strike`, `cap_strike`), event exclusivity (`event_mutually_exclusive`), and on `cashout_request` the venue's raw `result`. These are additive and may grow without notice: parse leniently and ignore keys you don't use.
 
 A Polymarket leg:
 
@@ -352,7 +358,7 @@ event: snapshot_begin
 data: {"page_size":50}
 
 event: quote_request
-data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":25,"user_stake":24.75,"implied_probability":0,"version":1,"request_hash":"sha256:9f86d08...","expires_at":"2026-06-01T18:45:30.000Z"}
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","status":"active","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":25,"user_stake":24.75,"implied_probability":0,"version":1,"request_hash":"sha256:9f86d08...","expires_at":"2026-06-01T18:45:30.000Z"}
 
 event: snapshot_complete
 data: {"pages":1,"total":3}
@@ -361,7 +367,7 @@ event: quote_request
 data: {"id":"f7e8d9c0-1234-5678-abcd-ef0123456789","user_id":"did:privy:cm9xyz...","input_legs":[{"market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"legs":[{"id":"d4e5f6a7-8901-23bc-def4-567890abcdef","event_ticker":"KXETH-26JUN01","market_ticker":"KXETH-26JUN01-T3000","side":"no","venue":"kalshi"}],"bet_amount":10,"user_stake":9.90,"implied_probability":0,"version":1,"request_hash":"sha256:b5c6d7e...","expires_at":"2026-06-01T18:50:00.000Z"}
 
 event: quote_request:updated
-data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":50,"user_stake":49.50,"implied_probability":0,"version":2,"request_hash":"sha256:3b1f9c2...","expires_at":"2026-06-01T18:46:10.000Z"}
+data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","status":"active","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":50,"user_stake":49.50,"implied_probability":0,"version":2,"request_hash":"sha256:3b1f9c2...","expires_at":"2026-06-01T18:46:10.000Z"}
 
 event: quote_request_expired
 data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","reason":"committed","won":false}
