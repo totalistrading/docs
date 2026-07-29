@@ -37,10 +37,12 @@ X-API-Key: <key>
   The all-in amount **the user receives**, in micro-USDC (`1_000_000` = $1.00). Integer, minimum
   `1`. May be below the user's stake — a losing parlay exits for less than it cost.
 
-  Two ceilings apply. Every bid must satisfy `price_micro <= total_payout * 1e6`
-  (`price_above_max_payout`). If you are the position's current counterparty, a tighter fee-aware
-  ceiling binds — roughly `user_stake + mm_risk * (1 - fee_bps/10_000)` in micro-USDC
-  (`price_above_buyback_bound`).
+  Two ceilings apply, and both compare against micro-USDC. `user_stake`, `mm_risk` and
+  `total_payout` arrive as **decimal** USDC on the push, so scale them by `1e6` first.
+
+  Every bid must satisfy `price_micro <= total_payout * 1e6` (`price_above_max_payout`). If you are
+  the position's current counterparty, a tighter fee-aware ceiling binds — roughly
+  `user_stake * 1e6 + mm_risk * 1e6 * (1 - fee_bps/10_000)` (`price_above_buyback_bound`).
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer" default="15000">

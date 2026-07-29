@@ -1,7 +1,7 @@
 ---
 title: "Commit Cashout"
 api: "POST /v1/cashout-requests/{id}/commit"
-description: "Accept the live buyback quote and drive the early cashout on-chain."
+description: "Accept the winning bid on an early-exit auction and drive it on-chain."
 ---
 
 Accept the winning bid on the user's early-exit auction and drive it on-chain. The bid **is** the price — there is no MM-confirm round-trip. You must echo back the price the user accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution. On success, the position is bought back, your stake is released, and the RFQ flips to `bought_back`.

@@ -143,7 +143,7 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 
 ### `cashout_request`
 
-Sent when a user opens an [early-exit auction](/api-reference/quote-service/cashout-create) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker** — including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds — see [Early exit auctions](/guides/early-exit-auctions).
+Sent when a user opens an [early-exit auction](/guides/early-exit-auctions) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker** — including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds — see [Early exit auctions](/guides/early-exit-auctions).
 
 <Warning>
 This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a buyback request apart from a forward quote request.

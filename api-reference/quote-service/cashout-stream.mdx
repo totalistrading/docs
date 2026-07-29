@@ -1,10 +1,10 @@
 ---
 title: "Stream Cashout Quote"
 api: "GET /v1/cashout-requests/{id}/stream"
-description: "Subscribe to the live buyback quote and terminal status for a cashout request via Server-Sent Events."
+description: "Follow the best live bid and terminal status for an early-exit auction via Server-Sent Events."
 ---
 
-Open a Server-Sent Events (SSE) stream to follow a [cashout request](/api-reference/quote-service/cashout-create). Because a cashout is offered to a single counterparty market maker, the stream surfaces that MM's buyback quote as the degenerate "best quote". It also sends a terminal `status` frame when the request leaves the `active`/`committing` states.
+Open a Server-Sent Events (SSE) stream to follow an [exit auction](/api-reference/quote-service/cashout-create). Every market maker may bid, and the stream surfaces the **highest live bid** as `best_quote` (ties go to the earliest bid), updating as the book moves. It also sends a terminal `status` frame when the request leaves the `active`/`committing` states.
 
 ## Authentication
 
@@ -35,17 +35,17 @@ Sent when the MM's buyback quote changes (submitted, replaced, or expired). The 
   "best_quote": {
     "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
     "market_maker_id": "mm-uuid-1234",
-    "buyback_price": 41.5,
+    "price_micro": 66250000,
     "mm_pays_user": true,
     "valid_until": "2026-06-01T18:45:45.000Z",
-    "net_received": 66.25
+    "valid_until": "2026-06-01T18:46:05.000Z"
   }
 }
 ```
 
-<ResponseField name="buyback_price" type="number">The directional buyback `amount` the MM quoted (USDC, ≥ 0), gross of the profit fee.</ResponseField>
+<ResponseField name="price_micro" type="integer">The all-in amount **you receive**, in micro-USDC (`1_000_000` = $1.00). One number: no direction and no separate fee term. **Echo this exact value back as `min_price_micro`** when you [commit](/api-reference/quote-service/cashout-commit) — the commit is rejected without it, and you are never filled below it.</ResponseField>
 <ResponseField name="mm_pays_user" type="boolean">`true` when the MM pays the user (position is in profit); `false` when the user pays the MM.</ResponseField>
-<ResponseField name="net_received" type="number">The net cash the user walks away with after the buyback (USDC, ≥ 0) — stake plus/minus the directional amount, net of fees. Present only when computable; omitted otherwise.</ResponseField>
+<ResponseField name="valid_until" type="string">ISO 8601 timestamp when this bid lapses; a lapsed bid stops being the best bid. Present only when computable; omitted otherwise.</ResponseField>
 
 When no quote is live, `best_quote` is `null`:
 
@@ -72,8 +72,7 @@ This is a single event — the stream closes right after it. That's different fr
 | Terminal `status` | Meaning |
 |-------------------|---------|
 | `committed` | Buyback driven on-chain; the RFQ becomes `bought_back`. |
-| `declined` | The MM permanently refused to quote (near-decided / unpriceable leg). |
-| `expired` | The request's ~90 s TTL elapsed with no commit. |
+| `expired` | The auction's ~10 s TTL elapsed with no commit. |
 | `cancelled` | The request was cancelled. |
 
 ## Errors
@@ -133,7 +132,7 @@ async function streamCashout(id, apiKey) {
 <ResponseExample>
 ```text SSE stream
 event: best_quote
-data: {"book_seq":3,"version":1,"best_quote":{"id":"q1w2e3r4-5678-90ab-cdef-1234567890ab","market_maker_id":"mm-uuid-1234","buyback_price":41.5,"mm_pays_user":true,"valid_until":"2026-06-01T18:45:45.000Z","net_received":66.25}}
+data: {"book_seq":3,"version":1,"best_quote":{"id":"q1w2e3r4-5678-90ab-cdef-1234567890ab","market_maker_id":"mm-uuid-1234","price_micro":66250000,"valid_until":"2026-06-01T18:45:45.000Z"}}
 
 event: status
 data: {"status":"committed"}

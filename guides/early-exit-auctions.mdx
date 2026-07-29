@@ -26,10 +26,12 @@ money field on these payloads — `user_stake`, `mm_risk`, `total_payout`, `payo
     no relationship with.
   </Step>
   <Step title="Price the exit">
-    Re-value the parlay at current odds. Honour `legs[].resolution`: a leg already resolved `lost`
-    or `void` makes the parlay worthless, and a near-decided leg is where mispricing hurts most.
-    Then read [Your economics](#your-economics) — what a win costs you depends on whether you are
-    the position's current counterparty.
+    Re-value the parlay at current odds, and read `legs[].resolution` carefully — the values are
+    not interchangeable. A `lost` leg makes the parlay worthless. A `void` leg is different: that
+    position is cancelled at settlement and the stake refunded, so it is worth about the stake, not
+    zero. A near-decided leg is where mispricing hurts most. Then read
+    [Your economics](#your-economics) — what a win costs you depends on whether you are the
+    position's current counterparty.
   </Step>
   <Step title="Bid one all-in price">
     `PUT` your bid to
@@ -89,9 +91,15 @@ number you actually want to pay.
 you **collect** `(S - P) * (1 - f)`. The fee is still taken, out of your proceeds rather than on top
 of a payment. Do not apply the formula above here; it returns a negative number.
 
-Your bid must also fit inside your locked collateral, which makes the ceiling roughly
-`P <= S + mm_risk_micro * (1 - f)` — **tighter than `total_payout`**. Exceed it and the bid is
-rejected with `price_above_buyback_bound`.
+Your bid must also fit inside your locked collateral. `mm_risk` arrives as decimal USDC, so scale
+it before comparing against a micro-USDC bid:
+
+```
+P <= S + round(mm_risk * 1e6) * (1 - f)        # S is user_stake * 1e6
+```
+
+That is **tighter than `total_payout`**. Exceed it and the bid is rejected with
+`price_above_buyback_bound`.
 
 <Warning>
 That ceiling check is a fast reject, not a guarantee. If the fee rate is briefly unavailable the
