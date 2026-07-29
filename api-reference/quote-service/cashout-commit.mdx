@@ -6,7 +6,7 @@ description: "Accept the winning bid on an early-exit auction and drive it on-ch
 
 Accept the winning bid on the user's early-exit auction and drive it on-chain. The bid **is** the price — there is no MM-confirm round-trip. You must echo back the price the user accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution. On success, the position is bought back, your stake is released, and the RFQ flips to `bought_back`.
 
-This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`.
+This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`. The replay returns the original outcome verbatim — a retry that sends a *different* `min_price_micro` still gets the first commit's result, and the new floor is not re-evaluated. Retry with the same value you first sent.
 
 <Note>
 **Indeterminate commits never double-spend.** If the on-chain buyback's outcome is unknown (timeout or transient RPC failure), the request stays `committing` and returns `503` with `details.indeterminate: true`. A reconciler resolves it against on-chain state — do **not** treat a `503` as a failure or assume nothing happened. Reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. A determinate failure (`409`) means nothing landed; you may retry.
