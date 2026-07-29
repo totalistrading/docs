@@ -46,7 +46,8 @@
               "guides/webhooks",
               "guides/websocket",
               "guides/live-quote-requests",
-              "guides/market-maker"
+              "guides/market-maker",
+              "guides/early-exit-auctions"
             ]
           },
           {
@@ -80,7 +81,6 @@
               "api-reference/quote-service/cancel",
               "api-reference/quote-service/stream",
               "api-reference/quote-service/cashout-create",
-              "api-reference/quote-service/cashout-get",
               "api-reference/quote-service/cashout-stream",
               "api-reference/quote-service/cashout-cancel",
               "api-reference/quote-service/cashout-commit"
@@ -93,7 +93,6 @@
               "api-reference/quote-service-mm/submit-quote",
               "api-reference/quote-service-mm/withdraw-quote",
               "api-reference/quote-service-mm/cashout-quote",
-              "api-reference/quote-service-mm/cashout-decline",
               "api-reference/mm/list-quotes",
               "api-reference/mm/confirm-quote",
               "api-reference/mm/list-positions",

@@ -4,7 +4,7 @@ api: "POST /v1/cashout-requests/{id}/commit"
 description: "Accept the live buyback quote and drive the early cashout on-chain."
 ---
 
-Accept the market maker's live buyback quote and drive the early cashout on-chain through the vault buyback lane. The quote **is** the price — there's no MM-confirm round-trip. Signatures are obtained server-side via Privy at execution. On success, the position is bought back, your stake is released, and the RFQ flips to `bought_back`.
+Accept the winning bid on the user's early-exit auction and drive it on-chain. The bid **is** the price — there is no MM-confirm round-trip. You must echo back the price the user accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution. On success, the position is bought back, your stake is released, and the RFQ flips to `bought_back`.
 
 This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`.
 
@@ -30,7 +30,17 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 ## Request body
 
-No body. The committed quote is the live `best_quote` on the request.
+<ParamField body="min_price_micro" type="integer" required>
+  The price the user accepted on screen, in micro-USDC — echo back the `price_micro` from the
+  `best_quote` frame you displayed. **Required**: a commit that does not state the accepted price is
+  a `400`, because nothing is ever filled at a price the user did not see.
+
+  The fill uses the best live bid at commit time, floored at this value: a better bid fills at the
+  better price, and a book that has moved below it fails with `409 price_below_accepted` (the
+  response carries `best_price_micro`) leaving the auction open to re-tap.
+</ParamField>
+
+The body is strict — an unknown field is a `400`.
 
 ## Response
 
@@ -49,17 +59,18 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 
 | Status | Code | Description |
 |--------|------|-------------|
+| 400 | `VALIDATION_ERROR` | Missing or invalid `min_price_micro` (must be an integer >= 1), or an unknown field. |
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this cashout request (`details.reason: not_owner`). |
 | 404 | `NOT_FOUND` | Cashout request not found. |
-| 409 | `CONFLICT` | No live quote (`quote_expired`), request not active, missing wallet info (`missing_wallet`), already locked, or a determinate on-chain failure. See `details.reason`. |
+| 409 | `CONFLICT` | `price_below_accepted` (the best live bid is below `min_price_micro`; carries `best_price_micro`), no live bid (`quote_expired`), request not active, missing wallet info (`missing_wallet`), already `locked`, or a determinate on-chain failure. See `details.reason`. |
 | 410 | `GONE` | The cashout request expired before commit. |
 | 503 | `SERVICE_UNAVAILABLE` | **Indeterminate** — the buyback may have landed. `details.indeterminate` is `true` and `details.reason` is e.g. `lane_unreachable` / `buyback_in_flight`; the request stays `committing` for the reconciler. Don't retry blindly. |
 
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/commit \
-  -H "X-API-Key: $TOTALIS_API_KEY"
+  -H "X-API-Key: $TOTALIS_API_KEY"   -H "Content-Type: application/json"   -d '{"min_price_micro": 1990000}'
 ```
 </RequestExample>
 

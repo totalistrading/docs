@@ -1,18 +1,25 @@
 ---
-title: "Submit Buyback Quote"
+title: "Bid on an Exit Auction"
 api: "PUT /v1/mm/cashout-requests/{id}/quote"
-description: "Price an early-cashout (buyback) request as the position's counterparty market maker."
+description: "Bid one all-in price on a user's early-exit auction."
 ---
 
-Submit or replace a **buyback quote** for a cashout request on a position you make the market for. You receive cashout requests on the same [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to, as a distinct [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event (carrying `cashout_request_id` + `position_id`) — scoped to you, never broadcast. Quote the directional `amount` on top of the user's stake (which is always refunded); the server computes the unit-boundary economics and surfaces the net to the user on their stream.
+Submit or replace your bid on an early-exit auction. Auctions arrive on the
+[MM stream](/api-reference/quote-service-mm/stream) you already subscribe to as a
+[`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event, and are
+**broadcast to every market maker** — including positions you do not back.
 
-A cashout request is offered to a **single** market maker — the position's existing maker. You can only quote requests targeted at you; otherwise the request returns `403`. Re-submitting replaces your live quote atomically.
+Bid **one all-in `price_micro`**: the micro-USDC the user receives. There is no direction field and
+no fee term. The highest live bid wins and ties go to the earliest bid. Re-submitting replaces your
+own bid atomically. To pass, submit nothing — there is no decline endpoint.
 
-For pricing rules and the refuse gates, see [Market making → Pricing early cashouts](/guides/market-maker#pricing-early-cashouts).
+The auction lives about 10 seconds. For the payload, the two economic regimes (a closing exit
+carries the profit fee on your side; acquiring a position does not) and their bid ceilings, see
+[Early exit auctions](/guides/early-exit-auctions).
 
 ## Authentication
 
-API key required. Pass your market maker API key in the `X-API-Key` header.
+API key required, with the `mm:quote` scope. Pass it in the `X-API-Key` header.
 
 ```
 X-API-Key: <key>
@@ -21,85 +28,102 @@ X-API-Key: <key>
 ## Path parameters
 
 <ParamField path="id" type="string" required>
-  The cashout request ID (UUID).
+  The cashout request ID (UUID) — `cashout_request_id` on the push.
 </ParamField>
 
 ## Request body
 
-<ParamField body="buyback_price" type="number" required>
-  Your directional buyback `amount` in USDC (≥ 0), gross of the profit fee. This is the net on top of the refunded stake — what the MM pays the user (when `mm_pays_user` is `true`) or the user pays the MM.
+<ParamField body="price_micro" type="integer" required>
+  The all-in amount **the user receives**, in micro-USDC (`1_000_000` = $1.00). Integer, minimum
+  `1`. May be below the user's stake — a losing parlay exits for less than it cost.
+
+  Two ceilings apply. Every bid must satisfy `price_micro <= total_payout * 1e6`
+  (`price_above_max_payout`). If you are the position's current counterparty, a tighter fee-aware
+  ceiling binds — roughly `user_stake + mm_risk * (1 - fee_bps/10_000)` in micro-USDC
+  (`price_above_buyback_bound`).
 </ParamField>
 
-<ParamField body="mm_pays_user" type="boolean" required>
-  `true` when you pay the user (position is in the user's favor); `false` when the user pays you.
+<ParamField body="expires_in_ms" type="integer" default="15000">
+  How long your bid stays live, in milliseconds. Range 5000-60000. A bid may outlive the auction;
+  one that lapses mid-auction stops being the best bid. Nothing tells you when it lapses, so age
+  bids out locally.
 </ParamField>
 
-<ParamField body="expires_in_ms" type="integer">
-  How long this quote is valid, in milliseconds. Range: 5000-60000. Default: 15000.
-</ParamField>
+The body is strict — an unknown field is a `400`.
 
 ## Response
 
-Returns `201 Created` for a new quote or `200 OK` when replacing an existing quote.
+Returns `201 Created` for your first bid on an auction, or `200 OK` when replacing your own.
 
 <ResponseField name="data" type="object">
   <Expandable title="data">
     <ResponseField name="quote" type="object">
-      The submitted buyback quote.
+      The submitted bid.
       <Expandable title="quote">
-        <ResponseField name="id" type="string">Quote UUID.</ResponseField>
-        <ResponseField name="cashout_request_id" type="string">The cashout request this quote is for.</ResponseField>
-        <ResponseField name="market_maker_id" type="string">Your market maker ID (the request's target MM).</ResponseField>
-        <ResponseField name="buyback_price" type="number">The directional amount you quoted (USDC).</ResponseField>
-        <ResponseField name="mm_pays_user" type="boolean">Quote direction.</ResponseField>
-        <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
+        <ResponseField name="id" type="string">Bid UUID.</ResponseField>
+        <ResponseField name="cashout_request_id" type="string">The auction this bid is for.</ResponseField>
+        <ResponseField name="market_maker_id" type="string">Your market maker ID.</ResponseField>
+        <ResponseField name="price_micro" type="integer">The all-in micro-USDC you bid.</ResponseField>
+        <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this bid expires.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
       </Expandable>
     </ResponseField>
-    <ResponseField name="book_seq" type="integer">The cashout request's new book sequence number.</ResponseField>
-    <ResponseField name="replaced" type="boolean">`true` if this replaced a previous quote.</ResponseField>
+    <ResponseField name="book_seq" type="integer">The auction's new book sequence number.</ResponseField>
+    <ResponseField name="replaced" type="boolean">`true` if this replaced your previous bid.</ResponseField>
   </Expandable>
 </ResponseField>
 
 ## Errors
 
-| Status | Code | Description |
-|--------|------|-------------|
-| 400 | `VALIDATION_ERROR` | Invalid body (negative price, out-of-range `expires_in_ms`, or failed buyback economics). See `details`. |
+| Status | `details.reason` | Description |
+|--------|------------------|-------------|
+| 400 | validation | Non-integer or non-positive `price_micro`, `expires_in_ms` out of range, unknown field, or malformed JSON. |
+| 400 | `price_above_max_payout` | Bid exceeds the position's `total_payout`. Response carries `max_price_micro`. |
+| 400 | `price_above_buyback_bound` | You back this position and the bid exceeds what your locked collateral covers after the profit fee. Skipped when the fee rate is briefly unavailable, and re-checked when the user commits. |
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
-| 403 | `FORBIDDEN` | You are not the counterparty MM for this position (`details.reason: not_target_mm`). |
-| 404 | `NOT_FOUND` | Cashout request not found. |
-| 409 | `CONFLICT` | Request is no longer active, expired, or the position is too close to expiry. See `details.reason`. |
+| 403 | `insufficient_scope` | Key lacks `mm:quote`. Response carries `required_scope`. |
+| 404 | — | Auction unknown, or already evicted at its TTL. The ordinary "too slow" outcome, not a fault. |
+| 409 | `self_quote` | You cannot bid on an exit for your own position. |
+| 409 | `not_active` | The auction was committed or cancelled before your bid landed. |
+| 409 | `expired` | The auction expired as your bid landed. |
+| 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
+| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a closing exit cannot be built. Every bid on that position fails this way. |
+
+<Warning>
+Winning is not the same as being paid. The user is only ever filled at a price they explicitly
+accepted, so a fill can fail if the book moves down between their tap and their commit. And if you
+win by **acquiring** a position, your free balance is checked at that commit rather than when you
+bid — an underfunded winning bid fails with `insufficient_buyer_balance`.
+</Warning>
 
 <RequestExample>
-```bash
-curl -X PUT https://api.totalis.trade/v1/mm/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/quote \
+```bash curl
+curl -X PUT https://api.totalis.trade/v1/mm/cashout-requests/$CASHOUT_REQUEST_ID/quote \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "buyback_price": 41.5,
-    "mm_pays_user": true,
-    "expires_in_ms": 15000
-  }'
+  -d '{"price_micro": 1990000, "expires_in_ms": 15000}'
+```
+
+```javascript JavaScript
+const res = await fetch(
+  `https://api.totalis.trade/v1/mm/cashout-requests/${cashoutRequestId}/quote`,
+  {
+    method: 'PUT',
+    headers: { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' },
+    // price_micro is what the USER receives, all-in, in micro-USDC
+    body: JSON.stringify({ price_micro: 1_990_000, expires_in_ms: 15_000 }),
+  },
+);
+```
+
+```python Python
+import requests
+
+requests.put(
+    f'https://api.totalis.trade/v1/mm/cashout-requests/{cashout_request_id}/quote',
+    headers={'X-API-Key': API_KEY},
+    # price_micro is what the USER receives, all-in, in micro-USDC
+    json={'price_micro': 1_990_000, 'expires_in_ms': 15_000},
+)
 ```
 </RequestExample>
-
-<ResponseExample>
-```json 201
-{
-  "data": {
-    "quote": {
-      "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
-      "cashout_request_id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
-      "market_maker_id": "mm-uuid-1234",
-      "buyback_price": 41.5,
-      "mm_pays_user": true,
-      "valid_until": "2026-06-01T18:45:45.000Z",
-      "status": "active"
-    },
-    "book_seq": 3,
-    "replaced": false
-  }
-}
-```
-</ResponseExample>
