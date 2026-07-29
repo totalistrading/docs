@@ -10,8 +10,13 @@ Submit or replace your bid on an early-exit auction. Auctions arrive on the
 **broadcast to every market maker** — including positions you do not back.
 
 Bid **one all-in `price_micro`**: the micro-USDC the user receives. There is no direction field and
-no fee term. The highest live bid wins and ties go to the earliest bid. Re-submitting replaces your
-own bid atomically. To pass, submit nothing — there is no decline endpoint.
+no fee term. The highest live bid wins and ties go to the earliest bid. To pass, submit nothing —
+there is no decline endpoint.
+
+Re-submitting replaces your own bid atomically, but it also **re-times it**: your replacement is a
+new submission, so re-sending the same price puts you behind any bid that has since matched it. Do
+not re-`PUT` an unchanged price just to refresh the TTL — you would hand away a tie you were
+winning.
 
 The auction lives about 10 seconds. For the payload, the two economic regimes (a closing exit
 carries the profit fee on your side; acquiring a position does not) and their bid ceilings, see

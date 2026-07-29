@@ -55,7 +55,7 @@ the same payload, so scale before you compare.
 | Lifetime | about 10 seconds (`expires_at` on the push) |
 | Visibility | broadcast to every market maker |
 | Your bid TTL | `expires_in_ms`, 5000 to 60000, default 15000 |
-| Winner | highest `price_micro`; ties to the earliest bid |
+| Winner | highest `price_micro`; ties to the earliest bid (a replacement re-times your bid) |
 | Refusing | submit nothing. There is no decline endpoint |
 | Pulling a bid | `DELETE /v1/mm/cashout-requests/{id}/quote` |
 
@@ -63,6 +63,14 @@ the same payload, so scale before you compare.
 What you send is what the user sees on screen and what they walk away with. It can be **below their
 stake** — a losing parlay exits for less than it cost, and the user never pays more than their
 stake to leave.
+
+<Warning>
+**Replacing a bid costs you tie priority.** Ranking is price first, then submission time, and a
+replacement counts as a new submission — so re-sending the *same* `price_micro` moves you behind
+anyone who has since matched it. A bot that re-`PUT`s on a timer to keep its bid fresh will silently
+lose every tie it was winning. Either let a bid run to its `expires_in_ms`, or, if you must refresh,
+go up by at least one micro-USDC: price always beats time.
+</Warning>
 
 A bid may outlive the auction. Nothing tells you your bid lost, lapsed, or that the auction closed,
 so age bids out locally against `expires_at`. To pull a live bid before it lapses,
