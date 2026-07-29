@@ -158,7 +158,7 @@ There is no per-auction result event on the MM stream.
 
 | Outcome | What you get |
 | --- | --- |
-| You won as the counterparty | `position:bought_back` on `mm:quotes:{mm_id}` and your user channel, plus the `position.bought_back` webhook (needs `positions:read`). `amount` is decimal USDC; `mm_pays_user` tells you which direction applied. |
+| You won as the counterparty | `position:bought_back` on `mm:quotes:{mm_id}`, plus a copy delivered straight to any connection authenticated as you (no subscription needed, so dedupe on `tx_signature`), plus the `position.bought_back` webhook (needs `positions:read`). `amount` is decimal USDC; `mm_pays_user` tells you which direction applied. |
 | You won and acquired the position | **Nothing today.** Reconcile from your position reads. |
 | You lost, or the auction expired | Nothing. Your bid simply lapses. |
 

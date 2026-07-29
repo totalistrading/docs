@@ -109,7 +109,7 @@ After authenticating, subscribe to channels to receive events:
 | `position:settled` | Position settled with outcome. | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
-| `position:bought_back` | A position was closed early by a winning cash-out bid. Delivered to the seller and to the winning market maker (on `mm:quotes:{mm_id}` and their user channel). `amount` is decimal USDC; `quote_id` is the position's original accepted quote, not the winning bid. Nothing is emitted when a bid *acquires* the position instead — see [the transfer gap](/guides/event-catalog#the-transfer-notification-gap). | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
+| `position:bought_back` | A position was closed early by a winning cash-out bid. Delivered on this `rfq:{rfq_id}` channel, on the `mm:quotes:{mm_id}` channel of the market maker whose exposure closed, and directly to any connection authenticated as the seller or as that maker — so subscribe here and dedupe on `tx_signature`. `amount` is decimal USDC; `quote_id` is the position's original accepted quote, not the winning bid. Nothing is emitted when a bid *acquires* the position instead, and the RFQ does not become `bought_back` in that case — see [the transfer gap](/guides/event-catalog#the-transfer-notification-gap). | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
 
 ## Keep-alive
 
