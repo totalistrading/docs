@@ -6,7 +6,7 @@ description: "Bid one all-in price on a user's early-exit auction."
 
 Submit or replace your bid on an early-exit auction. Auctions arrive on the
 [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to as a
-[`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event, and are
+[`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event, and are
 **broadcast to every market maker** — including positions you do not back.
 
 Bid **one all-in `price_micro`**: the micro-USDC the user receives. There is no direction field and
@@ -37,12 +37,19 @@ X-API-Key: <key>
   The all-in amount **the user receives**, in micro-USDC (`1_000_000` = $1.00). Integer, minimum
   `1`. May be below the user's stake — a losing parlay exits for less than it cost.
 
-  Two ceilings apply, and both compare against micro-USDC. `user_stake`, `mm_risk` and
-  `total_payout` arrive as **decimal** USDC on the push, so scale them by `1e6` first.
+  Two ceilings apply, and both compare against micro-USDC. `user_stake` and `total_payout` arrive
+  as **decimal** USDC on the push, so scale them by `1e6` first.
 
-  Every bid must satisfy `price_micro <= total_payout * 1e6` (`price_above_max_payout`). If you are
-  the position's current counterparty, a tighter fee-aware ceiling binds — roughly
-  `user_stake * 1e6 + mm_risk * 1e6 * (1 - fee_bps/10_000)` (`price_above_buyback_bound`).
+  Every bid must satisfy `price_micro <= round(total_payout * 1e6)` (`price_above_max_payout`). If
+  you are the position's current counterparty, a tighter fee-aware ceiling binds
+  (`price_above_buyback_bound`), derived from `total_payout - user_stake` rather than from the
+  `mm_risk` field — the two drift by up to `0.0001` USDC, so use the subtraction:
+
+  ```
+  S = round(user_stake * 1e6)
+  M = round((total_payout - user_stake) * 1e6)
+  price_micro <= S + M - floor(M * fee_bps / 10_000)
+  ```
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer" default="15000">
@@ -52,6 +59,13 @@ X-API-Key: <key>
 </ParamField>
 
 The body is strict — an unknown field is a `400`.
+
+## Withdrawing a bid
+
+`DELETE /v1/mm/cashout-requests/{id}/quote` pulls your live bid. It is idempotent: `204 No Content`
+when a bid was removed, `200 OK` with `{"status": "already_withdrawn"}` when yours had already
+lapsed (not an error), `409` once the auction is no longer active, `404` if the auction is unknown.
+There is no partial withdraw — re-`PUT` to change a price.
 
 ## Response
 
@@ -81,21 +95,23 @@ Returns `201 Created` for your first bid on an auction, or `200 OK` when replaci
 |--------|------------------|-------------|
 | 400 | validation | Non-integer or non-positive `price_micro`, `expires_in_ms` out of range, unknown field, or malformed JSON. |
 | 400 | `price_above_max_payout` | Bid exceeds the position's `total_payout`. Response carries `max_price_micro`. |
-| 400 | `price_above_buyback_bound` | You back this position and the bid exceeds what your locked collateral covers after the profit fee. Skipped when the fee rate is briefly unavailable, and re-checked when the user commits. |
+| 400 | `price_above_buyback_bound` | You back this position and the bid exceeds what your locked collateral covers after the profit fee. Skipped when the fee rate is briefly unavailable; the commit then re-checks it and rejects with `amount_over_bound`. |
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 429 | `RATE_LIMITED` | Too many requests. Honour `Retry-After`. |
 | 403 | `insufficient_scope` | Key lacks `mm:quote`. Response carries `required_scope`. |
 | 404 | — | Auction unknown, or already evicted at its TTL. The ordinary "too slow" outcome, not a fault. |
-| 409 | `self_quote` | You cannot bid on an exit for your own position. |
+| 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is allowed and is the closing case. |
 | 409 | `not_active` | The auction was committed or cancelled before your bid landed. |
 | 409 | `expired` | The auction expired as your bid landed. |
 | 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
-| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a closing exit cannot be built. Every bid on that position fails this way. |
+| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a *closing* exit cannot be built. Only your own bids fail; other market makers can still win the same auction by acquiring the position. |
 
 <Warning>
 Winning is not the same as being paid. The user is only ever filled at a price they explicitly
 accepted, so a fill can fail if the book moves down between their tap and their commit. And if you
-win by **acquiring** a position, your free balance is checked at that commit rather than when you
-bid — an underfunded winning bid fails with `insufficient_buyer_balance`.
+win by **acquiring** a position, your funding and eligibility are checked at that commit rather
+than when you bid — an underfunded or ineligible winning bid fails there with
+`insufficient_buyer_balance`, `buyer_no_vault` or `buyer_is_counterparty`.
 </Warning>
 
 <RequestExample>

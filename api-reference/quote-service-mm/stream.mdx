@@ -146,7 +146,7 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 Sent when a user opens an [early-exit auction](/guides/early-exit-auctions) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker** — including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds — see [Early exit auctions](/guides/early-exit-auctions).
 
 <Warning>
-This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a buyback request apart from a forward quote request.
+This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell an exit auction apart from a forward quote request.
 </Warning>
 
 ```json
@@ -171,6 +171,66 @@ This is a distinct event name from `quote_request`, with a different payload —
   "expires_at": "2026-06-01T18:46:00.000Z"
 }
 ```
+
+<ResponseField name="cashout_request_id" type="string" required>
+  The auction id. Pass it as `{id}` when you
+  [bid](/api-reference/quote-service-mm/cashout-quote). Note the name: this payload has **no** `id`
+  field, unlike `quote_request`.
+</ResponseField>
+
+<ResponseField name="position_id" type="string" required>
+  The on-chain position id (32 hex chars, no `0x`). Use it to look the position up in your own book
+  and decide whether you are its counterparty — that determines your economics.
+</ResponseField>
+
+<ResponseField name="legs" type="array" required>
+  The position's legs. Each carries `id`, `event_ticker`, `market_ticker`, `side` (`yes` / `no`),
+  `venue`, and `resolution`.
+
+  `resolution` is one of `unresolved`, `won`, `lost`, `void`, and it is your only protection against
+  pricing an already-decided parlay. **`void` overrides the others**: any void leg cancels the whole
+  position at settlement and refunds the stake, so the position is worth roughly `user_stake` even
+  when a sibling leg reads `lost`. Absent a void leg, one `lost` leg makes the parlay worthless.
+</ResponseField>
+
+<ResponseField name="user_stake" type="number" required>
+  Decimal USDC. The net stake the counterparty underwrites (`bet_amount − taker_fee`) — the same
+  quantity as on `quote_request`, and the reference point for the exit price: a bid above it means
+  the user leaves in profit, below it at a loss.
+</ResponseField>
+
+<ResponseField name="mm_risk" type="number" required>
+  Decimal USDC. The counterparty's locked risk on the position. Pricing context only — do **not**
+  compute the counterparty bid ceiling from it. The server derives that ceiling from
+  `total_payout − user_stake`; the two are stored separately and can disagree in the last decimal.
+</ResponseField>
+
+<ResponseField name="total_payout" type="number" required>
+  Decimal USDC. What the position pays if every leg wins, and the hard ceiling on any bid:
+  `price_micro <= round(total_payout * 1e6)`, or the bid is rejected `price_above_max_payout`.
+</ResponseField>
+
+<ResponseField name="payout_odds" type="number" required>
+  The accepted quote's payout multiplier — pricing context, **not** an amount and never a bid term.
+  For auctions on positions created before this field was carried it is reconstructed from
+  `total_payout / user_stake` and can be off in the 5th or 6th decimal, so do not reconcile against
+  it exactly.
+</ResponseField>
+
+<ResponseField name="version" type="integer" required>
+  The auction's version, `1` today. A cash-out auction is never re-versioned mid-flight the way a
+  forward quote request can be, so there is no `cashout_request:updated` event to handle.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string" required>
+  ISO 8601 close time of the **auction**, about 10 s out. Bid before it. This is not the position's
+  market-end horizon, which is not on this payload — so you cannot pre-filter for the near-close
+  cutoff, and a bid on a position close to its market end is rejected `MARKET_NEAR_CLOSE`. Treat
+  that as an ordinary lost auction.
+</ResponseField>
+
+Every field above is always present. For the two economic regimes and the bid ceilings, see
+[Early exit auctions](/guides/early-exit-auctions).
 
 ## Reconnection
 

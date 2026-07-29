@@ -4,7 +4,7 @@ api: "POST /v1/cashout-requests"
 description: "Open an early-exit auction for an on-chain position."
 ---
 
-Open a **cashout request** to close an active on-chain position early instead of waiting for settlement. The request is offered to the position's single counterparty market maker, who responds with a live buyback quote on the [stream](/api-reference/quote-service/cashout-stream). Accepting that quote via [Commit](/api-reference/quote-service/cashout-commit) drives the buyback on-chain and flips the RFQ to `bought_back`.
+Open an **early-exit auction** on an active on-chain position instead of waiting for settlement. The auction is broadcast to every market maker, and each may bid one all-in price. The [stream](/api-reference/quote-service/cashout-stream) surfaces the highest live bid; ties go to the earliest. Accepting it via [Commit](/api-reference/quote-service/cashout-commit) drives the exit on-chain at that price or better.
 
 The request is keyed on the position's on-chain `position_id` — a 16-byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near-expiry buffer of its market end.
 
@@ -48,6 +48,10 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
     </ResponseField>
   </Expandable>
 </ResponseField>
+
+## Response codes
+
+`201 Created` opens a new auction. **`200 OK` returns the auction that was already live** for this position — opening is idempotent per (position, user), so a double-tap resumes the existing auction rather than splitting bidder attention across two. Check the status code, or `expires_at`, before assuming you have a fresh ~10 s window.
 
 ## Errors
 

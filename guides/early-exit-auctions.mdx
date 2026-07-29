@@ -11,25 +11,27 @@ This replaces the two older flows — a single-MM buyback offer and a separate p
 you integrated against either, see [What changed](#what-changed).
 
 <Info>
-**Units.** Every `*_micro` field is an integer of micro-USDC (`1_000_000` = $1.00). Every other
-money field on these payloads — `user_stake`, `mm_risk`, `total_payout`, `payout_odds`, and the
-`amount` on the settlement event — is decimal USDC. The two conventions appear in the same payload.
+**Units.** Every `*_micro` field is an integer of micro-USDC (`1_000_000` = $1.00). The money
+fields beside them — `user_stake`, `mm_risk`, `total_payout`, and the `amount` on the settlement
+event — are decimal USDC. (`payout_odds` is a multiplier, not an amount.) Both conventions appear in
+the same payload, so scale before you compare.
 </Info>
 
 ## How it works
 
 <Steps>
   <Step title="Receive the auction">
-    A [`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event arrives on
+    A [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event arrives on
     [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream). It carries the
     position's legs and economics. Auctions are broadcast, so you see exits on positions you have
     no relationship with.
   </Step>
   <Step title="Price the exit">
-    Re-value the parlay at current odds, and read `legs[].resolution` carefully — the values are
-    not interchangeable. A `lost` leg makes the parlay worthless. A `void` leg is different: that
-    position is cancelled at settlement and the stake refunded, so it is worth about the stake, not
-    zero. A near-decided leg is where mispricing hurts most. Then read
+    Re-value the parlay at current odds, and read `legs[].resolution` carefully. **`void` beats
+    everything:** any void leg cancels the whole position at settlement and refunds the stake, so
+    such a position is worth about the stake even if a sibling leg already resolved `lost`. Absent
+    a void leg, one `lost` leg makes the parlay worthless. Nothing stops an auction opening on a
+    position whose legs are already decided, so `resolution` is your only defence. Then read
     [Your economics](#your-economics) — what a win costs you depends on whether you are the
     position's current counterparty.
   </Step>
@@ -55,6 +57,7 @@ money field on these payloads — `user_stake`, `mm_risk`, `total_payout`, `payo
 | Your bid TTL | `expires_in_ms`, 5000 to 60000, default 15000 |
 | Winner | highest `price_micro`; ties to the earliest bid |
 | Refusing | submit nothing. There is no decline endpoint |
+| Pulling a bid | `DELETE /v1/mm/cashout-requests/{id}/quote` |
 
 `price_micro` is a single all-in figure: no direction field, no separate fee term, no gross-vs-net.
 What you send is what the user sees on screen and what they walk away with. It can be **below their
@@ -62,7 +65,10 @@ stake** — a losing parlay exits for less than it cost, and the user never pays
 stake to leave.
 
 A bid may outlive the auction. Nothing tells you your bid lost, lapsed, or that the auction closed,
-so age bids out locally against `expires_at`.
+so age bids out locally against `expires_at`. To pull a live bid before it lapses,
+`DELETE /v1/mm/cashout-requests/{id}/quote`: `204` when it was removed, `200` with
+`{"status": "already_withdrawn"}` if it had already gone (idempotent, not an error), `409` once the
+auction is no longer active.
 
 <Warning>
 Your bid being best does not guarantee a fill. The user is only ever filled at a price they
@@ -82,41 +88,59 @@ Your win **closes** the position: your exposure unwinds and your locked `mm_risk
 closing exit carries the profit fee, and it always comes out of **your** side — the user receives
 exactly `P` either way. The fee goes to Totalis, never to another market maker.
 
-**When `P > S`** (the user is ahead, you pay out) your outflow is about `(P - S) / (1 - f)`, of
-which `floor(amount * f)` is the fee. At `fee_bps = 100`, `S = 990_000`, `P = 1_990_000`: you pay
-`1_010_101`, the fee is `10_101`, and the user receives exactly `1_990_000`. Bid the fee-inclusive
-number you actually want to pay.
+**When `P > S`** (the user is ahead, you pay out) your outflow is `A ≈ (P - S) / (1 - f)`, of which
+`floor(A * f)` goes to the Totalis fee vault and the remainder reaches the user. At `fee_bps = 100`,
+`S = 990_000`, `P = 1_990_000`: `A = 1_010_101`, the fee is `10_101`, and the user receives exactly
+`1_990_000`.
+
+Note which number you are bidding. `P` is the **user's proceeds**, not your cash outflow — budget
+`(P - S) / (1 - f)`, and choose the `P` whose grossed-up cost you are willing to bear. Bidding the
+number you want to *pay* overpays by the fee.
 
 **When `P <= S`** (the user is down — the common case) the direction flips. Nothing is paid out and
 you **collect** `(S - P) * (1 - f)`. The fee is still taken, out of your proceeds rather than on top
 of a payment. Do not apply the formula above here; it returns a negative number.
 
-Your bid must also fit inside your locked collateral. `mm_risk` arrives as decimal USDC, so scale
-it before comparing against a micro-USDC bid:
+Your bid must also fit inside your locked collateral. The server derives that ceiling from
+`total_payout - user_stake`, **not** from the `mm_risk` field. The two are stored separately and do
+drift: on a sample of about 29,000 positions they disagreed on 0.16% of them, by up to `0.0001` USDC
+(100 micro-USDC) — enough to have a boundary bid rejected if you size against the wrong one. Both
+are decimal USDC, so scale first:
 
 ```
-P <= S + round(mm_risk * 1e6) * (1 - f)        # S is user_stake * 1e6
+S = round(user_stake * 1e6)
+M = round((total_payout - user_stake) * 1e6)
+P <= S + M - floor(M * f)
 ```
 
 That is **tighter than `total_payout`**. Exceed it and the bid is rejected with
-`price_above_buyback_bound`.
+`price_above_buyback_bound`. In the `P <= S` direction the ceiling is just `P >= 0`, so it never
+binds — it only ever constrains a payout.
 
 <Warning>
 That ceiling check is a fast reject, not a guarantee. If the fee rate is briefly unavailable the
-check is skipped at bid time and re-applied when the user commits, so an accepted bid can still
-lose at commit.
+check is skipped at bid time and re-applied when the user commits, where it surfaces as
+`amount_over_bound` — so an accepted bid can still lose at commit.
 </Warning>
 
 ### You are not the counterparty
 
-Your win **acquires** the position. You pay exactly `P` to the seller, take over their side, and
-the position stays open and settles against you later. **No fee applies** — nothing closed.
+Your win **acquires** the position: you step into the **bettor's** side, not the house's. You pay
+exactly `P` to the seller, inherit the staked side, and the position stays open and settles later
+against its original counterparty, which is untouched. **No fee applies** — nothing closed.
+
+So this trade is *long* the parlay, not a hedge. You are out `P` now, you collect `total_payout` if
+every remaining leg wins, and you lose `P` if it does not: max loss `P`, max gain
+`total_payout - P`. Size it as opening a new parlay position of your own.
 
 - You need **`P` free**, not `P` plus the stake. The position's collateral travels with it and funds
   its own lock, so the net effect is `free -= P`.
 - **Funds are checked when the user commits, not when you bid.** Nothing gates your bid on
   collateral, so a winning bid can fail at commit with `insufficient_buyer_balance` or
   `buyer_no_vault`. Keep free balance ahead of your outstanding bids.
+- **A position can be acquired only once.** Once it has been transferred, a further transfer is
+  refused (`already_transferred`), so plan to hold what you acquire to settlement rather than
+  assuming you can flip it through another auction.
 
 Ask your Totalis contact for the current `fee_bps` rather than hardcoding a guess.
 
@@ -143,11 +167,17 @@ settlement, not a refund.
 | 401 | — | Missing or invalid API key. |
 | 403 | `insufficient_scope` | Your key lacks `mm:quote`. |
 | 404 | — | Auction unknown or already evicted at its TTL. The normal "too slow" outcome. |
-| 409 | `self_quote` | You cannot bid on your own position's exit. |
+| 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is the closing case above, and is allowed. |
 | 409 | `not_active` | Committed or cancelled before your bid landed. |
 | 409 | `expired` | The auction expired as your bid landed. |
 | 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
-| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a closing exit cannot be built. Every bid on that position fails this way. |
+| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a *closing* exit cannot be built. Only **your** bids fail — others can still win it as an acquisition, so do not blacklist the position. |
+| 429 | — | Rate limited. Honour `Retry-After`. |
+
+Commit-time rejections never reach you as an HTTP response — you learn of them only by not being
+filled. The ones worth knowing: `amount_over_bound` (the fee-aware ceiling, re-checked when the fee
+rate was unavailable at bid time), `insufficient_buyer_balance` / `buyer_no_vault` (acquisition, your
+funding), and `already_transferred` (the position had already moved).
 
 Treat `404` and the race-class `409`s as ordinary lost auctions and log them quietly. Treat `400`,
 `401` and `403` as your own bug: if every bid fails that way you are silently out of the market.

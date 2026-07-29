@@ -41,7 +41,7 @@ Use [`GET /v1/wallet`](/api-reference/user/get-wallet) to check available USDC a
 
 A user can leave an active position before it settles. Totalis opens a short **auction** on that
 position and broadcasts it to every market maker on the stream you already consume, as a distinct
-[`cashout_request`](/api-reference/quote-service-mm/stream#cashout-request) event. You reply with one
+[`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event. You reply with one
 all-in price via [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote);
 the highest live bid wins, ties go to the earliest bid, and there is no decline endpoint — to pass,
 submit nothing.

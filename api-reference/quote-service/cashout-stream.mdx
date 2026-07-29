@@ -26,7 +26,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 ### `best_quote`
 
-Sent when the MM's buyback quote changes (submitted, replaced, or expired). The `book_seq` increments monotonically so you can detect missed updates. `best_quote` is `null` when there is no live quote.
+Sent when the best bid changes — a new highest bid, the leader replacing or withdrawing its bid, or the leader lapsing. The `book_seq` increments monotonically so you can detect missed updates. `best_quote` is `null` when no bid is live, which happens both before the first bid arrives and after every bid has lapsed.
 
 ```json
 {
@@ -36,16 +36,15 @@ Sent when the MM's buyback quote changes (submitted, replaced, or expired). The 
     "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
     "market_maker_id": "mm-uuid-1234",
     "price_micro": 66250000,
-    "mm_pays_user": true,
-    "valid_until": "2026-06-01T18:45:45.000Z",
     "valid_until": "2026-06-01T18:46:05.000Z"
   }
 }
 ```
 
 <ResponseField name="price_micro" type="integer">The all-in amount **you receive**, in micro-USDC (`1_000_000` = $1.00). One number: no direction and no separate fee term. **Echo this exact value back as `min_price_micro`** when you [commit](/api-reference/quote-service/cashout-commit) — the commit is rejected without it, and you are never filled below it.</ResponseField>
-<ResponseField name="mm_pays_user" type="boolean">`true` when the MM pays the user (position is in profit); `false` when the user pays the MM.</ResponseField>
-<ResponseField name="valid_until" type="string">ISO 8601 timestamp when this bid lapses; a lapsed bid stops being the best bid. Present only when computable; omitted otherwise.</ResponseField>
+<ResponseField name="valid_until" type="string">ISO 8601 timestamp when this bid lapses; a lapsed bid stops being the best bid.</ResponseField>
+<ResponseField name="id" type="string">UUID of the winning bid.</ResponseField>
+<ResponseField name="market_maker_id" type="string">The bidding market maker's ID. Do not derive the outcome from it: whether the exit closes the position or transfers it is decided server-side and does not change what you receive.</ResponseField>
 
 When no quote is live, `best_quote` is `null`:
 
@@ -71,7 +70,7 @@ This is a single event — the stream closes right after it. That's different fr
 
 | Terminal `status` | Meaning |
 |-------------------|---------|
-| `committed` | Buyback driven on-chain; the RFQ becomes `bought_back`. |
+| `committed` | The exit was driven on-chain. If the winning bid came from the position's counterparty the position closed and the RFQ becomes `bought_back`; otherwise the position was transferred to the winner and stays open under new ownership. Either way you received `price_micro`. |
 | `expired` | The auction's ~10 s TTL elapsed with no commit. |
 | `cancelled` | The request was cancelled. |
 
