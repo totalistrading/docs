@@ -8,7 +8,7 @@ The Totalis WebSocket pushes **post-trade events** in real time — quote accept
 For **pre-trade** live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
 
 <Note>
-  WebSocket events reach you only while you're connected — missed events are not redelivered. For durable, at-least-once delivery to a server (signed, retried, replayable), use [webhooks](/guides/webhooks); they carry most of the same lifecycle moments, plus one WebSocket doesn't (early-cashout buyback — see the [event catalog](/guides/event-catalog#the-websocket-buyback-gap)). See [Real time & data channels](/guides/realtime-and-data) for the full channel map.
+  WebSocket events reach you only while you're connected — missed events are not redelivered. For durable, at-least-once delivery to a server (signed, retried, replayable), use [webhooks](/guides/webhooks); they carry most of the same lifecycle moments. An early cash-out that **closes** a position is on both channels (`position:bought_back` here, `position.bought_back` by webhook); the one exit outcome neither channel pushes to the buyer is a bid that **acquires** a position — see the [event catalog](/guides/event-catalog#the-transfer-notification-gap). See [Real time & data channels](/guides/realtime-and-data) for the full channel map.
 </Note>
 
 ## Connecting
@@ -109,6 +109,7 @@ After authenticating, subscribe to channels to receive events:
 | `position:settled` | Position settled with outcome. | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
+| `position:bought_back` | A position was closed early by a winning cash-out bid. Delivered on this `rfq:{rfq_id}` channel, on the `mm:quotes:{mm_id}` channel of the market maker whose exposure closed, and directly to any connection authenticated as the seller or as that maker — so subscribe here and dedupe on `tx_signature`. `amount` is decimal USDC; `quote_id` is the position's original accepted quote, not the winning bid. Nothing is emitted when a bid *acquires* the position instead, and the RFQ does not become `bought_back` in that case — see [the transfer gap](/guides/event-catalog#the-transfer-notification-gap). | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
 
 ## Keep-alive
 

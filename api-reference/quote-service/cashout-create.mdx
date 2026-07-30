@@ -1,10 +1,10 @@
 ---
 title: "Create Cashout Request"
 api: "POST /v1/cashout-requests"
-description: "Open an early-cashout (buyback) request for an on-chain position."
+description: "Open an early-exit auction for an on-chain position."
 ---
 
-Open a **cashout request** to close an active on-chain position early instead of waiting for settlement. The request is offered to the position's single counterparty market maker, who responds with a live buyback quote on the [stream](/api-reference/quote-service/cashout-stream). Accepting that quote via [Commit](/api-reference/quote-service/cashout-commit) drives the buyback on-chain and flips the RFQ to `bought_back`.
+Open an **early-exit auction** on an active on-chain position instead of waiting for settlement. The auction is broadcast to every market maker, and each may bid one all-in price. The [stream](/api-reference/quote-service/cashout-stream) surfaces the highest live bid; ties go to the earliest. Accepting it via [Commit](/api-reference/quote-service/cashout-commit) drives the exit on-chain at that price or better.
 
 The request is keyed on the position's on-chain `position_id` — a 16-byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near-expiry buffer of its market end.
 
@@ -33,7 +33,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
       <Expandable title="cashout_request">
         <ResponseField name="id" type="string">UUID of the cashout request. Use it on the stream, commit, and MM endpoints.</ResponseField>
         <ResponseField name="user_id" type="string">Your user ID.</ResponseField>
-        <ResponseField name="target_mm_id" type="string">The position's maker — the single MM this request is offered to.</ResponseField>
+        <ResponseField name="counterparty_mm_id" type="string">The position's original counterparty market maker. Informational only: the auction is broadcast to every market maker, and a winning bid from this one closes the position rather than transferring it.</ResponseField>
         <ResponseField name="position_id" type="string">The on-chain position id (hex), normalized without the `0x` prefix.</ResponseField>
         <ResponseField name="position_pda" type="string">On-chain position address, or `null`.</ResponseField>
         <ResponseField name="user_stake" type="number">Your net stake on the position (USDC). Always refunded on a buyback.</ResponseField>
@@ -41,13 +41,17 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="version" type="integer">Request version, starts at `1`.</ResponseField>
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
-        <ResponseField name="expires_at" type="string">ISO 8601 TTL horizon of the cashout request (~90 s), distinct from the position expiry.</ResponseField>
+        <ResponseField name="expires_at" type="string">ISO 8601 close time of the auction (~10 s), distinct from the position expiry. Open a fresh auction if it lapses before you commit.</ResponseField>
         <ResponseField name="position_expires_at" type="string">The underlying position's market-end horizon, or `null`.</ResponseField>
         <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known).</ResponseField>
       </Expandable>
     </ResponseField>
   </Expandable>
 </ResponseField>
+
+## Response codes
+
+`201 Created` opens a new auction. **`200 OK` returns the auction that was already live** for this position — opening is idempotent per (position, user), so a double-tap resumes the existing auction rather than splitting bidder attention across two. Check the status code, or `expires_at`, before assuming you have a fresh ~10 s window.
 
 ## Errors
 
@@ -75,7 +79,7 @@ curl -X POST https://api.totalis.trade/v1/cashout-requests \
     "cashout_request": {
       "id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
       "user_id": "did:privy:cm3abc...",
-      "target_mm_id": "mm-uuid-1234",
+      "counterparty_mm_id": "mm-uuid-1234",
       "position_id": "9f86d08818844f86d08818844f86d088",
       "position_pda": "7Xc3...PDA",
       "user_stake": 24.75,

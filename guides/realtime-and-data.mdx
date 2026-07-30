@@ -13,7 +13,7 @@ Totalis moves data over four channels. Each covers a different phase of a trade 
 | --- | --- | --- |
 | [SSE streams](/api-reference/quote-service/stream) | **Pre-trade pricing** — live `best_quote` updates on a quote request or cashout request | Watching prices while you decide whether to commit |
 | [WebSocket](/guides/websocket) | **Post-trade events, live** — quote acceptance, confirmation, position created/settled | Live UIs and bots that hold a connection |
-| [Webhooks](/guides/webhooks) | **Post-trade events, durable** — most of the same lifecycle moments as HMAC-signed POSTs with retries and replay, plus one moment WebSocket doesn't carry at all (early-cashout buyback — see the [event catalog](/guides/event-catalog#the-websocket-buyback-gap)) | Server systems of record that must never miss an event |
+| [Webhooks](/guides/webhooks) | **Post-trade events, durable** — most of the same lifecycle moments as HMAC-signed POSTs with retries and replay, plus one moment WebSocket doesn't carry at all (a bid that **acquires** a position rather than closing it — see the [event catalog](/guides/event-catalog#the-transfer-notification-gap)) | Server systems of record that must never miss an event |
 | [REST reads](/guides/reading-data) | **State on demand** — portfolio, parlays, settlement detail, P&L, balances | Backfill, reconciliation, on-demand display |
 
 All four authenticate with the same [API key](/guides/authentication).
@@ -40,7 +40,7 @@ Both deliver post-trade lifecycle events, and for most of the lifecycle they ove
 - **Webhooks** POST to *your server* with at-least-once delivery: HMAC-signed, retried with backoff, dead-lettered, and [replayable](/guides/webhooks#replaying-deliveries). Choose them for accounting, notifications, and any system of record.
 
 <Warning>
-  The two channels are not full parity: early-cashout buyback (`position.bought_back`) is a **webhook-only** event today, with no WebSocket equivalent. A latency-sensitive bot that only holds a WebSocket connection won't learn a position was bought out until it reconciles against the [read endpoints](/guides/reading-data). See the [event catalog](/guides/event-catalog#the-websocket-buyback-gap) for the full picture.
+  The two channels are not full parity, but not over cash-out closes: `position:bought_back` **is** delivered over WebSocket (to the seller and the winning market maker) as well as by webhook. The gap is the other exit outcome — a winning bid that **acquires** a position emits nothing to the buyer on either channel, so an acquiring market maker learns of it only by reconciling against the [read endpoints](/guides/reading-data). See the [event catalog](/guides/event-catalog#the-transfer-notification-gap) for the full picture.
 </Warning>
 
 Serious integrations often run both: the WebSocket for immediacy, webhooks for the durable record.
