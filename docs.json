@@ -47,7 +47,7 @@
               "guides/websocket",
               "guides/live-quote-requests",
               "guides/market-maker",
-              "guides/early-exit-auctions"
+              "guides/early-cashout"
             ]
           },
           {

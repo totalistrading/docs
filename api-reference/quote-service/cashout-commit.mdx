@@ -1,10 +1,10 @@
 ---
 title: "Commit Cashout"
 api: "POST /v1/cashout-requests/{id}/commit"
-description: "Accept the winning bid on an early-exit auction and drive it on-chain."
+description: "Accept the winning bid on an early cashout auction and drive it on-chain."
 ---
 
-Accept the winning bid on the user's early-exit auction and drive it on-chain. The bid **is** the price — there is no MM-confirm round-trip. You must echo back the price the user accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution.
+Accept the winning bid on the user's early cashout auction and drive it on-chain. The bid **is** the price — there is no MM-confirm round-trip. You must echo back the price the user accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution.
 
 On success you receive `min_price_micro` (or better) either way, but the position ends up in one of two states, decided server-side by who won: if the winning bid came from the position's own counterparty the position **closes** — your stake is released and the RFQ flips to `bought_back`. If it came from any other market maker the position **transfers** to them and stays open under new ownership; you are out of it, and the RFQ does not become `bought_back`.
 

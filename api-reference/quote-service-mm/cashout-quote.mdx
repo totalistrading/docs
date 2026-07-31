@@ -1,10 +1,10 @@
 ---
-title: "Bid on an Exit Auction"
+title: "Bid on a Cashout Auction"
 api: "PUT /v1/mm/cashout-requests/{id}/quote"
-description: "Bid one all-in price on a user's early-exit auction."
+description: "Bid one all-in price on a user's early cashout auction."
 ---
 
-Submit or replace your bid on an early-exit auction. Auctions arrive on the
+Submit or replace your bid on an early cashout auction. Auctions arrive on the
 [MM stream](/api-reference/quote-service-mm/stream) you already subscribe to as a
 [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event, and are
 **broadcast to every market maker** — including positions you do not back.
@@ -18,9 +18,9 @@ new submission, so re-sending the same price puts you behind any bid that has si
 not re-`PUT` an unchanged price just to refresh the TTL — you would hand away a tie you were
 winning.
 
-The auction lives about 10 seconds. For the payload, the two economic regimes (a closing exit
-carries the profit fee on your side; acquiring a position does not) and their bid ceilings, see
-[Early exit auctions](/guides/early-exit-auctions).
+The auction lives about 10 seconds. A win closes the position if you back it (a closing exit
+carries the profit fee on your side) or acquires it if you do not (no fee applies). For the payload
+and auction mechanics, see [Early cashout](/guides/early-cashout).
 
 ## Authentication
 

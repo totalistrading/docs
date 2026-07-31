@@ -26,7 +26,7 @@ This stream sends seven event names. Their spelling isn't consistent: `quote_req
 | `quote_request:updated` | A request you've already seen bumps to a new `version` (legs or bet amount edited). |
 | `snapshot_complete` | The initial snapshot finishes; the stream switches to incremental updates only. |
 | `quote_request_expired` | A previously seen request is no longer active (committed, cancelled, or expired). |
-| `cashout_request` | An early-exit auction opens on a position. Broadcast to every market maker. |
+| `cashout_request` | An early cashout auction opens on a position. Broadcast to every market maker. |
 
 ### `connected`
 
@@ -143,10 +143,10 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 
 ### `cashout_request`
 
-Sent when a user opens an [early-exit auction](/guides/early-exit-auctions) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker** — including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds — see [Early exit auctions](/guides/early-exit-auctions).
+Sent when a user opens an [early cashout auction](/guides/early-cashout) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker** — including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds — see [Early cashout](/guides/early-cashout).
 
 <Warning>
-This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell an exit auction apart from a forward quote request.
+This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a cashout auction apart from a forward quote request.
 </Warning>
 
 ```json
@@ -229,8 +229,8 @@ This is a distinct event name from `quote_request`, with a different payload —
   that as an ordinary lost auction.
 </ResponseField>
 
-Every field above is always present. For the two economic regimes and the bid ceilings, see
-[Early exit auctions](/guides/early-exit-auctions).
+Every field above is always present. For the full auction mechanics, see
+[Early cashout](/guides/early-cashout).
 
 ## Reconnection
 
@@ -316,7 +316,7 @@ while (true) {
         // Distinct from quote_request: the key is payload.cashout_request_id (NOT payload.id).
         // Broadcast to every MM, ~10s to bid. Re-value the position and bid ONE all-in
         // price_micro (what the user receives) on PUT /v1/mm/cashout-requests/{id}/quote.
-        console.log('Exit auction:', payload.cashout_request_id, 'position', payload.position_id);
+        console.log('Cashout auction:', payload.cashout_request_id, 'position', payload.position_id);
         break;
     }
   }
@@ -360,7 +360,7 @@ with requests.get(url, headers=headers, stream=True) as resp:
                 # Distinct from quote_request: the key is cashout_request_id (NOT id).
                 # Broadcast to every MM, ~10s to bid. Bid ONE all-in price_micro (what the
                 # user receives) on PUT /v1/mm/cashout-requests/{id}/quote.
-                print(f"Exit auction: {payload['cashout_request_id']} position {payload['position_id']}")
+                print(f"Cashout auction: {payload['cashout_request_id']} position {payload['position_id']}")
             event_type = None
 ```
 </RequestExample>
