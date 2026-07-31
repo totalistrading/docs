@@ -1,14 +1,11 @@
 ---
-title: 'Early exit auctions'
-description: 'Bid on parlay exits: one broadcast auction, one all-in price. Replaces the separate buyback and takeover flows.'
+title: 'Early cashout'
+description: 'Bid on parlay exits: one broadcast auction, one all-in price.'
 ---
 
 A user can leave a parlay before it settles. When they do, Totalis opens a short auction on that
 position and pushes it to **every** market maker on the stream you already consume. You reply with
 one number. The highest live bid wins.
-
-This replaces the two older flows — a single-MM buyback offer and a separate position takeover. If
-you integrated against either, see [What changed](#what-changed).
 
 <Info>
 **Units.** Every `*_micro` field is an integer of micro-USDC (`1_000_000` = $1.00). The money
@@ -31,9 +28,7 @@ the same payload, so scale before you compare.
     everything:** any void leg cancels the whole position at settlement and refunds the stake, so
     such a position is worth about the stake even if a sibling leg already resolved `lost`. Absent
     a void leg, one `lost` leg makes the parlay worthless. Nothing stops an auction opening on a
-    position whose legs are already decided, so `resolution` is your only defence. Then read
-    [Your economics](#your-economics) — what a win costs you depends on whether you are the
-    position's current counterparty.
+    position whose legs are already decided, so `resolution` is your only defence.
   </Step>
   <Step title="Bid one all-in price">
     `PUT` your bid to
@@ -64,14 +59,6 @@ What you send is what the user sees on screen and what they walk away with. It c
 stake** — a losing parlay exits for less than it cost, and the user never pays more than their
 stake to leave.
 
-<Warning>
-**Replacing a bid costs you tie priority.** Ranking is price first, then submission time, and a
-replacement counts as a new submission — so re-sending the *same* `price_micro` moves you behind
-anyone who has since matched it. A bot that re-`PUT`s on a timer to keep its bid fresh will silently
-lose every tie it was winning. Either let a bid run to its `expires_in_ms`, or, if you must refresh,
-go up by at least one micro-USDC: price always beats time.
-</Warning>
-
 A bid may outlive the auction. Nothing tells you your bid lost, lapsed, or that the auction closed,
 so age bids out locally against `expires_at`. To pull a live bid before it lapses,
 `DELETE /v1/mm/cashout-requests/{id}/quote`: `204` when it was removed, `200` with
@@ -83,74 +70,6 @@ Your bid being best does not guarantee a fill. The user is only ever filled at a
 explicitly accepted, so if the book moves down between their tap and their commit, the commit fails
 and nobody trades.
 </Warning>
-
-## Your economics
-
-You bid the same way on every auction, but a win lands differently depending on whether you already
-back that position — which you can tell from your own records. Let `S` be `user_stake` and `P` your
-`price_micro` (both micro-USDC), and `f = fee_bps/10_000`.
-
-### You are the position's current counterparty
-
-Your win **closes** the position: your exposure unwinds and your locked `mm_risk` is released. A
-closing exit carries the profit fee, and it always comes out of **your** side — the user receives
-exactly `P` either way. The fee goes to Totalis, never to another market maker.
-
-**When `P > S`** (the user is ahead, you pay out) your outflow is `A ≈ (P - S) / (1 - f)`, of which
-`floor(A * f)` goes to the Totalis fee vault and the remainder reaches the user. At `fee_bps = 100`,
-`S = 990_000`, `P = 1_990_000`: `A = 1_010_101`, the fee is `10_101`, and the user receives exactly
-`1_990_000`.
-
-Note which number you are bidding. `P` is the **user's proceeds**, not your cash outflow — budget
-`(P - S) / (1 - f)`, and choose the `P` whose grossed-up cost you are willing to bear. Bidding the
-number you want to *pay* overpays by the fee.
-
-**When `P <= S`** (the user is down — the common case) the direction flips. Nothing is paid out and
-you **collect** `(S - P) * (1 - f)`. The fee is still taken, out of your proceeds rather than on top
-of a payment. Do not apply the formula above here; it returns a negative number.
-
-Your bid must also fit inside your locked collateral. The server derives that ceiling from
-`total_payout - user_stake`, **not** from the `mm_risk` field. The two are stored separately and do
-drift: on a sample of about 29,000 positions they disagreed on 0.16% of them, by up to `0.0001` USDC
-(100 micro-USDC) — enough to have a boundary bid rejected if you size against the wrong one. Both
-are decimal USDC, so scale first:
-
-```
-S = round(user_stake * 1e6)
-M = round((total_payout - user_stake) * 1e6)
-P <= S + M - floor(M * f)
-```
-
-That is **tighter than `total_payout`**. Exceed it and the bid is rejected with
-`price_above_buyback_bound`. In the `P <= S` direction the ceiling is just `P >= 0`, so it never
-binds — it only ever constrains a payout.
-
-<Warning>
-That ceiling check is a fast reject, not a guarantee. If the fee rate is briefly unavailable the
-check is skipped at bid time and re-applied when the user commits, where it surfaces as
-`amount_over_bound` — so an accepted bid can still lose at commit.
-</Warning>
-
-### You are not the counterparty
-
-Your win **acquires** the position: you step into the **bettor's** side, not the house's. You pay
-exactly `P` to the seller, inherit the staked side, and the position stays open and settles later
-against its original counterparty, which is untouched. **No fee applies** — nothing closed.
-
-So this trade is *long* the parlay, not a hedge. You are out `P` now, you collect `total_payout` if
-every remaining leg wins, and you lose `P` if it does not: max loss `P`, max gain
-`total_payout - P`. Size it as opening a new parlay position of your own.
-
-- You need **`P` free**, not `P` plus the stake. The position's collateral travels with it and funds
-  its own lock, so the net effect is `free -= P`.
-- **Funds are checked when the user commits, not when you bid.** Nothing gates your bid on
-  collateral, so a winning bid can fail at commit with `insufficient_buyer_balance` or
-  `buyer_no_vault`. Keep free balance ahead of your outstanding bids.
-- **A position can be acquired only once.** Once it has been transferred, a further transfer is
-  refused (`already_transferred`), so plan to hold what you acquire to settlement rather than
-  assuming you can flip it through another auction.
-
-Ask your Totalis contact for the current `fee_bps` rather than hardcoding a guess.
 
 ## Knowing you won
 
@@ -175,7 +94,7 @@ settlement, not a refund.
 | 401 | — | Missing or invalid API key. |
 | 403 | `insufficient_scope` | Your key lacks `mm:quote`. |
 | 404 | — | Auction unknown or already evicted at its TTL. The normal "too slow" outcome. |
-| 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is the closing case above, and is allowed. |
+| 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is allowed — that win closes the position. |
 | 409 | `not_active` | Committed or cancelled before your bid landed. |
 | 409 | `expired` | The auction expired as your bid landed. |
 | 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
@@ -190,32 +109,14 @@ funding), and `already_transferred` (the position had already moved).
 Treat `404` and the race-class `409`s as ordinary lost auctions and log them quietly. Treat `400`,
 `401` and `403` as your own bug: if every bid fails that way you are silently out of the market.
 
-## What changed
-
-|  | Old buyback | Old takeover | Now |
-| --- | --- | --- | --- |
-| Who is asked | one targeted MM | broadcast | broadcast |
-| Bid endpoint | `PUT /v1/mm/cashout-requests/{id}/quote` | `PUT /v1/mm/takeover-requests/{id}/quote` | `PUT /v1/mm/cashout-requests/{id}/quote` |
-| Bid body | `{ buyback_price, mm_pays_user }` | `{ price_micro }` | `{ price_micro, expires_in_ms }` |
-| Refusing | `POST .../decline` | submit nothing | submit nothing |
-| Auction lifetime | about 90 s | about 90 s | about 10 s |
-
-To migrate:
-
-1. **Send one all-in price.** Drop `buyback_price` and `mm_pays_user`. The body is strict, so the
-   old shape is rejected outright.
-2. **Stop calling the decline endpoint.** It no longer exists.
-3. **Drop the takeover path.** `takeover-requests` is gone; one endpoint serves both.
-4. **Price inside 10 seconds**, down from about 90.
-
 ## Checklist
 
 1. Handle `cashout_request` on the MM stream, and reconnect with `last_event_id` — with a 10 s
    lifetime, a reconnect gap means lost auctions.
 2. Price from `legs`, `user_stake` and `total_payout`, respecting `legs[].resolution`. These are
    decimal USDC; your bid is micro-USDC.
-3. Decide from your own book whether you back the position, pick the right regime, and make the
-   number fee-inclusive.
+3. Decide from your own book whether you back the position — that determines whether a win closes
+   it or acquires it.
 4. Bid before `expires_at`; expire your own bids locally.
 5. Keep free balance ahead of outstanding bids.
 6. Alert on 400, 401 and 403. Log 404 and race-class 409s quietly.

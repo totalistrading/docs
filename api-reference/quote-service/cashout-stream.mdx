@@ -1,10 +1,10 @@
 ---
 title: "Stream Cashout Quote"
 api: "GET /v1/cashout-requests/{id}/stream"
-description: "Follow the best live bid and terminal status for an early-exit auction via Server-Sent Events."
+description: "Follow the best live bid and terminal status for an early cashout auction via Server-Sent Events."
 ---
 
-Open a Server-Sent Events (SSE) stream to follow an [exit auction](/api-reference/quote-service/cashout-create). Every market maker may bid, and the stream surfaces the **highest live bid** as `best_quote` (ties go to the earliest bid), updating as the book moves. It also sends a terminal `status` frame when the request leaves the `active`/`committing` states.
+Open a Server-Sent Events (SSE) stream to follow a [cashout auction](/api-reference/quote-service/cashout-create). Every market maker may bid, and the stream surfaces the **highest live bid** as `best_quote` (ties go to the earliest bid), updating as the book moves. It also sends a terminal `status` frame when the request leaves the `active`/`committing` states.
 
 ## Authentication
 

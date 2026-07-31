@@ -47,7 +47,7 @@
               "guides/websocket",
               "guides/live-quote-requests",
               "guides/market-maker",
-              "guides/early-exit-auctions"
+              "guides/early-cashout"
             ]
           },
           {
@@ -204,6 +204,10 @@
     "/api-reference/openapi.json"
   ],
   "redirects": [
+    {
+      "source": "/guides/early-exit-auctions",
+      "destination": "/guides/early-cashout"
+    },
     {
       "source": "/api-reference/mm/submit-quote",
       "destination": "/api-reference/quote-service-mm/submit-quote"

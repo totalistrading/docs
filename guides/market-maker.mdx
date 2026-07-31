@@ -37,7 +37,7 @@ For most market makers, the integration surface should stay small:
 
 Use [`GET /v1/wallet`](/api-reference/user/get-wallet) to check available USDC and locked funds before quoting at size.
 
-## Pricing early exits
+## Pricing early cashouts
 
 A user can leave an active position before it settles. Totalis opens a short **auction** on that
 position and broadcasts it to every market maker on the stream you already consume, as a distinct
@@ -50,9 +50,8 @@ submit nothing.
 a win costs you depends on whether you already back that position, because a closing exit carries the
 profit fee on your side while acquiring a position does not.
 
-See [Early exit auctions](/guides/early-exit-auctions) for the payload, the two economic regimes and
-their bid ceilings, the error reasons, and migration notes if you integrated the older buyback or
-takeover flows.
+See [Early cashout](/guides/early-cashout) for the auction rules, the payload, and the error
+reasons.
 
 ## Get set up
 
