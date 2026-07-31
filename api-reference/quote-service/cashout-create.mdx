@@ -1,10 +1,10 @@
 ---
 title: "Create Cashout Request"
 api: "POST /v1/cashout-requests"
-description: "Open an early-exit auction for an on-chain position."
+description: "Open an early cashout auction for an on-chain position."
 ---
 
-Open an **early-exit auction** on an active on-chain position instead of waiting for settlement. The auction is broadcast to every market maker, and each may bid one all-in price. The [stream](/api-reference/quote-service/cashout-stream) surfaces the highest live bid; ties go to the earliest. Accepting it via [Commit](/api-reference/quote-service/cashout-commit) drives the exit on-chain at that price or better.
+Open an **early cashout auction** on an active on-chain position instead of waiting for settlement. The auction is broadcast to every market maker, and each may bid one all-in price. The [stream](/api-reference/quote-service/cashout-stream) surfaces the highest live bid; ties go to the earliest. Accepting it via [Commit](/api-reference/quote-service/cashout-commit) drives the exit on-chain at that price or better.
 
 The request is keyed on the position's on-chain `position_id` — a 16-byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near-expiry buffer of its market end.
 
@@ -36,11 +36,19 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="counterparty_mm_id" type="string">The position's original counterparty market maker. Informational only: the auction is broadcast to every market maker, and a winning bid from this one closes the position rather than transferring it.</ResponseField>
         <ResponseField name="position_id" type="string">The on-chain position id (hex), normalized without the `0x` prefix.</ResponseField>
         <ResponseField name="position_pda" type="string">On-chain position address, or `null`.</ResponseField>
+        <ResponseField name="db_position_id" type="string">Internal UUID of the position record — distinct from the on-chain `position_id` hex.</ResponseField>
+        <ResponseField name="user_wallet" type="string">Your wallet address on the position.</ResponseField>
+        <ResponseField name="mm_wallet" type="string">The counterparty market maker's wallet address.</ResponseField>
         <ResponseField name="user_stake" type="number">Your net stake on the position (USDC). Always refunded on a buyback.</ResponseField>
+        <ResponseField name="mm_risk" type="number">The counterparty's risk on the position (USDC): `total_payout − user_stake`.</ResponseField>
+        <ResponseField name="mm_collateral_locked" type="number">Collateral the counterparty has locked on-chain against the position (USDC).</ResponseField>
         <ResponseField name="total_payout" type="number">The position's total payout (USDC).</ResponseField>
+        <ResponseField name="taker_fee_locked" type="number">The taker fee locked when the position was created (USDC).</ResponseField>
         <ResponseField name="version" type="integer">Request version, starts at `1`.</ResponseField>
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
+        <ResponseField name="created_at" type="string">ISO 8601 time the cashout request was opened.</ResponseField>
+        <ResponseField name="updated_at" type="string">ISO 8601 time of the last update to the request.</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 close time of the auction (~10 s), distinct from the position expiry. Open a fresh auction if it lapses before you commit.</ResponseField>
         <ResponseField name="position_expires_at" type="string">The underlying position's market-end horizon, or `null`.</ResponseField>
         <ResponseField name="legs" type="array">The position's legs (ticker, side, venue, and resolution where known).</ResponseField>
@@ -82,11 +90,19 @@ curl -X POST https://api.totalis.trade/v1/cashout-requests \
       "counterparty_mm_id": "mm-uuid-1234",
       "position_id": "9f86d08818844f86d08818844f86d088",
       "position_pda": "7Xc3...PDA",
+      "db_position_id": "3f1c9e88-1a2b-4c3d-9e8f-7a6b5c4d3e2f",
+      "user_wallet": "5Hs9...UserWallet",
+      "mm_wallet": "47NS...MmWallet",
       "user_stake": 24.75,
+      "mm_risk": 75.25,
+      "mm_collateral_locked": 75.25,
       "total_payout": 100,
+      "taker_fee_locked": 0.25,
       "version": 1,
       "book_seq": 0,
       "status": "active",
+      "created_at": "2026-06-01T18:45:30.000Z",
+      "updated_at": "2026-06-01T18:45:30.000Z",
       "expires_at": "2026-06-01T18:46:00.000Z",
       "position_expires_at": "2026-06-02T00:00:00.000Z",
       "legs": [
