@@ -205,6 +205,10 @@
   ],
   "redirects": [
     {
+      "source": "/guides/early-exit-auctions",
+      "destination": "/guides/early-cashout"
+    },
+    {
       "source": "/api-reference/mm/submit-quote",
       "destination": "/api-reference/quote-service-mm/submit-quote"
     },
