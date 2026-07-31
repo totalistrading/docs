@@ -59,14 +59,6 @@ What you send is what the user sees on screen and what they walk away with. It c
 stake** — a losing parlay exits for less than it cost, and the user never pays more than their
 stake to leave.
 
-<Warning>
-**Replacing a bid costs you tie priority.** Ranking is price first, then submission time, and a
-replacement counts as a new submission — so re-sending the *same* `price_micro` moves you behind
-anyone who has since matched it. A bot that re-`PUT`s on a timer to keep its bid fresh will silently
-lose every tie it was winning. Either let a bid run to its `expires_in_ms`, or, if you must refresh,
-go up by at least one micro-USDC: price always beats time.
-</Warning>
-
 A bid may outlive the auction. Nothing tells you your bid lost, lapsed, or that the auction closed,
 so age bids out locally against `expires_at`. To pull a live bid before it lapses,
 `DELETE /v1/mm/cashout-requests/{id}/quote`: `204` when it was removed, `200` with
