@@ -7,7 +7,7 @@
     "light": "#07C983",
     "dark": "#15803D"
   },
-  "favicon": "/totalis_logo.png",
+  "favicon": "/favicon.png",
   "api": {
     "mdx": {
       "server": "https://api.totalis.trade",
@@ -160,8 +160,8 @@
     }
   },
   "logo": {
-    "light": "/totalis_logo.png",
-    "dark": "/totalis_logo.png"
+    "light": "/logo/totalis-light.png",
+    "dark": "/logo/totalis-dark.png"
   },
   "navbar": {
     "primary": {
