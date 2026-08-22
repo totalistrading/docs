@@ -48,6 +48,8 @@ After authenticating, subscribe to channels to receive events:
 | `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, accepted details, confirmed, expired, withdrawn) |
 | `rfq:{rfq_id}` | Position and status updates for a specific trade |
 
+The channel key is your **`mm_id`** — confirmed to you in the [`connected`](/api-reference/quote-service-mm/stream#connected) event when you open the MM SSE stream. Do not assume it equals the `user_id` returned by `auth:success` on this WebSocket.
+
 ## Events
 
 ### Quote events
@@ -129,6 +131,9 @@ Response:
 ```javascript
 const ws = new WebSocket('wss://api.totalis.trade/ws');
 
+// From the `connected` event on the MM SSE stream
+const MM_ID = '<your-mm-id>';
+
 ws.onopen = () => {
   ws.send(JSON.stringify({ type: 'auth', api_key: '<your-api-key>' }));
 };
@@ -139,7 +144,7 @@ ws.onmessage = (event) => {
   if (msg.type === 'auth:success') {
     ws.send(JSON.stringify({
       type: 'subscribe',
-      channel: `mm:quotes:${msg.user_id}`
+      channel: `mm:quotes:${MM_ID}`
     }));
   }
 
