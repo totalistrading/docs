@@ -22,7 +22,7 @@ API keys carry scopes, and the trading endpoints reject a key that lacks the req
 | --- | --- |
 | `accounts:provision` | Register and disable sub-accounts |
 | `account:read` | List and read sub-accounts |
-| `markets:read` | Optional market-read scope for scoped keys; `GET /v1/markets` itself is public |
+| `markets:read` | Optional market-read scope for scoped keys; `GET /markets` itself is public |
 | `trading:write` | Create and commit quote requests, build a position transaction |
 | `tx:sign` | Submit a signed transaction |
 | `positions:read` | Read quote requests and portfolio |
@@ -59,10 +59,10 @@ Presets expand to fixed lists: `read_only` = `account:read`, `markets:read`, `po
 
 ## 1. Browse markets
 
-`GET /v1/markets` is a public read. No authentication or scope is required, and it is rate-limited per IP. Use it to find something to trade and to read the market tickers you will put in a quote request.
+`GET /markets` is a public read. No authentication or scope is required, and it is rate-limited per IP. Use it to find something to trade and to read the market tickers you will put in a quote request.
 
 ```bash
-curl "https://api.totalis.trade/v1/markets?category=sports&limit=20"
+curl "https://api.totalis.trade/markets?category=sports&limit=20"
 ```
 
 Each event in the response carries a list of markets. The fields you need for a quote leg are `markets[].ticker` (the market ticker), `markets[].venue` (`kalshi` or `polymarket`), and the current `yes_ask` / `no_ask` prices. Two markets that share an `exclusion_keys` value are correlated and cannot both appear in one parlay.
@@ -308,13 +308,13 @@ Delivery is at least once with retry and backoff, so dedupe on `X-Totalis-Event-
 - A principal has an aggregate ceiling on unsigned positions across all of its sub-accounts, default 250 and environment-tunable.
 - A principal can have up to 1000 active sub-accounts by default; this is environment-tunable.
 - Lapsed unsigned positions are cleaned up after about thirty minutes and the reserved collateral is released.
-- The build, submit, and withdraw endpoints are rate-limited to roughly ten requests per minute each. General authenticated reads are roughly 300 requests per minute, and public `GET /v1/markets` is roughly 100 requests per minute per IP.
+- The build, submit, and withdraw endpoints are rate-limited to roughly ten requests per minute each. General authenticated reads are roughly 300 requests per minute, and public `GET /markets` is roughly 100 requests per minute per IP.
 
 ## Endpoint reference
 
 | Method and path | Scope | Header |
 | --- | --- | --- |
-| `GET /v1/markets` | public | |
+| `GET /markets` | public | |
 | `POST /v1/accounts/challenge` | `accounts:provision` | |
 | `POST /v1/accounts` | `accounts:provision` | |
 | `GET /v1/accounts`, `GET /v1/accounts/{id}` | `account:read` | |

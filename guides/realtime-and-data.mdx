@@ -13,7 +13,7 @@ Totalis moves data over four channels. Each covers a different phase of a trade 
 | --- | --- | --- |
 | [SSE streams](/api-reference/quote-service/stream) | **Pre-trade pricing** — live `best_quote` updates on a quote request or cashout request | Watching prices while you decide whether to commit |
 | [WebSocket](/guides/websocket) | **Post-trade events, live** — quote acceptance, confirmation, position created/settled | Live UIs and bots that hold a connection |
-| [Webhooks](/guides/webhooks) | **Post-trade events, durable** — most of the same lifecycle moments as HMAC-signed POSTs with retries and replay, plus one moment WebSocket doesn't carry at all (a bid that **acquires** a position rather than closing it — see the [event catalog](/guides/event-catalog#the-transfer-notification-gap)) | Server systems of record that must never miss an event |
+| [Webhooks](/guides/webhooks) | **Post-trade events, durable** — most of the same lifecycle moments as HMAC-signed POSTs with retries and replay | Server systems of record that must never miss an event |
 | [REST reads](/guides/reading-data) | **State on demand** — portfolio, parlays, settlement detail, P&L, balances | Backfill, reconciliation, on-demand display |
 
 All four authenticate with the same [API key](/guides/authentication).

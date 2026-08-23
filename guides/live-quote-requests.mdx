@@ -78,7 +78,7 @@ Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/su
 }
 ```
 
-Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically — just re-price and `PUT` a new quote with the new `version` and `request_hash`. You don't need to withdraw the old one.
+Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically — just re-price and `PUT` a new quote with the new `request_version` and `request_hash`. You don't need to withdraw the old one.
 
 ### Withdrawing quotes
 

@@ -5,7 +5,7 @@ description: 'How to authenticate against the Totalis REST API and WebSocket —
 
 The Totalis API accepts two authentication schemes:
 
-- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header. Works on both REST and WebSocket.
+- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header on REST and SSE; on the WebSocket, send the same key in the auth message instead.
 - **Privy JWT** — used by the web dashboard. Sent as `Authorization: Bearer <jwt>`. The session signer underpinning the JWT also signs vault transactions in the browser.
 
 Either scheme works on every authenticated endpoint, with one exception: `POST /v1/api-keys` (create a new API key) requires a Privy JWT, or an API key that holds the `keys:manage` scope.

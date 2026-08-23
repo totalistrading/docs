@@ -101,8 +101,8 @@ Returns `201 Created` for your first bid on an auction, or `200 OK` when replaci
 | 400 | validation | Non-integer or non-positive `price_micro`, `expires_in_ms` out of range, unknown field, or malformed JSON. |
 | 400 | `price_above_max_payout` | Bid exceeds the position's `total_payout`. Response carries `max_price_micro`. |
 | 400 | `price_above_buyback_bound` | You back this position and the bid exceeds what your locked collateral covers after the profit fee. Skipped when the fee rate is briefly unavailable; the commit then re-checks it and rejects with `amount_over_bound`. |
-| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
-| 429 | `RATE_LIMITED` | Too many requests. Honour `Retry-After`. |
+| 401 | — | Missing or invalid API key (`error.code: UNAUTHORIZED`). |
+| 429 | — | Too many requests (`error.code: RATE_LIMITED`). Honour `Retry-After`. |
 | 403 | `insufficient_scope` | Key lacks `mm:quote`. Response carries `required_scope`. |
 | 404 | — | Auction unknown, or already evicted at its TTL. The ordinary "too slow" outcome, not a fault. |
 | 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is allowed and is the closing case. |

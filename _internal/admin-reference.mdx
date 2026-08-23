@@ -16,14 +16,14 @@ curl -X GET https://api.totalis.trade/admin/api-keys \
   -H "x-admin-api-key: <admin-key>"
 ```
 
-This key is configured server-side via the `RFQ_ADMIN_API_KEY` environment variable.
+This key is provisioned server-side.
 
 ## Privy JWT Token (Deprecated for Public API)
 
-For web applications using [Privy](https://privy.io) authentication. After a user logs in via Privy, the frontend receives a JWT token. This is used internally by the Totalis frontend — external API users should use API keys instead.
+For web applications using [Privy](https://privy.io) authentication. After you log in via Privy, your web app receives a JWT. This is used internally by the Totalis frontend; external API users should use API keys instead.
 
 ```bash
-curl -X GET https://api.totalis.trade/rfqs \
+curl -X GET https://api.totalis.trade/v1/rfqs \
   -H "Authorization: Bearer eyJhbGciOiJFUzI1NiIs..."
 ```
 

@@ -70,7 +70,7 @@ A parlay is 2 to 5 legs. Open a quote request, let market makers price it, then 
 | --- | --- |
 | `POST /v1/quote-requests` | Open a quote request |
 | `PATCH /v1/quote-requests/{id}` | Update legs or stake before committing |
-| `GET /v1/quote-requests/{id}/quotes` | Fetch current quotes |
+| `GET /v1/quote-requests/{id}` | Fetch the request with its current quotes and `best_quote` |
 | `POST /v1/quote-requests/{id}/commit` | Commit a quote and create the position |
 | `POST /v1/quote-requests/{id}/cancel` | Cancel an open request |
 
