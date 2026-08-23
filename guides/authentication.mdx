@@ -5,7 +5,7 @@ description: 'How to authenticate against the Totalis REST API and WebSocket —
 
 The Totalis API accepts two authentication schemes:
 
-- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header. Works on both REST and WebSocket.
+- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header on REST and SSE; on the WebSocket, send the same key in the auth message instead.
 - **Privy JWT** — used by the web dashboard. Sent as `Authorization: Bearer <jwt>`. The session signer underpinning the JWT also signs vault transactions in the browser.
 
 Either scheme works on every authenticated endpoint, with one exception: `POST /v1/api-keys` (create a new API key) requires a Privy JWT, or an API key that holds the `keys:manage` scope.
@@ -22,6 +22,8 @@ Generate an API key from the [Totalis Dashboard](https://app.totalis.trade):
 <Warning>
   The full API key is only displayed at creation time. Save it securely — you will not be able to retrieve it later.
 </Warning>
+
+Keys have the form `api_live_...` (or `api_test_...` for test-environment keys), matching `api_(live|test)_[A-Za-z0-9_-]{28,36}`. A credential that doesn't start with `api_` is rejected with `403` (`wrong_api_key_type`) and a hint about the expected format; a well-formed but invalid or revoked key gets `401`.
 
 ## Using your API key
 
@@ -48,7 +50,7 @@ Every API key carries a set of **scopes** — the capabilities you select at cre
 | Scope | Grants | Risk |
 | --- | --- | --- |
 | `account:read` | View account profile and username. | low |
-| `markets:read` | Browse markets and exclusion groups. | low |
+| `markets:read` | Browse markets, including each market's `exclusion_keys`. | low |
 | `positions:read` | View quote requests, portfolio, stats, and P&L. | low |
 | `balances:read` | View wallet and vault balances and delegation status. | low |
 | `trading:write` | Create, modify, commit, and cancel quote requests (place parlays). | medium |
@@ -72,6 +74,8 @@ You can list, create, and revoke API keys programmatically (or from the [Dashboa
 - **List keys** — `GET /v1/api-keys`
 - **Create key** — `POST /v1/api-keys` (requires a Privy JWT, or a key with `keys:manage`)
 - **Revoke key** — `DELETE /v1/api-keys/{prefix}`
+
+`{prefix}` is the `key_prefix` value returned by both list and create: the short leading fragment of the key that listings expose in place of the full secret. The full key is returned exactly once, in `data.key` at creation.
 
 A new key can never grant a scope the creating credential doesn't already hold.
 

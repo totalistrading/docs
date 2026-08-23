@@ -14,7 +14,7 @@ Only active positions are returned — the `status` values below cover the live 
 
 ## Authentication
 
-API key required. Pass your market maker API key in the `X-API-Key` header.
+API key required. Pass your API key in the `X-API-Key` header.
 
 ```
 X-API-Key: <key>
@@ -65,7 +65,7 @@ X-API-Key: <key>
             <ResponseField name="venue" type="string">Source venue: `kalshi` or `polymarket`.</ResponseField>
             <ResponseField name="event_ticker" type="string">Event-level ticker on the source venue.</ResponseField>
             <ResponseField name="market_ticker" type="string">Market-level ticker on the source venue.</ResponseField>
-            <ResponseField name="exclusivity_group" type="string">Mutual-exclusivity grouping key: legs sharing a value bet into a one-of-N outcome set. `null` when the leg is not part of a group.</ResponseField>
+            <ResponseField name="exclusivity_group" type="string">Mutual-exclusivity grouping key: legs sharing a value bet into a one-of-N outcome set. `null` when the leg is not part of a group. This is a per-leg snapshot; to pre-check whether two markets can combine in a parlay, use the `exclusion_keys` arrays on [`GET /v1/markets/list`](/api-reference/markets/list-flat) instead.</ResponseField>
             <ResponseField name="exclusivity_group_kind" type="string">How members of `exclusivity_group` relate: `binary` (strict two-outcome complements) or `partition` (one-of-N). `null` iff `exclusivity_group` is null.</ResponseField>
             <ResponseField name="venue_url" type="string">Canonical URL of the leg's market on its source venue. May be null.</ResponseField>
             <ResponseField name="market_resolved" type="boolean">`true` once the venue has a recognized result for this leg's market.</ResponseField>
@@ -127,10 +127,10 @@ while True:
         "rfq_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
         "user_id": "did:privy:cmabc123def456ghi789jkl",
         "market_maker_id": "did:privy:cmxyz987uvw654rst321opq",
-        "user_stake": 25,
-        "mm_risk": 81.25,
-        "mm_collateral_locked": 81.25,
-        "total_payout": 106.25,
+        "user_stake": 24.75,
+        "mm_risk": 74.25,
+        "mm_collateral_locked": 74.25,
+        "total_payout": 99,
         "status": "active",
         "created_at": "2026-06-01T18:45:45.000Z",
         "legs": [

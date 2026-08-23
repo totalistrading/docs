@@ -48,13 +48,15 @@ After authenticating, subscribe to channels to receive events:
 | `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, accepted details, confirmed, expired, withdrawn) |
 | `rfq:{rfq_id}` | Position and status updates for a specific trade |
 
+The channel key is your **`mm_id`**, which is the same value as your `user_id`: your Privy DID (`did:privy:...`), echoed back by `auth:success` here and by the [`connected`](/api-reference/quote-service-mm/stream#connected) event on the MM SSE stream.
+
 ## Events
 
 ### Quote events
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `quote:accepted` | A user committed your quote. You must confirm it before the deadline. | `{ quote_id, rfq_id, confirmation_deadline }` |
+| `quote:accepted` | A user committed your quote. You must confirm it before `confirmation_deadline` (5 s from acceptance by default, but configurable server-side, so always use the timestamp). | `{ quote_id, rfq_id, confirmation_deadline }` |
 | `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
 | `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
@@ -68,8 +70,8 @@ After authenticating, subscribe to channels to receive events:
 {
   "rfq_id": "550e8400-e29b-41d4-a716-446655440000",
   "quote_id": "7d3a2f1e-4b8c-4d6e-9f0a-1b2c3d4e5f60",
-  "market_maker_id": "did:privy:mm",
-  "user_id": "did:privy:user",
+  "market_maker_id": "did:privy:cm3mm...",
+  "user_id": "did:privy:cm3abc...",
   "source": "quote_request_commit",
   "quote_request_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
   "draft_quote_id": "b2c3d4e5-6789-0abc-def1-234567890abc",
@@ -79,9 +81,9 @@ After authenticating, subscribe to channels to receive events:
   "accepted_at": "2026-06-05T12:00:00.000Z",
   "quote": {
     "payout_odds": 7.08,
-    "user_cost": 50,
-    "total_payout": 354,
-    "mm_cost": 304,
+    "user_cost": 49.50,
+    "total_payout": 350.46,
+    "mm_cost": 300.96,
     "valid_until": "2026-06-05T12:00:10.000Z"
   },
   "exposure_legs": [
@@ -96,7 +98,7 @@ After authenticating, subscribe to channels to receive events:
 ```
 
 <Note>
-  **`draft_quote_id` is undocumented.** It appears nowhere else in the API contract, and its relationship to the accepted `quote_id` above isn't specified — treat it as informational only, and use `quote_id` (the value valid for confirmation) rather than `draft_quote_id` for any action. If your integration needs to know what this field represents, raise it with Totalis support rather than assuming a meaning.
+  **`draft_quote_id`** is the id of your own draft quote: the `quote.id` returned when you [submitted it](/api-reference/quote-service-mm/submit-quote). Use it to correlate which of your drafts was lifted; use `quote_id` (the accepted quote) for the [confirmation call](/api-reference/mm/confirm-quote).
 </Note>
 
 ### Position events
@@ -137,6 +139,7 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
   if (msg.type === 'auth:success') {
+    // Your mm_id is your user_id (Privy DID)
     ws.send(JSON.stringify({
       type: 'subscribe',
       channel: `mm:quotes:${msg.user_id}`

@@ -4,14 +4,14 @@ api: "POST /v1/cashout-requests/{id}/commit"
 description: "Accept the winning bid on an early cashout auction and drive it on-chain."
 ---
 
-Accept the winning bid on the user's early cashout auction and drive it on-chain. The bid **is** the price — there is no MM-confirm round-trip. You must echo back the price the user accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution.
+Accept the winning bid on your early cashout auction and drive it on-chain. The bid **is** the price; there is no MM-confirm round-trip. You must echo back the price you accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution.
 
 On success you receive `min_price_micro` (or better) either way, but the position ends up in one of two states, decided server-side by who won: if the winning bid came from the position's own counterparty the position **closes** — your stake is released and the RFQ flips to `bought_back`. If it came from any other market maker the position **transfers** to them and stays open under new ownership; you are out of it, and the RFQ does not become `bought_back`.
 
 This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`. The replay returns the original outcome verbatim — a retry that sends a *different* `min_price_micro` still gets the first commit's result, and the new floor is not re-evaluated. Retry with the same value you first sent.
 
 <Note>
-**Indeterminate commits never double-spend.** If the on-chain outcome is unknown (timeout or transient RPC failure), the request stays `committing` and returns `503` with `details.indeterminate: true`. Branch on that boolean, not on `details.reason` — the reason is a coarse execution-layer code and is not a stable taxonomy. A reconciler resolves it against on-chain state — do **not** treat a `503` as a failure or assume nothing happened. Reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. A determinate failure (`409`) means nothing landed. Most are retryable against a live book, but `already_transferred` is terminal for the position — stop, and re-read the position rather than reopening an auction.
+**Indeterminate commits never double-spend.** If the on-chain outcome is unknown (timeout or transient RPC failure), the request stays `committing` and returns `503` with `details.indeterminate: true`. Branch on that boolean, not on `details.reason` — the reason is a coarse execution-layer code and is not a stable taxonomy. Totalis resolves it against on-chain state — do **not** treat a `503` as a failure or assume nothing happened. Reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. A determinate failure (`409`) means nothing landed. Most are retryable against a live book, but `already_transferred` is terminal for the position — stop, and re-read the position rather than reopening an auction.
 </Note>
 
 ## Authentication
@@ -33,8 +33,8 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 ## Request body
 
 <ParamField body="min_price_micro" type="integer" required>
-  The price the user accepted on screen, in micro-USDC — echo back the `price_micro` from the
-  `best_quote` frame you displayed. **Required**: a commit that does not state the accepted price is
+  The price you accepted on screen, in micro-USDC: echo back the `price_micro` from the
+  `best_quote` frame you were shown. **Required**: a commit that does not state the accepted price is
   a `400`, because nothing is ever filled at a price the user did not see.
 
   The fill uses the best live bid at commit time, floored at this value: a better bid fills at the
@@ -72,7 +72,7 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 <RequestExample>
 ```bash
 curl -X POST https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/commit \
-  -H "X-API-Key: $TOTALIS_API_KEY"   -H "Content-Type: application/json"   -d '{"min_price_micro": 1990000}'
+  -H "X-API-Key: $TOTALIS_API_KEY"   -H "Content-Type: application/json"   -d '{"min_price_micro": 66250000}'
 ```
 </RequestExample>
 

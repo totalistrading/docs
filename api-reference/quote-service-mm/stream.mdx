@@ -8,7 +8,7 @@ Open a Server-Sent Events (SSE) stream to receive all active quote requests in r
 
 ## Authentication
 
-API key required. Pass your market maker API key in the `X-API-Key` header.
+API key required. Pass your API key in the `X-API-Key` header.
 
 ```
 X-API-Key: <key>
@@ -32,9 +32,11 @@ This stream sends seven event names. Their spelling isn't consistent: `quote_req
 
 Sent immediately on connection. Confirms your identity.
 
+`mm_id` is your Privy DID, the same value as the `user_id` returned by `auth:success` on the [WebSocket](/guides/websocket#authentication), and the key of your `mm:quotes:{mm_id}` channel there.
+
 ```json
 {
-  "mm_id": "mm-uuid-1234"
+  "mm_id": "did:privy:cm3mm..."
 }
 ```
 
@@ -164,11 +166,11 @@ This is a distinct event name from `quote_request`, with a different payload —
     }
   ],
   "user_stake": 24.75,
-  "mm_risk": 75,
-  "total_payout": 100,
+  "mm_risk": 74.25,
+  "total_payout": 99,
   "payout_odds": 4.0,
   "version": 1,
-  "expires_at": "2026-06-01T18:46:00.000Z"
+  "expires_at": "2026-06-01T18:45:40.000Z"
 }
 ```
 
@@ -368,10 +370,10 @@ with requests.get(url, headers=headers, stream=True) as resp:
 <ResponseExample>
 ```text SSE stream
 event: connected
-data: {"mm_id":"mm-uuid-1234"}
+data: {"mm_id":"did:privy:cm3mm..."}
 
 event: snapshot_begin
-data: {"page_size":50}
+data: {"page_size":500}
 
 event: quote_request
 data: {"id":"1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40","user_id":"did:privy:cm3abc...","input_legs":[{"market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"legs":[{"id":"8ccf2c5d-3a61-4707-93f2-b6f0a0f0c0c6","event_ticker":"KXBTC-26JUN01","market_ticker":"KXBTC-26JUN01-T72500","side":"yes","venue":"kalshi"}],"bet_amount":25,"user_stake":24.75,"implied_probability":0,"version":1,"request_hash":"sha256:9f86d08...","expires_at":"2026-06-01T18:45:30.000Z"}

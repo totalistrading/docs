@@ -44,10 +44,10 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
   <Step title="Market makers quote it">
     Makers stream the request and submit quotes with payout odds. You watch them arrive live on the quote-request [stream](/api-reference/quote-service/stream). Each quote carries:
 
-    - **`user_cost`** — your stake (the bet amount).
-    - **`total_payout`** — `bet_amount × payout_odds`, what you receive if every leg wins.
-    - **`payout_odds`** — the multiple on your stake.
-    - **`book_seq`** — the SSE event's sequence number, carried alongside the quote. You'll need it later to prove your pricing was current when you commit.
+    - **`user_cost`**: your net stake, `bet_amount` minus the 1% taker fee.
+    - **`total_payout`**: `user_cost * payout_odds`, what you receive if every leg wins. Odds apply to the net stake, not the gross `bet_amount`.
+    - **`payout_odds`**: the multiple on your net stake.
+    - **`book_seq`**: the SSE event's sequence number, carried alongside the quote. You'll need it later to prove your pricing was current when you commit.
   </Step>
 
   <Step title="Commit the best quote">
@@ -75,7 +75,7 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
   <Step title="It settles automatically">
     When every leg's market has resolved, the position settles:
 
-    - **All legs win** — you receive the full payout (the maker's collateral, minus a protocol fee on profit).
+    - **All legs win** — you receive the full payout: your stake plus the maker's collateral, minus a protocol fee on profit.
     - **Any leg loses** — your stake transfers to the maker (minus fee).
 
     **Status: `settled`.** Read the outcome and transaction signatures from [`GET /v1/rfqs/{id}`](/api-reference/parlays/get).
@@ -84,7 +84,7 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
 
 ## Closing early (cashout)
 
-Once a parlay is live (`executed`), you don't have to wait for settlement — you can close it by accepting a **buyback** price from the maker that backs it. Your stake is always returned; the buyback amount is the net on top: the maker pays you when you're in profit, you pay the maker when you're underwater (gross of a profit fee).
+Once a parlay is live (`executed`), you don't have to wait for settlement. You can open a short **cashout auction**: Totalis broadcasts it to every market maker, the highest live bid wins, and the price you accept is one all-in figure, which can be below your stake if the position has gone against you. Mechanically, your stake is returned and the difference settles as a separate transfer in whichever direction applies, so what you receive in total equals the all-in price.
 
 A cashout is its own short-lived request, separate from the parlay's status:
 
@@ -92,9 +92,8 @@ A cashout is its own short-lived request, separate from the parlay's status:
 %%{init: {'themeVariables': {'edgeLabelBackground': '#1f2020', 'primaryTextColor': '#ffffff', 'lineColor': '#ffffff', 'primaryBorderColor': '#ffffff'}}}%%
 flowchart LR
     active --> committing --> committed
-    committed -. success .-> bought_back
-    active -- maker can't price it --> declined
-    active -- no quote in time --> expired
+    committed -. counterparty won .-> bought_back
+    active -- no bid accepted in time --> expired
     active -- you cancel --> cancelled
 ```
 
@@ -109,15 +108,16 @@ flowchart LR
     GET  /v1/cashout-requests/<id>/stream   # SSE: live buyback quote + status
     ```
   </Step>
-  <Step title="The maker prices it">
-    The backing maker re-values the position at current odds and either streams a buyback quote or declines (if a leg is already decided). The quote carries the net you'd receive.
+  <Step title="Market makers bid on it">
+    Every market maker sees the auction on their stream and can bid one all-in price; the auction lives about 10 seconds. Watch the [cashout stream](/api-reference/quote-service/cashout-stream) for the best live bid. Its `price_micro` is the total you'd receive.
   </Step>
   <Step title="Commit">
     ```bash
     POST /v1/cashout-requests/<id>/commit
+    { "min_price_micro": <the price_micro you accepted> }
     ```
 
-    The buyback executes on-chain. Once it confirms, your stake is released, the realized P&L lands on the parlay's `cashout` object, and the parlay becomes **`bought_back`**.
+    `min_price_micro` is required: nothing is ever filled at a price you did not see. The exit executes on-chain and you receive the accepted price. If the winning bid came from the maker that backs your position, the position closes, the realized P&L lands on the parlay's `cashout` object, and the parlay becomes **`bought_back`**. If another maker won, they acquire the position instead and the parlay's status does not become `bought_back`.
   </Step>
 </Steps>
 
@@ -146,4 +146,5 @@ Quotes carry their own status — `withdrawn` (the maker pulled it), `expired` (
 | Bet amount | 1–100 USDC |
 | Payout odds | 1.0001× – 1000× |
 | Quote validity | 5–60 s (default 15 s) |
-| Parlay expiry | 300 s from commit |
+| Quote request expiry | 300 s by default (configurable 30 s to 24 h), before commit |
+| Maker confirmation window | 5 s by default |

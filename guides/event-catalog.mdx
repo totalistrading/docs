@@ -54,6 +54,7 @@ The same economic figures go by different names at the quote stage versus the se
 | `user_cost` (Quote object — [quote-request stream](/api-reference/quote-service/stream), [`GET /v1/quote-requests/{id}`](/api-reference/quote-service/get)) | `user_stake` (Settlement object on [`GET /v1/rfqs/{id}`](/api-reference/parlays/get); also the name used from the start in [MM-stream](/api-reference/quote-service-mm/stream) and [cashout](/api-reference/quote-service/cashout-create) payloads) | Both are the user's net stake (`bet_amount` minus the taker fee). The API renames it once the trade moves past pricing. |
 | `mm_cost` (Quote object, quote stage) | `mm_risk` (Settlement object; also used in MM stream `cashout_request` payloads) | Both are the market maker's amount at risk (`total_payout`/`payout` minus the user's stake). |
 | `total_payout` (Quote object, quote stage) | `payout` (Settlement object, settlement stage) | Both are the full amount paid to the winner on a win (`user stake + mm risk`). |
+| `id` (cashout request object — [`POST /v1/cashout-requests`](/api-reference/quote-service/cashout-create)) | `cashout_request_id` (the MM stream's [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) push and the [commit](/api-reference/quote-service/cashout-commit) response) | Both identify the same cashout auction. |
 
 ### Market maker identity across channels
 
@@ -61,7 +62,7 @@ All three spellings hold a market maker id, but they do **not** all mean the sam
 
 | Field | Where it appears |
 | --- | --- |
-| `mm_id` | The MM SSE stream's [`connected`](/api-reference/quote-service-mm/stream#connected) event; the `mm:quotes:{mm_id}` WebSocket channel name itself |
+| `mm_id` | The MM SSE stream's [`connected`](/api-reference/quote-service-mm/stream#connected) event; the `mm:quotes:{mm_id}` WebSocket channel name itself. Equal to your `user_id` (your Privy DID) |
 | `market_maker_id` | Quote objects — `best_quote.market_maker_id` on both the [quote-request stream](/api-reference/quote-service/stream) and [cashout stream](/api-reference/quote-service/cashout-stream), the [`Get quote request`](/api-reference/quote-service/get) response, and the [`mm_quote:accepted`](/guides/websocket#quote-events) WebSocket payload |
 | `counterparty_mm_id` | The [cashout auction object](/api-reference/quote-service/cashout-create) — the maker that **backs** the position, not a bidder. Informational: the auction is broadcast to everyone, and the server compares the winner against this id to decide whether the exit closes the position or transfers it. Compare it against the winning `best_quote.market_maker_id`; they are equal only in the closing case. |
 

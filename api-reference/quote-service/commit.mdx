@@ -59,15 +59,15 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 ## Rejection reasons
 
-When a commit is rejected with `409 Conflict`, the `error.details.reason` field explains why:
+When a commit is rejected, the `error.details.reason` field explains why. Every reason returns `409 Conflict` except `COMMIT_FAILED_RETRYABLE`, which returns `503`:
 
 | Reason | Description |
 |--------|-------------|
 | `QUOTE_CHANGED` | The `expected_version` does not match. The request was updated since you last fetched it. |
 | `MARKET_NOT_LIVE` | One or more markets are no longer available (expired, halted, or delisted). |
 | `QUOTE_EXPIRED` | No active quotes exist, or the best quote expired between selection and commit. |
-| `COMMIT_FAILED` | The commit could not be completed — for example no eligible market maker had sufficient collateral. Returns `409`. |
-| `COMMIT_FAILED_RETRYABLE` | Transient error. Retry after a short delay. Returns `503`. |
+| `COMMIT_FAILED` | The commit could not be completed — for example no eligible market maker had sufficient collateral. |
+| `COMMIT_FAILED_RETRYABLE` | Transient error. Retry after a short delay. |
 
 ## Errors
 
@@ -89,7 +89,7 @@ curl -X POST https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b
     "expected_version": 3,
     "displayed_quote_id": "b2c3d4e5-6789-0abc-def1-234567890abc",
     "displayed_quote_book_seq": 5,
-    "min_payout_odds_seen": 4.25
+    "min_payout_odds_seen": 4.0
   }'
 ```
 </RequestExample>
@@ -102,7 +102,7 @@ curl -X POST https://api.totalis.trade/v1/quote-requests/1a6d1f06-9d4f-47cb-994b
     "quote_request_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
     "rfq_id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
     "quote_id": "d4e5f6a7-8901-bcde-f234-567890abcdef",
-    "selected_payout_odds": 4.25,
+    "selected_payout_odds": 4.0,
     "confirmation_deadline": "2026-06-01T18:45:35.000Z"
   }
 }

@@ -610,7 +610,7 @@
       "post": {
         "operationId": "createApiKey",
         "summary": "Create API Key",
-        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` — save it immediately. Subsequent listings only show the prefix. Requires Privy JWT auth (web dashboard); cannot be called with an existing API key.",
+        "description": "Create a new API key for the authenticated user. The full secret is returned **once** in `data.key` — save it immediately. Subsequent listings only show the prefix. Requires a Privy JWT (web dashboard), or an API key holding the `keys:manage` scope.",
         "tags": [
           "API Keys"
         ],
@@ -976,7 +976,7 @@
           "User"
         ],
         "summary": "Confirm TEE wallet delegation AND drain any pending welcome airdrop",
-        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow (TT-airdrop-bug 2026-05-13), the welcome airdrop amount\n   is staged on `users.welcome_airdrop_pending_amount` at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the column. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
+        "description": "Two responsibilities, kept in one round-trip so the frontend can\nrender a single combined success toast:\n\n1. **Delegation status.** Confirms whether the embedded wallet\n   is currently delegated to our key quorum. The actual\n   delegation is a USER-SIDE action (frontend `addSigners()`);\n   this endpoint only reads the current state — it does NOT\n   perform the delegation itself.\n2. **Pending welcome-airdrop drain.** Under the deferred-airdrop\n   flow, the welcome airdrop amount is staged at\n   approval time. This endpoint atomically claims that amount,\n   mints the USDC from treasury to the canonical wallet, and\n   clears the staged amount. Idempotent: a second call after a\n   successful drain returns `airdrop: null` (nothing left to\n   drain) without re-minting. On mint failure, the pending\n   amount is restored so the user can retry on their next call.\n",
         "security": [
           {
             "PrivyJWT": []
@@ -1706,7 +1706,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Programmatic API key. Sent as `X-API-Key: <key>`. Generate one from the Totalis dashboard. The same header is accepted on the WebSocket auth message."
+        "description": "Programmatic API key. Sent as `X-API-Key: <key>`. Generate one from the Totalis dashboard. The WebSocket takes no header; send the key in the auth message instead."
       }
     },
     "parameters": {
@@ -1979,7 +1979,7 @@
       },
       "PositionStatus": {
         "type": "string",
-        "description": "Vault position lifecycle. `pending`/`processing` are intermediate states before on-chain creation; `settling`/`cancelling` are intermediate states for settlement/cancellation; `settled_win`/`settled_loss`/`cancelled` are terminal; the `*_mm_release` and `expired` states cover the permissionless-expiry path; the buyback path is `active → bought_back_pending_db → bought_back` (with `reconciling_bought_back_db` as the short-lived reconciler sentinel); `error` means retries are exhausted and manual intervention is required.",
+        "description": "Vault position lifecycle. `pending`/`processing` are intermediate states before on-chain creation; `settling`/`cancelling` are intermediate states for settlement/cancellation; `settled_win`/`settled_loss`/`cancelled` are terminal; the `*_mm_release` and `expired` states cover the permissionless-expiry path; the buyback path is `active → bought_back_pending_db → bought_back` (with `reconciling_bought_back_db` as a short-lived transient state in which collateral is still held); `error` means retries are exhausted and manual intervention is required.",
         "enum": [
           "pending",
           "processing",
@@ -2089,19 +2089,24 @@
             "type": "string"
           },
           "yes_bid": {
-            "type": "number"
+            "type": "number",
+            "description": "Probability price as a decimal in [0, 1], normalized across venues (Kalshi cents are converted)."
           },
           "yes_ask": {
-            "type": "number"
+            "type": "number",
+            "description": "Probability price as a decimal in [0, 1], normalized across venues."
           },
           "no_bid": {
-            "type": "number"
+            "type": "number",
+            "description": "Probability price as a decimal in [0, 1], normalized across venues."
           },
           "no_ask": {
-            "type": "number"
+            "type": "number",
+            "description": "Probability price as a decimal in [0, 1], normalized across venues."
           },
           "last_price": {
-            "type": "number"
+            "type": "number",
+            "description": "Last traded price as a decimal probability in [0, 1], normalized across venues."
           },
           "price_to_beat": {
             "type": "number",
@@ -2254,18 +2259,18 @@
           "venue_url": {
             "type": "string",
             "nullable": true,
-            "description": "Canonical URL of the leg's market on its source venue (Kalshi or Polymarket). Hydrated from marketd Redis hashes, falling back to the parlay-leg snapshot when the market hash has been purged."
+            "description": "Canonical URL of the leg's market on its source venue (Kalshi or Polymarket). May be null."
           },
           "image_url": {
             "type": "string",
             "nullable": true,
-            "description": "Image URL for the leg's market. Hydrated from the marketd Redis hash and whitelist metadata, falling back to the parlay-leg snapshot when the market hash has been purged."
+            "description": "Image URL for the leg's market. May be null."
           },
           "expected_expiration_time": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Expected market resolution time for the leg. Hydrated from marketd Redis hashes, falling back to the parlay-leg snapshot when the market hash has been purged."
+            "description": "Expected market resolution time for the leg. May be null."
           },
           "current_yes_price": {
             "type": "number",
@@ -2301,7 +2306,8 @@
             "type": "number"
           },
           "implied_probability": {
-            "type": "number"
+            "type": "number",
+            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only; do not price from it."
           },
           "legs": {
             "type": "array",
@@ -2336,11 +2342,11 @@
           "position_id": {
             "type": "string",
             "nullable": true,
-            "description": "On-chain position id — the 16-byte vault_positions.position_id, hex-encoded (32 chars). Distinct from position_pda (a base58 address): this is the id the early-cashout endpoints key on (/internal/positions/cashout-eligibility, POST /v1/cashout-requests). Set once status >= confirmed."
+            "description": "On-chain position id: 16 bytes, hex-encoded (32 chars). Distinct from position_pda (a base58 address); this is the id the early-cashout endpoint keys on (POST /v1/cashout-requests). Set once status >= confirmed."
           },
           "position_status": {
             "nullable": true,
-            "description": "Position status from vault_positions table",
+            "description": "The position's on-chain lifecycle status.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/PositionStatus"
@@ -2538,7 +2544,7 @@
           },
           "implied_probability": {
             "type": "number",
-            "description": "Decimal probability (0-1)."
+            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only; do not price from it."
           },
           "expires_at": {
             "type": "string",
@@ -2770,7 +2776,7 @@
               "confirmation_deadline": {
                 "type": "string",
                 "format": "date-time",
-                "description": "Deadline by which the market maker must call `POST /mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ expiry sweep transitions both rows based on the RFQ's own `expires_at`:\n\n- **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote, and for explicit user rejection via `POST /rfqs/{id}/quotes/{quoteId}/reject`."
+                "description": "Deadline by which the market maker must call `POST /v1/mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ transitions based on its own `expires_at`:\n\n- **RFQ still within `expires_at`** — RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`** — RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote."
               }
             }
           }
@@ -2983,7 +2989,7 @@
           },
           "payout": {
             "type": "number",
-            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. bet_amount * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
+            "description": "Full pot transferred to the winner: equals user_stake + mm_risk\n(i.e. user_stake * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
           },
           "user_stake": {
             "type": "number",
@@ -3137,7 +3143,7 @@
           },
           "total_failed": {
             "type": "integer",
-            "description": "Parlays where the vault position errored on-chain. Derived from vault_positions.status = 'error'."
+            "description": "Parlays where the vault position errored on-chain."
           }
         }
       },

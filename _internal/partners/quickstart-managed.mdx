@@ -58,7 +58,7 @@ Keys are scoped. Request only the scopes you need: `markets:read`, `trading:writ
 | --- | --- |
 | `GET /markets` | List tradeable markets |
 | `GET /markets/{ticker}` | Market detail |
-| `GET /markets/exclusion-groups` | Leg combinations blocked by correlation rules |
+| `exclusion_keys` on `GET /v1/markets/list` | Leg combinations blocked by correlation rules: two markets can share a parlay only if their `exclusion_keys` arrays don't intersect |
 
 `market_ticker` is venue-specific. For Kalshi, use the Kalshi ticker, for example `KXBTC-25FEB07-T100000`. For Polymarket, use the `condition_id` (0x hex) together with `side`.
 
@@ -70,7 +70,7 @@ A parlay is 2 to 5 legs. Open a quote request, let market makers price it, then 
 | --- | --- |
 | `POST /v1/quote-requests` | Open a quote request |
 | `PATCH /v1/quote-requests/{id}` | Update legs or stake before committing |
-| `GET /v1/quote-requests/{id}/quotes` | Fetch current quotes |
+| `GET /v1/quote-requests/{id}` | Fetch the request with its current quotes and `best_quote` |
 | `POST /v1/quote-requests/{id}/commit` | Commit a quote and create the position |
 | `POST /v1/quote-requests/{id}/cancel` | Cancel an open request |
 

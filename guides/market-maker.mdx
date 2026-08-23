@@ -26,7 +26,7 @@ For most market makers, the integration surface should stay small:
 | Step | Endpoint |
 | --- | --- |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
-| Check invalid leg combinations | `GET /markets/exclusion-groups` |
+| Check invalid leg combinations | `exclusion_keys` on [`GET /v1/markets/list`](/api-reference/markets/list-flat): two markets can share a parlay only if their arrays don't intersect |
 | Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
 | Submit a draft quote | [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) |
 | Withdraw a draft quote | [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) |

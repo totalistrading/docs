@@ -6,13 +6,13 @@ description: "Confirm an accepted quote to lock in the trade and begin vault set
 
 Confirming an accepted quote triggers an atomic Solana transaction that locks the user's stake and your collateral in their respective vaults.
 
-You receive a `quote:accepted` WebSocket event when a user commits your quote, and must confirm before the `confirmation_deadline` in that event. You may also receive `mm_quote:accepted` on the same `mm:quotes:{mm_id}` channel, with richer quote economics and `exposure_legs`, for local risk reservation or analytics. Both events carry the same `quote_id` — either is valid for confirmation, and delivery order between them isn't guaranteed. If you miss the deadline, the trade unwinds and the RFQ reopens for other market makers.
+You receive a `quote:accepted` WebSocket event when a user commits your quote, and must confirm before the `confirmation_deadline` in that event. The window is **5 seconds from acceptance by default**, but it is configurable server-side, so always honor the `confirmation_deadline` timestamp rather than assuming a fixed duration. You may also receive `mm_quote:accepted` on the same `mm:quotes:{mm_id}` channel, with richer quote economics and `exposure_legs`, for local risk reservation or analytics. Both events carry the same `quote_id` (either is valid for confirmation), and delivery order between them isn't guaranteed. If you miss the deadline, the trade unwinds and the RFQ reopens for other market makers.
 
 **Base URL:** `https://api.totalis.trade`
 
 ## Authentication
 
-API key required. Pass your market maker API key in the `X-API-Key` header.
+API key required. Pass your API key in the `X-API-Key` header.
 
 ```
 X-API-Key: <key>

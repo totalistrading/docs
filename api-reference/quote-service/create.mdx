@@ -53,7 +53,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
         <ResponseField name="bet_amount" type="number">The bet amount in USDC.</ResponseField>
-        <ResponseField name="implied_probability" type="number">Combined implied probability of all legs.</ResponseField>
+        <ResponseField name="implied_probability" type="number">Display-only value, commonly `0`. Not computed by the server; a client may set it later in the flow, and it is relayed as-is. Do not price from it.</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 expiration timestamp.</ResponseField>
         <ResponseField name="legs" type="array">Validated legs with enriched metadata.</ResponseField>
         <ResponseField name="input_legs" type="array">The legs exactly as you submitted them.</ResponseField>
