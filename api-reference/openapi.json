@@ -2307,7 +2307,7 @@
           },
           "implied_probability": {
             "type": "number",
-            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only — do not price from it."
+            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only; do not price from it."
           },
           "legs": {
             "type": "array",
@@ -2544,7 +2544,7 @@
           },
           "implied_probability": {
             "type": "number",
-            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only — do not price from it."
+            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only; do not price from it."
           },
           "expires_at": {
             "type": "string",
@@ -2989,7 +2989,7 @@
           },
           "payout": {
             "type": "number",
-            "description": "Full pot transferred to the winner — equals user_stake + mm_risk\n(i.e. user_stake * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
+            "description": "Full pot transferred to the winner: equals user_stake + mm_risk\n(i.e. user_stake * payout_odds). NOT just the MM-side movement.\nFor MM PnL on a loss, use -(payout - user_stake) = -mm_risk.\n"
           },
           "user_stake": {
             "type": "number",

@@ -67,7 +67,7 @@ Connect to the [MM SSE stream](/api-reference/quote-service-mm/stream) to receiv
 
 ### Submitting quotes
 
-Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version — submitting again replaces your previous quote. Send only the fields below; the server derives the cost fields from `payout_odds` and the request's **net stake**: `user_cost = bet_amount - taker_fee` (= `user_stake` on the stream), `total_payout = user_cost × payout_odds`, `mm_cost = total_payout - user_cost`.
+Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version; submitting again replaces your previous quote. Send only the fields below. The server derives the cost fields from `payout_odds` and the request's **net stake**: `user_cost = bet_amount - taker_fee` (= `user_stake` on the stream), `total_payout = user_cost * payout_odds`, `mm_cost = total_payout - user_cost`.
 
 ```json
 {

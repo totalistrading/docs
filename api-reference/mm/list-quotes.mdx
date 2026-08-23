@@ -47,10 +47,10 @@ X-API-Key: <key>
         <ResponseField name="parlay_ticket_id" type="string">The RFQ this quote belongs to. Matches the `rfq_id` filter.</ResponseField>
         <ResponseField name="market_maker_id" type="string">Your market maker ID.</ResponseField>
         <ResponseField name="payout_odds" type="number">The payout multiplier you quoted. Applies to the net stake (`user_cost`), not the gross bet amount.</ResponseField>
-        <ResponseField name="user_cost" type="number">Cost to the user in USDC — the net stake (`bet_amount` minus `taker_fee`).</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC: the net stake (`bet_amount` minus `taker_fee`).</ResponseField>
         <ResponseField name="total_payout" type="number">Total payout in USDC if the parlay wins.</ResponseField>
         <ResponseField name="mm_cost" type="number">Your risk in USDC (`total_payout - user_cost`).</ResponseField>
-        <ResponseField name="taker_fee" type="number">Taker fee locked on the quote in USDC (`bet_amount − user_cost`). `0` only if the taker fee rate was zero when the quote was created.</ResponseField>
+        <ResponseField name="taker_fee" type="number">Taker fee locked on the quote in USDC (`bet_amount - user_cost`). `0` only if the computed fee was zero when the quote was created.</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when the quote's pricing validity ended.</ResponseField>
         <ResponseField name="status" type="string">Lifecycle status: `accepted` (committed by the user, awaiting your confirmation), `confirmed` (locked in), or `expired` (confirmation window lapsed and the trade unwound).</ResponseField>
         <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>

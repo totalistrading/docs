@@ -75,7 +75,7 @@ You can list, create, and revoke API keys programmatically (or from the [Dashboa
 - **Create key** — `POST /v1/api-keys` (requires a Privy JWT, or a key with `keys:manage`)
 - **Revoke key** — `DELETE /v1/api-keys/{prefix}`
 
-`{prefix}` is the `key_prefix` value returned by both list and create — the short leading fragment of the key that listings expose in place of the full secret. The full key is returned exactly once, in `data.key` at creation.
+`{prefix}` is the `key_prefix` value returned by both list and create: the short leading fragment of the key that listings expose in place of the full secret. The full key is returned exactly once, in `data.key` at creation.
 
 A new key can never grant a scope the creating credential doesn't already hold.
 

@@ -10,7 +10,7 @@ openapi: 'GET /v1/markets/list'
   set-intersection check, with no correlation rules to maintain client-side.
 </Note>
 
-All prices (`yes_bid`, `yes_ask`, `no_bid`, `no_ask`, `last_price`) are probabilities as decimals in `[0, 1]`, regardless of venue — Kalshi's cent prices are normalized.
+All prices (`yes_bid`, `yes_ask`, `no_bid`, `no_ask`, `last_price`) are probabilities as decimals in `[0, 1]`, regardless of venue. Kalshi's cent prices are normalized.
 
 <Tip>
   Need every market for a single game? `GET /markets/events/{event_ticker}`

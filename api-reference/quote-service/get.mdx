@@ -37,7 +37,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="id" type="string">Quote UUID.</ResponseField>
         <ResponseField name="market_maker_id" type="string">The quoting market maker's ID.</ResponseField>
         <ResponseField name="payout_odds" type="number">Payout multiplier on the net stake (`user_cost`).</ResponseField>
-        <ResponseField name="user_cost" type="number">Cost to the user in USDC — the net stake, `bet_amount` minus the taker fee.</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC: the net stake, `bet_amount` minus the taker fee.</ResponseField>
         <ResponseField name="total_payout" type="number">Total payout if the parlay wins.</ResponseField>
         <ResponseField name="mm_cost" type="number">USDC the market maker puts at risk.</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
