@@ -48,7 +48,7 @@ After authenticating, subscribe to channels to receive events:
 | `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, accepted details, confirmed, expired, withdrawn) |
 | `rfq:{rfq_id}` | Position and status updates for a specific trade |
 
-The channel key is your **`mm_id`** — confirmed to you in the [`connected`](/api-reference/quote-service-mm/stream#connected) event when you open the MM SSE stream. Do not assume it equals the `user_id` returned by `auth:success` on this WebSocket.
+The channel key is your **`mm_id`**, which is the same value as your `user_id` — your Privy DID (`did:privy:...`), echoed back by `auth:success` here and by the [`connected`](/api-reference/quote-service-mm/stream#connected) event on the MM SSE stream.
 
 ## Events
 
@@ -56,7 +56,7 @@ The channel key is your **`mm_id`** — confirmed to you in the [`connected`](/a
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `quote:accepted` | A user committed your quote. You must confirm it before the deadline. | `{ quote_id, rfq_id, confirmation_deadline }` |
+| `quote:accepted` | A user committed your quote. You must confirm it before `confirmation_deadline` — 5 s from acceptance by default, but configurable server-side, so always use the timestamp. | `{ quote_id, rfq_id, confirmation_deadline }` |
 | `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
 | `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
@@ -98,7 +98,7 @@ The channel key is your **`mm_id`** — confirmed to you in the [`connected`](/a
 ```
 
 <Note>
-  **`draft_quote_id` is undocumented.** It appears nowhere else in the API contract, and its relationship to the accepted `quote_id` above isn't specified — treat it as informational only, and use `quote_id` (the value valid for confirmation) rather than `draft_quote_id` for any action. If your integration needs to know what this field represents, raise it with Totalis support rather than assuming a meaning.
+  **`draft_quote_id`** is the id of your own draft quote — the `quote.id` returned when you [submitted it](/api-reference/quote-service-mm/submit-quote). Use it to correlate which of your drafts was lifted; use `quote_id` (the accepted quote) for the [confirmation call](/api-reference/mm/confirm-quote).
 </Note>
 
 ### Position events
@@ -131,9 +131,6 @@ Response:
 ```javascript
 const ws = new WebSocket('wss://api.totalis.trade/ws');
 
-// From the `connected` event on the MM SSE stream
-const MM_ID = '<your-mm-id>';
-
 ws.onopen = () => {
   ws.send(JSON.stringify({ type: 'auth', api_key: '<your-api-key>' }));
 };
@@ -142,9 +139,10 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
   if (msg.type === 'auth:success') {
+    // Your mm_id is your user_id (Privy DID)
     ws.send(JSON.stringify({
       type: 'subscribe',
-      channel: `mm:quotes:${MM_ID}`
+      channel: `mm:quotes:${msg.user_id}`
     }));
   }
 

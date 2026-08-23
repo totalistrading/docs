@@ -44,9 +44,9 @@ A parlay can also end at `cancelled` or `expired` before it's funded.
   <Step title="Market makers quote it">
     Makers stream the request and submit quotes with payout odds. You watch them arrive live on the quote-request [stream](/api-reference/quote-service/stream). Each quote carries:
 
-    - **`user_cost`** — your stake (the bet amount).
-    - **`total_payout`** — `bet_amount × payout_odds`, what you receive if every leg wins.
-    - **`payout_odds`** — the multiple on your stake.
+    - **`user_cost`** — your net stake: `bet_amount` minus the 1% taker fee.
+    - **`total_payout`** — `user_cost × payout_odds`, what you receive if every leg wins. Odds apply to the net stake, not the gross `bet_amount`.
+    - **`payout_odds`** — the multiple on your net stake.
     - **`book_seq`** — the SSE event's sequence number, carried alongside the quote. You'll need it later to prove your pricing was current when you commit.
   </Step>
 

@@ -43,7 +43,7 @@ The commit endpoint requires these fields to ensure you're locking in the price 
   "expected_version": 3,
   "displayed_quote_id": "quote-uuid",
   "displayed_quote_book_seq": 5,
-  "min_payout_odds_seen": 4.25
+  "min_payout_odds_seen": 4.0
 }
 ```
 
@@ -67,13 +67,13 @@ Connect to the [MM SSE stream](/api-reference/quote-service-mm/stream) to receiv
 
 ### Submitting quotes
 
-Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version — submitting again replaces your previous quote. Send only the fields below; the server derives `user_cost`, `total_payout`, and `mm_cost` from `payout_odds` and the request's `bet_amount`.
+Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version — submitting again replaces your previous quote. Send only the fields below; the server derives the cost fields from `payout_odds` and the request's **net stake**: `user_cost = bet_amount - taker_fee` (= `user_stake` on the stream), `total_payout = user_cost × payout_odds`, `mm_cost = total_payout - user_cost`.
 
 ```json
 {
   "request_version": 3,
   "request_hash": "sha256...",
-  "payout_odds": 4.25,
+  "payout_odds": 4.0,
   "expires_in_ms": 15000
 }
 ```
@@ -94,10 +94,10 @@ Events on the user stream (`/v1/quote-requests/{id}/stream`):
   "version": 3,
   "best_quote": {
     "id": "quote-uuid",
-    "payout_odds": 4.25,
-    "user_cost": 25,
-    "total_payout": 106.25,
-    "mm_cost": 81.25,
+    "payout_odds": 4.0,
+    "user_cost": 24.75,
+    "total_payout": 99,
+    "mm_cost": 74.25,
     "valid_until": "2026-06-01T18:45:45.000Z"
   }
 }

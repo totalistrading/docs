@@ -23,6 +23,8 @@ Generate an API key from the [Totalis Dashboard](https://app.totalis.trade):
   The full API key is only displayed at creation time. Save it securely — you will not be able to retrieve it later.
 </Warning>
 
+Keys have the form `api_live_...` (or `api_test_...` for test-environment keys), matching `api_(live|test)_[A-Za-z0-9_-]{28,36}`. A credential that doesn't start with `api_` is rejected with `403` (`wrong_api_key_type`) and a hint about the expected format; a well-formed but invalid or revoked key gets `401`.
+
 ## Using your API key
 
 Send your API key in the `X-API-Key` header with every request:

@@ -39,7 +39,7 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="payout_odds" type="number" required>
-  Payout multiplier on the user's bet amount. Between 1.0001 and 1000. The server derives all cost fields (`user_cost`, `total_payout`, `mm_cost`) from this value and the request's `bet_amount`.
+  Payout multiplier on the **net stake** (`user_stake`), not the gross `bet_amount`. Between 1.0001 and 1000. The server derives all cost fields from this value and the net stake: `user_cost = bet_amount - taker_fee` (= `user_stake`), `total_payout = user_cost * payout_odds`, `mm_cost = total_payout - user_cost`.
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer">
@@ -60,8 +60,8 @@ Returns `201 Created` for a new quote or `200 OK` when replacing an existing quo
         <ResponseField name="request_version" type="integer">The request version this quote is for.</ResponseField>
         <ResponseField name="request_hash" type="string">The request hash this quote is for.</ResponseField>
         <ResponseField name="payout_odds" type="number">The payout multiplier.</ResponseField>
-        <ResponseField name="user_cost" type="number">Cost to the user in USDC (server-derived from `bet_amount`).</ResponseField>
-        <ResponseField name="total_payout" type="number">Total payout in USDC (server-derived from `bet_amount * payout_odds`).</ResponseField>
+        <ResponseField name="user_cost" type="number">The net stake in USDC (`bet_amount - taker_fee`; equals the request's `user_stake`).</ResponseField>
+        <ResponseField name="total_payout" type="number">Total payout in USDC (server-derived: `user_cost * payout_odds`).</ResponseField>
         <ResponseField name="mm_cost" type="number">Your risk in USDC (server-derived: `total_payout - user_cost`).</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
       </Expandable>
@@ -99,7 +99,7 @@ curl -X PUT https://api.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-99
   -d '{
     "request_version": 1,
     "request_hash": "sha256:9f86d08...",
-    "payout_odds": 4.25,
+    "payout_odds": 4.0,
     "expires_in_ms": 15000
   }'
 ```
@@ -111,13 +111,13 @@ curl -X PUT https://api.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-99
   "data": {
     "quote": {
       "id": "b2c3d4e5-6789-0abc-def1-234567890abc",
-      "market_maker_id": "mm-uuid-1234",
+      "market_maker_id": "did:privy:cm3mm...",
       "request_version": 1,
       "request_hash": "sha256:9f86d08...",
-      "payout_odds": 4.25,
-      "user_cost": 25,
-      "total_payout": 106.25,
-      "mm_cost": 81.25,
+      "payout_odds": 4.0,
+      "user_cost": 24.75,
+      "total_payout": 99,
+      "mm_cost": 74.25,
       "valid_until": "2026-06-01T18:45:45.000Z"
     },
     "book_seq": 5,

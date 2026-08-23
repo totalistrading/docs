@@ -46,11 +46,11 @@ X-API-Key: <key>
         <ResponseField name="id" type="string">Quote UUID. Matches `quote_id` on the `quote:accepted` and `mm_quote:accepted` WebSocket events.</ResponseField>
         <ResponseField name="parlay_ticket_id" type="string">The RFQ this quote belongs to. Matches the `rfq_id` filter.</ResponseField>
         <ResponseField name="market_maker_id" type="string">Your market maker ID.</ResponseField>
-        <ResponseField name="payout_odds" type="number">The payout multiplier you quoted.</ResponseField>
-        <ResponseField name="user_cost" type="number">Cost to the user in USDC.</ResponseField>
+        <ResponseField name="payout_odds" type="number">The payout multiplier you quoted. Applies to the net stake (`user_cost`), not the gross bet amount.</ResponseField>
+        <ResponseField name="user_cost" type="number">Cost to the user in USDC — the net stake (`bet_amount` minus `taker_fee`).</ResponseField>
         <ResponseField name="total_payout" type="number">Total payout in USDC if the parlay wins.</ResponseField>
         <ResponseField name="mm_cost" type="number">Your risk in USDC (`total_payout - user_cost`).</ResponseField>
-        <ResponseField name="taker_fee" type="number">Taker fee locked on the quote in USDC. `0` while the taker fee is off.</ResponseField>
+        <ResponseField name="taker_fee" type="number">Taker fee locked on the quote in USDC (`bet_amount − user_cost`). `0` only if the taker fee rate was zero when the quote was created.</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when the quote's pricing validity ended.</ResponseField>
         <ResponseField name="status" type="string">Lifecycle status: `accepted` (committed by the user, awaiting your confirmation), `confirmed` (locked in), or `expired` (confirmation window lapsed and the trade unwound).</ResponseField>
         <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
@@ -107,12 +107,12 @@ for quote in resp.json()["data"]["quotes"]:
       {
         "id": "d4e5f6a7-8901-bcde-f234-567890abcdef",
         "parlay_ticket_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
-        "market_maker_id": "mm-uuid-1234",
-        "payout_odds": 4.25,
-        "user_cost": 25,
-        "total_payout": 106.25,
-        "mm_cost": 81.25,
-        "taker_fee": 0,
+        "market_maker_id": "did:privy:cm3mm...",
+        "payout_odds": 4.0,
+        "user_cost": 24.75,
+        "total_payout": 99,
+        "mm_cost": 74.25,
+        "taker_fee": 0.25,
         "valid_until": "2026-06-01T18:45:45.000Z",
         "status": "accepted",
         "created_at": "2026-06-01T18:45:30.000Z",

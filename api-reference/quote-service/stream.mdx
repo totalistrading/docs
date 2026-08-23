@@ -35,12 +35,12 @@ Sent whenever the quote book changes (new quote submitted, quote updated, quote 
   "request_hash": "sha256:9f86d08...",
   "best_quote": {
     "id": "b2c3d4e5-6789-0abc-def1-234567890abc",
-    "payout_odds": 4.25,
-    "user_cost": 25,
-    "total_payout": 106.25,
-    "mm_cost": 81.25,
+    "payout_odds": 4.0,
+    "user_cost": 24.75,
+    "total_payout": 99,
+    "mm_cost": 74.25,
     "valid_until": "2026-06-01T18:45:45.000Z",
-    "market_maker_id": "mm-uuid-1234"
+    "market_maker_id": "did:privy:cm3mm..."
   }
 }
 ```
@@ -192,10 +192,10 @@ with requests.get(url, headers=headers, stream=True) as resp:
 <ResponseExample>
 ```text SSE stream
 event: best_quote
-data: {"book_seq":1,"version":1,"request_hash":"sha256:9f86d08...","best_quote":{"id":"b2c3d4e5-6789-0abc-def1-234567890abc","payout_odds":4.25,"user_cost":25,"total_payout":106.25,"mm_cost":81.25,"valid_until":"2026-06-01T18:45:45.000Z","market_maker_id":"mm-uuid-1234"}}
+data: {"book_seq":1,"version":1,"request_hash":"sha256:9f86d08...","best_quote":{"id":"b2c3d4e5-6789-0abc-def1-234567890abc","payout_odds":4.0,"user_cost":24.75,"total_payout":99,"mm_cost":74.25,"valid_until":"2026-06-01T18:45:45.000Z","market_maker_id":"did:privy:cm3mm..."}}
 
 event: best_quote
-data: {"book_seq":2,"version":1,"request_hash":"sha256:9f86d08...","best_quote":{"id":"e5f6a7b8-9012-cdef-3456-7890abcdef12","payout_odds":4.50,"user_cost":25,"total_payout":112.50,"mm_cost":87.50,"valid_until":"2026-06-01T18:45:50.000Z","market_maker_id":"mm-uuid-5678"}}
+data: {"book_seq":2,"version":1,"request_hash":"sha256:9f86d08...","best_quote":{"id":"e5f6a7b8-9012-cdef-3456-7890abcdef12","payout_odds":4.4,"user_cost":24.75,"total_payout":108.9,"mm_cost":84.15,"valid_until":"2026-06-01T18:45:50.000Z","market_maker_id":"did:privy:cm9mm..."}}
 
 event: status
 data: {"status":"committed","committed_rfq_id":"c3d4e5f6-7890-abcd-ef12-34567890abcd"}

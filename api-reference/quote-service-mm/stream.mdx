@@ -32,9 +32,11 @@ This stream sends seven event names. Their spelling isn't consistent: `quote_req
 
 Sent immediately on connection. Confirms your identity.
 
+`mm_id` is your Privy DID — the same value as the `user_id` returned by `auth:success` on the [WebSocket](/guides/websocket#authentication), and the key of your `mm:quotes:{mm_id}` channel there.
+
 ```json
 {
-  "mm_id": "mm-uuid-1234"
+  "mm_id": "did:privy:cm3mm..."
 }
 ```
 
@@ -164,8 +166,8 @@ This is a distinct event name from `quote_request`, with a different payload —
     }
   ],
   "user_stake": 24.75,
-  "mm_risk": 75,
-  "total_payout": 100,
+  "mm_risk": 74.25,
+  "total_payout": 99,
   "payout_odds": 4.0,
   "version": 1,
   "expires_at": "2026-06-01T18:46:00.000Z"
@@ -368,7 +370,7 @@ with requests.get(url, headers=headers, stream=True) as resp:
 <ResponseExample>
 ```text SSE stream
 event: connected
-data: {"mm_id":"mm-uuid-1234"}
+data: {"mm_id":"did:privy:cm3mm..."}
 
 event: snapshot_begin
 data: {"page_size":500}

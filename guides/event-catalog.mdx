@@ -61,7 +61,7 @@ All three spellings hold a market maker id, but they do **not** all mean the sam
 
 | Field | Where it appears |
 | --- | --- |
-| `mm_id` | The MM SSE stream's [`connected`](/api-reference/quote-service-mm/stream#connected) event; the `mm:quotes:{mm_id}` WebSocket channel name itself |
+| `mm_id` | The MM SSE stream's [`connected`](/api-reference/quote-service-mm/stream#connected) event; the `mm:quotes:{mm_id}` WebSocket channel name itself. Equal to your `user_id` (your Privy DID) |
 | `market_maker_id` | Quote objects — `best_quote.market_maker_id` on both the [quote-request stream](/api-reference/quote-service/stream) and [cashout stream](/api-reference/quote-service/cashout-stream), the [`Get quote request`](/api-reference/quote-service/get) response, and the [`mm_quote:accepted`](/guides/websocket#quote-events) WebSocket payload |
 | `counterparty_mm_id` | The [cashout auction object](/api-reference/quote-service/cashout-create) — the maker that **backs** the position, not a bidder. Informational: the auction is broadcast to everyone, and the server compares the winner against this id to decide whether the exit closes the position or transfers it. Compare it against the winning `best_quote.market_maker_id`; they are equal only in the closing case. |
 
