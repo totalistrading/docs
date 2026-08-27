@@ -54,7 +54,6 @@
             "group": "Resources",
             "pages": [
               "guides/faq",
-              "guides/world-cup-reward-pool",
               "referrals",
               "terms-of-service",
               "privacy-policy"
@@ -204,6 +203,10 @@
     "/api-reference/openapi.json"
   ],
   "redirects": [
+    {
+      "source": "/guides/world-cup-reward-pool",
+      "destination": "/referrals"
+    },
     {
       "source": "/guides/early-exit-auctions",
       "destination": "/guides/early-cashout"
