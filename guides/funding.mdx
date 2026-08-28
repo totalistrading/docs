@@ -1,15 +1,25 @@
 ---
 title: 'Funding your wallet'
-description: 'Fund your Totalis account by sending USDC to your Solana wallet, enable trading, and withdraw.'
+description: 'Fund your Totalis wallet with USDC on Solana by card, Apple Pay, an in-app bridge, or a direct transfer; enable trading; withdraw.'
 ---
 
-You fund your account by sending USDC to your Solana wallet address. Once it lands, you're ready to trade — placing a parlay pulls your stake into the vault automatically, so there's no separate deposit step.
+You fund your account with USDC in your Solana wallet. In the app you can buy USDC by card or Apple Pay, bridge from other supported chains, or send native Solana USDC from any wallet or exchange. Whichever route you take, the balance lands as USDC in your wallet. Placing a parlay pulls your stake into the vault automatically, so there's no separate deposit step.
 
 ## Enable trading first
 
 Before you can place a parlay or withdraw, your wallet must be **delegated**: you grant Totalis permission to sign transactions on your behalf inside a secure enclave. See [Vaults & custody](/guides/vault-architecture) for how that works.
 
 Enabling trading is a one-time **interactive** step — you approve a consent dialog in the app. It can't be done from the REST API alone (`POST /v1/wallet/enable-trading` only reports status; it doesn't grant the permission). Check the current state with [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
+
+## Deposit options
+
+| Option | Where | Time | Notes |
+|---|---|---|---|
+| Card or Apple Pay | In the app | About a minute | Buys USDC straight into your Solana wallet |
+| Bridge from another chain | In the app | A few minutes | From the chains offered in the app; delivers native Solana USDC |
+| Send USDC directly | Any Solana wallet or exchange | Seconds | Native Solana USDC only, see below |
+
+Use the in-app bridge for funds on other chains. Don't send bridged USDC or tokens from another chain to your address yourself; they won't be credited.
 
 ## Send USDC to your wallet
 

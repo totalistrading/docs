@@ -23,9 +23,9 @@ Totalis lists markets that:
 
 - Settle within one week
 
-These include structured combinations across sports, macro, politics, crypto, and weather events.
+Markets span eight categories: politics, sports, crypto, finance (including stocks and indices), economics, entertainment, weather, and tech.
 
-For the current list, query the [list markets endpoint](/api-reference/markets/list).
+For the current list, query the [list markets endpoint](/api-reference/markets/list). Filter with `category` and `subcategory`.
 
 Totalis focuses on high-frequency, short-duration markets that support rapid capital turnover.
 
@@ -87,13 +87,13 @@ If a market on the underlying venue is cancelled or delisted before all legs in 
 
 ## Will you add markets from other prediction markets? Can I make cross-platform parlays?
 
-Yes. Totalis is built as a venue-agnostic derivatives layer designed to aggregate markets across prediction market platforms.
+Yes. You can already mix Kalshi and Polymarket legs in one parlay: set `venue` on each leg of your [quote request](/api-reference/quote-service/create). Totalis is venue-agnostic, and more prediction market platforms are planned.
 
 ## Can't I just do this on Kalshi?
 
-Kalshi only offers combos on specific sports markets with limited options, because it has to create an orderbook for every combination — which doesn't scale.
+Kalshi Combos bundle Kalshi's own contracts, sports first, and each combination trades as its own market with a dedicated order book. The catalog is bounded by what the exchange lists.
 
-Totalis takes a different approach, sitting on top of prediction markets as a derivatives layer and using a quote request system to price any combination of outcomes. You can construct parlays on markets across sports, crypto, weather, entertainment, and economic events, and eventually combine bets across multiple venues in a single parlay.
+Totalis sits on top of prediction markets as a derivatives layer and prices any combination of outcomes through a quote request. You build parlays across all eight categories, and you can combine Kalshi and Polymarket legs in a single parlay today.
 
 ## How does Totalis make money?
 
