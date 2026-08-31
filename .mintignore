@@ -1,0 +1,17 @@
+# Files Mintlify must not build or serve.
+#
+# Syntax is .gitignore-style. Unlike omitting a page from docs.json
+# navigation, which only hides it from the sidebar and leaves it live at
+# its URL, entries here are excluded from the build entirely and cannot
+# be reached by URL.
+#
+# https://www.mintlify.com/docs/organize/mintignore
+
+# Internal partner (BYOW / sub-account) and admin documentation.
+# These were publicly served at docs.totalis.trade/_internal/... until
+# 2026-09-01 purely because nothing linked to them.
+_internal/
+
+# Contributor-facing files that are not product documentation.
+STYLE.md
+README.md
