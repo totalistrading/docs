@@ -1,10 +1,10 @@
 ---
-title: "Stream Quote Requests"
-api: "GET /v1/mm/quote-requests/stream"
-description: "Subscribe to all active quote requests in real time via Server-Sent Events."
+title: 'Stream quote requests'
+api: 'GET /v1/mm/quote-requests/stream'
+description: 'Subscribe to all active quote requests in real time via Server-Sent Events.'
 ---
 
-Open a Server-Sent Events (SSE) stream to receive all active quote requests in real time. This is the primary integration path for market makers — use it instead of polling. The stream emits new requests as they arrive, updates when requests change, and notifies when requests expire.
+Open a Server-Sent Events (SSE) stream to receive all active quote requests in real time. This is the primary integration path for market makers. Use it instead of polling. The stream emits new requests as they arrive, updates when requests change, and notifies when requests expire.
 
 ## Authentication
 
@@ -16,7 +16,7 @@ X-API-Key: <key>
 
 ## SSE event types
 
-This stream sends seven event names. Their spelling isn't consistent: `quote_request` and `quote_request_expired` are underscore-separated, while `quote_request:updated` is colon-separated. The subsections below — and their `<Warning>`s — cover why:
+This stream sends seven event names. Their spelling isn't consistent: `quote_request` and `quote_request_expired` are underscore-separated, while `quote_request:updated` is colon-separated. The subsections below cover why:
 
 | Event | Fires when |
 | --- | --- |
@@ -89,7 +89,7 @@ Sent when a **new** quote request is created, and once for each active request r
 
 ### `quote_request:updated`
 
-Sent when a request you have **already seen** changes to a new `version` — the user edited the legs or the bet amount. The payload is identical to `quote_request` (with the incremented `version` and new `request_hash`). Any quote you submitted for the prior version is automatically invalidated; re-price and submit a new quote against the new `version` and `request_hash`. You do not need to withdraw the prior quote — it never blocks the new submission.
+Sent when a request you have **already seen** changes to a new `version`, because the user edited the legs or the bet amount. The payload is identical to `quote_request` (with the incremented `version` and new `request_hash`). Any quote you submitted for the prior version is automatically invalidated; re-price and submit a new quote against the new `version` and `request_hash`. You do not need to withdraw the prior quote. It never blocks the new submission.
 
 <Warning>
 This is a distinct event name from `quote_request`. If your client only registers a listener for `quote_request`, it will miss every version bump. Register a listener for `quote_request:updated` as well (or, with a raw SSE parser, branch on the `event:` field).
@@ -127,13 +127,13 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 
 | `reason` | Meaning |
 |----------|---------|
-| `committed` | The user committed to a quote. The auction is over — check `won`. This can arrive well before `expires_at`; there is no minimum auction duration. |
+| `committed` | The user committed to a quote. The auction is over, so check `won`. This can arrive well before `expires_at`; there is no minimum auction duration. |
 | `cancelled` | The user abandoned the request before committing to any quote. |
 | `expired` | The request reached `expires_at` with no commit. |
 
-`won` is `true` only when `reason` is `committed` **and your quote was the one selected**; otherwise `false` (including every `cancelled`/`expired` close). A `committed` close with `won: false` means you were out-bid — the user took another market maker's quote. The winning maker's identity and odds are never disclosed.
+`won` is `true` only when `reason` is `committed` **and your quote was the one selected**; otherwise `false` (including every `cancelled`/`expired` close). A `committed` close with `won: false` means you were out-bid. The user took another market maker's quote. The winning maker's identity and odds are never disclosed.
 
-`won` is **omitted** on the rare `committed` close where the outcome is indeterminate (e.g. the event was produced by a previous server instance during a deploy). Treat an absent `won` as *unknown* — don't record it as a loss.
+`won` is **omitted** on the rare `committed` close where the outcome is indeterminate (e.g. the event was produced by a previous server instance during a deploy). Treat an absent `won` as *unknown*. Do not record it as a loss.
 
 ```json
 {
@@ -145,10 +145,10 @@ Sent when a previously seen quote request is no longer active. Remove it from yo
 
 ### `cashout_request`
 
-Sent when a user opens an [early cashout auction](/guides/early-cashout) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker** — including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds — see [Early cashout](/guides/early-cashout).
+Sent when a user opens an [early cashout auction](/guides/early-cashout) on a position, and once for each active auction replayed during the initial snapshot. These arrive on the same stream and are **broadcast to every market maker**, including positions you do not back. Bid with [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). To pass, submit nothing; there is no decline endpoint. The auction lives about 10 seconds. See [Early cashout](/guides/early-cashout).
 
 <Warning>
-This is a distinct event name from `quote_request`, with a different payload — it carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a cashout auction apart from a forward quote request.
+This is a distinct event name from `quote_request`, with a different payload. It carries `cashout_request_id` (not `id`) and the on-chain `position_id`. Branch on the SSE `event:` field (or register a dedicated `cashout_request` listener) to tell a cashout auction apart from a forward quote request.
 </Warning>
 
 ```json
@@ -182,7 +182,7 @@ This is a distinct event name from `quote_request`, with a different payload —
 
 <ResponseField name="position_id" type="string" required>
   The on-chain position id (32 hex chars, no `0x`). Use it to look the position up in your own book
-  and decide whether you are its counterparty — that determines your economics.
+  and decide whether you are its counterparty. That determines your economics.
 </ResponseField>
 
 <ResponseField name="legs" type="array" required>
@@ -196,15 +196,15 @@ This is a distinct event name from `quote_request`, with a different payload —
 </ResponseField>
 
 <ResponseField name="user_stake" type="number" required>
-  Decimal USDC. The net stake the counterparty underwrites (`bet_amount − taker_fee`) — the same
+  Decimal USDC. The net stake the counterparty underwrites (`bet_amount - taker_fee`), the same
   quantity as on `quote_request`, and the reference point for the exit price: a bid above it means
   the user leaves in profit, below it at a loss.
 </ResponseField>
 
 <ResponseField name="mm_risk" type="number" required>
-  Decimal USDC. The counterparty's locked risk on the position. Pricing context only — do **not**
+  Decimal USDC. The counterparty's locked risk on the position. Pricing context only. Do **not**
   compute the counterparty bid ceiling from it. The server derives that ceiling from
-  `total_payout − user_stake`; the two are stored separately and can disagree in the last decimal.
+  `total_payout - user_stake`; the two are stored separately and can disagree in the last decimal.
 </ResponseField>
 
 <ResponseField name="total_payout" type="number" required>
@@ -213,7 +213,7 @@ This is a distinct event name from `quote_request`, with a different payload —
 </ResponseField>
 
 <ResponseField name="payout_odds" type="number" required>
-  The accepted quote's payout multiplier — pricing context, **not** an amount and never a bid term.
+  The accepted quote's payout multiplier. Pricing context, **not** an amount, and never a bid term.
   For auctions on positions created before this field was carried it is reconstructed from
   `total_payout / user_stake` and can be off in the 5th or 6th decimal, so do not reconcile against
   it exactly.
@@ -226,7 +226,7 @@ This is a distinct event name from `quote_request`, with a different payload —
 
 <ResponseField name="expires_at" type="string" required>
   ISO 8601 close time of the **auction**, about 10 s out. Bid before it. This is not the position's
-  market-end horizon, which is not on this payload — so you cannot pre-filter for the near-close
+  market-end horizon, which is not on this payload, so you cannot pre-filter for the near-close
   cutoff, and a bid on a position close to its market end is rejected `MARKET_NEAR_CLOSE`. Treat
   that as an ordinary lost auction.
 </ResponseField>
@@ -246,9 +246,9 @@ The taker-fee rate is read once per connection (server-side), so `user_stake` on
 
 ## Notes
 
-- **Net stake.** `user_stake` is the net stake the MM underwrites: `user_stake = bet_amount − taker_fee`, where `taker_fee = floor(bet_amount_micro × taker_fee_bps / 10000)` is computed in integer microUSDC (1 USDC = 1e6 micro) — e.g. a 25.00 bet at 100 bps gives a 0.25 fee and `user_stake` 24.75. Price `payout_odds` and size collateral against `user_stake`, **not** `bet_amount`. `bet_amount` stays the user's gross wager but is not the quoting base when the taker fee is on (`taker_fee_bps > 0`); when the fee is off, `user_stake == bet_amount`.
+- **Net stake.** `user_stake` is the net stake the MM underwrites: `user_stake = bet_amount - taker_fee`, where `taker_fee = floor(bet_amount_micro x taker_fee_bps / 10000)` is computed in integer microUSDC (1 USDC = 1e6 micro). A 25.00 bet at 100 bps gives a 0.25 fee and `user_stake` 24.75. Price `payout_odds` and size collateral against `user_stake`, **not** `bet_amount`. `bet_amount` stays the user's gross wager but is not the quoting base when the taker fee is on (`taker_fee_bps > 0`); when the fee is off, `user_stake == bet_amount`.
 - The stream automatically excludes quote requests created by your own user account.
-- A version change arrives as `quote_request:updated` (a new request arrives as `quote_request`). Your prior version quote is invalidated automatically — it leaves the book immediately and never blocks a new quote. Re-price and [submit](/api-reference/quote-service-mm/submit-quote) a new quote with the updated `version` and `request_hash`; you don't need to withdraw the old one.
+- A version change arrives as `quote_request:updated` (a new request arrives as `quote_request`). Your prior version quote is invalidated automatically. It leaves the book immediately and never blocks a new quote. Re-price and [submit](/api-reference/quote-service-mm/submit-quote) a new quote with the updated `version` and `request_hash`; you don't need to withdraw the old one.
 
 ## Errors
 
@@ -264,7 +264,7 @@ curl -N https://api.totalis.trade/v1/mm/quote-requests/stream \
 ```
 
 ```javascript JavaScript
-// Native EventSource can't send an X-API-Key header — read the SSE stream
+// Native EventSource cannot send an X-API-Key header, so read the SSE stream
 // with fetch instead (works in browsers and Node 18+).
 const res = await fetch('https://api.totalis.trade/v1/mm/quote-requests/stream', {
   headers: { 'X-API-Key': API_KEY, Accept: 'text/event-stream' },
@@ -300,12 +300,12 @@ while (true) {
 
       case 'quote_request:updated':
         // Your prior-version quote is invalidated; submit a new one
-        console.log('Request updated to version', payload.version, '— re-price:', payload.id);
+        console.log('Request updated to version', payload.version, 're-price:', payload.id);
         break;
 
       case 'quote_request_expired': {
         // reason: 'committed' | 'cancelled' | 'expired'; won: true only if you were selected.
-        // won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+        // won may be absent on a committed close (indeterminate). Treat as unknown, not a loss.
         const { id, reason, won } = payload;
         const outcome = reason === 'committed'
           ? (won === undefined ? 'unknown' : won ? 'won' : 'lost (out-bid)')
@@ -346,18 +346,18 @@ with requests.get(url, headers=headers, stream=True) as resp:
                 print(f"New request: {payload['id']}")
                 # Price the legs and submit a quote
             elif event_type == 'quote_request:updated':
-                print(f"Request {payload['id']} updated to v{payload['version']} — re-price")
+                print(f"Request {payload['id']} updated to v{payload['version']}, re-price")
                 # Prior-version quote invalidated; submit a new one
             elif event_type == 'quote_request_expired':
                 # reason: 'committed' | 'cancelled' | 'expired'; won True only if you were selected.
-                # won may be absent on a committed close (indeterminate) — treat as unknown, not a loss.
+                # won may be absent on a committed close (indeterminate). Treat as unknown, not a loss.
                 reason = payload.get('reason', 'expired')
                 won = payload.get('won')
                 if reason == 'committed':
                     outcome = 'unknown' if won is None else ('won' if won else 'lost (out-bid)')
                 else:
                     outcome = reason
-                print(f"Request closed: {payload['id']} — {outcome}")
+                print(f"Request closed: {payload['id']}: {outcome}")
             elif event_type == 'cashout_request':
                 # Distinct from quote_request: the key is cashout_request_id (NOT id).
                 # Broadcast to every MM, ~10s to bid. Bid ONE all-in price_micro (what the

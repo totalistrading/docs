@@ -1,0 +1,192 @@
+---
+title: 'Glossary'
+description: 'Every term, field, identifier, and unit convention on Totalis, defined once: the noun stack, the money fields and their formulae, micro-USDC versus decimal USDC, and the aliases the same value travels under.'
+---
+
+Every term the API uses is defined here. Other pages link here rather than redefining them.
+
+## The noun stack
+
+The same trade is called four different things over its life. The name changes at commit, and again
+when it lands on-chain.
+
+<div className="dg-scroll">
+<svg viewBox="0 0 880 300" role="img" aria-labelledby="nouns-title">
+  <title id="nouns-title">Which name applies at each stage of a trade</title>
+  <text x="16" y="22" className="dg-t-label">LIFECYCLE</text>
+  <path d="M 40 62 L 856 62" className="dg-line" />
+  <path d="M 60 55 L 60 69" className="dg-line" />
+  <path d="M 180 55 L 180 69" className="dg-line" />
+  <path d="M 380 55 L 380 69" className="dg-line" />
+  <path d="M 500 55 L 500 69" className="dg-line" />
+  <path d="M 620 55 L 620 69" className="dg-line" />
+  <path d="M 800 55 L 800 69" className="dg-line" />
+  <text x="60" y="86" className="dg-t-mono-dim" textAnchor="middle">open</text>
+  <text x="180" y="86" className="dg-t-mono-dim" textAnchor="middle">quoted</text>
+  <text x="380" y="86" className="dg-t-mono-dim" textAnchor="middle">accepted</text>
+  <text x="500" y="86" className="dg-t-mono-dim" textAnchor="middle">confirmed</text>
+  <text x="620" y="86" className="dg-t-mono-dim" textAnchor="middle">executed</text>
+  <text x="800" y="86" className="dg-t-mono-dim" textAnchor="middle">settled</text>
+  <path d="M 380 36 L 380 272" className="dg-line-dashed" />
+  <text x="388" y="34" className="dg-t-accent">you commit</text>
+  <rect x="46" y="104" width="330" height="46" rx="8" className="dg-node" />
+  <text x="64" y="124" className="dg-t">quote request</text>
+  <text x="64" y="141" className="dg-t-mono-dim">ephemeral. no historical record after it ends</text>
+  <rect x="384" y="158" width="472" height="46" rx="8" className="dg-node-accent" />
+  <text x="402" y="178" className="dg-t">RFQ, product name: parlay</text>
+  <text x="402" y="195" className="dg-t-mono-dim">GET /v1/rfqs/{'{id}'}. this is the queryable object</text>
+  <rect x="504" y="212" width="352" height="46" rx="8" className="dg-node" />
+  <text x="522" y="232" className="dg-t">position</text>
+  <text x="522" y="249" className="dg-t-mono-dim">on-chain footprint. cashout eligible at executed</text>
+</svg>
+</div>
+
+| Term | Stage | Definition |
+| --- | --- | --- |
+| **Quote request** | Before commit | The price discovery object. Has its own `id` and `status` (`active`, then `committed` / `cancelled` / `expired`). It stops existing once it commits or dies, and never becomes a queryable historical record. |
+| **RFQ** | After commit | The API object created at commit, with its own `rfq_id` and status progression. This is what [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) returns. |
+| **Parlay** | Any | The product name for the RFQ. The same object. Use it in a UI or in conversation, use `rfq` in code. |
+| **Position** | Once funded | The RFQ's on-chain footprint, present once `status` reaches `confirmed`. Carries `position_id` and `position_pda`. |
+| **Leg** | Any | One outcome inside a parlay. A parlay holds 2 to 5 legs. Every leg must win for the parlay to pay out. |
+
+## Money fields
+
+All of these are decimal USDC unless the name ends in `_micro`. See [Units](#units).
+
+| Field | Also called | Definition |
+| --- | --- | --- |
+| `bet_amount` | | Your gross wager, before any fee. What you asked to bet. |
+| `taker_fee` | | 1% of `bet_amount`, taken upfront. Computed in integer microUSDC: `floor(bet_amount_micro * 100 / 10000)`. |
+| `user_stake` | `user_cost` before commit | Your net stake: `bet_amount - taker_fee`. This is the base every payout is calculated from. |
+| `payout_odds` | | The multiplier applied to `user_stake`. Never to `bet_amount`. Range on [Limits and fees](/guides/limits-and-fees#parlay-construction). |
+| `total_payout` | `payout` at settlement | What the winning side receives before the profit fee: `user_stake * payout_odds`. |
+| `mm_risk` | `mm_cost` before commit | The maker's amount at risk: `total_payout - user_stake`. This is what the maker locks. |
+| `price_micro` | | On a cashout auction, the all-in amount the user receives, in integer microUSDC. |
+
+The whole chain, in one place:
+
+```
+taker_fee    = floor(bet_amount_micro * 100 / 10000)
+user_stake   = bet_amount - taker_fee
+total_payout = user_stake * payout_odds
+mm_risk      = total_payout - user_stake
+```
+
+<Warning>
+Odds apply to the net stake, never to the gross bet. A 25 USDC bet at 4.0 odds pays 99.00, not
+100.00, because the 1% taker fee comes off first. Pricing against `bet_amount` overprices every
+quote you submit. See [Limits and fees](/guides/limits-and-fees).
+</Warning>
+
+## Units
+
+One rule covers the whole API:
+
+<Note>
+Any field whose name ends in `_micro` is an **integer of microUSDC**, where `1000000` equals 1.00
+USDC. Every other money field is a **decimal USDC number**.
+</Note>
+
+| Convention | Fields | Example value |
+| --- | --- | --- |
+| Integer microUSDC | `price_micro`, `min_price_micro`, `max_price_micro` | `24750000` is 24.75 USDC |
+| Decimal USDC | `bet_amount`, `user_stake`, `user_cost`, `mm_risk`, `mm_cost`, `total_payout`, `payout`, `amount`, `usdc_balance`, `vault_balance`, `locked_amount` | `24.75` |
+| Multiplier | `payout_odds` | `4.0` |
+| Basis points | `taker_fee_bps` | `100` is 1% |
+| Probability | market prices, `implied_probability` | `0.62` |
+
+Both conventions appear in the same payload on the cashout surface. Scale before you compare.
+
+Market prices are normalized to decimal probabilities in the range 0 to 1 across every venue. Kalshi
+cent prices are converted for you.
+
+## Balance fields
+
+| Field | Source | Definition |
+| --- | --- | --- |
+| `usdc_balance` | [`GET /v1/wallet`](/api-reference/user/get-wallet) | USDC sitting in your Solana wallet. |
+| `vault_balance` | `GET /v1/wallet` | Gross USDC in your vault, including collateral that is currently locked. |
+| `locked_amount` | `GET /v1/wallet` | Everything you have committed: in-flight requests, stakes on live positions, and maker-side collateral. |
+| `locked_collateral` | [`GET /v1/vault`](/api-reference/funds/get-vault) | The vault's own view of locked collateral. Already counted inside `locked_amount`. Do not subtract it twice. |
+
+```
+total USDC you control = usdc_balance + vault_balance
+available to trade     = usdc_balance + vault_balance - locked_amount
+```
+
+## Identifiers
+
+| Field | What it identifies |
+| --- | --- |
+| `user_id` | Your account, as a Privy DID (`did:privy:...`). |
+| `mm_id` | A market maker's account. Equal to that account's `user_id`, so also a Privy DID. Appears in the `mm:quotes:{mm_id}` channel name and the MM stream's `connected` event. |
+| `market_maker_id` | The maker attached to a specific quote object. Same kind of value as `mm_id`, different field name by channel. |
+| `counterparty_mm_id` | The maker who **already backs** a position. On a broadcast cashout auction this is usually *not* the maker whose bid wins. |
+| `rfq_id` | The parlay, after commit. The primary key you look trades up by. |
+| `quote_id` | One maker's quote on a request. |
+| `position_id` | The 16 byte on-chain position id. Used specifically to open a [cashout request](/api-reference/quote-service/cashout-create). |
+| `position_pda` | The position's on-chain account address. Surfaced on WebSocket `position:*` events. An address, not a lookup key. |
+| `cashout_request_id` | One cashout auction. Returned as `id` when you create it, as `cashout_request_id` on the MM stream. |
+
+<Warning>
+`counterparty_mm_id` is not the bidder. It names the maker who backs the position. Compare it
+against the winning quote's `market_maker_id`: they are equal only when the exit **closes** the
+position rather than transferring it. Treating `counterparty_mm_id` as the winner routes an
+acquisition to the wrong maker.
+</Warning>
+
+## Protocol fields
+
+| Field | Definition |
+| --- | --- |
+| `venue` | The underlying market platform: `kalshi` or `polymarket`. |
+| `market_ticker` | Venue specific. For Kalshi, the market ticker (`KXBTC-25FEB07-T100000`). For Polymarket, the `condition_id`, the `0x` prefixed hex string. Not the slug and not the question id. |
+| `side` | `yes` or `no`. On Polymarket both sides of a binary share one `condition_id` and are told apart by this field. |
+| `exclusion_keys` | An array on every market. Two markets can share a parlay only if their arrays do not intersect. This is how correlated legs are blocked. |
+| `version` | Increments every time you edit a quote request. Editing invalidates every quote priced against the old version. |
+| `request_hash` | A digest of the request at a given `version`. Makers echo it back when quoting so a quote can be tied to exactly what was priced. |
+| `book_seq` | A monotonically increasing sequence number on the SSE stream. You send back the `book_seq` of the event that showed you a price, to prove the price was current when you committed. |
+| `resolution` | A leg's settled state. `void` beats everything: one void leg cancels the whole position and refunds the stake, even if a sibling leg already resolved `lost`. |
+| `outcome` | A settled parlay's result, per leg and overall. |
+
+## Custody terms
+
+| Term | Definition |
+| --- | --- |
+| **Vault** | Your persistent on-chain Solana account, reused across every parlay. Holds USDC and tracks gross, locked, and free balances. |
+| **PDA** | Program Derived Address. The Solana account type the protocol's program controls. Your vault, each position, and the config are all PDAs. |
+| **TEE** | Trusted Execution Environment. The secure enclave your Privy embedded wallet's private key lives inside. The key never leaves it. |
+| **Delegation** | The one time permission you grant Totalis to sign inside that enclave on your behalf. Required before you can trade or withdraw. Revocable at any time. |
+| **Non-custodial** | Collateral sits in on-chain vaults the program controls, not in a Totalis held account. |
+| **Portfolio margining** | Collateral sized against a maker's incremental worst case exposure across their whole book, rather than each position in isolation. |
+
+## Aliases
+
+The same value changes name when a trade moves from pricing to settlement. These pairs are the same
+number.
+
+| Before commit | After commit | Why they match |
+| --- | --- | --- |
+| `user_cost` | `user_stake` | Both are your net stake, `bet_amount` minus the taker fee. |
+| `mm_cost` | `mm_risk` | Both are the maker's amount at risk. |
+| `total_payout` | `payout` | Both are the full amount paid to the winner. |
+| `id` on a cashout request | `cashout_request_id` | Both identify the same auction. |
+
+<Note>
+`mm_risk` and `total_payout - user_stake` are stored separately and can disagree in the last decimal
+place. If you need them to reconcile exactly, work in microUSDC.
+</Note>
+
+## Event naming
+
+Each channel has its own separator. There is no meaning in the choice beyond which channel you are on.
+
+| Channel | Grammar | Examples |
+| --- | --- | --- |
+| SSE | bare or underscored | `best_quote`, `quote_request`, `quote_request_expired` |
+| WebSocket | `resource:verb` | `quote:accepted`, `position:settled` |
+| Webhook | `resource.verb` | `position.settled`, `parlay.status_changed` |
+
+The MM SSE stream is not internally consistent: `quote_request` and `quote_request_expired` use
+underscores while `quote_request:updated` uses a colon. Match on the exact strings in the
+[event catalog](/guides/event-catalog).

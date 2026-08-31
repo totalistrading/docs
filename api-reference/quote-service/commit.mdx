@@ -1,7 +1,7 @@
 ---
-title: "Commit Quote Request"
-api: "POST /v1/quote-requests/{id}/commit"
-description: "Lock in the best available quote and create a trade."
+title: 'Commit quote request'
+api: 'POST /v1/quote-requests/{id}/commit'
+description: 'Lock in the best available quote and create a trade.'
 ---
 
 Commit the best available quote on an active quote request. The server revalidates all markets, selects the best quote that meets your `min_payout_odds_seen` threshold, and creates the trade atomically.
@@ -18,7 +18,7 @@ API key required. Pass your API key in the `X-API-Key` header. The key needs the
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Path parameters
 
@@ -66,7 +66,7 @@ When a commit is rejected, the `error.details.reason` field explains why. Every 
 | `QUOTE_CHANGED` | The `expected_version` does not match. The request was updated since you last fetched it. |
 | `MARKET_NOT_LIVE` | One or more markets are no longer available (expired, halted, or delisted). |
 | `QUOTE_EXPIRED` | No active quotes exist, or the best quote expired between selection and commit. |
-| `COMMIT_FAILED` | The commit could not be completed — for example no eligible market maker had sufficient collateral. |
+| `COMMIT_FAILED` | The commit could not be completed. No eligible market maker had sufficient collateral, for example. |
 | `COMMIT_FAILED_RETRYABLE` | Transient error. Retry after a short delay. |
 
 ## Errors

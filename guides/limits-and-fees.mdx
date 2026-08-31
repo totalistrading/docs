@@ -1,0 +1,158 @@
+---
+title: 'Limits and fees'
+description: 'Every constraint and every fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
+---
+
+Every number the API enforces lives on this page. Other pages link here rather than restating them.
+
+## Parlay construction
+
+| Constraint | Value | Enforced at |
+| --- | --- | --- |
+| Legs per parlay | 2 to 5 | [Create quote request](/api-reference/quote-service/create) |
+| Bet amount | 1 to 100 USDC | Create quote request |
+| Payout odds | 1.0001 to 1000 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
+| Leg combinations | Two markets can share a parlay only if their `exclusion_keys` arrays do not intersect | Create quote request |
+
+Correlated legs are rejected. Read each market's `exclusion_keys` from
+[List markets](/api-reference/markets/list-flat) and intersect them yourself before you build a
+request, rather than discovering the rejection at create time.
+
+## Timing
+
+| Window | Default | Range | What it governs |
+| --- | --- | --- | --- |
+| Quote validity | 15 s | 5 to 60 s | How long a maker's submitted quote stays live (`expires_in_ms`) |
+| Quote request expiry | 300 s | 30 s to 24 h | How long your request accepts quotes before it expires uncommitted |
+| Maker confirmation | 5 s | configurable, floor 5 s | How long the winning maker has to confirm after you commit |
+| Cashout auction | about 10 s | fixed | How long an early exit auction accepts bids |
+| Cashout bid validity | 15000 ms | 5000 to 60000 ms | How long your cashout bid stays live |
+
+<Warning>
+Do not hardcode these defaults. Every object that expires carries its own `expires_at` or
+`valid_until` timestamp. Honor the timestamp on the object, not the number in this table. The
+defaults are configurable, so the table tells you the shape of the window, not a guarantee for a
+specific request.
+</Warning>
+
+If the maker misses the confirmation window, the parlay reopens for other makers, or expires if its
+own window has passed. Your funds are never touched in that path.
+
+## Rate limits
+
+| Client | Limit |
+| --- | --- |
+| Unauthenticated | 100 requests / minute |
+| Authenticated | 300 requests / minute |
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. A
+`429` response includes `error.retry_after`, in seconds. See [Errors](/api-reference/errors).
+
+## Fees
+
+Totalis charges two fees. They are charged at different times, against different bases.
+
+| Fee | Rate | Base | When |
+| --- | --- | --- | --- |
+| Taker fee | 1% | Your gross `bet_amount` | Upfront, when you place the trade |
+| Profit fee | 1% | The winning side's profit | At settlement, or on a closing cashout |
+
+The taker fee is why odds never apply to your gross bet. It comes off first, and everything
+downstream is priced against what remains.
+
+```
+taker_fee    = floor(bet_amount_micro * 100 / 10000)   # 1% = 100 bps, integer microUSDC
+user_stake   = bet_amount - taker_fee                  # called user_cost before commit
+total_payout = user_stake * payout_odds
+mm_risk      = total_payout - user_stake               # called mm_cost before commit
+```
+
+<div className="dg-scroll">
+<svg viewBox="0 0 880 336" role="img" aria-labelledby="feeflow-title">
+  <title id="feeflow-title">Fee waterfall for a 25 USDC bet at 4.0 payout odds</title>
+  <defs>
+    <marker id="fw-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" className="dg-arrow" />
+    </marker>
+  </defs>
+  <text x="16" y="20" className="dg-t-label">PRICING</text>
+  <rect x="16" y="34" width="176" height="60" rx="8" className="dg-node" />
+  <text x="104" y="57" className="dg-t-dim" textAnchor="middle">Bet amount</text>
+  <text x="104" y="79" className="dg-t" textAnchor="middle">25.00 USDC</text>
+  <path d="M 196 64 L 262 64" className="dg-line" markerEnd="url(#fw-a)" />
+  <text x="229" y="50" className="dg-t-warn" textAnchor="middle">-0.25</text>
+  <text x="229" y="86" className="dg-t-dim" textAnchor="middle">1% taker</text>
+  <rect x="268" y="34" width="176" height="60" rx="8" className="dg-node-accent" />
+  <text x="356" y="57" className="dg-t-dim" textAnchor="middle">Net stake</text>
+  <text x="356" y="79" className="dg-t-mono" textAnchor="middle">user_stake 24.75</text>
+  <path d="M 448 64 L 514 64" className="dg-line" markerEnd="url(#fw-a)" />
+  <text x="481" y="50" className="dg-t-accent" textAnchor="middle">x 4.0</text>
+  <text x="481" y="86" className="dg-t-dim" textAnchor="middle">odds</text>
+  <rect x="520" y="34" width="176" height="60" rx="8" className="dg-node" />
+  <text x="608" y="57" className="dg-t-dim" textAnchor="middle">Total payout</text>
+  <text x="608" y="79" className="dg-t" textAnchor="middle">99.00 USDC</text>
+  <text x="716" y="58" className="dg-t-dim">Maker locks</text>
+  <text x="716" y="78" className="dg-t-mono-dim">mm_risk 74.25</text>
+  <path d="M 608 98 L 608 122" className="dg-line" />
+  <path d="M 608 122 L 232 122 L 232 152" className="dg-line" markerEnd="url(#fw-a)" />
+  <path d="M 608 122 L 668 122 L 668 152" className="dg-line" markerEnd="url(#fw-a)" />
+  <text x="16" y="146" className="dg-t-label">SETTLEMENT</text>
+  <rect x="16" y="158" width="432" height="162" rx="8" className="dg-node-accent" />
+  <text x="36" y="184" className="dg-t">Every leg wins</text>
+  <text x="36" y="210" className="dg-t-sm">Your profit is the maker's locked risk.</text>
+  <text x="36" y="240" className="dg-t-mono">profit      = 99.00 - 24.75 = 74.25</text>
+  <text x="36" y="262" className="dg-t-mono">profit fee  = 1% of 74.25   =  0.7425</text>
+  <text x="36" y="284" className="dg-t-mono">you receive = 99.00 - 0.7425</text>
+  <text x="36" y="306" className="dg-t-mono">            = 98.2575 USDC</text>
+  <rect x="472" y="158" width="392" height="162" rx="8" className="dg-node" />
+  <text x="492" y="184" className="dg-t">Any leg loses</text>
+  <text x="492" y="210" className="dg-t-sm">Your net stake transfers to the maker.</text>
+  <text x="492" y="240" className="dg-t-mono">maker profit = 24.75</text>
+  <text x="492" y="262" className="dg-t-mono">profit fee   = 1% of 24.75 = 0.2475</text>
+  <text x="492" y="284" className="dg-t-mono">you receive  = 0</text>
+  <text x="492" y="306" className="dg-t-mono-dim">the 0.25 taker fee is already spent</text>
+</svg>
+</div>
+
+Worked example, matching the diagram. You bet 25 USDC and a maker quotes 4.0 payout odds:
+
+| Step | Amount |
+| --- | --- |
+| Bet amount | 25.00 |
+| Taker fee (1%, upfront) | 0.25 |
+| Net stake (`user_stake`) | 24.75 |
+| Total payout at 4.0 odds | 99.00 |
+| Maker's locked risk (`mm_risk`) | 74.25 |
+| Your profit if every leg wins | 74.25 |
+| Profit fee (1% of profit) | 0.7425 |
+| You receive | 98.2575 |
+
+<Note>
+The fee rate is written onto the position when it is created. A later rate change never reprices a
+position that is already live. Settlement always uses the rate that applied at trade time.
+</Note>
+
+### Fees on an early exit
+
+An [early cashout](/guides/early-cashout) is a real settlement, not a refund. The bid you accept is
+a single all-in figure with the profit fee already inside it. There is no separate fee line to
+subtract, and no second taker fee for leaving.
+
+### Referral share
+
+A share of the trading fees generated by traders you refer is paid back to you in USDC. The rate,
+the claim minimum, and how accrual works are on [Referrals](/referrals).
+
+## Network
+
+| | |
+| --- | --- |
+| Chain | Solana mainnet |
+| Settlement asset | USDC (SPL) |
+| Mint | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| Network fees | Sponsored by Totalis. Your wallet never needs SOL. |
+
+<Warning>
+Send only native Solana USDC at the mint above. Bridged USDC, other tokens, and transfers on another
+chain are not credited and may be unrecoverable.
+</Warning>

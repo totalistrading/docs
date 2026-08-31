@@ -3,12 +3,14 @@ title: 'WebSocket'
 description: 'Real-time trade confirmations and position updates via WebSocket.'
 ---
 
-The Totalis WebSocket pushes **post-trade events** in real time — quote acceptances and confirmations, and position settlements. Connect, authenticate, subscribe to the channels you need, and handle events as they arrive.
+The Totalis WebSocket pushes post-trade events in real time: quote acceptances, confirmations, and position settlements. Connect, authenticate, subscribe to the channels you need, and handle events as they arrive.
 
-For **pre-trade** live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
+For pre-trade live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
 
 <Note>
-  WebSocket events reach you only while you're connected — missed events are not redelivered. For durable, at-least-once delivery to a server (signed, retried, replayable), use [webhooks](/guides/webhooks); they carry most of the same lifecycle moments. An early cash-out that **closes** a position is on both channels (`position:bought_back` here, `position.bought_back` by webhook); the one exit outcome neither channel pushes to the buyer is a bid that **acquires** a position — see the [event catalog](/guides/event-catalog#the-transfer-notification-gap). See [Real time & data channels](/guides/realtime-and-data) for the full channel map.
+  WebSocket events reach you only while you are connected. Missed events are not redelivered. For durable, at-least-once delivery to a server, use [webhooks](/guides/webhooks), which carry most of the same lifecycle moments.
+
+  An early cashout that **closes** a position is on both channels: `position:bought_back` here, `position.bought_back` by webhook. The one exit outcome neither channel pushes to the buyer is a bid that **acquires** a position. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap) and [Real time and data channels](/guides/realtime-and-data).
 </Note>
 
 ## Connecting
@@ -56,7 +58,7 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `quote:accepted` | A user committed your quote. You must confirm it before `confirmation_deadline` (5 s from acceptance by default, but configurable server-side, so always use the timestamp). | `{ quote_id, rfq_id, confirmation_deadline }` |
+| `quote:accepted` | A user committed your quote. You must confirm it before `confirmation_deadline` (5 s from acceptance by default, but configurable, so always honor the timestamp). | `{ quote_id, rfq_id, confirmation_deadline }` |
 | `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
 | `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
@@ -103,7 +105,7 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 
 ### Position events
 
-`position_pda` is the on-chain account address for the position, not a lookup key. To fetch or reference a position through the API, use `rfq_id` (or `position_id`, once it's [set on the RFQ](/api-reference/parlays/get)) instead.
+`position_pda` is the on-chain account address for the position, not a lookup key. To fetch or reference a position through the API, use `rfq_id` (or `position_id`, once it is [set on the RFQ](/api-reference/parlays/get)) instead.
 
 | Event | Description | Data |
 |-------|-------------|------|
@@ -111,7 +113,7 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 | `position:settled` | Position settled with outcome. | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
-| `position:bought_back` | A position was closed early by a winning cash-out bid. Delivered on this `rfq:{rfq_id}` channel, on the `mm:quotes:{mm_id}` channel of the market maker whose exposure closed, and directly to any connection authenticated as the seller or as that maker — so subscribe here and dedupe on `tx_signature`. `amount` is decimal USDC; `quote_id` is the position's original accepted quote, not the winning bid. Nothing is emitted when a bid *acquires* the position instead, and the RFQ does not become `bought_back` in that case — see [the transfer gap](/guides/event-catalog#the-transfer-notification-gap). | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
+| `position:bought_back` | A position was closed early by a winning cash-out bid. Delivered on this `rfq:{rfq_id}` channel, on the `mm:quotes:{mm_id}` channel of the market maker whose exposure closed, and directly to any connection authenticated as the seller or as that maker, so subscribe here and dedupe on `tx_signature`. `amount` is decimal USDC. `quote_id` is the position's original accepted quote, not the winning bid. Nothing is emitted when a bid *acquires* the position instead, and the RFQ does not become `bought_back` in that case. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap). | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
 
 ## Keep-alive
 

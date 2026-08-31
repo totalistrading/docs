@@ -1,18 +1,73 @@
 ---
 title: 'Early cashout'
-description: 'Bid on parlay exits: one broadcast auction, one all-in price.'
+description: 'Bid on parlay exits: one broadcast auction, one all-in price, and the two outcomes that are not notified the same way.'
 ---
 
 A user can leave a parlay before it settles. When they do, Totalis opens a short auction on that
-position and pushes it to **every** market maker on the stream you already consume. You reply with
-one number. The highest live bid wins.
+position and pushes it to every market maker on the stream you already consume. You reply with one
+number. The highest live bid wins.
 
-<Info>
-**Units.** Every `*_micro` field is an integer of micro-USDC (`1_000_000` = $1.00). The money
-fields beside them — `user_stake`, `mm_risk`, `total_payout`, and the `amount` on the settlement
-event — are decimal USDC. (`payout_odds` is a multiplier, not an amount.) Both conventions appear in
-the same payload, so scale before you compare.
-</Info>
+<Note>
+**Units.** Every `*_micro` field is an integer of microUSDC (`1000000` is 1.00 USDC). The money
+fields beside them (`user_stake`, `mm_risk`, `total_payout`, and the `amount` on the settlement
+event) are decimal USDC. `payout_odds` is a multiplier, not an amount. Both conventions appear in
+the same payload, so scale before you compare. See [Glossary](/guides/glossary#units).
+</Note>
+
+## The two outcomes
+
+An auction resolves one of two ways. They pay out the same for the seller, and they are completely
+different for your integration.
+
+<div className="dg-scroll">
+<svg viewBox="0 0 880 310" role="img" aria-labelledby="cashout-title">
+  <title id="cashout-title">The two ways a cashout auction resolves, and what each one notifies</title>
+  <defs>
+    <marker id="co-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" className="dg-arrow" />
+    </marker>
+    <marker id="co-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" className="dg-arrow-warn" />
+    </marker>
+  </defs>
+  <text x="20" y="28" className="dg-t-label">AUCTION</text>
+  <text x="330" y="28" className="dg-t-label">OUTCOME</text>
+  <text x="610" y="28" className="dg-t-label">WHAT YOU ARE TOLD</text>
+  <rect x="20" y="110" width="200" height="100" rx="8" className="dg-node-accent" />
+  <text x="120" y="140" className="dg-t" textAnchor="middle">Cashout auction</text>
+  <text x="120" y="163" className="dg-t-sm" textAnchor="middle">broadcast to every maker</text>
+  <text x="120" y="183" className="dg-t-sm" textAnchor="middle">about 10 seconds</text>
+  <text x="120" y="201" className="dg-t-dim" textAnchor="middle">highest live bid wins</text>
+  <path d="M 224 150 L 270 150 L 270 86 L 318 86" className="dg-line" markerEnd="url(#co-a)" />
+  <text x="296" y="78" className="dg-t-dim" textAnchor="middle">closes</text>
+  <path d="M 224 172 L 270 172 L 270 236 L 318 236" className="dg-line-warn" markerEnd="url(#co-w)" />
+  <text x="296" y="228" className="dg-t-warn" textAnchor="middle">acquires</text>
+  <rect x="322" y="40" width="256" height="92" rx="8" className="dg-node" />
+  <text x="450" y="68" className="dg-t" textAnchor="middle">The backing maker wins</text>
+  <text x="450" y="90" className="dg-t-sm" textAnchor="middle">the position closes</text>
+  <text x="450" y="115" className="dg-t-mono" textAnchor="middle">RFQ becomes bought_back</text>
+  <rect x="322" y="190" width="256" height="92" rx="8" className="dg-node-warn" />
+  <text x="450" y="218" className="dg-t" textAnchor="middle">Any other maker wins</text>
+  <text x="450" y="240" className="dg-t-sm" textAnchor="middle">the position transfers, stays open</text>
+  <text x="450" y="265" className="dg-t-mono" textAnchor="middle">RFQ stays executed</text>
+  <path d="M 582 86 L 602 86" className="dg-line" markerEnd="url(#co-a)" />
+  <path d="M 582 236 L 602 236" className="dg-line-warn" markerEnd="url(#co-w)" />
+  <rect x="606" y="40" width="254" height="92" rx="8" className="dg-node-accent" />
+  <text x="624" y="66" className="dg-t-accent">WebSocket and webhook</text>
+  <text x="624" y="90" className="dg-t-mono">position:bought_back</text>
+  <text x="624" y="113" className="dg-t-dim">to the seller and the winner</text>
+  <rect x="606" y="190" width="254" height="92" rx="8" className="dg-node-warn" />
+  <text x="624" y="216" className="dg-t-warn">Nothing to the buyer</text>
+  <text x="624" y="240" className="dg-t-sm">on either channel, today</text>
+  <text x="624" y="264" className="dg-t-mono-dim">reconcile from position reads</text>
+</svg>
+</div>
+
+<Warning>
+Do not wait on `bought_back` to detect that you won. If you bid on positions you do not already
+back, a win transfers the position to you and emits no event to you at all. Reconcile acquisitions
+from [your position reads](/api-reference/mm/list-positions).
+</Warning>
 
 ## How it works
 
@@ -20,26 +75,31 @@ the same payload, so scale before you compare.
   <Step title="Receive the auction">
     A [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event arrives on
     [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream). It carries the
-    position's legs and economics. Auctions are broadcast, so you see exits on positions you have
-    no relationship with.
+    position's legs and economics.
+
+    Auctions are broadcast, so you see exits on positions you have no relationship with.
   </Step>
   <Step title="Price the exit">
-    Re-value the parlay at current odds, and read `legs[].resolution` carefully. **`void` beats
-    everything:** any void leg cancels the whole position at settlement and refunds the stake, so
-    such a position is worth about the stake even if a sibling leg already resolved `lost`. Absent
-    a void leg, one `lost` leg makes the parlay worthless. Nothing stops an auction opening on a
-    position whose legs are already decided, so `resolution` is your only defence.
+    Re-value the parlay at current odds, and read `legs[].resolution` carefully.
+
+    <Warning>
+    `void` beats everything. Any void leg cancels the whole position at settlement and refunds the
+    stake, so such a position is worth about the stake even if a sibling leg already resolved
+    `lost`. Absent a void leg, one `lost` leg makes the parlay worthless.
+
+    Nothing stops an auction opening on a position whose legs are already decided. `resolution` is
+    your only defence.
+    </Warning>
   </Step>
   <Step title="Bid one all-in price">
     `PUT` your bid to
     [`/v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) before
-    `expires_at`. `price_micro` is what the **user receives**, all-in. Highest live bid wins; ties
+    `expires_at`. `price_micro` is what the user receives, all-in. Highest live bid wins, and ties
     go to the earliest bid.
   </Step>
   <Step title="Reconcile the outcome">
-    If you win as the counterparty you receive `position:bought_back`. If you win as anyone else
-    you acquire the position and, today, receive no event — see
-    [Knowing you won](#knowing-you-won).
+    If you win as the counterparty you receive `position:bought_back`. If you win as anyone else you
+    acquire the position and receive no event. See [Knowing you won](#knowing-you-won).
   </Step>
 </Steps>
 
@@ -47,23 +107,29 @@ the same payload, so scale before you compare.
 
 | Property | Value |
 | --- | --- |
-| Lifetime | about 10 seconds (`expires_at` on the push) |
+| Lifetime | about 10 seconds, per `expires_at` on the push |
 | Visibility | broadcast to every market maker |
-| Your bid TTL | `expires_in_ms`, 5000 to 60000, default 15000 |
-| Winner | highest `price_micro`; ties to the earliest bid (a replacement re-times your bid) |
-| Refusing | submit nothing. There is no decline endpoint |
+| Your bid validity | `expires_in_ms`, 5000 to 60000, default 15000 |
+| Winner | highest `price_micro`, ties to the earliest bid. A replacement re-times your bid. |
+| Refusing | submit nothing. There is no decline endpoint. |
 | Pulling a bid | `DELETE /v1/mm/cashout-requests/{id}/quote` |
 
-`price_micro` is a single all-in figure: no direction field, no separate fee term, no gross-vs-net.
-What you send is what the user sees on screen and what they walk away with. It can be **below their
-stake** — a losing parlay exits for less than it cost, and the user never pays more than their
-stake to leave.
+`price_micro` is a single all-in figure. There is no direction field, no separate fee term, and no
+gross versus net. What you send is what the user sees on screen and what they walk away with.
+
+It can be below their stake. A losing parlay exits for less than it cost, and the user never pays
+more than their stake to leave.
 
 A bid may outlive the auction. Nothing tells you your bid lost, lapsed, or that the auction closed,
-so age bids out locally against `expires_at`. To pull a live bid before it lapses,
-`DELETE /v1/mm/cashout-requests/{id}/quote`: `204` when it was removed, `200` with
-`{"status": "already_withdrawn"}` if it had already gone (idempotent, not an error), `409` once the
-auction is no longer active.
+so age bids out locally against `expires_at`.
+
+To pull a live bid before it lapses, `DELETE /v1/mm/cashout-requests/{id}/quote`:
+
+| Response | Meaning |
+| --- | --- |
+| `204` | The bid was removed. |
+| `200` with `{"status": "already_withdrawn"}` | It had already gone. Idempotent, not an error. |
+| `409` | The auction is no longer active. |
 
 <Warning>
 Your bid being best does not guarantee a fill. The user is only ever filled at a price they
@@ -77,47 +143,49 @@ There is no per-auction result event on the MM stream.
 
 | Outcome | What you get |
 | --- | --- |
-| You won as the counterparty | `position:bought_back` on `mm:quotes:{mm_id}`, plus a copy delivered straight to any connection authenticated as you (no subscription needed, so dedupe on `tx_signature`), plus the `position.bought_back` webhook (needs `positions:read`). `amount` is decimal USDC; `mm_pays_user` tells you which direction applied. |
-| You won and acquired the position | **Nothing today.** Reconcile from your position reads. |
+| You won as the counterparty | `position:bought_back` on `mm:quotes:{mm_id}`, plus a copy delivered to any connection authenticated as you (no subscription needed, so dedupe on `tx_signature`), plus the `position.bought_back` webhook, which needs `positions:read`. `amount` is decimal USDC, and `mm_pays_user` tells you which direction applied. |
+| You won and acquired the position | Nothing today. Reconcile from your position reads. |
 | You lost, or the auction expired | Nothing. Your bid simply lapses. |
 
-A bought-back parlay reports a realized cash-out P&L rather than a win or loss — the exit is a real
+A bought-back parlay reports a realized cashout P&L rather than a win or loss. The exit is a real
 settlement, not a refund.
 
 ## Errors
 
-| Status | `details.reason` | Meaning |
-| --- | --- | --- |
-| 400 | validation | Non-integer or non-positive `price_micro`, `expires_in_ms` out of range, unknown field, malformed JSON. |
-| 400 | `price_above_max_payout` | Bid exceeds `total_payout`. Response carries `max_price_micro`. |
-| 400 | `price_above_buyback_bound` | You are the counterparty and the bid exceeds what your collateral covers after the fee. |
-| 401 | — | Missing or invalid API key. |
-| 403 | `insufficient_scope` | Your key lacks `mm:quote`. |
-| 404 | — | Auction unknown or already evicted at its TTL. The normal "too slow" outcome. |
-| 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is allowed — that win closes the position. |
-| 409 | `not_active` | Committed or cancelled before your bid landed. |
-| 409 | `expired` | The auction expired as your bid landed. |
-| 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
-| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a *closing* exit cannot be built. Only **your** bids fail — others can still win it as an acquisition, so do not blacklist the position. |
-| 429 | — | Rate limited. Honour `Retry-After`. |
+Every rejection reason for a cashout bid, including the commit-time ones you never see as an HTTP
+response, is on [Errors](/api-reference/errors#bidding-on-a-cashout-auction).
 
-Commit-time rejections never reach you as an HTTP response — you learn of them only by not being
-filled. The ones worth knowing: `amount_over_bound` (the fee-aware ceiling, re-checked when the fee
-rate was unavailable at bid time), `insufficient_buyer_balance` / `buyer_no_vault` (acquisition, your
-funding), and `already_transferred` (the position had already moved).
+The triage rule that matters:
 
-Treat `404` and the race-class `409`s as ordinary lost auctions and log them quietly. Treat `400`,
-`401` and `403` as your own bug: if every bid fails that way you are silently out of the market.
+| Class | Treatment |
+| --- | --- |
+| `400`, `401`, `403` | Alert. These are your bug. If every bid fails this way you are silently out of the market. |
+| `404`, and race class `409` | Log quietly. These are ordinary lost auctions. |
 
 ## Checklist
 
-1. Handle `cashout_request` on the MM stream, and reconnect with `last_event_id` — with a 10 s
-   lifetime, a reconnect gap means lost auctions.
-2. Price from `legs`, `user_stake` and `total_payout`, respecting `legs[].resolution`. These are
-   decimal USDC; your bid is micro-USDC.
-3. Decide from your own book whether you back the position — that determines whether a win closes
-   it or acquires it.
-4. Bid before `expires_at`; expire your own bids locally.
-5. Keep free balance ahead of outstanding bids.
-6. Alert on 400, 401 and 403. Log 404 and race-class 409s quietly.
-7. Reconcile wins from `position:bought_back` or, for an acquisition, your position reads.
+<Steps>
+  <Step title="Handle the push">
+    Handle `cashout_request` on the MM stream, and reconnect with `last_event_id`. With a 10 second
+    lifetime, a reconnect gap means lost auctions.
+  </Step>
+  <Step title="Price from the payload">
+    Price from `legs`, `user_stake`, and `total_payout`, respecting `legs[].resolution`. Those are
+    decimal USDC. Your bid is microUSDC.
+  </Step>
+  <Step title="Decide which lane you are in">
+    Decide from your own book whether you back the position. That determines whether a win closes it
+    or acquires it.
+  </Step>
+  <Step title="Bid and expire locally">
+    Bid before `expires_at`, and age your own bids out locally. Keep free balance ahead of
+    outstanding bids.
+  </Step>
+  <Step title="Split your alerting">
+    Alert on `400`, `401`, and `403`. Log `404` and race class `409` quietly.
+  </Step>
+  <Step title="Reconcile wins">
+    Take closing wins from `position:bought_back`. Take acquisitions from your position reads,
+    because nothing will tell you.
+  </Step>
+</Steps>

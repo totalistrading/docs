@@ -1,41 +1,64 @@
 ---
-title: "Totalis"
-description: "APIs for building and settling custom parlays across prediction markets — Kalshi, Polymarket, and more — on Solana."
+title: 'Totalis'
+description: 'APIs for building and settling custom parlays across prediction markets, including Kalshi and Polymarket, on Solana.'
 ---
 
-Totalis turns individual prediction market bets into custom parlays. Pick 2–5 outcomes across Kalshi, Polymarket, and other venues, and combine them into one leveraged position. Market makers compete to price it, and trades settle on Solana.
+Totalis turns individual prediction market bets into custom parlays. Pick 2 to 5 outcomes across
+Kalshi, Polymarket, and other venues, and combine them into one leveraged position. Market makers
+compete to price it, and trades settle on Solana.
 
-The API gives you everything the app has: browse markets, request quotes, place and settle parlays, and read your positions, P&L, and balances.
+The API gives you everything the app has: browse markets, request quotes, place and settle parlays,
+and read your positions, P&L, and balances.
+
+## Try it without an account
+
+Market data is public. This call needs no key and no signup:
+
+```bash
+curl "https://api.totalis.trade/markets?limit=3"
+```
+
+Everything else needs a key. [Quickstart](/guides/quickstart) gets you to an authenticated call in
+about five minutes.
+
+## How it works
+
+<Steps>
+  <Step title="Build a parlay">
+    Pick 2 to 5 outcomes from any supported market and set your bet amount.
+  </Step>
+  <Step title="Get competitive quotes">
+    Open a quote request. Market makers compete in real time to offer the best payout odds.
+  </Step>
+  <Step title="Trade and settle">
+    Accept a quote. Your stake and the maker's collateral lock into on-chain Solana vaults, and the
+    position settles automatically once the markets resolve.
+  </Step>
+</Steps>
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/guides/quickstart">
     Make your first authenticated call in five minutes.
   </Card>
-  <Card title="Authentication" icon="key" href="/guides/authentication">
-    Scoped API keys and how to send them.
-  </Card>
   <Card title="How parlays work" icon="arrows-spin" href="/guides/lifecycle">
     The path from quote request to settlement.
+  </Card>
+  <Card title="Limits and fees" icon="scale-balanced" href="/guides/limits-and-fees">
+    Every constraint and both fees, with the math.
+  </Card>
+  <Card title="Glossary" icon="book" href="/guides/glossary">
+    Every term, field, and unit convention.
+  </Card>
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    Scoped API keys and how to send them.
   </Card>
   <Card title="API reference" icon="code" href="/api-reference/introduction">
     Every endpoint, with live examples.
   </Card>
 </CardGroup>
 
-## How it works
-
-<Steps>
-  <Step title="Build a parlay">
-    Pick 2–5 outcomes from any supported market and set your bet amount.
-  </Step>
-  <Step title="Get competitive quotes">
-    Open a quote request and market makers compete in real time to offer the best payout odds.
-  </Step>
-  <Step title="Trade and settle">
-    Accept a quote. Your stake and the maker's collateral lock into on-chain Solana vaults, and the position settles automatically once markets resolve.
-  </Step>
-</Steps>
-
 ## Market makers
 
-Stream incoming parlay requests, quote them, and earn the spread. Start with the [market-making guide](/guides/market-maker), or email [founders@totalis.trade](mailto:founders@totalis.trade) to provide liquidity.
+Stream incoming parlay requests, quote them, and earn the spread. Start with the
+[market making guide](/guides/market-maker), or email
+[founders@totalis.trade](mailto:founders@totalis.trade) to provide liquidity.

@@ -1,17 +1,17 @@
 ---
-title: "Commit Cashout"
-api: "POST /v1/cashout-requests/{id}/commit"
-description: "Accept the winning bid on an early cashout auction and drive it on-chain."
+title: 'Commit cashout'
+api: 'POST /v1/cashout-requests/{id}/commit'
+description: 'Accept the winning bid on an early cashout auction and drive it on-chain.'
 ---
 
 Accept the winning bid on your early cashout auction and drive it on-chain. The bid **is** the price; there is no MM-confirm round-trip. You must echo back the price you accepted (see the request body); the exit is only ever filled at or above it. Signatures are obtained server-side via Privy at execution.
 
-On success you receive `min_price_micro` (or better) either way, but the position ends up in one of two states, decided server-side by who won: if the winning bid came from the position's own counterparty the position **closes** — your stake is released and the RFQ flips to `bought_back`. If it came from any other market maker the position **transfers** to them and stays open under new ownership; you are out of it, and the RFQ does not become `bought_back`.
+On success you receive `min_price_micro` (or better) either way, but the position ends up in one of two states, decided server-side by who won: if the winning bid came from the position's own counterparty the position **closes**: your stake is released and the RFQ flips to `bought_back`. If it came from any other market maker the position **transfers** to them and stays open under new ownership; you are out of it, and the RFQ does not become `bought_back`.
 
-This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`. The replay returns the original outcome verbatim — a retry that sends a *different* `min_price_micro` still gets the first commit's result, and the new floor is not re-evaluated. Retry with the same value you first sent.
+This endpoint is **idempotent per (request, user)**: a committed result is cached for 5 minutes and replayed with `200 OK`. The replay returns the original outcome verbatim. A retry that sends a *different* `min_price_micro` still gets the first commit's result, and the new floor is not re-evaluated. Retry with the same value you first sent.
 
 <Note>
-**Indeterminate commits never double-spend.** If the on-chain outcome is unknown (timeout or transient RPC failure), the request stays `committing` and returns `503` with `details.indeterminate: true`. Branch on that boolean, not on `details.reason` — the reason is a coarse execution-layer code and is not a stable taxonomy. Totalis resolves it against on-chain state — do **not** treat a `503` as a failure or assume nothing happened. Reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. A determinate failure (`409`) means nothing landed. Most are retryable against a live book, but `already_transferred` is terminal for the position — stop, and re-read the position rather than reopening an auction.
+**Indeterminate commits never double-spend.** If the on-chain outcome is unknown (timeout or transient RPC failure), the request stays `committing` and returns `503` with `details.indeterminate: true`. Branch on that boolean, not on `details.reason`. The reason is a coarse execution-layer code and is not a stable taxonomy. Totalis resolves it against on-chain state, so do **not** treat a `503` as a failure or assume nothing happened. Reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. A determinate failure (`409`) means nothing landed. Most are retryable against a live book, but `already_transferred` is terminal for the position. Stop, and re-read the position rather than reopening an auction.
 </Note>
 
 ## Authentication
@@ -22,7 +22,7 @@ API key required. Pass your API key in the `X-API-Key` header.
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Path parameters
 
@@ -42,7 +42,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
   response carries `best_price_micro`) leaving the auction open to re-tap.
 </ParamField>
 
-The body is strict — an unknown field is a `400`.
+The body is strict. An unknown field is a `400`.
 
 ## Response
 
@@ -52,7 +52,7 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
   <Expandable title="data">
     <ResponseField name="cashout_request_id" type="string">The cashout request UUID.</ResponseField>
     <ResponseField name="status" type="string">`"committed"`</ResponseField>
-    <ResponseField name="chain_sig" type="string">The on-chain transaction signature — a `buy_back_position` signature when the position closed, a `transfer_position` one when it transferred.</ResponseField>
+    <ResponseField name="chain_sig" type="string">The on-chain transaction signature. A `buy_back_position` signature when the position closed, a `transfer_position` one when it transferred.</ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -64,10 +64,10 @@ Returns `201 Created` on a fresh commit, or `200 OK` when replaying a cached ide
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
 | 403 | `FORBIDDEN` | You do not own this cashout request (`details.reason: not_owner`). |
 | 404 | `NOT_FOUND` | Cashout request not found. |
-| 409 | `CONFLICT` | See `details.reason`: `price_below_accepted` (the best live bid is below `min_price_micro`; carries `best_price_micro`), `quote_expired` (no live bid left), `not_active`, `locked` (a commit for this auction is already in flight), `missing_wallet`, `amount_over_bound` (the winning counterparty bid failed the collateral re-check at commit), `already_transferred` (**terminal** — the position has already moved), or a buyer-side rejection when the winner is acquiring it (`insufficient_buyer_balance`, `buyer_no_vault`, `buyer_is_seller`, `buyer_is_counterparty`). |
+| 409 | `CONFLICT` | See `details.reason`: `price_below_accepted` (the best live bid is below `min_price_micro`; carries `best_price_micro`), `quote_expired` (no live bid left), `not_active`, `locked` (a commit for this auction is already in flight), `missing_wallet`, `amount_over_bound` (the winning counterparty bid failed the collateral re-check at commit), `already_transferred` (**terminal**, the position has already moved), or a buyer-side rejection when the winner is acquiring it (`insufficient_buyer_balance`, `buyer_no_vault`, `buyer_is_seller`, `buyer_is_counterparty`). |
 | 410 | `GONE` | The auction expired before commit. Open a fresh one. |
 | 429 | `RATE_LIMITED` | Too many requests. Honour `Retry-After`. |
-| 503 | `SERVICE_UNAVAILABLE` | Branch on `details.indeterminate`, never on the message. **`true`** — the exit may have landed. `details.reason` is the execution-layer code, typically `COMMIT_UNREACHABLE` (the lane was not reached), `BAD_RESPONSE` (it answered unusably), or the lane's own error code; treat them identically. Do not retry: reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. **`false`** — only `fee_unavailable`, meaning the profit-fee rate could not be read. Nothing landed, the auction is still open, and an immediate retry is safe. |
+| 503 | `SERVICE_UNAVAILABLE` | Branch on `details.indeterminate`, never on the message. **`true`** means the exit may have landed. `details.reason` is the execution-layer code, typically `COMMIT_UNREACHABLE` (the lane was not reached), `BAD_RESPONSE` (it answered unusably), or the lane's own error code; treat them identically. Do not retry: reopen the [stream](/api-reference/quote-service/cashout-stream) and wait for the terminal `status`. **`false`** is only ever `fee_unavailable`, meaning the profit-fee rate could not be read. Nothing landed, the auction is still open, and an immediate retry is safe. |
 
 <RequestExample>
 ```bash

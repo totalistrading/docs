@@ -1,48 +1,142 @@
 # Docs style guide
 
-The bar is Stripe / Ramp / Kalshi: a reader should be able to scan a page, copy a working
-request, and understand the contract without wading through prose. Keep these rules.
+The bar is Stripe / Ramp / Kalshi. A reader should be able to scan a page, copy a working request,
+and understand the contract without wading through prose.
+
+Assume every reader is one of three people, often all three at once:
+
+- **Hostile.** They will find the contradiction, the stale number, the broken sentence. Anything
+  stated twice will eventually be stated two different ways, and they will screenshot it.
+- **Unfamiliar.** Overexplain rather than underexplain. Define the term the first time it appears,
+  or link to where it is defined.
+- **Busy.** They will read the table and skip the paragraph. Put the answer in the table.
+
+## Hard rules
+
+These are not preferences. A page violating one of these is wrong.
+
+### No em dashes
+
+Never use `—`. Not once, not "sparingly". Replace it with one of:
+
+| Instead of | Use |
+| --- | --- |
+| Two independent clauses joined by `—` | A full stop. Two sentences. |
+| An aside `—like this—` | Parentheses, or cut the aside. |
+| A definition `term — meaning` | A colon, or a two-column table. |
+| A trailing afterthought | Cut it or promote it to its own sentence. |
+
+En dashes (`–`) are banned too, including in numeric ranges. Write `2 to 5 legs`, or
+`2-5 legs` with an ASCII hyphen. Hyphens in compound words are fine.
+
+Inside backticks, formulae are **ASCII only**: `a * b`, `a - b`. Never the Unicode `×` or `−`.
+Unicode math characters have already caused one mojibake incident in this repo.
+
+### No writing about the writing
+
+The reader is here for the product, not for a tour of the documentation. Delete any sentence that
+describes what the page is doing.
+
+Banned openers and constructions:
+
+- "This page maps / covers / walks through..."
+- "...gathered in one place", "...you'd otherwise piece together from"
+- "Knowing this up front makes the table below scannable", "at a glance"
+- "worth knowing", "the ones worth knowing", "a few things worth knowing"
+- "Note that", "It's worth noting", "Keep in mind"
+- Rhetorical questions: "Not sure which channel fits?", "Need the full map?"
+- Editorialising about the reader: "Serious integrations often run both."
+
+Say the thing. If a table needs a preamble to be scannable, fix the table.
+
+### Every number has exactly one home
+
+Limits, fees, ranges, timeouts, and rate limits live on [Limits and fees](/guides/limits-and-fees).
+Error codes live on [Errors](/api-reference/errors). Term definitions live on
+[Glossary](/guides/glossary).
+
+Every other page **links** to those. It does not restate them. A fee quoted on four pages becomes
+four different fees the first time it changes.
+
+### Document the contract, not the internals
+
+Describe what the integrator observes: endpoints, statuses, fields, behavior, guarantees. Do not
+name internal services, internal algorithms, or reconciler mechanics. If a mechanism is not
+something the reader calls, sees in a response, or must handle, leave it out.
+
+Transparency means the reader can predict what the API will do. It does not mean a tour of the
+backend.
 
 ## Voice
 
-- **Second person, present tense.** "You send", "you receive" — not "the user sends" or "the
-  frontend creates". Address the reader, never describe a third party.
-- **Lead with the task.** First sentence of a section says what you do or get, not background.
-- **Short sentences.** One idea each. Break run-ons. Use em dashes sparingly — at most one per
-  sentence.
-- **Document the contract, not the internals.** Describe what the integrator observes: endpoints,
-  statuses, fields, behavior, guarantees. Do not name internal services (`vault-job-service`,
-  `vault-settlement-service`), internal algorithms (ILP), or reconciler mechanics. If a mechanism
-  isn't something the reader calls, sees in a response, or must handle, leave it out.
-- **No marketing filler.** No "Welcome to", "We're excited", "powerful", "seamless". State what the
-  thing is and how to use it.
+- **Second person, present tense.** "You send", "you receive". Never "the user sends" or "the
+  frontend creates".
+- **Lead with the task.** The first sentence of a section says what you do or get, not background.
+- **One idea per sentence.** If a sentence has two clauses and a parenthetical, it is three
+  sentences.
+- **No marketing filler.** No "Welcome to", "We're excited", "powerful", "seamless", "robust".
+- **Bold carries weight only if it is rare.** Bold a term on first definition, or a value in a
+  table. Do not bold mid-sentence for emphasis. A page with fifteen bolded fragments has none.
 
 ## Formatting
 
-- **Headings are sentence case.** "Get your API key", not "Get Your API Key". Only the page title
-  (frontmatter) and proper nouns are capitalized.
+- **Sentence case for every title and heading**, including API reference pages. "Get your API key",
+  not "Get Your API Key". "Confirm quote", not "Confirm Quote". Only proper nouns are capitalized.
+- **Single quotes in frontmatter**, consistently.
 - **One term per concept.** A *parlay* is the product. An *RFQ* is the API object that represents
-  one. A *quote request* is the pre-trade price-discovery object. A *position* is the on-chain,
-  funded parlay. Pick the right term for the layer and don't swap mid-page.
-- **Code is copy-paste-first.** Show a real `curl` (or fenced HTTP) with the auth header, real-ish
-  values, and the response shape. Prefer a runnable example over a prose description of one.
-- **Use current paths in examples.** The supported contract surface is `/v1/...`; the public
-  unauthenticated reads keep their own roots (`/markets`, `/leaderboard`). Never use the deprecated
-  flat `/user`/`/rfqs` roots.
+  one after commit. A *quote request* is the pre-trade price-discovery object. A *position* is the
+  on-chain, funded parlay. Pick the right term for the layer and do not swap mid-page. See
+  [Glossary](/guides/glossary).
+- **Code is copy-paste-first.** Show a real `curl` with the auth header, real-ish values, and the
+  response shape. Prefer a runnable example over a prose description of one.
+- **Use current paths in examples.** The supported contract surface is `/v1/...`. Public
+  unauthenticated reads keep their own roots (`/markets`). Never use the deprecated flat
+  `/user` / `/rfqs` roots.
 
-## Structure (information architecture)
+## Diagrams
 
-- **Get started** — Introduction, Quickstart, Authentication. A new reader should reach a working
-  call from here in minutes.
-- **Core concepts** — the mental models: how parlays work, vaults & funding, settlement & cashout.
-- **Guides** — task-oriented how-tos: reading your data, webhooks, real-time, market making.
-- **API reference** — generated from the OpenAPI spec; one page per operation.
+- **Inline SVG only.** No Mermaid. Mermaid's auto-layout cannot be corrected, and its theming has
+  to be fought with global CSS overrides that break one color scheme or the other.
+- **Theme-aware, always.** Use the `--dg-*` custom properties defined in `style.css`. Never hardcode
+  a hex color in a diagram. Check the page in both light and dark before merging.
+- **A diagram must show a mechanism**, not decorate a heading. If the diagram restates the sentence
+  above it, delete one of them.
+- **Text in a diagram must be legible at mobile width.** Minimum 11px. Wrap the SVG in a
+  horizontally scrollable container if it cannot shrink.
+- Every `<svg>` carries `role="img"` and a `<title>`.
 
-A page belongs in exactly one place. Concepts explain *why/what*; guides explain *how*; the
+## Structure
+
+- **Get started** (Introduction, Quickstart, Authentication). A new reader reaches a working call in
+  minutes.
+- **Core concepts** (how parlays work, vaults and funding, limits and fees, glossary). The mental
+  models.
+- **Guides** (reading your data, webhooks, real time, market making). Task-oriented how-tos.
+- **API reference.** One page per operation, generated from the OpenAPI spec where possible.
+
+A page belongs in exactly one place. Concepts explain *what and why*. Guides explain *how*. The
 reference is the *exact* surface.
 
 ## BYOW / partner surface
 
 The headless / sub-account (BYOW) surface and the partner narrative stay gated under `_internal/`.
-Public guides are principal-scoped; never document `X-Subaccount` or sub-account variants in the
+Public guides are principal-scoped. Never document `X-Subaccount` or sub-account variants in the
 public tree.
+
+## Before you merge
+
+```bash
+# no em or en dashes, and no Unicode math, anywhere public
+# (openapi.json descriptions render into the docs, so it is checked too)
+LC_ALL=C.UTF-8 grep -rn -e "—" -e "–" -e "−" -e "×" -e "…" -e "→" \
+  --include=*.mdx --include=openapi.json . | grep -v "^./_internal/"
+
+# no hardcoded colors in diagrams
+grep -rn "#[0-9a-fA-F]\{6\}" --include=*.mdx .
+
+# no Title Case reference titles
+grep -rn "^title:.*[a-z] [A-Z]" --include=*.mdx api-reference/ \
+  | grep -vE "API|P&L"
+```
+
+All three must return nothing.

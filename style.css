@@ -1,35 +1,183 @@
-.nodeLabel,
-.label,
-.label text,
-span.nodeLabel,
-.edgeLabel,
-.edgeLabel p {
-  font-weight: 600 !important;
-  color: white !important;
-  fill: white !important;
+/* ==========================================================================
+   Diagram tokens
+
+   Inline SVG diagrams in the MDX use these custom properties. They are
+   defined as translucent overlays rather than opaque hex fills so a diagram
+   reads correctly against any page background, in either color scheme.
+
+   Never hardcode a color inside a diagram. See STYLE.md.
+   ========================================================================== */
+
+:root {
+  --dg-fill: rgba(15, 23, 42, 0.035);
+  --dg-fill-strong: rgba(15, 23, 42, 0.07);
+  --dg-stroke: rgba(15, 23, 42, 0.22);
+  --dg-stroke-soft: rgba(15, 23, 42, 0.12);
+  --dg-text: #0f172a;
+  --dg-text-dim: #64748b;
+
+  --dg-accent: #15803d;
+  --dg-accent-fill: rgba(22, 163, 74, 0.1);
+  --dg-accent-stroke: rgba(22, 163, 74, 0.45);
+
+  --dg-warn: #b45309;
+  --dg-warn-fill: rgba(217, 119, 6, 0.1);
+  --dg-warn-stroke: rgba(217, 119, 6, 0.45);
 }
 
-.node rect,
-.node polygon,
-.node circle,
-.node ellipse,
-.node path {
-  stroke: white !important;
+.dark {
+  --dg-fill: rgba(255, 255, 255, 0.045);
+  --dg-fill-strong: rgba(255, 255, 255, 0.09);
+  --dg-stroke: rgba(255, 255, 255, 0.24);
+  --dg-stroke-soft: rgba(255, 255, 255, 0.13);
+  --dg-text: #e6edf3;
+  --dg-text-dim: #94a3b8;
+
+  --dg-accent: #07c983;
+  --dg-accent-fill: rgba(7, 201, 131, 0.14);
+  --dg-accent-stroke: rgba(7, 201, 131, 0.5);
+
+  --dg-warn: #fbbf24;
+  --dg-warn-fill: rgba(251, 191, 36, 0.14);
+  --dg-warn-stroke: rgba(251, 191, 36, 0.45);
 }
 
-.cluster rect {
-  fill: #1f2020 !important;
-  stroke: rgba(255, 255, 255, 0.4) !important;
-  stroke-dasharray: 4 !important;
+/* Horizontal scroll container. A diagram never forces the page to scroll
+   sideways; it scrolls inside its own box instead. */
+.dg-scroll {
+  overflow-x: auto;
+  margin: 1.5rem 0;
 }
 
-.cluster text,
-.cluster-label text,
-.cluster span,
-.cluster-label span {
-  color: white !important;
-  fill: white !important;
-  font-weight: 600 !important;
+.dg-scroll svg {
+  display: block;
+  min-width: 560px;
+  width: 100%;
+  height: auto;
+}
+
+/* Shared primitives -------------------------------------------------- */
+
+.dg-node {
+  fill: var(--dg-fill);
+  stroke: var(--dg-stroke);
+  stroke-width: 1;
+}
+
+.dg-node-accent {
+  fill: var(--dg-accent-fill);
+  stroke: var(--dg-accent-stroke);
+  stroke-width: 1;
+}
+
+.dg-node-warn {
+  fill: var(--dg-warn-fill);
+  stroke: var(--dg-warn-stroke);
+  stroke-width: 1;
+}
+
+.dg-group {
+  fill: none;
+  stroke: var(--dg-stroke-soft);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.dg-line {
+  stroke: var(--dg-stroke);
+  stroke-width: 1.25;
+  fill: none;
+}
+
+.dg-line-accent {
+  stroke: var(--dg-accent);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.dg-line-dashed {
+  stroke: var(--dg-stroke);
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4;
+  fill: none;
+}
+
+.dg-line-warn {
+  stroke: var(--dg-warn);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  fill: none;
+}
+
+/* Text --------------------------------------------------------------- */
+
+.dg-scroll text {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.dg-t {
+  fill: var(--dg-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dg-t-sm {
+  fill: var(--dg-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.dg-t-dim {
+  fill: var(--dg-text-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.dg-t-mono {
+  fill: var(--dg-text);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.dg-t-mono-dim {
+  fill: var(--dg-text-dim);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dg-t-accent {
+  fill: var(--dg-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.dg-t-warn {
+  fill: var(--dg-warn);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.dg-t-label {
+  fill: var(--dg-text-dim);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Arrowheads inherit the stroke of the path that references them. */
+.dg-arrow {
+  fill: var(--dg-stroke);
+}
+
+.dg-arrow-accent {
+  fill: var(--dg-accent);
+}
+
+.dg-arrow-warn {
+  fill: var(--dg-warn);
 }
 
 /* Footer: single compact line, laid out as an explicit grid so
@@ -113,4 +261,13 @@ span.nodeLabel,
   #footer > div > div:last-child > div:last-child {
     grid-column: 1;
   }
+}
+
+/* A figure whose source image has a baked-in white background. Paint the
+   plate white in both themes so it reads as a deliberate figure rather than
+   a broken transparency in dark mode. */
+.figure-light {
+  background: #ffffff;
+  padding: 14px;
+  border-radius: 10px;
 }

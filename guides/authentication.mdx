@@ -1,51 +1,62 @@
 ---
 title: 'Authentication'
-description: 'How to authenticate against the Totalis REST API and WebSocket — scoped API keys for programmatic clients and Privy JWTs for the web dashboard.'
+description: 'Scoped API keys for programmatic clients and Privy JWTs for the web dashboard, plus the full scope catalog and how to manage keys.'
 ---
 
-The Totalis API accepts two authentication schemes:
+The Totalis API accepts two authentication schemes.
 
-- **API key** — for programmatic clients (bots, scripts, server-side integrations). Sent as the `X-API-Key` header on REST and SSE; on the WebSocket, send the same key in the auth message instead.
-- **Privy JWT** — used by the web dashboard. Sent as `Authorization: Bearer <jwt>`. The session signer underpinning the JWT also signs vault transactions in the browser.
+| Scheme | Used by | How it is sent |
+| --- | --- | --- |
+| API key | Programmatic clients: bots, scripts, server-side integrations | `X-API-Key` header on REST and SSE. In the auth message on the WebSocket. |
+| Privy JWT | The web dashboard | `Authorization: Bearer <jwt>` |
 
-Either scheme works on every authenticated endpoint, with one exception: `POST /v1/api-keys` (create a new API key) requires a Privy JWT, or an API key that holds the `keys:manage` scope.
+Either scheme works on every authenticated endpoint, with one exception. Creating a new API key
+(`POST /v1/api-keys`) requires a Privy JWT, or an API key that already holds the `keys:manage`
+scope.
 
 ## Getting your API key
 
-Generate an API key from the [Totalis Dashboard](https://app.totalis.trade):
-
-1. Log in to [app.totalis.trade](https://app.totalis.trade)
-2. Navigate to your account settings
-3. Create a new API key, name it, and **choose its scopes** (see below)
-4. Copy the full key immediately
+<Steps>
+  <Step title="Log in">
+    Open [app.totalis.trade](https://app.totalis.trade) and go to your account settings.
+  </Step>
+  <Step title="Create the key">
+    Name it and choose its scopes. Grant only what this integration needs.
+  </Step>
+  <Step title="Copy it immediately">
+    The full key is returned exactly once, in `data.key`.
+  </Step>
+</Steps>
 
 <Warning>
-  The full API key is only displayed at creation time. Save it securely — you will not be able to retrieve it later.
+The full API key is displayed only at creation. Store it in a secret manager before you close the
+dialog. It cannot be retrieved later, only revoked and replaced.
 </Warning>
 
-Keys have the form `api_live_...` (or `api_test_...` for test-environment keys), matching `api_(live|test)_[A-Za-z0-9_-]{28,36}`. A credential that doesn't start with `api_` is rejected with `403` (`wrong_api_key_type`) and a hint about the expected format; a well-formed but invalid or revoked key gets `401`.
+Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. Live keys start `api_live_`, test environment keys
+start `api_test_`.
 
 ## Using your API key
 
-Send your API key in the `X-API-Key` header with every request:
-
 ```bash
-curl -X GET https://api.totalis.trade/v1/portfolio \
-  -H "X-API-Key: <your-api-key>"
+curl https://api.totalis.trade/v1/portfolio \
+  -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 
-For WebSocket connections, authenticate after connecting:
+On the WebSocket, authenticate after connecting:
 
 ```json
-{
-  "type": "auth",
-  "api_key": "<your-api-key>"
-}
+{ "type": "auth", "api_key": "<your-api-key>" }
 ```
+
+A credential that does not start with `api_` is rejected with `403` and reason
+`wrong_api_key_type`, and the response carries a hint about the expected format. A well formed but
+invalid or revoked key gets `401`. See [Errors](/api-reference/errors).
 
 ## Scopes
 
-Every API key carries a set of **scopes** — the capabilities you select at creation. A request to an endpoint whose scope the key lacks is rejected with `403` (`insufficient_scope`). Grant only what a given integration needs.
+Every key carries the set of scopes you selected at creation. A request to an endpoint whose scope
+the key lacks is rejected with `403` and reason `insufficient_scope`.
 
 | Scope | Grants | Risk |
 | --- | --- | --- |
@@ -53,34 +64,51 @@ Every API key carries a set of **scopes** — the capabilities you select at cre
 | `markets:read` | Browse markets, including each market's `exclusion_keys`. | low |
 | `positions:read` | View quote requests, portfolio, stats, and P&L. | low |
 | `balances:read` | View wallet and vault balances and delegation status. | low |
-| `trading:write` | Create, modify, commit, and cancel quote requests (place parlays). | medium |
 | `funds:deposit` | Move USDC into the vault. | low |
-| `funds:withdraw` | Move USDC out of the vault/wallet to any address. **Can drain the account.** | high |
+| `trading:write` | Create, modify, commit, and cancel quote requests. Places parlays. | medium |
 | `account:write` | Change username and profile settings. | medium |
-| `tx:sign` | Submit arbitrary signed Solana transactions. | high |
-| `keys:manage` | Create, list, and revoke API keys. Lets a key mint more keys. | high |
-| `mm:quote` | Read RFQs and submit/confirm quotes as a market maker. | medium |
+| `mm:quote` | Read quote requests and submit or confirm quotes as a market maker. | medium |
+| `funds:withdraw` | Move USDC out of the vault or wallet to any address. | **high** |
+| `tx:sign` | Submit arbitrary signed Solana transactions. | **high** |
+| `keys:manage` | Create, list, and revoke API keys. | **high** |
 
-<Note>
-  A read-only integration (dashboards, reconciliation) needs only the `*:read` scopes. A trading bot
-  adds `trading:write` (and `funds:deposit` if it tops up the vault). Reserve `funds:withdraw`,
-  `tx:sign`, and `keys:manage` for keys that genuinely need them — each can move funds or escalate.
-</Note>
+<Warning>
+The three high risk scopes each let a leaked key take everything. `funds:withdraw` sends USDC to any
+address. `tx:sign` submits arbitrary transactions. `keys:manage` mints more keys, including ones
+that outlive your revocation of the original. Issue them only to keys that genuinely need them, and
+never to a key that also lives in a browser or a CI log.
+</Warning>
 
-## Managing API keys
+Pick scopes by integration shape:
 
-You can list, create, and revoke API keys programmatically (or from the [Dashboard](https://app.totalis.trade)):
+| Integration | Scopes |
+| --- | --- |
+| Dashboard or reconciliation, read only | `account:read`, `positions:read`, `balances:read` |
+| Trading bot | the read scopes, plus `trading:write`, plus `funds:deposit` if it tops up the vault |
+| Market maker | the read scopes, plus `mm:quote` |
 
-- **List keys** — `GET /v1/api-keys`
-- **Create key** — `POST /v1/api-keys` (requires a Privy JWT, or a key with `keys:manage`)
-- **Revoke key** — `DELETE /v1/api-keys/{prefix}`
+## Managing keys
 
-`{prefix}` is the `key_prefix` value returned by both list and create: the short leading fragment of the key that listings expose in place of the full secret. The full key is returned exactly once, in `data.key` at creation.
+| Action | Endpoint |
+| --- | --- |
+| List keys | [`GET /v1/api-keys`](/api-reference/user/list-api-keys) |
+| Create key | [`POST /v1/api-keys`](/api-reference/user/create-api-key) |
+| Revoke key | [`DELETE /v1/api-keys/{prefix}`](/api-reference/user/revoke-api-key) |
 
-A new key can never grant a scope the creating credential doesn't already hold.
+`{prefix}` is the `key_prefix` value returned by both list and create. It is the short leading
+fragment of the key that listings expose in place of the full secret.
 
-## Key lifecycle
+A new key can never grant a scope the creating credential does not already hold. A key with
+`positions:read` cannot mint a key with `funds:withdraw`.
 
-- **Active** — the key is valid and can be used for authentication.
-- **Revoked** — the key has been manually revoked and will be rejected.
-- **Expired** — the key has passed its expiration date.
+## Key states
+
+| State | Behavior |
+| --- | --- |
+| Active | Valid and accepted. |
+| Revoked | Manually revoked. Rejected with `401`. |
+| Expired | Past its expiration date. Rejected with `401`. |
+
+Revocation takes effect immediately. Webhook endpoints belong to your account rather than to the
+key that created them, so revoking one key among several does not stop webhook delivery. See
+[Webhooks](/guides/webhooks).
