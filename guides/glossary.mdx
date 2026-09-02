@@ -124,7 +124,7 @@ available to trade     = usdc_balance + vault_balance - locked_amount
 | `counterparty_mm_id` | The maker who **already backs** a position. On a broadcast cashout auction this is usually *not* the maker whose bid wins. |
 | `rfq_id` | The parlay, after commit. The primary key you look trades up by. |
 | `quote_id` | One maker's quote on a request. |
-| `position_id` | The 16 byte on-chain position id. Used specifically to open a [cashout request](/api-reference/quote-service/cashout-create). |
+| `position_id` | The 16 byte on-chain position id, hex encoded (32 lowercase chars, no `0x`). Used to open a [cashout request](/api-reference/quote-service/cashout-create), and returned by [`GET /v1/mm/positions`](/api-reference/mm/list-positions) so a maker can match a broadcast cashout auction against their own book. |
 | `position_pda` | The position's on-chain account address. Surfaced on WebSocket `position:*` events. An address, not a lookup key. |
 | `cashout_request_id` | One cashout auction. Returned as `id` when you create it, as `cashout_request_id` on the MM stream. |
 

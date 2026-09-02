@@ -34,8 +34,17 @@ Success:
 
 Error:
 ```json
-{ "type": "auth:error", "message": "Invalid API key" }
+{ "type": "auth:error", "code": "INVALID_CREDENTIALS", "message": "Invalid API key" }
 ```
+
+Every `auth:error` carries a `code`. Branch on it rather than on `message`, which is not stable.
+
+| `code` | Meaning | Retry |
+| --- | --- | --- |
+| `INVALID_CREDENTIALS` | The key is missing, malformed, invalid, or you are already authenticated. | no, fix the credential |
+| `TOKEN_INVALID` | A Privy JWT failed verification. | no |
+| `AUTH_TIMEOUT` | You connected but sent no auth message inside the window. | yes, reconnect and authenticate |
+| `SERVICE_UNAVAILABLE` | Authentication could not be completed on our side. | yes, with backoff |
 
 ## Subscribing to channels
 

@@ -174,8 +174,10 @@ The triage rule that matters:
     decimal USDC. Your bid is microUSDC.
   </Step>
   <Step title="Decide which lane you are in">
-    Decide from your own book whether you back the position. That determines whether a win closes it
-    or acquires it.
+    Match the auction's `position_id` against the `position_id` on
+    [`GET /v1/mm/positions`](/api-reference/mm/list-positions). A hit means you back the position and
+    a win closes it. No hit means a win acquires it. Both ids are lowercase hex with no `0x`, so they
+    compare directly.
   </Step>
   <Step title="Bid and expire locally">
     Bid before `expires_at`, and age your own bids out locally. Keep free balance ahead of

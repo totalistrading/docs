@@ -68,6 +68,7 @@ Returns `201 Created` for a new quote or `200 OK` when replacing an existing quo
     </ResponseField>
     <ResponseField name="book_seq" type="integer">The new quote book sequence number.</ResponseField>
     <ResponseField name="replaced" type="boolean">`true` if this replaced a previous quote.</ResponseField>
+    <ResponseField name="taker_fee_bps" type="integer">The taker fee rate this quote was priced at, in basis points (`100` is 1%). Echoed so you can reconcile the returned `user_cost` against the base you priced, and tell a fee-on quote from a fee-off one.</ResponseField>
   </Expandable>
 </ResponseField>
 
@@ -121,7 +122,8 @@ curl -X PUT https://api.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-99
       "valid_until": "2026-06-01T18:45:45.000Z"
     },
     "book_seq": 5,
-    "replaced": false
+    "replaced": false,
+    "taker_fee_bps": 100
   }
 }
 ```

@@ -12,6 +12,36 @@ listed below still resolves through a redirect, so old bookmarks keep working, b
 not supported surface.
 </Note>
 
+<Update label="3 September 2026">
+  **Added: `position_id` on the market maker position reads.**
+  [`GET /v1/mm/positions`](/api-reference/mm/list-positions) and
+  [`GET /v1/mm/positions/{id}`](/api-reference/mm/get-position) now return the on-chain
+  `position_id`, hex encoded and lowercase. It matches the `position_id` on a broadcast
+  [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request), so a maker can decide
+  whether an auction is on a position they back without keeping a side index.
+
+  **Added: `taker_fee_bps` on the submit quote response.**
+  [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) echoes the
+  fee rate the quote was priced at.
+
+  **Changed: submitting a quote now fails closed on the fee rate.** If the taker fee rate cannot be
+  read, the request returns `503` with `details.reason: "fee_unavailable"` instead of pricing at
+  0 bps. Previously a config read failure silently priced the quote against the gross bet rather
+  than the net stake, so the maker underwrote a larger base than they intended. Retry on this.
+
+  **Changed: a malformed API key now returns `403` everywhere.** The SSE surface previously returned
+  `401` for a credential that does not start with `api_`, while REST returned `403`. Both now
+  return `403` with `details.reason: "wrong_api_key_type"`.
+
+  **Changed: every WebSocket `auth:error` now carries a `code`.** The auth timeout path previously
+  sent only a `message`. Branch on `code`, never on `message`. See
+  [WebSocket](/guides/websocket#authentication) for the four values.
+
+  **Clarified: rate limits are two buckets, not one.** Public market reads are keyed per IP and do
+  not draw down the authenticated per-account budget, and sending an API key to a public read does
+  not raise its limit. See [Limits and fees](/guides/limits-and-fees#rate-limits).
+</Update>
+
 <Update label="27 August 2026">
   **Removed: World Cup reward pool.** The FIFA World Cup 10k reward pool challenge ended and its
   page was removed. `/guides/world-cup-reward-pool` now redirects to [Referrals](/referrals).

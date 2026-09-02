@@ -59,11 +59,11 @@ accounts' objects.
 
 | Condition | REST | SSE | `details.reason` |
 | --- | --- | --- | --- |
-| Credential does not start with `api_` | `403` | `401` | `wrong_api_key_type` |
+| Credential does not start with `api_` | `403` | `403` | `wrong_api_key_type` |
 | Well formed key, but invalid or revoked | `401` | `401` | |
 | Valid key, missing the required scope | `403` | `403` | `insufficient_scope` |
 
-A malformed key returns `403` on REST and `401` on SSE. The response body carries a hint about the
+A malformed key returns `403` on every surface. The response body carries a hint about the
 expected format. Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. See
 [Authentication](/guides/authentication) for the scope catalog.
 
@@ -81,6 +81,20 @@ Returned by [`POST /v1/quote-requests/{id}/commit`](/api-reference/quote-service
 | `COMMIT_FAILED_RETRYABLE` | A temporary failure. | Retry after a short delay. |
 
 No commit failure moves funds. If the commit did not return success, the trade did not happen.
+
+## Submitting a quote
+
+Returned by [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote).
+
+| Status | `details.reason` | Meaning |
+| --- | --- | --- |
+| 400 | `insufficient_collateral` | The quote needs more collateral than you have free. Carries `required` and `available`. |
+| 503 | `collateral_check_unavailable` | Your balance could not be verified. Retry. |
+| 503 | `fee_unavailable` | The taker fee rate could not be read, so the quote was rejected rather than priced at 0 bps. Retry. |
+| 409 | `version_mismatch` | Your `request_version` or `request_hash` is stale. Re-read the latest event and resubmit both. |
+
+The two `503`s are deliberate: a quote priced against an unknown fee rate would apply your odds
+to the gross bet instead of the net stake, so you would underwrite more than you modelled.
 
 ## Bidding on a cashout auction
 

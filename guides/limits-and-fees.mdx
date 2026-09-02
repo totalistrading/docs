@@ -40,13 +40,32 @@ own window has passed. Your funds are never touched in that path.
 
 ## Rate limits
 
-| Client | Limit |
-| --- | --- |
-| Unauthenticated | 100 requests / minute |
-| Authenticated | 300 requests / minute |
+There are two buckets, not one budget split by credential. Which one you land in depends on
+whether the route resolves your identity before or after rate limiting.
+
+| Bucket | Routes | Keyed by | Limit |
+| --- | --- | --- | --- |
+| Authenticated | `/v1/*`, `/app/*`, and your parlay reads | your account | 300 / minute |
+| Public | `/markets*`, `/v1/markets*`, `/referral*` | source IP | 100 / minute |
+
+Quote service routes (`/v1/quote-requests`, `/v1/cashout-requests`, `/v1/mm/*`) are limited
+separately, per IP, and do not draw down the 300.
+
+What this means when you size a client:
+
+- Market reads do **not** debit your authenticated budget.
+- Sending an API key to a public read does **not** raise its limit. Those routes never resolve the
+  key, so you stay on the per-IP bucket.
+- The per-IP bucket is per **source IP**, not per key. A market maker fleet behind one NAT shares a
+  single 100 / minute market-read budget across every process and every key it runs.
 
 Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. A
 `429` response includes `error.retry_after`, in seconds. See [Errors](/api-reference/errors).
+
+<Note>
+`X-RateLimit-Limit` reports the ceiling that applied, not which counter produced it, so two routes
+can both report `100` from different buckets. Watch `X-RateLimit-Remaining` to tell them apart.
+</Note>
 
 ## Fees
 
