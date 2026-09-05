@@ -33,6 +33,13 @@ Check the current state with
     curl https://api.totalis.trade/v1/wallet \
       -H "X-API-Key: $TOTALIS_API_KEY"
     ```
+
+    The same address is under **Deposit** in the app, as a QR code and a copy button. The dialog
+    watches the chain and updates as soon as USDC lands.
+
+    <Frame caption="Deposit in the app: the wallet address, the chain warning, and the card and bridge options">
+      <img src="/images/app/01-deposit-chooser.png" alt="The Deposit dialog showing a USDC on Solana address with a QR code, a warning to send only USDC on Solana, and options to pay by card or bridge from another chain" />
+    </Frame>
   </Step>
 
   <Step title="Send native USDC on Solana">
