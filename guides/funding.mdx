@@ -91,3 +91,20 @@ that is not locked in an open position.
 Withdrawing requires trading to be enabled, the same delegation as placing a parlay. It also
 requires the `funds:withdraw` scope, which is the highest risk scope on a key. See
 [Authentication](/guides/authentication#scopes).
+
+### Withdrawing in the app
+
+**Withdraw** sits next to Deposit on the portfolio page and offers two routes. The API endpoint above
+covers only the first.
+
+<Frame caption="Send to a Solana wallet is the same operation as the API call. The second route bridges through Unifold.">
+  <img src="/images/app/16-withdraw-chooser.png" alt="The Withdraw dialog offering Send to a Solana wallet and Withdraw to another chain" />
+</Frame>
+
+<Frame caption="Send to a Solana wallet: the free balance, a recipient address, and an amount with a Max shortcut">
+  <img src="/images/app/17-withdraw-solana.png" alt="The Withdraw USDC form showing the amount available to withdraw, a recipient Solana address field, and an amount field" />
+</Frame>
+
+<Frame caption="Withdraw to another chain opens Unifold, which bridges USDC to Ethereum, Bitcoin and other chains. It has its own minimum and processing time.">
+  <img src="/images/app/18-withdraw-other-chain.png" alt="The Unifold cash out dialog with token, chain, recipient address, amount with a 3 USD minimum, and processing time" />
+</Frame>
