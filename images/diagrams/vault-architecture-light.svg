@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 392" role="img" aria-labelledby="vault-title" width="880" height="392">
+  <style>
+    .dg-node { fill: rgba(15, 23, 42, 0.035); stroke: rgba(15, 23, 42, 0.22); stroke-width: 1; }
+    .dg-node-accent { fill: rgba(22, 163, 74, 0.1); stroke: rgba(22, 163, 74, 0.45); stroke-width: 1; }
+    .dg-node-warn { fill: rgba(217, 119, 6, 0.1); stroke: rgba(217, 119, 6, 0.45); stroke-width: 1; }
+    .dg-group { fill: none; stroke: rgba(15, 23, 42, 0.12); stroke-width: 1; stroke-dasharray: 4 4; }
+    .dg-line { stroke: rgba(15, 23, 42, 0.22); stroke-width: 1.25; fill: none; }
+    .dg-line-accent { stroke: #15803d; stroke-width: 1.5; fill: none; }
+    .dg-line-dashed { stroke: rgba(15, 23, 42, 0.22); stroke-width: 1.25; stroke-dasharray: 5 4; fill: none; }
+    .dg-line-warn { stroke: #b45309; stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+    .dg-t { fill: #0f172a; font-size: 13px; font-weight: 600; }
+    .dg-t-sm { fill: #0f172a; font-size: 11.5px; font-weight: 500; }
+    .dg-t-dim { fill: #64748b; font-size: 11.5px; font-weight: 500; }
+    .dg-t-mono { fill: #0f172a; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: 11.5px; font-weight: 500; }
+    .dg-t-mono-dim { fill: #64748b; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 500; }
+    .dg-t-accent { fill: #15803d; font-size: 11.5px; font-weight: 600; }
+    .dg-t-warn { fill: #b45309; font-size: 11.5px; font-weight: 600; }
+    .dg-t-label { fill: #64748b; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+    .dg-arrow { fill: rgba(15, 23, 42, 0.22); }
+    .dg-arrow-accent { fill: #15803d; }
+    .dg-arrow-warn { fill: #b45309; }
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  </style>
+  <title id="vault-title">How USDC moves between wallets, vaults, a position, and the fee vault</title>
+  <defs>
+    <marker id="vt-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow" />
+    </marker>
+    <marker id="vt-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow-accent" />
+    </marker>
+  </defs>
+  <rect x="200" y="24" width="440" height="356" rx="10" class="dg-group" />
+  <text x="210" y="18" class="dg-t-label">SOLANA, ON CHAIN</text>
+  <rect x="664" y="24" width="196" height="356" rx="10" class="dg-group" />
+  <text x="674" y="18" class="dg-t-label">OFF CHAIN</text>
+  <rect x="24" y="56" width="152" height="56" rx="8" class="dg-node" />
+  <text x="100" y="78" class="dg-t" text-anchor="middle">Your wallet</text>
+  <text x="100" y="97" class="dg-t-dim" text-anchor="middle">Privy TEE</text>
+  <rect x="228" y="56" width="152" height="56" rx="8" class="dg-node-accent" />
+  <text x="304" y="78" class="dg-t" text-anchor="middle">Your vault PDA</text>
+  <text x="304" y="97" class="dg-t-dim" text-anchor="middle">holds USDC</text>
+  <rect x="432" y="44" width="184" height="48" rx="8" class="dg-node" />
+  <text x="524" y="64" class="dg-t" text-anchor="middle">VaultConfig PDA</text>
+  <text x="524" y="82" class="dg-t-dim" text-anchor="middle">roles, fee rate</text>
+  <rect x="432" y="136" width="184" height="100" rx="8" class="dg-node-accent" />
+  <text x="524" y="164" class="dg-t" text-anchor="middle">Position PDA</text>
+  <text x="524" y="185" class="dg-t-mono-dim" text-anchor="middle">locks user_stake</text>
+  <text x="524" y="203" class="dg-t-mono-dim" text-anchor="middle">+ mm_risk</text>
+  <text x="524" y="223" class="dg-t-dim" text-anchor="middle">legs, status, fee rate</text>
+  <rect x="432" y="292" width="184" height="56" rx="8" class="dg-node" />
+  <text x="524" y="314" class="dg-t" text-anchor="middle">Fee vault</text>
+  <text x="524" y="333" class="dg-t-dim" text-anchor="middle">protocol revenue</text>
+  <rect x="24" y="292" width="152" height="56" rx="8" class="dg-node" />
+  <text x="100" y="314" class="dg-t" text-anchor="middle">Maker wallet</text>
+  <text x="100" y="333" class="dg-t-dim" text-anchor="middle">Privy TEE</text>
+  <rect x="228" y="292" width="152" height="56" rx="8" class="dg-node" />
+  <text x="304" y="314" class="dg-t" text-anchor="middle">Maker vault PDA</text>
+  <text x="304" y="333" class="dg-t-dim" text-anchor="middle">holds USDC</text>
+  <rect x="680" y="150" width="164" height="72" rx="8" class="dg-node" />
+  <text x="762" y="174" class="dg-t" text-anchor="middle">Totalis settlement</text>
+  <text x="762" y="193" class="dg-t-dim" text-anchor="middle">creates positions,</text>
+  <text x="762" y="210" class="dg-t-dim" text-anchor="middle">submits outcomes</text>
+  <rect x="680" y="272" width="164" height="64" rx="8" class="dg-node" />
+  <text x="762" y="296" class="dg-t" text-anchor="middle">Kalshi, Polymarket</text>
+  <text x="762" y="315" class="dg-t-dim" text-anchor="middle">resolution source</text>
+  <path d="M 180 74 L 220 74" class="dg-line" marker-end="url(#vt-a)" />
+  <text x="200" y="66" class="dg-t-dim" text-anchor="middle">USDC</text>
+  <path d="M 228 98 L 184 98" class="dg-line" marker-end="url(#vt-a)" />
+  <text x="200" y="114" class="dg-t-dim" text-anchor="middle">payout</text>
+  <path d="M 180 310 L 220 310" class="dg-line" marker-end="url(#vt-a)" />
+  <text x="200" y="302" class="dg-t-dim" text-anchor="middle">USDC</text>
+  <path d="M 228 334 L 184 334" class="dg-line" marker-end="url(#vt-a)" />
+  <text x="200" y="352" class="dg-t-dim" text-anchor="middle">payout</text>
+  <path d="M 384 92 L 408 92 L 408 168 L 424 168" class="dg-line-accent" marker-end="url(#vt-b)" />
+  <path d="M 384 312 L 408 312 L 408 206 L 424 206" class="dg-line" marker-end="url(#vt-a)" />
+  <path d="M 524 96 L 524 130" class="dg-line-dashed" marker-end="url(#vt-a)" />
+  <text x="534" y="118" class="dg-t-dim">fee rate fixed here</text>
+  <path d="M 524 240 L 524 286" class="dg-line-accent" marker-end="url(#vt-b)" />
+  <text x="534" y="268" class="dg-t-accent">1% of profit</text>
+  <path d="M 676 186 L 622 186" class="dg-line" marker-end="url(#vt-a)" />
+  <path d="M 762 226 L 762 266" class="dg-line-dashed" marker-end="url(#vt-a)" />
+</svg>

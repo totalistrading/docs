@@ -1,0 +1,41 @@
+<svg viewBox="0 0 880 310" role="img" aria-labelledby="cashout-title">
+  <title id="cashout-title">The two ways a cashout auction resolves, and what each one notifies</title>
+  <defs>
+    <marker id="co-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow" />
+    </marker>
+    <marker id="co-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow-warn" />
+    </marker>
+  </defs>
+  <text x="20" y="28" class="dg-t-label">AUCTION</text>
+  <text x="330" y="28" class="dg-t-label">OUTCOME</text>
+  <text x="610" y="28" class="dg-t-label">WHAT YOU ARE TOLD</text>
+  <rect x="20" y="110" width="200" height="100" rx="8" class="dg-node-accent" />
+  <text x="120" y="140" class="dg-t" text-anchor="middle">Cashout auction</text>
+  <text x="120" y="163" class="dg-t-sm" text-anchor="middle">broadcast to every maker</text>
+  <text x="120" y="183" class="dg-t-sm" text-anchor="middle">about 10 seconds</text>
+  <text x="120" y="201" class="dg-t-dim" text-anchor="middle">highest live bid wins</text>
+  <path d="M 224 150 L 270 150 L 270 86 L 318 86" class="dg-line" marker-end="url(#co-a)" />
+  <text x="296" y="78" class="dg-t-dim" text-anchor="middle">closes</text>
+  <path d="M 224 172 L 270 172 L 270 236 L 318 236" class="dg-line-warn" marker-end="url(#co-w)" />
+  <text x="296" y="228" class="dg-t-warn" text-anchor="middle">acquires</text>
+  <rect x="322" y="40" width="256" height="92" rx="8" class="dg-node" />
+  <text x="450" y="68" class="dg-t" text-anchor="middle">The backing maker wins</text>
+  <text x="450" y="90" class="dg-t-sm" text-anchor="middle">the position closes</text>
+  <text x="450" y="115" class="dg-t-mono" text-anchor="middle">RFQ becomes bought_back</text>
+  <rect x="322" y="190" width="256" height="92" rx="8" class="dg-node-warn" />
+  <text x="450" y="218" class="dg-t" text-anchor="middle">Any other maker wins</text>
+  <text x="450" y="240" class="dg-t-sm" text-anchor="middle">the position transfers, stays open</text>
+  <text x="450" y="265" class="dg-t-mono" text-anchor="middle">RFQ stays executed</text>
+  <path d="M 582 86 L 602 86" class="dg-line" marker-end="url(#co-a)" />
+  <path d="M 582 236 L 602 236" class="dg-line-warn" marker-end="url(#co-w)" />
+  <rect x="606" y="40" width="254" height="92" rx="8" class="dg-node-accent" />
+  <text x="624" y="66" class="dg-t-accent">WebSocket and webhook</text>
+  <text x="624" y="90" class="dg-t-mono">position:bought_back</text>
+  <text x="624" y="113" class="dg-t-dim">to the seller and the winner</text>
+  <rect x="606" y="190" width="254" height="92" rx="8" class="dg-node-warn" />
+  <text x="624" y="216" class="dg-t-warn">Nothing to the buyer</text>
+  <text x="624" y="240" class="dg-t-sm">on either channel, today</text>
+  <text x="624" y="264" class="dg-t-mono-dim">reconcile from position reads</text>
+</svg>

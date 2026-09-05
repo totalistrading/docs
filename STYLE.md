@@ -95,15 +95,29 @@ backend.
 
 ## Diagrams
 
-- **Inline SVG only.** No Mermaid. Mermaid's auto-layout cannot be corrected, and its theming has
-  to be fought with global CSS overrides that break one color scheme or the other.
-- **Theme-aware, always.** Use the `--dg-*` custom properties defined in `style.css`. Never hardcode
-  a hex color in a diagram. Check the page in both light and dark before merging.
+- **SVG files, not inline SVG and not Mermaid.** Mintlify's MDX compiler strips `text`, `circle`,
+  `marker` and `title` from inline SVG, so an inlined diagram renders as empty boxes. Mermaid's
+  auto-layout cannot be corrected and its theming fights the color scheme.
+- **One source, two baked files.** Author the diagram once in `images/diagrams/src/<name>.svg`
+  using only the `dg-*` classes. Run `python scripts/build-diagrams.py` to write
+  `images/diagrams/<name>-light.svg` and `<name>-dark.svg` with the tokens from `style.css` embedded.
+  Commit all three.
+- **Embed both, theme toggled**, inside the scroll wrapper:
+
+  ```jsx
+  <div className="dg-scroll">
+    <img className="block dark:hidden" src="/images/diagrams/<name>-light.svg" alt="what it shows" />
+    <img className="hidden dark:block" src="/images/diagrams/<name>-dark.svg" alt="what it shows" />
+  </div>
+  ```
+
+- **Never hardcode a color in a source.** Colors live in the `--dg-*` tokens in `style.css`. Check
+  the page in both light and dark before merging.
 - **A diagram must show a mechanism**, not decorate a heading. If the diagram restates the sentence
   above it, delete one of them.
-- **Text in a diagram must be legible at mobile width.** Minimum 11px. Wrap the SVG in a
-  horizontally scrollable container if it cannot shrink.
-- Every `<svg>` carries `role="img"` and a `<title>`.
+- **Text in a diagram must be legible at mobile width.** Minimum 11px on an 880 wide canvas. The
+  wrapper scrolls sideways so the diagram never shrinks below 560px.
+- Every source `<svg>` carries `role="img"` and a `<title>`; the `alt` on both images repeats it.
 
 ## Structure
 
@@ -131,8 +145,10 @@ public tree.
 LC_ALL=C.UTF-8 grep -rn -e "—" -e "–" -e "−" -e "×" -e "…" -e "→" \
   --include=*.mdx --include=openapi.json . | grep -v "^./_internal/"
 
-# no hardcoded colors in diagrams
+# no hardcoded colors in diagram sources, and baked files are current
 grep -rn "#[0-9a-fA-F]\{6\}" --include=*.mdx .
+grep -rn "#[0-9a-fA-F]\{6\}" images/diagrams/src/
+python scripts/build-diagrams.py && git diff --exit-code --stat images/diagrams/
 
 # no Title Case reference titles
 grep -rn "^title:.*[a-z] [A-Z]" --include=*.mdx api-reference/ \

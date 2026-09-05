@@ -8,40 +8,8 @@ A parlay starts as a **quote request**: your legs, priced live by market makers.
 underlying markets resolve, or you close it early.
 
 <div className="dg-scroll">
-<svg viewBox="0 0 880 220" role="img" aria-labelledby="lifecycle-title">
-  <title id="lifecycle-title">Parlay status progression from open to settled, with the early cashout branch</title>
-  <defs>
-    <marker id="lc-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" className="dg-arrow-warn" />
-    </marker>
-  </defs>
-  <rect x="40" y="64" width="200" height="84" rx="8" className="dg-group" />
-  <text x="140" y="54" className="dg-t-label" textAnchor="middle">PRICE DISCOVERY</text>
-  <rect x="270" y="64" width="240" height="84" rx="8" className="dg-group" />
-  <text x="390" y="54" className="dg-t-label" textAnchor="middle">FUNDING</text>
-  <rect x="525" y="64" width="315" height="84" rx="8" className="dg-group" />
-  <text x="682" y="54" className="dg-t-label" textAnchor="middle">ON CHAIN</text>
-  <path d="M 255 38 L 255 196" className="dg-line-dashed" />
-  <text x="263" y="36" className="dg-t-accent">you commit</text>
-  <path d="M 60 104 L 780 104" className="dg-line" />
-  <text x="680" y="96" className="dg-t-dim" textAnchor="middle">markets resolve</text>
-  <circle cx="60" cy="104" r="7" className="dg-node-accent" />
-  <circle cx="190" cy="104" r="7" className="dg-node-accent" />
-  <circle cx="320" cy="104" r="7" className="dg-node-accent" />
-  <circle cx="450" cy="104" r="7" className="dg-node-accent" />
-  <circle cx="580" cy="104" r="7" className="dg-node-accent" />
-  <circle cx="780" cy="104" r="7" className="dg-node-accent" />
-  <text x="60" y="134" className="dg-t-mono" textAnchor="middle">open</text>
-  <text x="190" y="134" className="dg-t-mono" textAnchor="middle">quoted</text>
-  <text x="320" y="134" className="dg-t-mono" textAnchor="middle">accepted</text>
-  <text x="450" y="134" className="dg-t-mono" textAnchor="middle">confirmed</text>
-  <text x="580" y="134" className="dg-t-mono" textAnchor="middle">executed</text>
-  <text x="780" y="134" className="dg-t-mono" textAnchor="middle">settled</text>
-  <path d="M 580 142 L 580 180 L 769 180" className="dg-line-warn" markerEnd="url(#lc-w)" />
-  <text x="596" y="172" className="dg-t-warn">early cashout</text>
-  <circle cx="780" cy="180" r="7" className="dg-node-warn" />
-  <text x="780" y="204" className="dg-t-mono" textAnchor="middle">bought_back</text>
-</svg>
+  <img className="block dark:hidden" src="/images/diagrams/lifecycle-light.svg" alt="Parlay status progression from open to settled, with the early cashout branch" />
+  <img className="hidden dark:block" src="/images/diagrams/lifecycle-dark.svg" alt="Parlay status progression from open to settled, with the early cashout branch" />
 </div>
 
 Collateral locks at `confirmed`. Before that point no funds have moved, and a parlay that ends at

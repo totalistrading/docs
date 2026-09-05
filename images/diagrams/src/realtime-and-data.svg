@@ -1,0 +1,27 @@
+<svg viewBox="0 0 880 292" role="img" aria-labelledby="channels-title">
+  <title id="channels-title">Which channel covers which phase of a trade</title>
+  <path d="M 136 58 L 856 58" class="dg-line" />
+  <path d="M 136 51 L 136 65" class="dg-line" />
+  <path d="M 420 51 L 420 65" class="dg-line" />
+  <path d="M 850 51 L 850 65" class="dg-line" />
+  <text x="136" y="42" class="dg-t-dim">create request</text>
+  <text x="420" y="42" class="dg-t-accent" text-anchor="middle">you commit</text>
+  <text x="850" y="42" class="dg-t-dim" text-anchor="end">settled</text>
+  <path d="M 420 66 L 420 272" class="dg-line-dashed" />
+  <text x="16" y="94" class="dg-t">SSE</text>
+  <text x="16" y="111" class="dg-t-dim">pre-trade</text>
+  <rect x="136" y="76" width="278" height="44" rx="8" class="dg-node-accent" />
+  <text x="152" y="103" class="dg-t-mono">best_quote, live pricing</text>
+  <text x="16" y="144" class="dg-t">WebSocket</text>
+  <text x="16" y="161" class="dg-t-dim">live only</text>
+  <rect x="426" y="126" width="424" height="44" rx="8" class="dg-node" />
+  <text x="442" y="153" class="dg-t-mono">quote:accepted ... position:settled</text>
+  <text x="16" y="194" class="dg-t">Webhooks</text>
+  <text x="16" y="211" class="dg-t-dim">durable</text>
+  <rect x="426" y="176" width="424" height="44" rx="8" class="dg-node" />
+  <text x="442" y="203" class="dg-t-mono">position.settled, signed and retried</text>
+  <text x="16" y="244" class="dg-t">REST</text>
+  <text x="16" y="261" class="dg-t-dim">on demand</text>
+  <rect x="136" y="226" width="714" height="44" rx="8" class="dg-node" />
+  <text x="152" y="253" class="dg-t-mono">portfolio, parlays, P&amp;L, balances, any time</text>
+</svg>

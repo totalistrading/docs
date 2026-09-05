@@ -42,18 +42,26 @@
   --dg-warn-stroke: rgba(251, 191, 36, 0.45);
 }
 
-/* Horizontal scroll container. A diagram never forces the page to scroll
+/* Diagrams ship as baked SVG files (images/diagrams/*-light.svg and
+   *-dark.svg) because Mintlify's MDX compiler strips text, circle, marker
+   and title tags from inline SVG. scripts/build-diagrams.py resolves the
+   dg-* rules below against the tokens above and embeds them in each file,
+   so this stylesheet stays the single source of truth for diagram colors.
+
+   Horizontal scroll container. A diagram never forces the page to scroll
    sideways; it scrolls inside its own box instead. */
 .dg-scroll {
   overflow-x: auto;
   margin: 1.5rem 0;
 }
 
-.dg-scroll svg {
-  display: block;
+/* No display rule here: the block / hidden / dark:hidden utilities on the
+   images control visibility, and a more specific rule would override them. */
+.dg-scroll img {
   min-width: 560px;
   width: 100%;
   height: auto;
+  vertical-align: top;
 }
 
 /* Shared primitives -------------------------------------------------- */
