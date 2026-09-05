@@ -22,9 +22,14 @@
         "tab": "Guides",
         "groups": [
           {
+            "group": "Overview",
+            "pages": [
+              "index"
+            ]
+          },
+          {
             "group": "Get started",
             "pages": [
-              "index",
               "guides/quickstart",
               "guides/authentication"
             ]
