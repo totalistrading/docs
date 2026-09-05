@@ -167,6 +167,12 @@
     "dark": "/logo/totalis-dark.png"
   },
   "navbar": {
+    "links": [
+      {
+        "label": "Get an API key",
+        "href": "https://app.totalis.trade/settings/api-keys"
+      }
+    ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
