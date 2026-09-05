@@ -31,6 +31,10 @@ scope.
   </Step>
   <Step title="Copy it immediately">
     The full key is returned exactly once, in `data.key`.
+
+    <Frame caption="The only time the full key is visible">
+      <img src="/images/app/08-api-key-generated.png" alt="The API key generated successfully banner with the new api_live key, a copy button, and the note that it will not be shown again" />
+    </Frame>
   </Step>
 </Steps>
 
@@ -102,7 +106,12 @@ Pick scopes by integration shape:
 | Revoke key | [`DELETE /v1/api-keys/{prefix}`](/api-reference/user/revoke-api-key) |
 
 `{prefix}` is the `key_prefix` value returned by both list and create. It is the short leading
-fragment of the key that listings expose in place of the full secret.
+fragment of the key that listings expose in place of the full secret. The app shows the same
+prefix, scopes, request count and state for each key, with a Revoke control on active keys.
+
+<Frame caption="The key list in the app. Only the prefix of each key is ever shown again.">
+  <img src="/images/app/09-api-keys-list.png" alt="Four API keys listed with their prefix, scopes, creation date, request count, and an active or revoked state" />
+</Frame>
 
 A new key can never grant a scope the creating credential does not already hold. A key with
 `positions:read` cannot mint a key with `funds:withdraw`.
