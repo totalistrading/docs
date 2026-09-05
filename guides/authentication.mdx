@@ -21,7 +21,13 @@ scope.
     Open [app.totalis.trade](https://app.totalis.trade) and go to your account settings.
   </Step>
   <Step title="Create the key">
-    Name it and choose its scopes. Grant only what this integration needs.
+    Name it and choose its scopes. Grant only what this integration needs. The presets map to the
+    scope groups below: **Read-only** is the four read scopes, **Trading** adds `trading:write` and
+    `funds:deposit`, and **Custom** lets you tick scopes one by one.
+
+    <Frame caption="Creating a key with the Trading preset. Each checkbox is one scope from the catalog below.">
+      <img src="/images/app/02-api-keys.png" alt="The API Keys settings page with a key name, the Trading preset selected, and the read, trading and funds permissions checked" />
+    </Frame>
   </Step>
   <Step title="Copy it immediately">
     The full key is returned exactly once, in `data.key`.
