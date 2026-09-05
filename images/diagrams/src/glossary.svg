@@ -1,0 +1,28 @@
+<svg viewBox="0 0 880 300" role="img" aria-labelledby="nouns-title">
+  <title id="nouns-title">Which name applies at each stage of a trade</title>
+  <text x="16" y="22" class="dg-t-label">LIFECYCLE</text>
+  <path d="M 40 62 L 856 62" class="dg-line" />
+  <path d="M 60 55 L 60 69" class="dg-line" />
+  <path d="M 180 55 L 180 69" class="dg-line" />
+  <path d="M 380 55 L 380 69" class="dg-line" />
+  <path d="M 500 55 L 500 69" class="dg-line" />
+  <path d="M 620 55 L 620 69" class="dg-line" />
+  <path d="M 800 55 L 800 69" class="dg-line" />
+  <text x="60" y="86" class="dg-t-mono-dim" text-anchor="middle">open</text>
+  <text x="180" y="86" class="dg-t-mono-dim" text-anchor="middle">quoted</text>
+  <text x="380" y="86" class="dg-t-mono-dim" text-anchor="middle">accepted</text>
+  <text x="500" y="86" class="dg-t-mono-dim" text-anchor="middle">confirmed</text>
+  <text x="620" y="86" class="dg-t-mono-dim" text-anchor="middle">executed</text>
+  <text x="800" y="86" class="dg-t-mono-dim" text-anchor="middle">settled</text>
+  <path d="M 380 36 L 380 272" class="dg-line-dashed" />
+  <text x="388" y="34" class="dg-t-accent">you commit</text>
+  <rect x="46" y="104" width="330" height="46" rx="8" class="dg-node" />
+  <text x="64" y="124" class="dg-t">quote request</text>
+  <text x="64" y="141" class="dg-t-mono-dim">ephemeral. no historical record after it ends</text>
+  <rect x="384" y="158" width="472" height="46" rx="8" class="dg-node-accent" />
+  <text x="402" y="178" class="dg-t">RFQ, product name: parlay</text>
+  <text x="402" y="195" class="dg-t-mono-dim">GET /v1/rfqs/{id}. this is the queryable object</text>
+  <rect x="504" y="212" width="352" height="46" rx="8" class="dg-node" />
+  <text x="522" y="232" class="dg-t">position</text>
+  <text x="522" y="249" class="dg-t-mono-dim">on-chain footprint. cashout eligible at executed</text>
+</svg>

@@ -1,12 +1,12 @@
 ---
-title: "Create Cashout Request"
-api: "POST /v1/cashout-requests"
-description: "Open an early cashout auction for an on-chain position."
+title: 'Create cashout request'
+api: 'POST /v1/cashout-requests'
+description: 'Open an early cashout auction for an on-chain position.'
 ---
 
 Open an **early cashout auction** on an active on-chain position instead of waiting for settlement. The auction is broadcast to every market maker, and each may bid one all-in price. The [stream](/api-reference/quote-service/cashout-stream) surfaces the highest live bid; ties go to the earliest. Accepting it via [Commit](/api-reference/quote-service/cashout-commit) drives the exit on-chain at that price or better.
 
-The request is keyed on the position's on-chain `position_id` — a 16-byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near-expiry buffer of its market end.
+The request is keyed on the position's on-chain `position_id`, a 16-byte hex string (the `0x` prefix is optional). The position must be active (`executed`), owned by you, have a counterparty MM assigned, and not be within the near-expiry buffer of its market end.
 
 ## Authentication
 
@@ -16,12 +16,12 @@ API key required. Pass your API key in the `X-API-Key` header.
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Request body
 
 <ParamField body="position_id" type="string" required>
-  The position's on-chain id — a 16-byte hex string (32 hex chars), with or without a `0x` prefix.
+  The position's on-chain id. A 16-byte hex string (32 hex chars), with or without a `0x` prefix.
 </ParamField>
 
 ## Response
@@ -36,11 +36,11 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="counterparty_mm_id" type="string">The position's original counterparty market maker. Informational only: the auction is broadcast to every market maker, and a winning bid from this one closes the position rather than transferring it.</ResponseField>
         <ResponseField name="position_id" type="string">The on-chain position id (hex), normalized without the `0x` prefix.</ResponseField>
         <ResponseField name="position_pda" type="string">On-chain position address, or `null`.</ResponseField>
-        <ResponseField name="db_position_id" type="string">Internal UUID of the position record — distinct from the on-chain `position_id` hex.</ResponseField>
+        <ResponseField name="db_position_id" type="string">Internal UUID of the position record. Distinct from the on-chain `position_id` hex.</ResponseField>
         <ResponseField name="user_wallet" type="string">Your wallet address on the position.</ResponseField>
         <ResponseField name="mm_wallet" type="string">The counterparty market maker's wallet address.</ResponseField>
         <ResponseField name="user_stake" type="number">Your net stake on the position (USDC). Always refunded on a buyback.</ResponseField>
-        <ResponseField name="mm_risk" type="number">The counterparty's risk on the position (USDC): `total_payout − user_stake`.</ResponseField>
+        <ResponseField name="mm_risk" type="number">The counterparty's risk on the position (USDC): `total_payout - user_stake`.</ResponseField>
         <ResponseField name="mm_collateral_locked" type="number">Collateral the counterparty has locked on-chain against the position (USDC).</ResponseField>
         <ResponseField name="total_payout" type="number">The position's total payout (USDC).</ResponseField>
         <ResponseField name="taker_fee_locked" type="number">The taker fee locked when the position was created (USDC).</ResponseField>
@@ -59,7 +59,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 ## Response codes
 
-`201 Created` opens a new auction. **`200 OK` returns the auction that was already live** for this position — opening is idempotent per (position, user), so a double-tap resumes the existing auction rather than splitting bidder attention across two. Check the status code, or `expires_at`, before assuming you have a fresh ~10 s window.
+`201 Created` opens a new auction. **`200 OK` returns the auction that was already live** for this position. Opening is idempotent per (position, user), so a double-tap resumes the existing auction rather than splitting bidder attention across two. Check the status code, or `expires_at`, before assuming you have a fresh ~10 s window.
 
 ## Errors
 

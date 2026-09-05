@@ -1,12 +1,12 @@
 ---
-title: "List Quotes"
-api: "GET /v1/mm/quotes"
-description: "List your quotes and their lifecycle status. Filter by status or RFQ, with cursor pagination."
+title: 'List quotes'
+api: 'GET /v1/mm/quotes'
+description: 'List your quotes and their lifecycle status. Filter by status or RFQ, with cursor pagination.'
 ---
 
 List every quote of yours that reached the committed trade lifecycle, newest first. A quote appears here when a user commits one of your quote service drafts: it arrives in `accepted` status, moves to `confirmed` when you [confirm it](/api-reference/mm/confirm-quote), or ends `expired` if the confirmation window lapses.
 
-This is your reconciliation read. If your WebSocket connection drops and you miss a `quote:accepted` event, poll with `status=accepted` and confirm anything still open — a quote whose window already lapsed rejects the confirm with `409`, so a late attempt is safe.
+This is your reconciliation read. If your WebSocket connection drops and you miss a `quote:accepted` event, poll with `status=accepted` and confirm anything still open. A quote whose window already lapsed rejects the confirm with `409`, so a late attempt is safe.
 
 **Base URL:** `https://api.totalis.trade`
 
@@ -21,7 +21,7 @@ X-API-Key: <key>
 ## Query parameters
 
 <ParamField query="status" type="string">
-  Return only quotes in this status. One of `accepted`, `confirmed`, `expired`, `pending`, `executed`, `rejected`, `withdrawn` — in the current flow you will see `accepted`, `confirmed`, and `expired`. An unrecognized value is ignored and the response is unfiltered.
+  Return only quotes in this status. One of `accepted`, `confirmed`, `expired`, `pending`, `executed`, `rejected`, `withdrawn`. In the current flow you will see `accepted`, `confirmed`, and `expired`. An unrecognized value is ignored and the response is unfiltered.
 </ParamField>
 
 <ParamField query="rfq_id" type="string">

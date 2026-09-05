@@ -1,7 +1,7 @@
 ---
-title: "Update Quote Request"
-api: "PATCH /v1/quote-requests/{id}"
-description: "Update the legs or bet amount on an active quote request."
+title: 'Update quote request'
+api: 'PATCH /v1/quote-requests/{id}'
+description: 'Update the legs or bet amount on an active quote request.'
 ---
 
 Update an active quote request with new legs or a different bet amount. This increments the `version` and recomputes the `request_hash`, which automatically invalidates all existing market maker quotes. MMs receive the updated request and can submit fresh prices.
@@ -16,7 +16,7 @@ API key required. Pass your API key in the `X-API-Key` header. The key needs the
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Path parameters
 
@@ -26,7 +26,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 
 ## Request body
 
-Same fields as [Create Quote Request](/api-reference/quote-service/create).
+Same fields as [Create quote request](/api-reference/quote-service/create).
 
 <ParamField body="legs" type="array" required>
   Array of 2-5 parlay legs.

@@ -1,14 +1,14 @@
 ---
-title: "List Positions"
-api: "GET /v1/mm/positions"
-description: "List your active market-maker positions, each with its full parlay legs. Offset paginated, with an optional exposure filter."
+title: 'List positions'
+api: 'GET /v1/mm/positions'
+description: 'List your active market-maker positions, each with its full parlay legs. Offset paginated, with an optional exposure filter.'
 ---
 
-Your active positions as the market maker — the trades where a user committed one of your quotes and you confirmed it — each expanded to its full parlay legs. Newest first.
+Your active positions as the market maker, meaning the trades where a user committed one of your quotes and you confirmed it, each expanded to its full parlay legs. Newest first.
 
-It is the maker-side counterpart to the bettor-scoped RFQ reads, which are keyed to the user who placed the parlay and return `404` for the maker. Use this endpoint to render your live book, reconcile exposure, or resolve an `rfq_id` you already hold (for example one from [Get Vault](/api-reference/funds/get-vault)) to its underlying legs.
+It is the maker-side counterpart to the bettor-scoped RFQ reads, which are keyed to the user who placed the parlay and return `404` for the maker. Use this endpoint to render your live book, reconcile exposure, or resolve an `rfq_id` you already hold (for example one from [Get vault](/api-reference/funds/get-vault)) to its underlying legs.
 
-Only active positions are returned — the `status` values below cover the live and in-flight release states. Settled trades are not included.
+Only active positions are returned. The `status` values below cover the live and in-flight release states. Settled trades are not included.
 
 **Base URL:** `https://api.totalis.trade`
 
@@ -42,7 +42,8 @@ X-API-Key: <key>
       Active positions, newest first.
       <Expandable title="position">
         <ResponseField name="position_pda" type="string">On-chain position PDA.</ResponseField>
-        <ResponseField name="rfq_id" type="string">The RFQ (parlay ticket) id. Pass it to [Get Position](/api-reference/mm/get-position); it also matches the `rfq_id` from [Get Vault](/api-reference/funds/get-vault).</ResponseField>
+        <ResponseField name="position_id" type="string">On-chain position id, hex encoded (32 lowercase chars, no `0x`). The join key for early cashout: match it against the `position_id` on a broadcast [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) to tell whether you back that position.</ResponseField>
+        <ResponseField name="rfq_id" type="string">The RFQ (parlay ticket) id. Pass it to [Get Position](/api-reference/mm/get-position); it also matches the `rfq_id` from [Get vault](/api-reference/funds/get-vault).</ResponseField>
         <ResponseField name="user_id" type="string">The counterparty bettor's Privy DID (`did:privy:...`).</ResponseField>
         <ResponseField name="market_maker_id" type="string">Your market maker Privy DID (`did:privy:...`).</ResponseField>
         <ResponseField name="user_stake" type="number">The bettor's stake in USDC.</ResponseField>
@@ -80,7 +81,7 @@ X-API-Key: <key>
 
 <ResponseField name="meta" type="object">
   <Expandable title="meta">
-    <ResponseField name="has_more" type="boolean">`true` if more pages may exist — set when this page came back full. Because offset pagination only approximates, a follow-up request can still return an empty `positions` array (e.g. if positions settled between pages). Advance `offset` to fetch the next page.</ResponseField>
+    <ResponseField name="has_more" type="boolean">`true` if more pages may exist. Set when this page came back full. Because offset pagination only approximates, a follow-up request can still return an empty `positions` array (e.g. if positions settled between pages). Advance `offset` to fetch the next page.</ResponseField>
     <ResponseField name="limit" type="integer">The effective page size applied.</ResponseField>
     <ResponseField name="offset" type="integer">The offset applied.</ResponseField>
   </Expandable>
@@ -124,6 +125,7 @@ while True:
     "positions": [
       {
         "position_pda": "7sKq9fGh2mNp4rTv6wXy8zAb1cDe3fGh5jKl7mNp9qRs",
+        "position_id": "9f2c7a4e1b6d8305c4a9e7f21d8b306e",
         "rfq_id": "1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40",
         "user_id": "did:privy:cmabc123def456ghi789jkl",
         "market_maker_id": "did:privy:cmxyz987uvw654rst321opq",

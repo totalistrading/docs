@@ -1,7 +1,7 @@
 ---
-title: "Get Quote Request"
-api: "GET /v1/quote-requests/{id}"
-description: "Retrieve a quote request with all active quotes and the current best quote."
+title: 'Get quote request'
+api: 'GET /v1/quote-requests/{id}'
+description: 'Retrieve a quote request with all active quotes and the current best quote.'
 ---
 
 Retrieve a quote request by ID. The response includes the full quote request object, all active quotes for the current version, and the computed best quote (highest payout odds).
@@ -16,7 +16,7 @@ API key required. Pass your API key in the `X-API-Key` header. The key needs the
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Path parameters
 

@@ -1,44 +1,17 @@
 ---
-title: 'Vaults & custody'
-description: 'How Totalis holds collateral: non-custodial on-chain Solana vaults, delegated signing, gas sponsorship, and automatic settlement.'
+title: 'Vaults and custody'
+description: 'How Totalis holds collateral: non-custodial on-chain Solana vaults, delegated signing inside a secure enclave, sponsored gas, and automatic settlement.'
 ---
 
-Totalis is **non-custodial**. Your funds sit in an on-chain Solana vault that the protocol's program controls — not in a Totalis-held account. You enable trading once by delegating signing permission, and from then on placing, settling, and closing parlays happens without you signing each transaction by hand.
+Totalis is non-custodial. Your funds sit in an on-chain Solana vault that the protocol's program
+controls, not in a Totalis held account. You enable trading once by delegating signing permission.
+After that, placing, settling, and closing parlays happens without you signing each transaction by
+hand.
 
-```mermaid
-%%{init: {'themeVariables': {'edgeLabelBackground': '#1f2020', 'lineColor': '#ffffff'}}}%%
-flowchart LR
-    UW["User Wallet<br/>(Privy TEE)"]
-    MW["Market Maker Wallet<br/>(Privy TEE)"]
-
-    subgraph onchain["Solana on-chain"]
-        direction LR
-        UV["User Vault PDA<br/>holds USDC"]
-        MV["MM Vault PDA<br/>holds USDC"]
-        VC["VaultConfig PDA<br/>stores roles + fee_bps (1%)"]
-        POS["Position PDA<br/>locks user_stake + mm_collateral<br/>(parlay legs + status)"]
-        FV["Fee Vault (cold wallet)<br/>collects protocol revenue"]
-
-        UV -- "lock user_stake" --> POS
-        MV -- "lock mm_collateral" --> POS
-        VC -. "reads roles + fee_bps" .-> POS
-        POS -- "fee (1% of profit, winning side)" --> FV
-    end
-
-    subgraph offchain["Off-chain"]
-        direction TB
-        ORACLE["Off-chain oracle<br/>creates positions<br/>monitors outcomes<br/>settles / cancels"]
-        API["Kalshi / Polymarket API<br/>market outcomes"]
-        ORACLE -- "polls outcomes" --> API
-    end
-
-    UW -- "deposit (USDC)" --> UV
-    UV -- "payout (if user wins)" --> UW
-    MW -- "deposit (USDC)" --> MV
-    MV -- "payout (if MM wins)" --> MW
-    ORACLE -- "create_position" --> POS
-    ORACLE -- "settle / cancel" --> POS
-```
+<div className="dg-scroll">
+  <img className="block dark:hidden" src="/images/diagrams/vault-architecture-light.svg" alt="How USDC moves between wallets, vaults, a position, and the fee vault" />
+  <img className="hidden dark:block" src="/images/diagrams/vault-architecture-dark.svg" alt="How USDC moves between wallets, vaults, a position, and the fee vault" />
+</div>
 
 ## Your vault
 
@@ -46,41 +19,63 @@ You have one persistent vault, reused across every parlay. It tracks three balan
 
 | Balance | Meaning |
 | --- | --- |
-| **Gross** | Total USDC in the vault. |
-| **Locked** | Collateral committed to your active positions. |
-| **Free** | `gross − locked` — available to trade or withdraw. |
+| Gross | Total USDC in the vault. |
+| Locked | Collateral committed to your active positions. |
+| Free | `gross - locked`. Available to trade or withdraw. |
 
-Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). You fund the vault by sending USDC to your wallet (see [Funding](/guides/funding)); placing a parlay moves your stake into the vault and locks it in one atomic step.
+Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). You fund the vault by
+sending USDC to your wallet (see [Funding](/guides/funding)). Placing a parlay moves your stake into
+the vault and locks it in one atomic step.
 
 ## Delegated signing
 
-Your wallet is a Privy embedded wallet whose private key lives inside a **Trusted Execution Environment (TEE)** — it never leaves the enclave, and not even Privy can extract it.
+Your wallet is a Privy embedded wallet whose private key lives inside a Trusted Execution
+Environment. The key never leaves the enclave, and Privy cannot extract it either.
 
-To trade, you grant Totalis permission to sign on your behalf inside that enclave (a one-time consent in the app — see [Enable trading](/guides/funding#enable-trading-first)). This is **semi-custodial**: you explicitly grant the permission and can revoke it at any time. Totalis can sign your trades, but never holds or can move your key.
+To trade, you grant Totalis permission to sign on your behalf inside that enclave. This is a one
+time consent in the app, described under [Enable trading](/guides/funding#enable-trading-first).
+
+This is semi-custodial. You explicitly grant the permission and can revoke it at any time. Totalis
+can sign your trades. It never holds your key and cannot move it.
 
 ## Gas is sponsored
 
-Totalis pays the network fees for trading and settlement, so your wallet only ever needs to hold **USDC** — never SOL.
+Totalis pays the network fees for trading and settlement. Your wallet only ever needs to hold USDC,
+never SOL.
 
 ## How a position locks and settles
 
-When you accept a quote, your stake and the maker's collateral lock together in a **single atomic transaction** — there's no window where one side is funded and the other isn't.
+When you commit to a quote, your stake and the maker's collateral lock together in a single atomic
+transaction. There is no window where one side is funded and the other is not.
 
-Totalis charges two fees: a 1% taker fee on your stake, charged upfront when you place the trade, and a protocol fee taken **on profit only** when funds move between vaults at settlement:
+Settlement moves funds in exactly one of three ways:
 
-- **You win** — you receive the maker's collateral, minus the fee on your profit.
-- **You lose** — your stake transfers to the maker, minus the fee.
-- **A leg is voided** (market invalidated) — the position is cancelled, both sides' collateral is released, and no one wins or loses.
+| Outcome | Result |
+| --- | --- |
+| You win | You receive the maker's collateral, minus the profit fee on your profit. |
+| You lose | Your stake transfers to the maker, minus the fee on their profit. |
+| A leg is voided | The position is cancelled and both sides' collateral is released. Nobody wins or loses. |
 
-The fee rate is fixed onto each position when it's created, so settlement always uses the rate that applied at trade time.
+The fee rate is written onto each position when it is created, so settlement always uses the rate
+that applied at trade time. Both fees and the full math are on
+[Limits and fees](/guides/limits-and-fees).
+
+## What Totalis can and cannot do
+
+A precise statement of the trust model, since "non-custodial" gets used loosely:
+
+| Totalis can | Totalis cannot |
+| --- | --- |
+| Sign trading transactions inside the enclave, while your delegation is active | Extract or hold your private key |
+| Create and settle positions against verified market outcomes | Move locked collateral to an arbitrary address |
+| Collect the protocol fee defined on the position | Change the fee rate on a position that is already live |
+| Cancel a position when a leg is voided | Prevent you from revoking delegation |
+
+Every vault, position, and settlement is on the Solana blockchain and independently verifiable.
 
 ## Capital efficiency for makers
 
-Market makers don't lock the full risk of every position independently. Totalis margins a maker's book as a portfolio: collateral reflects their **incremental worst-case exposure**, so hedged or offsetting positions require less locked capital than the naive sum. This is what lets makers quote deep, competitive odds.
-
-## Why this design
-
-- **Non-custodial** — collateral is locked in on-chain vaults the program controls; Totalis never holds your funds.
-- **Verifiable** — every vault, position, and settlement is on the Solana blockchain.
-- **Atomic** — position creation is one transaction with no partial-failure states.
-- **Low overhead** — one reused vault per participant keeps on-chain costs down.
+Market makers do not lock the full risk of every position independently. Totalis margins a maker's
+book as a portfolio, so collateral reflects their incremental worst case exposure. Hedged or
+offsetting positions require less locked capital than the naive sum. This is what lets makers quote
+deep, competitive odds.

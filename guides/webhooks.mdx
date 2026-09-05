@@ -7,14 +7,14 @@ Webhooks push events to your server as they happen, so you don't have to poll. E
 **HMAC-signed** so you can verify it came from Totalis, delivered only for events whose **scope your
 API key holds**, and **retried with backoff** until it succeeds or is dead-lettered.
 
-The endpoint belongs to your **account** (the principal), not to the key that created it — any of
+The endpoint belongs to your **account** (the principal), not to the key that created it. Any of
 your active keys with the right scope manages it, and revoking one key among several does not stop
 delivery.
 
 <Note>
-  Webhooks are the durable channel — at-least-once, signed, retried. For the same events pushed
+  Webhooks are the durable channel: at-least-once, signed, and retried. For the same events pushed
   live to a connected client (a UI or trading bot), use the [WebSocket](/guides/websocket). See
-  [Real time & data channels](/guides/realtime-and-data) for the full channel map.
+  [Real time and data channels](/guides/realtime-and-data) for the full channel map.
 </Note>
 
 ## Configuring your endpoint
@@ -32,9 +32,9 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
   }'
 ```
 
-- **`url`** — must be HTTPS and must not resolve to private/internal infrastructure.
-- **`events`** — any subset of the [catalog](#event-catalog) below. An empty array parks the endpoint (nothing matches) without deleting it.
-- **Signing secret** — generate one with `POST /v1/webhooks/rotate-secret`. **Deliveries only start once a signing secret exists** (`whsec_…`, shown exactly once — store it securely). A typical setup is `PUT /v1/webhooks` then `POST /v1/webhooks/rotate-secret`.
+- **`url`**: must be HTTPS and must not resolve to private/internal infrastructure.
+- **`events`**: any subset of the [catalog](#event-catalog) below. An empty array parks the endpoint (nothing matches) without deleting it.
+- **Signing secret**: generate one with `POST /v1/webhooks/rotate-secret`. **Deliveries only start once a signing secret exists** (`whsec_...`, shown exactly once, so store it securely). A typical setup is `PUT /v1/webhooks` then `POST /v1/webhooks/rotate-secret`.
 
 <Info>
   You only receive an event if your key holds the **scope that event requires** (re-checked at
@@ -44,18 +44,18 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
 
 <Note>
   **Market makers** manage a separate endpoint with `?owner_kind=mm` (gated on `mm:quote`). Its events
-  carry the MM's side of a position — `mm_result` and, on buyback, `mm_pays_user` — rather than the
+  carry the MM's side of a position (`mm_result`, plus `mm_pays_user` on buyback) rather than the
   bettor's. A `user` endpoint (the default) ships your own bettor-side event data.
 </Note>
 
 ## Event catalog
 
 <Note>
-  **`parlay.status_changed`** tracks an RFQ's live progression — `status` is one of `accepted`,
+  **`parlay.status_changed`** tracks an RFQ's live progression. `status` is one of `accepted`,
   `confirmed`, `executed`, or `cancelled` (`accepted_quote_id` is set once a quote is accepted, else
   `null`). Terminal **settlement** comes via `position.settled`, and expiry isn't part of this event,
   so use the `position.*` events for final outcomes. A cancellation fires **both**
-  `parlay.status_changed` (`status: "cancelled"`) and `position.cancelled` — dedupe on
+  `parlay.status_changed` (`status: "cancelled"`) and `position.cancelled`. Dedupe on
   `X-Totalis-Event-Id` if you subscribe to both.
 </Note>
 
@@ -63,7 +63,7 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
 | --- | --- | --- |
 | `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
 | `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
-| `position.bought_back` | `positions:read` | `rfq_id`, `amount` (the directional buyback amount, net on top of the refunded stake — see `mm_pays_user` for direction), `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `position.bought_back` | `positions:read` | `rfq_id`, `amount` (the directional buyback amount, net on top of the refunded stake. `mm_pays_user` gives the direction), `mm_pays_user`, `tx_signature`, `occurred_at` |
 | `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
 | `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 | `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
@@ -74,21 +74,21 @@ Each delivery is an HTTP `POST` with a JSON body and these headers:
 
 | Header | Description |
 | --- | --- |
-| `X-Totalis-Signature` | `t=<unix-seconds>,v1=<hmac-sha256-hex>` — see [verifying](#verifying-signatures). |
+| `X-Totalis-Signature` | `t=<unix-seconds>,v1=<hmac-sha256-hex>`. See [verifying](#verifying-signatures). |
 | `X-Totalis-Event-Id` | Unique event id. **Use this to deduplicate.** |
 | `X-Totalis-Event-Type` | The event name, e.g. `position.settled`. |
 | `Content-Type` | `application/json` |
 
-The body is a stable envelope — `id`, `type`, and an event-specific `data` object:
+The body is a stable envelope: `id`, `type`, and an event-specific `data` object:
 
 ```json
 {
-  "id": "evt_01HZX…",
+  "id": "evt_01HZX",
   "type": "position.settled",
   "data": {
     "rfq_id": "11111111-1111-1111-1111-111111111111",
     "outcome": "user_wins",
-    "tx_signature": "5Hk…",
+    "tx_signature": "5Hk...",
     "occurred_at": "2026-06-22T00:00:00.000Z"
   }
 }
@@ -102,7 +102,7 @@ The `X-Totalis-Signature` header has the form `t=<timestamp>,v1=<signature>`, wh
 `HMAC-SHA256(secret, "<timestamp>.<raw-body>")` hex-encoded. To verify:
 
 1. Parse `t` and `v1` from the header.
-2. Reject if `t` is outside your tolerance (we recommend **±5 minutes**) — this blocks replay.
+2. Reject if `t` is outside your tolerance (5 minutes either side is a good default). This blocks replay.
 3. Recompute the HMAC over the **exact raw request body** joined to the timestamp as `t.body`.
 4. Compare to `v1` with a constant-time equality check.
 
@@ -132,7 +132,7 @@ export function verifyTotalisWebhook(
   if (!Number.isFinite(t) || !v1) return false;
   if (Math.abs(Date.now() / 1000 - t) > toleranceSec) return false;
 
-  // Chained .update() signs "<t>." then the raw body bytes — no string coercion of the Buffer.
+  // Chained .update() signs "<t>." then the raw body bytes, with no string coercion.
   const expected = createHmac("sha256", secret).update(`${t}.`).update(rawBody).digest("hex");
   const a = Buffer.from(expected);
   const b = Buffer.from(v1);
@@ -173,12 +173,12 @@ def verify_totalis_webhook(secret: str, signature_header: str, raw_body: bytes, 
 
 If your endpoint doesn't return `2xx`, Totalis retries with exponential backoff:
 
-- **Retried:** `5xx`, `408`, `429`, timeouts, and network errors → status `failed`, will retry.
-- **Not retried:** other `4xx` responses → immediately `dead_letter` (your endpoint rejected it; a retry won't help).
+- **Retried:** `5xx`, `408`, `429`, timeouts, and network errors give status `failed`, will retry.
+- **Not retried:** other `4xx` responses go immediately to `dead_letter` (your endpoint rejected it; a retry won't help).
 - After the retry budget is exhausted, the delivery is `dead_letter`.
 
-Return `2xx` quickly and do heavy work asynchronously — a slow endpoint that exceeds the delivery
-timeout counts as a failed attempt.
+Return `2xx` quickly and do heavy work asynchronously. A slow endpoint that exceeds the
+delivery timeout counts as a failed attempt.
 
 ## Inspecting & replaying deliveries
 
@@ -189,7 +189,7 @@ response code (newest first):
 {
   "deliveries": [
     {
-      "id": "…",
+      "id": "...",
       "event_type": "position.settled",
       "status": "delivered",
       "attempts": 1,
@@ -203,23 +203,24 @@ response code (newest first):
 ### Replaying deliveries
 
 A **delivered** or **dead-lettered** delivery can be re-queued with
-`POST /v1/webhooks/deliveries/{id}/redeliver` — useful after you fix a bug or an outage on your side.
+`POST /v1/webhooks/deliveries/{id}/redeliver`. This is how you recover after fixing a bug or an
+outage on your side.
 Replays reuse the same `X-Totalis-Event-Id`, so your deduplication will recognize them.
 
 <Note>
-  A `failed` delivery that is still mid-retry can't be manually replayed — it's already scheduled for
+  A `failed` delivery that is still mid-retry cannot be manually replayed. It is already scheduled for
   another attempt. Wait for it to land or dead-letter.
 </Note>
 
 ## Rotating your signing secret
 
 Rotate the secret anytime with `POST /v1/webhooks/rotate-secret`. The new secret is shown once and the
-**old one stops signing immediately** — there's no overlap window where both are valid. A safe
+**old one stops signing immediately**, with no overlap window where both are valid. A safe
 sequence:
 
 <Steps>
   <Step title="Rotate during a quiet window">
-    Generate the new secret. Capture it immediately — it's shown only once.
+    Generate the new secret. Capture it immediately, since it is shown only once.
   </Step>
   <Step title="Update your verifier">
     Deploy the new secret to your endpoint as fast as possible. Any deliveries signed with the new
@@ -227,6 +228,6 @@ sequence:
   </Step>
   <Step title="Replay anything that failed in the gap">
     From the deliveries list, replay any `dead_letter` (or, once they exhaust retries, formerly
-    `failed`) deliveries from the swap window — they'll be re-signed with the current secret.
+    `failed`) deliveries from the swap window. They are re-signed with the current secret.
   </Step>
 </Steps>

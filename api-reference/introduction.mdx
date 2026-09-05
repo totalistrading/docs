@@ -1,9 +1,10 @@
 ---
 title: 'API overview'
-description: 'The Totalis REST + SSE API — base URL, authentication, response envelope, pagination, and errors.'
+description: 'The Totalis REST, SSE, and WebSocket API: base URL, authentication, response envelope, units, pagination, and where the error and limit references live.'
 ---
 
-The Totalis API is REST over HTTPS with JSON bodies. It adds Server-Sent Events (SSE) for live quote pricing and a [WebSocket](/guides/websocket) for post-trade events, all in `snake_case`. Not sure which channel fits your integration? Start with [Real time & data channels](/guides/realtime-and-data).
+The Totalis API is REST over HTTPS with JSON bodies, in `snake_case`. It adds Server-Sent Events for
+live quote pricing and a [WebSocket](/guides/websocket) for post-trade events.
 
 ## Base URL
 
@@ -11,38 +12,62 @@ The Totalis API is REST over HTTPS with JSON bodies. It adds Server-Sent Events 
 https://api.totalis.trade
 ```
 
+## Try it without a key
+
+Market data is public:
+
+```bash
+curl "https://api.totalis.trade/markets?limit=3"
+```
+
 ## Authentication
 
-Send your API key in the `X-API-Key` header on every request:
+Send your API key in the `X-API-Key` header on every authenticated request:
 
 ```
 X-API-Key: <your-api-key>
 ```
 
-The web dashboard authenticates with Privy instead, sending `Authorization: Bearer <jwt>`. Either scheme works on any authenticated endpoint. The exception is minting a new API key (`POST /v1/api-keys`), which requires a Privy JWT or a key with the `keys:manage` scope. Each key is scoped — see [Authentication](/guides/authentication) for the catalog.
+The web dashboard authenticates with Privy instead, sending `Authorization: Bearer <jwt>`. Either
+scheme works on any authenticated endpoint. The exception is minting a new API key
+(`POST /v1/api-keys`), which requires a Privy JWT or a key with the `keys:manage` scope.
+
+Every key is scoped. See [Authentication](/guides/authentication) for the catalog.
 
 ## Response envelope
 
 Successful responses wrap the resource in `data`:
 
 ```json
-{ "data": { /* resource */ } }
+{ "data": { "...": "resource" } }
 ```
 
 List endpoints add cursor-based pagination in `meta`:
 
 ```json
 {
-  "data": { "rfqs": [ /* ... */ ] },
+  "data": { "rfqs": [] },
   "meta": { "cursor": "opaque-string-or-null", "has_more": false }
 }
 ```
 
-To page, pass the previous response's `meta.cursor` as `?cursor=`. Cursors are opaque — don't parse or build them yourself.
+To page, pass the previous response's `meta.cursor` as `?cursor=`. Cursors are opaque. Do not parse
+or build them.
+
+## Units
+
+<Note>
+Any field whose name ends in `_micro` is an **integer of microUSDC**, where `1000000` equals 1.00
+USDC. Every other money field is a **decimal USDC number**. Both conventions appear in the same
+payload on the cashout surface.
+</Note>
+
+Market prices are decimal probabilities from 0 to 1, normalized across venues. The full unit table
+is in the [Glossary](/guides/glossary#units).
 
 ## Errors
 
-Errors use a consistent envelope:
+Every error, on every endpoint, has the same shape:
 
 ```json
 {
@@ -54,17 +79,19 @@ Errors use a consistent envelope:
 }
 ```
 
-`error.code` is one of: `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `PAYLOAD_TOO_LARGE`, `INTERNAL_ERROR`, `SERVICE_UNAVAILABLE`. On a `429`, `error.retry_after` gives the seconds to wait before retrying.
+Branch on `error.code`, never on `error.message`. Every code, every per-surface rejection reason,
+and which ones to retry are on [Errors](/api-reference/errors).
 
 ## Rate limits
 
-100 requests/minute unauthenticated, 300/minute authenticated. Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. The
+per-minute limits are on [Limits and fees](/guides/limits-and-fees#rate-limits).
 
 ## Endpoint groups
 
 <CardGroup cols={2}>
   <Card title="Markets" icon="store" href="/api-reference/markets/list">
-    Browse prediction markets across Kalshi and Polymarket.
+    Browse prediction markets across Kalshi and Polymarket. Public.
   </Card>
   <Card title="Quote service" icon="bolt" href="/api-reference/quote-service/create">
     Open a quote request, stream live pricing, and commit the best quote.
@@ -72,7 +99,7 @@ Errors use a consistent envelope:
   <Card title="Parlays" icon="layer-group" href="/api-reference/parlays/list">
     List your parlays and read settlement detail.
   </Card>
-  <Card title="Funds & vault" icon="wallet" href="/api-reference/funds/get-vault">
+  <Card title="Funds and vault" icon="wallet" href="/api-reference/funds/get-vault">
     Balances, portfolio, P&L, and withdrawals.
   </Card>
   <Card title="Webhooks" icon="bell" href="/api-reference/webhooks/get-config">
@@ -80,5 +107,11 @@ Errors use a consistent envelope:
   </Card>
   <Card title="Market maker" icon="chart-line" href="/api-reference/quote-service-mm/stream">
     Stream quote requests, submit quotes, and confirm trades.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/api-reference/errors">
+    Every code and rejection reason, and which to retry.
+  </Card>
+  <Card title="Changelog" icon="clock-rotate-left" href="/changelog">
+    Endpoints added, retired, and renamed.
   </Card>
 </CardGroup>

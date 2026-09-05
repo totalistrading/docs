@@ -1,0 +1,135 @@
+---
+title: 'Limits and fees'
+description: 'Every constraint and every fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
+---
+
+Every number the API enforces lives on this page. Other pages link here rather than restating them.
+
+## Parlay construction
+
+| Constraint | Value | Enforced at |
+| --- | --- | --- |
+| Legs per parlay | 2 to 5 | [Create quote request](/api-reference/quote-service/create) |
+| Bet amount | 1 to 100 USDC | Create quote request |
+| Payout odds | 1.0001 to 1000 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
+| Leg combinations | Two markets can share a parlay only if their `exclusion_keys` arrays do not intersect | Create quote request |
+
+Correlated legs are rejected. Read each market's `exclusion_keys` from
+[List markets](/api-reference/markets/list-flat) and intersect them yourself before you build a
+request, rather than discovering the rejection at create time.
+
+## Timing
+
+| Window | Default | Range | What it governs |
+| --- | --- | --- | --- |
+| Quote validity | 15 s | 5 to 60 s | How long a maker's submitted quote stays live (`expires_in_ms`) |
+| Quote request expiry | 300 s | 30 s to 24 h | How long your request accepts quotes before it expires uncommitted |
+| Maker confirmation | 5 s | configurable, floor 5 s | How long the winning maker has to confirm after you commit |
+| Cashout auction | about 10 s | fixed | How long an early exit auction accepts bids |
+| Cashout bid validity | 15000 ms | 5000 to 60000 ms | How long your cashout bid stays live |
+
+<Warning>
+Do not hardcode these defaults. Every object that expires carries its own `expires_at` or
+`valid_until` timestamp. Honor the timestamp on the object, not the number in this table. The
+defaults are configurable, so the table tells you the shape of the window, not a guarantee for a
+specific request.
+</Warning>
+
+If the maker misses the confirmation window, the parlay reopens for other makers, or expires if its
+own window has passed. Your funds are never touched in that path.
+
+## Rate limits
+
+There are two buckets, not one budget split by credential. Which one you land in depends on
+whether the route resolves your identity before or after rate limiting.
+
+| Bucket | Routes | Keyed by | Limit |
+| --- | --- | --- | --- |
+| Authenticated | `/v1/*`, `/app/*`, and your parlay reads | your account | 300 / minute |
+| Public | `/markets*`, `/v1/markets*`, `/referral*` | source IP | 100 / minute |
+
+Quote service routes (`/v1/quote-requests`, `/v1/cashout-requests`, `/v1/mm/*`) are limited
+separately, per IP, and do not draw down the 300.
+
+What this means when you size a client:
+
+- Market reads do **not** debit your authenticated budget.
+- Sending an API key to a public read does **not** raise its limit. Those routes never resolve the
+  key, so you stay on the per-IP bucket.
+- The per-IP bucket is per **source IP**, not per key. A market maker fleet behind one NAT shares a
+  single 100 / minute market-read budget across every process and every key it runs.
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. A
+`429` response includes `error.retry_after`, in seconds. See [Errors](/api-reference/errors).
+
+<Note>
+`X-RateLimit-Limit` reports the ceiling that applied, not which counter produced it, so two routes
+can both report `100` from different buckets. Watch `X-RateLimit-Remaining` to tell them apart.
+</Note>
+
+## Fees
+
+Totalis charges two fees. They are charged at different times, against different bases.
+
+| Fee | Rate | Base | When |
+| --- | --- | --- | --- |
+| Taker fee | 1% | Your gross `bet_amount` | Upfront, when you place the trade |
+| Profit fee | 1% | The winning side's profit | At settlement, or on a closing cashout |
+
+The taker fee is why odds never apply to your gross bet. It comes off first, and everything
+downstream is priced against what remains.
+
+```
+taker_fee    = floor(bet_amount_micro * 100 / 10000)   # 1% = 100 bps, integer microUSDC
+user_stake   = bet_amount - taker_fee                  # called user_cost before commit
+total_payout = user_stake * payout_odds
+mm_risk      = total_payout - user_stake               # called mm_cost before commit
+```
+
+<div className="dg-scroll">
+  <img className="block dark:hidden" src="/images/diagrams/limits-and-fees-light.svg" alt="Fee waterfall for a 25 USDC bet at 4.0 payout odds" />
+  <img className="hidden dark:block" src="/images/diagrams/limits-and-fees-dark.svg" alt="Fee waterfall for a 25 USDC bet at 4.0 payout odds" />
+</div>
+
+Worked example, matching the diagram. You bet 25 USDC and a maker quotes 4.0 payout odds:
+
+| Step | Amount |
+| --- | --- |
+| Bet amount | 25.00 |
+| Taker fee (1%, upfront) | 0.25 |
+| Net stake (`user_stake`) | 24.75 |
+| Total payout at 4.0 odds | 99.00 |
+| Maker's locked risk (`mm_risk`) | 74.25 |
+| Your profit if every leg wins | 74.25 |
+| Profit fee (1% of profit) | 0.7425 |
+| You receive | 98.2575 |
+
+<Note>
+The fee rate is written onto the position when it is created. A later rate change never reprices a
+position that is already live. Settlement always uses the rate that applied at trade time.
+</Note>
+
+### Fees on an early exit
+
+An [early cashout](/guides/early-cashout) is a real settlement, not a refund. The bid you accept is
+a single all-in figure with the profit fee already inside it. There is no separate fee line to
+subtract, and no second taker fee for leaving.
+
+### Referral share
+
+A share of the trading fees generated by traders you refer is paid back to you in USDC. The rate,
+the claim minimum, and how accrual works are on [Referrals](/referrals).
+
+## Network
+
+| | |
+| --- | --- |
+| Chain | Solana mainnet |
+| Settlement asset | USDC (SPL) |
+| Mint | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| Network fees | Sponsored by Totalis. Your wallet never needs SOL. |
+
+<Warning>
+Send only native Solana USDC at the mint above. Bridged USDC, other tokens, and transfers on another
+chain are not credited and may be unrecoverable.
+</Warning>

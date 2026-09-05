@@ -1,7 +1,7 @@
 ---
-title: "Cancel Quote Request"
-api: "POST /v1/quote-requests/{id}/cancel"
-description: "Cancel an active quote request."
+title: 'Cancel quote request'
+api: 'POST /v1/quote-requests/{id}/cancel'
+description: 'Cancel an active quote request.'
 ---
 
 Cancel an active quote request. All pending market maker quotes are invalidated and the request is removed from the live stream. Returns `204 No Content` on success.
@@ -16,7 +16,7 @@ API key required. Pass your API key in the `X-API-Key` header. The key needs the
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Path parameters
 

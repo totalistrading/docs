@@ -1,0 +1,143 @@
+---
+title: 'Errors'
+description: 'Every error the Totalis API returns: the envelope, the HTTP status meanings, the top level codes, the per surface rejection reasons, and which ones to retry.'
+---
+
+Every error code the API can return is listed on this page. Other pages link here rather than
+restating them.
+
+## Envelope
+
+Every error, on every endpoint, has the same shape:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Human-readable description.",
+    "details": {}
+  }
+}
+```
+
+`error.code` is stable and safe to branch on. `error.message` is for humans and may change without
+notice, so never match on it. `error.details` carries surface specific context, most often
+`details.reason`.
+
+## HTTP statuses
+
+| Status | Meaning | Your move |
+| --- | --- | --- |
+| `400` | The request is malformed or a value is out of range. | Fix the request. Retrying will not help. |
+| `401` | The credential is missing, invalid, revoked, or expired. | Check the key. Do not retry with the same one. |
+| `403` | The credential is valid but not permitted to do this. | Check scopes, or the key format. |
+| `404` | The object does not exist, is not yours, or has already been evicted. | Treat as normal on short lived objects. |
+| `409` | A state conflict. Something changed underneath you. | Re-read state and decide. Often not retryable. |
+| `413` | Payload too large. | Reduce the request body. |
+| `429` | Rate limited. | Wait `error.retry_after` seconds. |
+| `500` | Something failed on our side. | Retry with backoff. |
+| `503` | Temporarily unavailable. | Retry with backoff. |
+
+A parlay id you do not own returns `404`, not `403`. The API does not confirm the existence of other
+accounts' objects.
+
+## Top level codes
+
+| `error.code` | Status |
+| --- | --- |
+| `VALIDATION_ERROR` | 400 |
+| `UNAUTHORIZED` | 401 |
+| `FORBIDDEN` | 403 |
+| `NOT_FOUND` | 404 |
+| `CONFLICT` | 409 |
+| `PAYLOAD_TOO_LARGE` | 413 |
+| `RATE_LIMITED` | 429 |
+| `INTERNAL_ERROR` | 500 |
+| `SERVICE_UNAVAILABLE` | 503 |
+
+## Authentication
+
+| Condition | REST | SSE | `details.reason` |
+| --- | --- | --- | --- |
+| Credential does not start with `api_` | `403` | `403` | `wrong_api_key_type` |
+| Well formed key, but invalid or revoked | `401` | `401` | |
+| Valid key, missing the required scope | `403` | `403` | `insufficient_scope` |
+
+A malformed key returns `403` on every surface. The response body carries a hint about the
+expected format. Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. See
+[Authentication](/guides/authentication) for the scope catalog.
+
+## Committing a quote
+
+Returned by [`POST /v1/quote-requests/{id}/commit`](/api-reference/quote-service/commit) in
+`error.details.reason`.
+
+| Reason | What happened | Your move |
+| --- | --- | --- |
+| `QUOTE_CHANGED` | The request changed since the version you committed against. | Re-read the request and commit against the new version. |
+| `QUOTE_EXPIRED` | Every quote on the request has expired. | Wait for a fresh `best_quote` event, then retry. |
+| `MARKET_NOT_LIVE` | A leg's market expired, halted, or was delisted. | Remove the affected leg. Retrying will not help. |
+| `COMMIT_FAILED` | The commit could not be completed. No eligible maker had sufficient collateral, for example. | Not retryable. The trade did not happen. |
+| `COMMIT_FAILED_RETRYABLE` | A temporary failure. | Retry after a short delay. |
+
+No commit failure moves funds. If the commit did not return success, the trade did not happen.
+
+## Submitting a quote
+
+Returned by [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote).
+
+| Status | `details.reason` | Meaning |
+| --- | --- | --- |
+| 400 | `insufficient_collateral` | The quote needs more collateral than you have free. Carries `required` and `available`. |
+| 503 | `collateral_check_unavailable` | Your balance could not be verified. Retry. |
+| 503 | `fee_unavailable` | The taker fee rate could not be read, so the quote was rejected rather than priced at 0 bps. Retry. |
+| 409 | `version_mismatch` | Your `request_version` or `request_hash` is stale. Re-read the latest event and resubmit both. |
+
+The two `503`s are deliberate: a quote priced against an unknown fee rate would apply your odds
+to the gross bet instead of the net stake, so you would underwrite more than you modelled.
+
+## Bidding on a cashout auction
+
+Returned by [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote).
+
+| Status | `details.reason` | Meaning |
+| --- | --- | --- |
+| 400 | validation | Non-integer or non-positive `price_micro`, `expires_in_ms` out of range, unknown field, or malformed JSON. |
+| 400 | `price_above_max_payout` | Your bid exceeds `total_payout`. The response carries `max_price_micro`. |
+| 400 | `price_above_buyback_bound` | You back this position and the bid exceeds what your collateral covers after the fee. |
+| 403 | `insufficient_scope` | Your key lacks `mm:quote`. |
+| 404 | | The auction is unknown or already evicted at its TTL. This is the normal "too slow" outcome. |
+| 409 | `self_quote` | You opened this auction, so you are the seller. Bidding on a position you *back* is allowed: that win closes the position. |
+| 409 | `not_active` | The auction was committed or cancelled before your bid landed. |
+| 409 | `expired` | The auction expired as your bid landed. |
+| 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
+| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a *closing* exit cannot be built. Only your bids fail. Others can still win it as an acquisition, so do not blacklist the position. |
+
+### Rejections you never see
+
+Some cashout rejections happen at commit time, on the user's request, not on your bid. They never
+reach you as an HTTP response. You learn of them by not being filled.
+
+| Reason | Meaning |
+| --- | --- |
+| `amount_over_bound` | The fee aware ceiling, re-checked at commit when the fee rate was unavailable at bid time. |
+| `insufficient_buyer_balance` | You would acquire the position but your free balance does not cover it. |
+| `buyer_no_vault` | You would acquire the position but have no vault. |
+| `already_transferred` | The position had already moved. |
+
+## Triage
+
+How to treat each class in a running integration:
+
+| Class | Treatment |
+| --- | --- |
+| `400`, `401`, `403` | **Alert.** These are your bug. If every request fails this way you are silently out of the market. |
+| `404` and race class `409` (`not_active`, `expired`) | **Log quietly.** On short lived objects these are ordinary lost races, not failures. |
+| `429` | Back off for `error.retry_after` seconds. |
+| `500`, `503` | Retry with exponential backoff. |
+
+<Warning>
+A losing auction and a broken integration look identical if you log them the same way. Separate
+`400` / `401` / `403` from `404` / `409` in your alerting on day one. A market maker whose key
+silently lost the `mm:quote` scope sees nothing but quiet 403s.
+</Warning>

@@ -33,8 +33,10 @@
             "group": "Core concepts",
             "pages": [
               "guides/lifecycle",
+              "guides/limits-and-fees",
               "guides/funding",
-              "guides/vault-architecture"
+              "guides/vault-architecture",
+              "guides/glossary"
             ]
           },
           {
@@ -54,6 +56,7 @@
             "group": "Resources",
             "pages": [
               "guides/faq",
+              "changelog",
               "referrals",
               "terms-of-service",
               "privacy-policy"
@@ -67,7 +70,8 @@
           {
             "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/errors"
             ]
           },
           {
@@ -131,7 +135,7 @@
             ]
           },
           {
-            "group": "Funds & vault",
+            "group": "Funds and vault",
             "pages": [
               "api-reference/funds/get-vault",
               "api-reference/funds/wallet-withdraw",

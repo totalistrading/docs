@@ -1,19 +1,41 @@
 ---
-title: "Quickstart"
-description: "Authenticate, make your first call, and find your way to placing a parlay."
+title: 'Quickstart'
+description: 'Call the public market data endpoint with no account, then get a scoped API key and make your first authenticated request.'
 ---
 
-This gets you from zero to a working, authenticated request in a few minutes.
+## Step 0. Call the API right now
+
+Market data needs no key and no account. Run this before you sign up for anything:
+
+```bash
+curl "https://api.totalis.trade/markets?limit=3"
+```
+
+Every market in the response carries the `ticker` and `venue` you will reference when you build a
+parlay leg. See [List markets](/api-reference/markets/list) for filters by category, venue, and
+search.
+
+Everything past this point needs a key.
 
 ## 1. Get an API key
 
-Create a key from the [Totalis Dashboard](https://app.totalis.trade) (account settings → API keys). Give it the scopes your integration needs — for a read-only start, `account:read`, `positions:read`, and `balances:read` are enough. See [Authentication](/guides/authentication) for the full scope catalog.
+Create a key from the [Totalis Dashboard](https://app.totalis.trade), under account settings, then
+API keys. Give it only the scopes your integration needs. For a read-only start, `account:read`,
+`positions:read`, and `balances:read` are enough. See
+[Authentication](/guides/authentication) for the full scope catalog.
 
-Copy the key when it's shown — it's only displayed once.
+<Warning>
+Copy the key when it is shown. The full key is displayed exactly once and cannot be retrieved later.
+</Warning>
 
-## 2. Make your first call
+```bash
+export TOTALIS_API_KEY="api_live_..."
+```
 
-Every request to `https://api.totalis.trade` carries your key in the `X-API-Key` header. Confirm it works by reading your profile:
+## 2. Make your first authenticated call
+
+Every request to `https://api.totalis.trade` carries your key in the `X-API-Key` header. Confirm it
+works by reading your profile:
 
 ```bash
 curl https://api.totalis.trade/v1/me \
@@ -23,27 +45,22 @@ curl https://api.totalis.trade/v1/me \
 ```json
 {
   "data": {
-    "id": "did:privy:…",
+    "id": "did:privy:...",
     "username": "satoshi",
-    "wallet_address": "7Xy…"
+    "wallet_address": "7Xy..."
   }
 }
 ```
 
-Every successful response is wrapped in a `data` envelope. A `401` means the key is missing or wrong; a `403` means the key lacks the scope for that endpoint.
+Every successful response wraps the resource in a `data` envelope.
 
-## 3. Browse markets
+| Response | Meaning |
+| --- | --- |
+| `200` | The key works. |
+| `401` | The key is missing, invalid, or revoked. |
+| `403` | The key is valid but lacks the scope for this endpoint, or does not start with `api_`. |
 
-Markets are the building blocks of a parlay. List what's tradable:
-
-```bash
-curl "https://api.totalis.trade/markets?limit=5" \
-  -H "X-API-Key: $TOTALIS_API_KEY"
-```
-
-Each market carries the `ticker` and `venue` you'll reference when you build a parlay leg. See [List markets](/api-reference/markets/list) for filters (category, venue, search).
-
-## 4. Read your account
+## 3. Read your account
 
 Pull your balances, open positions, and stats in one call:
 
@@ -52,23 +69,36 @@ curl https://api.totalis.trade/v1/portfolio \
   -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 
+## 4. Before you can trade
+
+Reads work as soon as your key does. Placing a parlay needs two more things:
+
+<Steps>
+  <Step title="USDC in your wallet">
+    Send native Solana USDC to the address from
+    [`GET /v1/wallet`](/api-reference/user/get-wallet). There is no separate deposit call. See
+    [Funding](/guides/funding).
+  </Step>
+  <Step title="Trading enabled">
+    A one time consent in the app that delegates signing permission. This cannot be done from the
+    REST API. Check the current state with
+    [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
+  </Step>
+</Steps>
+
 ## Next steps
 
 <CardGroup cols={2}>
   <Card title="How parlays work" icon="arrows-spin" href="/guides/lifecycle">
     The full path from quote request to settlement.
   </Card>
-  <Card title="Fund your wallet" icon="wallet" href="/guides/funding">
-    Get USDC in and enable trading before you place a parlay.
+  <Card title="Limits and fees" icon="scale-balanced" href="/guides/limits-and-fees">
+    Bet range, leg counts, timing windows, and both fees.
   </Card>
   <Card title="Reading your data" icon="table-list" href="/guides/reading-data">
     Positions, history, settlement outcomes, and P&L.
   </Card>
-  <Card title="Webhooks" icon="bell" href="/guides/webhooks">
-    Get pushed events instead of polling.
+  <Card title="Glossary" icon="book" href="/guides/glossary">
+    Every field name and unit convention, defined once.
   </Card>
 </CardGroup>
-
-<Note>
-  Placing a parlay requires a funded wallet with trading enabled — enabling trading is a one-time interactive step (see [Fund your wallet](/guides/funding)). Reads work as soon as your key does.
-</Note>

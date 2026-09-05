@@ -1,80 +1,107 @@
 ---
 title: 'Reading your data'
-description: 'Pull your account state on demand — portfolio, parlay history, settlement outcomes, P&L, and balances — to complement the webhook push channel.'
+description: 'Pull account state on demand: portfolio, parlay history, settlement outcomes, P&L, and balances, for backfill and reconciliation.'
 ---
 
 The push channels ([webhooks](/guides/webhooks) and the [WebSocket](/guides/websocket)) tell you
-when things happen; the read endpoints let you **pull** state on demand — for backfill,
-reconciliation, and display. See [Real time & data channels](/guides/realtime-and-data)
-for how the channels fit together.
+when things happen. The read endpoints let you pull state on demand, for backfill, reconciliation,
+and display. See [Real time and data channels](/guides/realtime-and-data) for how they fit together.
 
-Authenticated reads accept a scoped API key (`*:read` scopes) and live under `/v1`. Market data at
-`/markets` is public — no key needed.
+Authenticated reads take a scoped API key and live under `/v1`. Market data at `/markets` is public
+and needs no key.
 
 ## What to read
 
-| You want… | Endpoint | Scope |
+| You want | Endpoint | Scope |
 | --- | --- | --- |
-| Balance + stats + status counts in one call | [`GET /v1/portfolio`](/api-reference/funds/portfolio) | `positions:read` + `balances:read` |
-| Vault balance + active positions | [`GET /v1/vault`](/api-reference/funds/get-vault) | `balances:read` |
+| Balance, stats, and status counts in one call | [`GET /v1/portfolio`](/api-reference/funds/portfolio) | `positions:read` + `balances:read` |
+| Vault balance and active positions | [`GET /v1/vault`](/api-reference/funds/get-vault) | `balances:read` |
 | Wallet address, all balances, locked funds | [`GET /v1/wallet`](/api-reference/user/get-wallet) | `balances:read` |
-| Your parlays, paginated (filter by status) | [`GET /v1/rfqs`](/api-reference/parlays/list) | `positions:read` |
-| One parlay's detail + settlement outcome | [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) | `positions:read` |
+| Your parlays, paginated, filterable by status | [`GET /v1/rfqs`](/api-reference/parlays/list) | `positions:read` |
+| One parlay's detail and settlement outcome | [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) | `positions:read` |
 | Realized P&L timeseries | [`GET /v1/pnl`](/api-reference/funds/pnl) | `positions:read` |
-| Your profile (username, wallet address) | [`GET /v1/me`](/api-reference/user/get-profile) | `account:read` |
-| Live market data (prices, volume, open interest) | [`GET /markets`](/api-reference/markets/list) | none — public |
+| Your profile | [`GET /v1/me`](/api-reference/user/get-profile) | `account:read` |
+| Live market data | [`GET /markets`](/api-reference/markets/list) | none, public |
 
 ## Filtering parlays
 
-[`GET /v1/rfqs`](/api-reference/parlays/list) takes two query params:
+[`GET /v1/rfqs`](/api-reference/parlays/list) takes two query parameters:
 
-- **`status`** — comma-joined, e.g. `?status=executed,settled`. See the
-  [status reference](/guides/lifecycle#status-reference) for the full set.
-- **`include=quotes`** — attach each parlay's `quotes` array. Without it, `quotes` is `null`
-  (not requested); with it, an empty array means no quotes were submitted.
+| Parameter | Behavior |
+| --- | --- |
+| `status` | Comma joined, for example `?status=executed,settled`. See the [status reference](/guides/lifecycle#status-reference). |
+| `include=quotes` | Attaches each parlay's `quotes` array. Without it, `quotes` is `null`, meaning not requested. With it, an empty array means no quotes were submitted. |
+
+That distinction matters: `null` and `[]` mean different things here.
 
 ## P&L windows
 
 [`GET /v1/pnl`](/api-reference/funds/pnl) returns realized P&L per day. Pick the window with
-`?period=1D|1W|1M|ALL` (default `1W`).
+`?period=1D`, `1W`, `1M`, or `ALL`. The default is `1W`.
 
-<Note>
-  Everything on the read surface is **realized**. `portfolio.summary.portfolio_value` is your
-  deposited USDC — it does not mark open positions to market, and there is no unrealized P&L field.
-  To value open positions yourself, price each leg against the live [`/markets`](/api-reference/markets/list) data.
-</Note>
+<Warning>
+Everything on the read surface is realized. `portfolio.summary.portfolio_value` is your deposited
+USDC. It does not mark open positions to market, and there is no unrealized P&L field anywhere in
+the API. To value open positions, price each leg yourself against live
+[`/markets`](/api-reference/markets/list) data.
+</Warning>
 
 ## Balances
 
-[`GET /v1/wallet`](/api-reference/user/get-wallet) returns every balance in one call:
-`usdc_balance` (your wallet), `vault_balance` (gross USDC in your vault, including locked
-collateral), and `locked_amount` (everything you've committed — in-flight RFQs, stakes on live
-positions, and maker-side collateral).
+[`GET /v1/wallet`](/api-reference/user/get-wallet) returns every balance in one call.
 
-- **Total USDC you control** = `usdc_balance + vault_balance`
-- **Available cash** = `usdc_balance + vault_balance − locked_amount`
+```
+total USDC you control = usdc_balance + vault_balance
+available to trade     = usdc_balance + vault_balance - locked_amount
+```
 
-Don't subtract `/v1/vault`'s `locked_collateral` on top — it's already inside `locked_amount`.
+<Warning>
+Do not subtract `/v1/vault`'s `locked_collateral` on top of `locked_amount`. It is already counted
+inside `locked_amount`. Subtracting both understates your available balance and will make a bot
+refuse trades it can afford.
+</Warning>
+
+Each field is defined in the [Glossary](/guides/glossary#balance-fields).
 
 ## Settlement outcomes
 
-`GET /v1/rfqs/{id}` is the source of truth for how a parlay resolved. Once it's terminal the response
-carries the full settlement detail: each leg's `outcome`, the terminal `status`
-(`settled` / `cancelled` / `bought_back`), the payout, and the on-chain transaction signatures
-(`settle_tx`, `cancel_tx`, `buyback_tx`). A parlay id you don't own returns `404`.
+[`GET /v1/rfqs/{id}`](/api-reference/parlays/get) is the source of truth for how a parlay resolved.
+Once it is terminal, the response carries the full settlement detail:
+
+| Field | Contents |
+| --- | --- |
+| per-leg `outcome` | How each leg resolved. |
+| `status` | `settled`, `cancelled`, or `bought_back`. |
+| payout | The amount paid to the winning side. |
+| `settle_tx`, `cancel_tx`, `buyback_tx` | On-chain transaction signatures. |
+
+A parlay id you do not own returns `404`.
 
 ## Reconciling
 
-A typical reconcile loop:
-
-1. Page through [`GET /v1/rfqs?status=settled`](/api-reference/parlays/list) (follow `meta.cursor`
-   until `has_more` is false) to enumerate terminal parlays.
-2. For any you haven't recorded, fetch [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) for the
-   settlement detail and tx signatures.
-3. Cross-check realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
-   against [`GET /v1/vault`](/api-reference/funds/get-vault).
+<Steps>
+  <Step title="Enumerate terminal parlays">
+    Page through [`GET /v1/rfqs?status=settled`](/api-reference/parlays/list), following
+    `meta.cursor` until `has_more` is false.
+  </Step>
+  <Step title="Fetch detail for anything new">
+    For each parlay you have not recorded, fetch
+    [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) for the settlement detail and transaction
+    signatures.
+  </Step>
+  <Step title="Cross-check the totals">
+    Compare realized P&L against [`GET /v1/pnl`](/api-reference/funds/pnl) and current balances
+    against [`GET /v1/vault`](/api-reference/funds/get-vault).
+  </Step>
+</Steps>
 
 <Note>
-  Cursors are opaque — pass the `meta.cursor` value from the previous response as `?cursor=…`; don't
-  parse or construct them.
+Cursors are opaque. Pass the `meta.cursor` value from the previous response as `?cursor=...`. Never
+parse or construct one.
 </Note>
+
+### What reconciliation is the only way to catch
+
+A cashout bid that acquires a position emits no event to the buyer on any push channel. If you bid
+on auctions for positions you do not already back, a reconcile loop against your position reads is
+the only way you learn you won. See [Event catalog](/guides/event-catalog#the-acquisition-gap).

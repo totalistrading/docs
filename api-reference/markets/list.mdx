@@ -1,13 +1,13 @@
 ---
-title: 'List Markets'
+title: 'List markets'
 description: 'List active prediction markets on Totalis, grouped by event. Supports both Kalshi and Polymarket venues, with filters for category, subcategory, frequency, date window, and full-text search.'
 openapi: 'GET /markets'
 ---
 
 <Note>
-  **Building parlays?** Every market in the response carries an `exclusion_keys`
+  **Building parlays.** Every market in the response carries an `exclusion_keys`
   array. Two markets cannot be combined in the same parlay **if (and only if)
-  their `exclusion_keys` intersect** — apply a pure set-intersection, with no
+  their `exclusion_keys` intersect**. Apply a pure set-intersection, with no
   correlation rule tables to maintain client-side. The keys encode every rule
   (cross-series groups, threshold ladders, same-game sports correlation,
   Polymarket sub-events). See the `exclusion_keys` field in the response schema
