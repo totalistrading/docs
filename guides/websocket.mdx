@@ -14,6 +14,11 @@ For pre-trade live pricing, use the SSE streams instead: the [maker stream](/api
   An early cashout that **closes** a position is on both channels: `position:bought_back` here, `position.bought_back` by webhook. The one exit outcome neither channel pushes to the buyer is a bid that **acquires** a position. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap) and [Real time and data channels](/guides/realtime-and-data).
 </Note>
 
+<div className="dg-scroll">
+  <img className="block dark:hidden" src="/images/diagrams/websocket-light.svg" alt="The WebSocket handshake: connect, authenticate, subscribe, receive events, keep alive" />
+  <img className="hidden dark:block" src="/images/diagrams/websocket-dark.svg" alt="The WebSocket handshake: connect, authenticate, subscribe, receive events, keep alive" />
+</div>
+
 ## Connecting
 
 ```

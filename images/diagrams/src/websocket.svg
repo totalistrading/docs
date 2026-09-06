@@ -1,0 +1,37 @@
+<svg viewBox="0 0 880 340" role="img" aria-labelledby="websocket-title">
+  <title id="websocket-title">The WebSocket handshake: connect, authenticate, subscribe, receive events, keep alive</title>
+  <defs>
+    <marker id="ws-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow" />
+    </marker>
+    <marker id="ws-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow-accent" />
+    </marker>
+    <marker id="ws-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow-warn" />
+    </marker>
+  </defs>
+  <rect x="40" y="24" width="200" height="40" rx="8" class="dg-node" />
+  <text x="140" y="49" class="dg-t" text-anchor="middle">Your client</text>
+  <rect x="640" y="24" width="200" height="40" rx="8" class="dg-node-accent" />
+  <text x="740" y="42" class="dg-t" text-anchor="middle">Totalis</text>
+  <text x="740" y="58" class="dg-t-mono-dim" text-anchor="middle">wss://api.totalis.trade/ws</text>
+  <path d="M 140 64 L 140 332" class="dg-line-dashed" />
+  <path d="M 740 64 L 740 332" class="dg-line-dashed" />
+  <path d="M 150 96 L 728 96" class="dg-line" marker-end="url(#ws-a)" />
+  <text x="440" y="88" class="dg-t-sm" text-anchor="middle">connect</text>
+  <path d="M 150 134 L 728 134" class="dg-line" marker-end="url(#ws-a)" />
+  <text x="440" y="126" class="dg-t-mono" text-anchor="middle">{ "type": "auth", "api_key": "api_live_..." }</text>
+  <text x="440" y="150" class="dg-t-dim" text-anchor="middle">send it immediately, or the socket closes with AUTH_TIMEOUT</text>
+  <path d="M 730 178 L 152 178" class="dg-line-accent" marker-end="url(#ws-g)" />
+  <text x="440" y="170" class="dg-t-mono" text-anchor="middle">{ "type": "auth:success", "user_id": "did:privy:..." }</text>
+  <path d="M 730 204 L 152 204" class="dg-line-warn" marker-end="url(#ws-w)" />
+  <text x="440" y="222" class="dg-t-mono-dim" text-anchor="middle">or { "type": "auth:error", "code": "INVALID_CREDENTIALS" }: branch on code</text>
+  <path d="M 150 250 L 728 250" class="dg-line" marker-end="url(#ws-a)" />
+  <text x="440" y="242" class="dg-t-mono" text-anchor="middle">{ "type": "subscribe", "channel": "mm:quotes:&lt;user_id&gt;" }</text>
+  <path d="M 730 286 L 152 286" class="dg-line-accent" marker-end="url(#ws-g)" />
+  <text x="440" y="278" class="dg-t-mono" text-anchor="middle">quote:accepted, quote:confirmed, position:settled, position:bought_back</text>
+  <path d="M 150 316 L 728 316" class="dg-line-dashed" marker-end="url(#ws-a)" />
+  <path d="M 730 326 L 152 326" class="dg-line-dashed" marker-end="url(#ws-a)" />
+  <text x="440" y="309" class="dg-t-dim" text-anchor="middle">ping and pong on a timer keep the connection open</text>
+</svg>
