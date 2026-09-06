@@ -92,13 +92,51 @@ curl -X POST https://api.totalis.trade/v1/wallet/withdraw \
   -d '{ "recipient": "<solana-address>", "amount_usdc": 50 }'
 ```
 
-If the amount exceeds your wallet balance, Totalis draws the remainder from your vault's free
-balance, which is settled winnings and unlocked collateral. One call therefore reaches everything
-that is not locked in an open position.
+### Where the money comes from
 
-Withdrawing requires trading to be enabled, the same delegation as placing a parlay. It also
-requires the `funds:withdraw` scope, which is the highest risk scope on a key. See
-[Authentication](/guides/authentication#scopes).
+One call reaches everything that is not locked in an open position.
+
+| Pool | What it holds | Withdrawable |
+| --- | --- | --- |
+| Wallet | USDC you sent, minus holds for quote requests that are open, quoted, accepted, or confirmed | Yes |
+| Vault free balance | Settled winnings and unlocked collateral: `gross - locked` | Yes, through a vault tap |
+| Vault locked | Collateral behind your `executed` positions | No, until they settle or you cash out |
+
+If the amount exceeds your wallet balance, Totalis first moves the shortfall from your vault to
+your wallet, waits for that transaction to confirm, then sends the external transfer. The response
+then carries `vault_signature` and `vault_amount` beside the transfer `signature`. The app shows the
+same two numbers as **Available to withdraw** and **In open positions**.
+
+### Rules
+
+- Trading must be enabled. Withdrawing uses the same delegation as placing a parlay. If it has
+  lapsed the call returns `409`, and re-enabling trading in the app restores it.
+- The key needs the `funds:withdraw` scope, the highest risk scope on a key. See
+  [Authentication](/guides/authentication#scopes).
+- `recipient` must be a regular Solana wallet address. Token accounts, program ids, and derived
+  addresses are rejected, because USDC sent to them is unrecoverable. Your own wallet address is
+  rejected too.
+- The minimum is one base unit, `0.000001` USDC. The maximum is your wallet plus vault free
+  balance. A larger amount returns `400` with the available breakdown in the message.
+- You never need SOL. Network fees are sponsored.
+- If the recipient has never held USDC, Totalis creates its token account and fronts the rent,
+  about 0.002 SOL. That rent is billed back in USDC out of the withdrawal at the live SOL price,
+  so the recipient receives slightly less than `amount_usdc`. An amount too small to cover it is
+  rejected, and so is the call if the SOL price is briefly unavailable. Retry in a moment.
+- `Idempotency-Key` is honored. A repeat with the same key replays the original success without
+  moving funds again.
+
+### When it fails
+
+| Response | Meaning | What to do |
+| --- | --- | --- |
+| `400` | Bad recipient, your own address, or more than the available balance | Fix the request |
+| `409` | Wallet is no longer delegated | Enable trading in the app, then retry |
+| `502` with `error.code: PARTIAL_VAULT_ONLY` | The vault tap succeeded, the external transfer did not. `error.details.vault_signature` shows the vault move | Retry with the same amount. The wallet now covers it, so the vault is not tapped again |
+| `502` with any other code | The transfer was broadcast but not confirmed in time | Look up the returned signature before retrying, so you do not send twice |
+
+The partial case returns `502` rather than `200` on purpose. Idempotent retries against a `502`
+re-enter the handler, where a cached `200` would have replayed a half-finished result.
 
 ### Withdrawing in the app
 
