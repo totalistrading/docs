@@ -9,6 +9,13 @@ controls, not in a Totalis held account. You enable trading once by delegating s
 After that, placing, settling, and closing parlays happens without you signing each transaction by
 hand.
 
+## At a glance
+
+- Non-custodial. Funds sit in an on-chain vault controlled by the protocol program, not in a Totalis account.
+- One vault per account with three balances: gross, locked, and free.
+- You delegate signing once. Totalis signs trades inside a secure enclave and can never extract your key.
+- Your stake and the maker's collateral lock in one atomic transaction when you commit.
+
 <div className="dg-scroll">
   <img className="block dark:hidden" src="/images/diagrams/vault-architecture-light.svg" alt="How USDC moves between wallets, vaults, a position, and the fee vault" />
   <img className="hidden dark:block" src="/images/diagrams/vault-architecture-dark.svg" alt="How USDC moves between wallets, vaults, a position, and the fee vault" />

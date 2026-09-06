@@ -8,6 +8,13 @@ A parlay starts as a **quote request**: your legs, priced live by market makers.
 **position** the moment you commit to a quote. From there it settles automatically when the
 underlying markets resolve, or you close it early.
 
+## At a glance
+
+- A parlay is 2 to 5 legs on one bet of 1 to 100 USDC, priced live by competing market makers.
+- Your funds move once, at `confirmed`. Nothing is touched before that point.
+- The position is live on chain at `executed` and settles when the last market resolves.
+- An `executed` position can be closed early through a cashout auction of about 10 seconds.
+
 <div className="dg-scroll">
   <img className="block dark:hidden" src="/images/diagrams/lifecycle-light.svg" alt="Parlay status progression from open to settled, with the early cashout branch" />
   <img className="hidden dark:block" src="/images/diagrams/lifecycle-dark.svg" alt="Parlay status progression from open to settled, with the early cashout branch" />

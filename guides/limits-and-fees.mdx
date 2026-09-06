@@ -6,6 +6,13 @@ description: 'Every constraint and every fee on Totalis: parlay size, bet range,
 
 Every number the API enforces lives on this page. Other pages link here rather than restating them.
 
+## At a glance
+
+- 2 to 5 legs, 1 to 100 USDC per bet, payout odds between 1.0001 and 1000.
+- Two fees, both 1%: a taker fee on the gross bet, charged upfront, and a profit fee on the winning side's profit at settlement.
+- Odds apply to the net stake after the taker fee, never to the gross bet.
+- Every expiring object carries its own timestamp. Honor it over any default on this page.
+
 ## Parlay construction
 
 | Constraint | Value | Enforced at |
