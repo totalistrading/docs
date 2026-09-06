@@ -13,7 +13,8 @@ listed below still resolves through a redirect, so old bookmarks keep working, b
 not supported surface.
 </Note>
 
-<Update label="3 September 2026">
+{/* Re-date this entry to the production deploy day of the September backend stack before #91 merges. */}
+<Update label="3 September 2026" description="Position ids for makers, the fee rate echoed on quotes, and stricter auth errors." tags={["Added", "Changed"]}>
   **Added: `position_id` on the market maker position reads.**
   [`GET /v1/mm/positions`](/api-reference/mm/list-positions) and
   [`GET /v1/mm/positions/{id}`](/api-reference/mm/get-position) now return the on-chain
@@ -43,12 +44,12 @@ not supported surface.
   not raise its limit. See [Limits and fees](/guides/limits-and-fees#rate-limits).
 </Update>
 
-<Update label="27 August 2026">
+<Update label="27 August 2026" description="The World Cup reward pool ended." tags={["Removed"]}>
   **Removed: World Cup reward pool.** The FIFA World Cup 10k reward pool challenge ended and its
   page was removed. `/guides/world-cup-reward-pool` now redirects to [Referrals](/referrals).
 </Update>
 
-<Update label="31 July 2026">
+<Update label="31 July 2026" description="Early cashout replaces early exit, with one auction model." tags={["Renamed", "Changed"]}>
   **Renamed: early exit auctions are now early cashout.** The guide moved from
   `/guides/early-exit-auctions` to [`/guides/early-cashout`](/guides/early-cashout).
 
@@ -63,18 +64,18 @@ not supported surface.
   [Early cashout](/guides/early-cashout).
 </Update>
 
-<Update label="22 July 2026">
+<Update label="22 July 2026" description="The blockhash endpoint is gone." tags={["Retired"]}>
   **Retired: `GET /v1/wallet/blockhash`.** The endpoint was removed. Transactions are built and
   sponsored server side, so clients no longer fetch a blockhash.
 </Update>
 
-<Update label="21 July 2026">
+<Update label="21 July 2026" description="Maker heartbeat is gone. Liveness comes from the stream." tags={["Retired"]}>
   **Retired: `POST /v1/mm/heartbeat`.** Market maker liveness is now inferred from the SSE stream
   connection itself. Remove any heartbeat loop. Holding the
   [MM stream](/api-reference/quote-service-mm/stream) open is sufficient.
 </Update>
 
-<Update label="20 July 2026">
+<Update label="20 July 2026" description="Maker position reads and the referral program." tags={["Added"]}>
   **Added: market maker position reads.** [`GET /v1/mm/positions`](/api-reference/mm/list-positions)
   and [`GET /v1/mm/positions/{id}`](/api-reference/mm/get-position) return your active positions
   with their full parlay legs.
@@ -83,7 +84,7 @@ not supported surface.
   refer, claimable at 25 USDC.
 </Update>
 
-<Update label="18 July 2026">
+<Update label="18 July 2026" description="Quote listing for makers, and the quote service paths moved." tags={["Added", "Renamed"]}>
   **Added: [`GET /v1/mm/quotes`](/api-reference/mm/list-quotes).** Reconcile your quotes and their
   lifecycle status after a disconnect.
 
