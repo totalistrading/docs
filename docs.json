@@ -7,6 +7,15 @@
     "light": "#07C983",
     "dark": "#15803D"
   },
+  "fonts": {
+    "family": "DM Sans"
+  },
+  "background": {
+    "color": {
+      "light": "#FAFBFA",
+      "dark": "#0B0F0D"
+    }
+  },
   "favicon": "/favicon.png",
   "api": {
     "mdx": {
