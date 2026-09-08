@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 336" role="img" aria-labelledby="feeflow-title" width="880" height="336">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" role="img" aria-labelledby="feeflow-title" width="880" height="260">
   <style>
     .dg-node { fill: rgba(255, 255, 255, 0.045); stroke: rgba(255, 255, 255, 0.24); stroke-width: 1; }
     .dg-node-accent { fill: rgba(7, 201, 131, 0.14); stroke: rgba(7, 201, 131, 0.5); stroke-width: 1; }
@@ -27,40 +27,30 @@
       <path d="M 0 0 L 10 5 L 0 10 z" class="dg-arrow" />
     </marker>
   </defs>
-  <text x="16" y="20" class="dg-t-label">PRICING</text>
-  <rect x="16" y="34" width="176" height="60" rx="8" class="dg-node" />
-  <text x="104" y="57" class="dg-t-dim" text-anchor="middle">Bet amount</text>
-  <text x="104" y="79" class="dg-t" text-anchor="middle">25.00 USDC</text>
-  <path d="M 196 64 L 262 64" class="dg-line" marker-end="url(#fw-a)" />
-  <text x="229" y="50" class="dg-t-warn" text-anchor="middle">-0.25</text>
-  <text x="229" y="86" class="dg-t-dim" text-anchor="middle">1% taker</text>
-  <rect x="268" y="34" width="176" height="60" rx="8" class="dg-node-accent" />
-  <text x="356" y="57" class="dg-t-dim" text-anchor="middle">Net stake</text>
-  <text x="356" y="79" class="dg-t-mono" text-anchor="middle">user_stake 24.75</text>
-  <path d="M 448 64 L 514 64" class="dg-line" marker-end="url(#fw-a)" />
-  <text x="481" y="50" class="dg-t-accent" text-anchor="middle">x 4.0</text>
-  <text x="481" y="86" class="dg-t-dim" text-anchor="middle">odds</text>
-  <rect x="520" y="34" width="176" height="60" rx="8" class="dg-node" />
-  <text x="608" y="57" class="dg-t-dim" text-anchor="middle">Total payout</text>
-  <text x="608" y="79" class="dg-t" text-anchor="middle">99.00 USDC</text>
-  <text x="716" y="58" class="dg-t-dim">Maker locks</text>
-  <text x="716" y="78" class="dg-t-mono-dim">mm_risk 74.25</text>
-  <path d="M 608 98 L 608 122" class="dg-line" />
-  <path d="M 608 122 L 232 122 L 232 152" class="dg-line" marker-end="url(#fw-a)" />
-  <path d="M 608 122 L 668 122 L 668 152" class="dg-line" marker-end="url(#fw-a)" />
-  <text x="16" y="146" class="dg-t-label">SETTLEMENT</text>
-  <rect x="16" y="158" width="432" height="162" rx="8" class="dg-node-accent" />
-  <text x="36" y="184" class="dg-t">Every leg wins</text>
-  <text x="36" y="210" class="dg-t-sm">Your profit is the maker's locked risk.</text>
-  <text x="36" y="240" class="dg-t-mono">profit      = 99.00 - 24.75 = 74.25</text>
-  <text x="36" y="262" class="dg-t-mono">profit fee  = 1% of 74.25   =  0.7425</text>
-  <text x="36" y="284" class="dg-t-mono">you receive = 99.00 - 0.7425</text>
-  <text x="36" y="306" class="dg-t-mono">            = 98.2575 USDC</text>
-  <rect x="472" y="158" width="392" height="162" rx="8" class="dg-node" />
-  <text x="492" y="184" class="dg-t">Any leg loses</text>
-  <text x="492" y="210" class="dg-t-sm">Your net stake transfers to the maker.</text>
-  <text x="492" y="240" class="dg-t-mono">maker profit = 24.75</text>
-  <text x="492" y="262" class="dg-t-mono">profit fee   = 1% of 24.75 = 0.2475</text>
-  <text x="492" y="284" class="dg-t-mono">you receive  = 0</text>
-  <text x="492" y="306" class="dg-t-mono-dim">the 0.25 taker fee is already spent</text>
+  <rect x="16" y="30" width="180" height="60" rx="8" class="dg-node" />
+  <text x="106" y="53" class="dg-t-dim" text-anchor="middle">Bet amount</text>
+  <text x="106" y="76" class="dg-t" text-anchor="middle">25.00 USDC</text>
+  <path d="M 200 60 L 270 60" class="dg-line" marker-end="url(#fw-a)" />
+  <text x="235" y="48" class="dg-t-warn" text-anchor="middle">1% taker fee</text>
+  <rect x="276" y="30" width="180" height="60" rx="8" class="dg-node-accent" />
+  <text x="366" y="53" class="dg-t-dim" text-anchor="middle">Net stake</text>
+  <text x="366" y="76" class="dg-t" text-anchor="middle">24.75 USDC</text>
+  <path d="M 460 60 L 530 60" class="dg-line" marker-end="url(#fw-a)" />
+  <text x="495" y="48" class="dg-t-accent" text-anchor="middle">x 4.0 odds</text>
+  <rect x="536" y="30" width="180" height="60" rx="8" class="dg-node" />
+  <text x="626" y="53" class="dg-t-dim" text-anchor="middle">Total payout</text>
+  <text x="626" y="76" class="dg-t" text-anchor="middle">99.00 USDC</text>
+  <text x="736" y="55" class="dg-t-dim">Maker locks</text>
+  <text x="736" y="76" class="dg-t">74.25 USDC</text>
+  <path d="M 626 94 L 626 118" class="dg-line" />
+  <path d="M 626 118 L 226 118 L 226 146" class="dg-line" marker-end="url(#fw-a)" />
+  <path d="M 626 118 L 656 118 L 656 146" class="dg-line" marker-end="url(#fw-a)" />
+  <rect x="16" y="150" width="420" height="88" rx="8" class="dg-node-accent" />
+  <text x="36" y="178" class="dg-t">Every leg wins</text>
+  <text x="36" y="203" class="dg-t-sm">You receive 99.00 minus a 1% fee on the 74.25 profit</text>
+  <text x="36" y="226" class="dg-t-mono">98.2575 USDC</text>
+  <rect x="460" y="150" width="404" height="88" rx="8" class="dg-node" />
+  <text x="480" y="178" class="dg-t">Any leg loses</text>
+  <text x="480" y="203" class="dg-t-sm">The maker keeps your 24.75 stake minus a 1% fee on it</text>
+  <text x="480" y="226" class="dg-t-mono">0 USDC</text>
 </svg>

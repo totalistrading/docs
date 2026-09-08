@@ -40,6 +40,7 @@
             "group": "Get started",
             "pages": [
               "guides/quickstart",
+              "guides/how-do-i",
               "guides/authentication"
             ]
           },

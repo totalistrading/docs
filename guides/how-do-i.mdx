@@ -1,0 +1,74 @@
+---
+title: 'How do I'
+icon: 'circle-question'
+description: 'The ten things integrators ask first, each answered in two lines with the call to make.'
+---
+
+Each answer is the shortest correct path. The linked page has the detail.
+
+## Get an API key
+
+In the app, open **Get an API key** in the top bar, or Settings, then API Keys. Name the key, pick
+a preset or tick scopes, and copy the key when it is shown. It is shown once.
+[Authentication](/guides/authentication#getting-your-api-key).
+
+## Get a market price
+
+No key needed. Prices are decimal probabilities from 0 to 1 on every venue.
+
+```bash
+curl "https://api.totalis.trade/markets?search=NFL&limit=1"
+```
+
+Read `yes_bid`, `yes_ask`, `no_bid`, `no_ask` and `last_price` on each market.
+[List markets](/api-reference/markets/list).
+
+## Find markets that can go in the same parlay
+
+Every market carries `exclusion_keys`. Two markets can share a parlay only if their arrays do not
+intersect. Check that yourself before you create the request.
+[Limits and fees](/guides/limits-and-fees#parlay-construction).
+
+## Place a parlay
+
+Three calls: create the quote request with 2 to 5 legs and a bet amount, watch the quote stream,
+then commit the quote you want. Funds move only at `confirmed`.
+[How parlays work](/guides/lifecycle#place-a-parlay).
+
+## Check my balance
+
+[`GET /v1/wallet`](/api-reference/user/get-wallet) for the wallet, [`GET /v1/vault`](/api-reference/funds/get-vault)
+for gross, locked and free. What you can spend or withdraw is wallet plus vault free.
+[Funding](/guides/funding#how-your-balance-is-used).
+
+## Fund the account
+
+Send native Solana USDC to the `address` from `GET /v1/wallet`, or scan the QR under **Deposit** in
+the app. There is no deposit call, and you never need SOL.
+[Funding](/guides/funding#send-usdc-to-your-wallet).
+
+## Enable trading
+
+Once, in the app, when you first place a parlay. It delegates signing to Totalis inside a secure
+enclave. The API can only report whether it is on, through
+[`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
+[Vaults and custody](/guides/vault-architecture#delegated-signing).
+
+## Know when a position settles
+
+Configure a webhook and handle `position.settled`. It is signed, retried, and delivered once your
+key holds `positions:read`. The WebSocket carries the same event live as `position:settled`.
+[Webhooks](/guides/webhooks).
+
+## Close a position early
+
+Open a cashout request on an `executed` position, watch the stream for the best all-in price, and
+commit it. The auction runs about 10 seconds.
+[Early cashout](/guides/early-cashout).
+
+## Withdraw
+
+[`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw) with a Solana recipient and an
+amount. It reaches your wallet and your vault free balance in one call. Needs trading enabled and
+the `funds:withdraw` scope.
+[Funding](/guides/funding#withdrawing).

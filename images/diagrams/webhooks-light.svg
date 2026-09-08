@@ -40,14 +40,12 @@
   <text x="130" y="102" class="dg-t-mono-dim" text-anchor="middle">position.settled</text>
   <path d="M 220 88 L 258 88" class="dg-line" marker-end="url(#wh-a)" />
   <rect x="262" y="50" width="220" height="76" rx="8" class="dg-node-accent" />
-  <text x="372" y="76" class="dg-t" text-anchor="middle">Sign and queue</text>
-  <text x="372" y="96" class="dg-t-mono-dim" text-anchor="middle">X-Totalis-Signature</text>
-  <text x="372" y="112" class="dg-t-mono-dim" text-anchor="middle">X-Totalis-Event-Id</text>
+  <text x="372" y="80" class="dg-t" text-anchor="middle">Sign and queue</text>
+  <text x="372" y="102" class="dg-t-mono-dim" text-anchor="middle">signed, unique event id</text>
   <path d="M 482 88 L 558 88" class="dg-line" marker-end="url(#wh-a)" />
   <text x="520" y="78" class="dg-t-dim" text-anchor="middle">POST</text>
   <rect x="562" y="50" width="278" height="76" rx="8" class="dg-node" />
-  <text x="701" y="80" class="dg-t" text-anchor="middle">Your endpoint</text>
-  <text x="701" y="102" class="dg-t-dim" text-anchor="middle">verify the t.body HMAC, respond fast</text>
+  <text x="701" y="94" class="dg-t" text-anchor="middle">Your endpoint</text>
   <path d="M 701 126 L 701 160" class="dg-line" />
   <path d="M 140 160 L 740 160" class="dg-line" />
   <path d="M 140 160 L 140 192" class="dg-line-accent" marker-end="url(#wh-g)" />
@@ -58,17 +56,15 @@
   <text x="750" y="182" class="dg-t-dim">other 4xx</text>
   <rect x="40" y="196" width="200" height="70" rx="8" class="dg-node-accent" />
   <text x="140" y="224" class="dg-t-mono" text-anchor="middle">delivered</text>
-  <text x="140" y="246" class="dg-t-dim" text-anchor="middle">done, dedupe on the event id</text>
   <rect x="320" y="196" width="240" height="70" rx="8" class="dg-node-warn" />
   <text x="440" y="224" class="dg-t-mono" text-anchor="middle">failed</text>
   <text x="440" y="246" class="dg-t-dim" text-anchor="middle">retried with exponential backoff</text>
   <rect x="640" y="196" width="200" height="70" rx="8" class="dg-node" />
   <text x="740" y="224" class="dg-t-mono" text-anchor="middle">dead_letter</text>
-  <text x="740" y="246" class="dg-t-dim" text-anchor="middle">rejected, or retries exhausted</text>
   <path d="M 320 231 L 290 231 L 290 130" class="dg-line-warn" marker-end="url(#wh-w)" />
   <text x="284" y="180" class="dg-t-warn" text-anchor="end">retry</text>
   <path d="M 440 266 L 440 298 L 372 298 L 372 130" class="dg-line-dashed" marker-end="url(#wh-a)" />
   <path d="M 740 266 L 740 298 L 440 298" class="dg-line-dashed" />
   <path d="M 140 266 L 140 298 L 372 298" class="dg-line-dashed" />
-  <text x="560" y="320" class="dg-t-dim" text-anchor="middle">redeliver a delivered or dead_letter delivery: same event id, re-signed with the current secret</text>
+  <text x="560" y="320" class="dg-t-dim" text-anchor="middle">redeliver: same event id, re-signed with the current secret</text>
 </svg>
