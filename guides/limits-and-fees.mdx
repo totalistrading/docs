@@ -94,10 +94,8 @@ total_payout = user_stake * payout_odds
 mm_risk      = total_payout - user_stake               # called mm_cost before commit
 ```
 
-<div className="dg-scroll">
-  <img className="block dark:hidden" src="/images/diagrams/limits-and-fees-light.svg" alt="Fee waterfall for a 25 USDC bet at 4.0 payout odds" />
-  <img className="hidden dark:block" src="/images/diagrams/limits-and-fees-dark.svg" alt="Fee waterfall for a 25 USDC bet at 4.0 payout odds" />
-</div>
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/limits-and-fees-light.png" alt="A 25 USDC bet: 1% taker fee, 24.75 net stake, 4.0 odds, 99 payout, 98.26 received after the 1% profit fee" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/limits-and-fees-dark.png" alt="A 25 USDC bet: 1% taker fee, 24.75 net stake, 4.0 odds, 99 payout, 98.26 received after the 1% profit fee" />
 
 Worked example, matching the diagram. You bet 25 USDC and a maker quotes 4.0 payout odds:
 

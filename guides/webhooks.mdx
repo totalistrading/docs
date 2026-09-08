@@ -18,10 +18,8 @@ delivery.
   [Real time and data channels](/guides/realtime-and-data) for the full channel map.
 </Note>
 
-<div className="dg-scroll">
-  <img className="block dark:hidden" src="/images/diagrams/webhooks-light.svg" alt="How a webhook delivery is signed, delivered, retried, dead-lettered, and replayed" />
-  <img className="hidden dark:block" src="/images/diagrams/webhooks-dark.svg" alt="How a webhook delivery is signed, delivered, retried, dead-lettered, and replayed" />
-</div>
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/webhooks-light.png" alt="An event is signed and delivered to you; 2xx is accepted, 5xx is retried with backoff, other 4xx is dropped for replay" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/webhooks-dark.png" alt="An event is signed and delivered to you; 2xx is accepted, 5xx is retried with backoff, other 4xx is dropped for replay" />
 
 ## Configuring your endpoint
 

@@ -18,10 +18,8 @@ All four authenticate with the same [API key](/guides/authentication).
 
 ## One trade, three phases
 
-<div className="dg-scroll">
-  <img className="block dark:hidden" src="/images/diagrams/realtime-and-data-light.svg" alt="Which channel covers which phase of a trade" />
-  <img className="hidden dark:block" src="/images/diagrams/realtime-and-data-dark.svg" alt="Which channel covers which phase of a trade" />
-</div>
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/realtime-and-data-light.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/realtime-and-data-dark.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
 
 **Pricing is SSE.** Every quote request gets its own stream at
 [`GET /v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream). A cashout request gets

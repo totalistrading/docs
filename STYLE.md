@@ -93,31 +93,29 @@ backend.
   unauthenticated reads keep their own roots (`/markets`). Never use the deprecated flat
   `/user` / `/rfqs` roots.
 
-## Diagrams
+## Pictures
 
-- **SVG files, not inline SVG and not Mermaid.** Mintlify's MDX compiler strips `text`, `circle`,
-  `marker` and `title` from inline SVG, so an inlined diagram renders as empty boxes. Mermaid's
-  auto-layout cannot be corrected and its theming fights the color scheme.
-- **One source, two baked files.** Author the diagram once in `images/diagrams/src/<name>.svg`
-  using only the `dg-*` classes. Run `python scripts/build-diagrams.py` to write
-  `images/diagrams/<name>-light.svg` and `<name>-dark.svg` with the tokens from `style.css` embedded.
-  Commit all three.
-- **Embed both, theme toggled**, inside the scroll wrapper:
+- **Concept pictures, not diagrams.** Each core concept page opens with one picture that a
+  non-technical reader can follow: at most four columns, plain words, one highlighted object, no
+  status names, field names or units. Those belong in the tables below the picture.
+- **PNG pairs.** `images/pictures/<name>-light.png` and `<name>-dark.png`, 1540 by 952, embedded as
 
   ```jsx
-  <div className="dg-scroll">
-    <img className="block dark:hidden" src="/images/diagrams/<name>-light.svg" alt="what it shows" />
-    <img className="hidden dark:block" src="/images/diagrams/<name>-dark.svg" alt="what it shows" />
-  </div>
+  <img className="block dark:hidden rounded-2xl" src="/images/pictures/<name>-light.png" alt="what it shows" />
+  <img className="hidden dark:block rounded-2xl" src="/images/pictures/<name>-dark.png" alt="what it shows" />
   ```
 
-- **Never hardcode a color in a source.** Colors live in the `--dg-*` tokens in `style.css`. Check
-  the page in both light and dark before merging.
-- **A diagram must show a mechanism**, not decorate a heading. If the diagram restates the sentence
-  above it, delete one of them.
-- **Text in a diagram must be legible at mobile width.** Minimum 11px on an 880 wide canvas. The
-  wrapper scrolls sideways so the diagram never shrinks below 560px.
-- Every source `<svg>` carries `role="img"` and a `<title>`; the `alt` on both images repeats it.
+- **One source, rendered.** Words and layout live in `images/pictures/src/build.py`; the look lives
+  in `images/pictures/src/pics.css`. Change the words, run `python build.py` there, then
+  `cd scripts && npm install && node render-pictures.mjs` to re-render both themes. Commit the
+  source and the PNGs together.
+- **The visual language.** A betting slip with venue marks for the parlay. Competing odds tags for
+  makers. Node and rail connectors. A lifecycle rail under the picture. One accent border and a soft
+  glow on the object the page is about. DM Sans and DM Mono. No avatars, no icons, no arrows.
+- **Screenshots for anything with a screen.** Where the app has the UI, show the app, not a picture.
+  Blur balances, addresses and key material. Never show the BYOW preset.
+- **Never inline SVG.** Mintlify strips `text`, `circle`, `marker` and `title` from inline SVG, so it
+  renders as empty boxes.
 
 ## Structure
 
@@ -145,10 +143,9 @@ public tree.
 LC_ALL=C.UTF-8 grep -rn -e "—" -e "–" -e "−" -e "×" -e "…" -e "→" \
   --include=*.mdx --include=openapi.json . | grep -v "^./_internal/"
 
-# no hardcoded colors in diagram sources, and baked files are current
+# no hardcoded colors in pages, and every picture ships as a light and dark pair
 grep -rn "#[0-9a-fA-F]\{6\}" --include=*.mdx .
-grep -rn "#[0-9a-fA-F]\{6\}" images/diagrams/src/
-python scripts/build-diagrams.py && git diff --exit-code --stat images/diagrams/
+ls images/pictures/*-light.png | sed 's/-light//' | while read f; do test -f "${f%.png}-dark.png" || echo "missing dark: $f"; done
 
 # no Title Case reference titles
 grep -rn "^title:.*[a-z] [A-Z]" --include=*.mdx api-reference/ \

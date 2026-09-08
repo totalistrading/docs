@@ -15,10 +15,8 @@ underlying markets resolve, or you close it early.
 - The position is live on chain at `executed` and settles when the last market resolves.
 - An `executed` position can be closed early through a cashout auction of about 10 seconds.
 
-<div className="dg-scroll">
-  <img className="block dark:hidden" src="/images/diagrams/lifecycle-light.svg" alt="Parlay status progression from open to settled, with the early cashout branch" />
-  <img className="hidden dark:block" src="/images/diagrams/lifecycle-dark.svg" alt="Parlay status progression from open to settled, with the early cashout branch" />
-</div>
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/lifecycle-light.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/lifecycle-dark.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
 
 Collateral locks at `confirmed`. Before that point no funds have moved, and a parlay that ends at
 `cancelled` or `expired` never touches your balance.

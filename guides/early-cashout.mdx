@@ -27,10 +27,8 @@ the same payload, so scale before you compare. See [Glossary](/guides/glossary#u
 An auction resolves one of two ways. They pay out the same for the seller, and they are completely
 different for your integration.
 
-<div className="dg-scroll">
-  <img className="block dark:hidden" src="/images/diagrams/early-cashout-light.svg" alt="The two ways a cashout auction resolves, and what each one notifies" />
-  <img className="hidden dark:block" src="/images/diagrams/early-cashout-dark.svg" alt="The two ways a cashout auction resolves, and what each one notifies" />
-</div>
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/early-cashout-light.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/early-cashout-dark.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
 
 <Warning>
 Do not wait on `bought_back` to detect that you won. If you bid on positions you do not already
