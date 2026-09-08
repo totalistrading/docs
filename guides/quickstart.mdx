@@ -4,7 +4,7 @@ icon: 'rocket'
 description: 'Call the public market data endpoint with no account, then get a scoped API key and make your first authenticated request.'
 ---
 
-## Step 0. Call the API right now
+## 1. Call the API right now
 
 Market data needs no key and no account. Run this before you sign up for anything:
 
@@ -18,12 +18,20 @@ search.
 
 Everything past this point needs a key.
 
-## 1. Get an API key
+## 2. Get an API key
 
 Create a key from the [Totalis Dashboard](https://app.totalis.trade), under account settings, then
 API keys. Give it only the scopes your integration needs. For a read-only start, `account:read`,
 `positions:read`, and `balances:read` are enough. See
 [Authentication](/guides/authentication) for the full scope catalog.
+
+<Frame caption="The key form in the app. Pick the Read-only preset for a first key.">
+  <img src="/images/app/02-api-keys.png" alt="The API Keys settings page with a key name field, permission presets, and the scope checkboxes" />
+</Frame>
+
+<Frame caption="The key form in the app. Pick the Read-only preset for a first key.">
+  <img src="/images/app/02-api-keys.png" alt="The API Keys settings page with a key name field, permission presets, and the scope checkboxes" />
+</Frame>
 
 <Warning>
 Copy the key when it is shown. The full key is displayed exactly once and cannot be retrieved later.
@@ -33,7 +41,7 @@ Copy the key when it is shown. The full key is displayed exactly once and cannot
 export TOTALIS_API_KEY="api_live_..."
 ```
 
-## 2. Make your first authenticated call
+## 3. Make your first authenticated call
 
 Every request to `https://api.totalis.trade` carries your key in the `X-API-Key` header. Confirm it
 works by reading your profile:
@@ -61,7 +69,7 @@ Every successful response wraps the resource in a `data` envelope.
 | `401` | The key is missing, invalid, or revoked. |
 | `403` | The key is valid but lacks the scope for this endpoint, or does not start with `api_`. |
 
-## 3. Read your account
+## 4. Read your account
 
 Pull your balances, open positions, and stats in one call:
 
@@ -70,7 +78,7 @@ curl https://api.totalis.trade/v1/portfolio \
   -H "X-API-Key: $TOTALIS_API_KEY"
 ```
 
-## 4. Before you can trade
+## 5. Before you can trade
 
 Reads work as soon as your key does. Placing a parlay needs two more things:
 

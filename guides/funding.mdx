@@ -18,21 +18,6 @@ deposit step.
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/funding-light.png" alt="Send USDC, enable trading once, trade with the stake moving into the vault by itself, withdraw any time" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/funding-dark.png" alt="Send USDC, enable trading once, trade with the stake moving into the vault by itself, withdraw any time" />
 
-## Enable trading first
-
-Before you can place a parlay or withdraw, your wallet must be delegated. You grant Totalis
-permission to sign transactions on your behalf inside a secure enclave. See
-[Vaults and custody](/guides/vault-architecture) for what that permission does and does not cover.
-
-<Warning>
-Enabling trading is an interactive step. You approve a consent dialog in the app, once. It cannot be
-done from the REST API. `POST /v1/wallet/enable-trading` only reports status. It does not grant the
-permission.
-</Warning>
-
-Check the current state with
-[`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
-
 ## Send USDC to your wallet
 
 <Steps>
@@ -70,6 +55,21 @@ Check the current state with
     transfer. You are now ready to request quotes and place parlays.
   </Step>
 </Steps>
+
+## Enable trading first
+
+Before you can place a parlay or withdraw, your wallet must be delegated. You grant Totalis
+permission to sign transactions on your behalf inside a secure enclave. See
+[Vaults and custody](/guides/vault-architecture) for what that permission does and does not cover.
+
+<Warning>
+Enabling trading is an interactive step. You approve a consent dialog in the app, once. It cannot be
+done from the REST API. `POST /v1/wallet/enable-trading` only reports status. It does not grant the
+permission.
+</Warning>
+
+Check the current state with
+[`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
 
 ## How your balance is used
 
@@ -110,6 +110,8 @@ your wallet, waits for that transaction to confirm, then sends the external tran
 then carries `vault_signature` and `vault_amount` beside the transfer `signature`. The app shows the
 same two numbers as **Available to withdraw** and **In open positions**.
 
+<Accordion title="For integrators: rules and failure modes">
+
 ### Rules
 
 - Trading must be enabled. Withdrawing uses the same delegation as placing a parlay. If it has
@@ -140,6 +142,8 @@ same two numbers as **Available to withdraw** and **In open positions**.
 
 The partial case returns `502` rather than `200` on purpose. Idempotent retries against a `502`
 re-enter the handler, where a cached `200` would have replayed a half-finished result.
+
+</Accordion>
 
 ### Withdrawing in the app
 

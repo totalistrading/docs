@@ -9,9 +9,8 @@ The Totalis WebSocket pushes post-trade events in real time: quote acceptances, 
 For pre-trade live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
 
 <Note>
-  WebSocket events reach you only while you are connected. Missed events are not redelivered. For durable, at-least-once delivery to a server, use [webhooks](/guides/webhooks), which carry most of the same lifecycle moments.
-
-  An early cashout that **closes** a position is on both channels: `position:bought_back` here, `position.bought_back` by webhook. The one exit outcome neither channel pushes to the buyer is a bid that **acquires** a position. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap) and [Real time and data channels](/guides/realtime-and-data).
+Events reach you only while you are connected, and missed events are not redelivered. For durable
+delivery to a server, use [webhooks](/guides/webhooks). One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
 </Note>
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/websocket-light.png" alt="Connect, authenticate before the timeout, subscribe to your channel, and events arrive while pings keep it open" />
@@ -126,7 +125,14 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 | `position:settled` | Position settled with outcome. | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
-| `position:bought_back` | A position was closed early by a winning cash-out bid. Delivered on this `rfq:{rfq_id}` channel, on the `mm:quotes:{mm_id}` channel of the market maker whose exposure closed, and directly to any connection authenticated as the seller or as that maker, so subscribe here and dedupe on `tx_signature`. `amount` is decimal USDC. `quote_id` is the position's original accepted quote, not the winning bid. Nothing is emitted when a bid *acquires* the position instead, and the RFQ does not become `bought_back` in that case. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap). | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
+| `position:bought_back` | A position was closed early by a winning cashout bid. See the note below. | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
+
+<Note>
+`position:bought_back` fans out to the `rfq:{rfq_id}` channel, to the `mm:quotes:{mm_id}` channel of
+the maker whose exposure closed, and directly to any connection authenticated as the seller or as
+that maker. Subscribe on `rfq:{rfq_id}` and dedupe on `tx_signature`. `amount` is decimal USDC, and
+`quote_id` is the position's original accepted quote, not the winning bid. One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
+</Note>
 
 ## Keep-alive
 

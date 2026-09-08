@@ -4,18 +4,16 @@ icon: 'webhook'
 description: 'Receive HMAC-signed events when your positions settle, get bought back, or your funds move. Configure an endpoint, verify signatures, handle retries, and replay deliveries.'
 ---
 
-Webhooks push events to your server as they happen, so you don't have to poll. Each event is
-**HMAC-signed** so you can verify it came from Totalis, delivered only for events whose **scope your
-API key holds**, and **retried with backoff** until it succeeds or is dead-lettered.
+Totalis posts signed events to your server as they happen and retries until you acknowledge. You
+receive only the events your key's scopes allow.
 
 The endpoint belongs to your **account** (the principal), not to the key that created it. Any of
 your active keys with the right scope manages it, and revoking one key among several does not stop
 delivery.
 
 <Note>
-  Webhooks are the durable channel: at-least-once, signed, and retried. For the same events pushed
-  live to a connected client (a UI or trading bot), use the [WebSocket](/guides/websocket). See
-  [Real time and data channels](/guides/realtime-and-data) for the full channel map.
+Webhooks are the durable channel. For the same events live on a connection, use the
+[WebSocket](/guides/websocket). The [channel map](/guides/realtime-and-data) compares them.
 </Note>
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/webhooks-light.png" alt="An event is signed and delivered to you; 2xx is accepted, 5xx is retried with backoff, other 4xx is dropped for replay" />

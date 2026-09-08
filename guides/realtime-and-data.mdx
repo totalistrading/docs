@@ -7,6 +7,9 @@ description: 'Which channel to use when: SSE for live quote pricing, WebSocket f
 Totalis moves data over four channels. Each covers a different phase of a trade and offers a
 different delivery guarantee. Pick by what you are doing, not by protocol preference.
 
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/realtime-and-data-light.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/realtime-and-data-dark.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
+
 | Channel | What it carries | Use it for |
 | --- | --- | --- |
 | [SSE streams](/api-reference/quote-service/stream) | Pre-trade pricing. Live `best_quote` updates on a quote request or cashout request. | Watching prices while you decide whether to commit |
@@ -18,8 +21,6 @@ All four authenticate with the same [API key](/guides/authentication).
 
 ## One trade, three phases
 
-<img className="block dark:hidden rounded-2xl" src="/images/pictures/realtime-and-data-light.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
-<img className="hidden dark:block rounded-2xl" src="/images/pictures/realtime-and-data-dark.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
 
 **Pricing is SSE.** Every quote request gets its own stream at
 [`GET /v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream). A cashout request gets
@@ -50,16 +51,7 @@ the delivery guarantee.
 
 Running both is common: the WebSocket for immediacy, webhooks for the durable record.
 
-<Warning>
-**One exit outcome is on neither channel.** An early cashout that **closes** a position is well
-covered: `position:bought_back` is delivered over WebSocket, to both the seller and the winning
-market maker, and `position.bought_back` arrives by webhook.
-
-The gap is the other outcome. When a winning bid **acquires** a position instead of closing it, the
-buyer receives nothing on either channel. An acquiring market maker learns of it only by reconciling
-against the [read endpoints](/guides/reading-data). See
-[Event catalog](/guides/event-catalog#the-acquisition-gap).
-</Warning>
+One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
 
 ## Typical integrations
 
@@ -85,14 +77,7 @@ against the [read endpoints](/guides/reading-data). See
 
 ### Market maker
 
-1. Stream quote requests and cashout requests from
-   [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream).
-2. [Submit quotes](/api-reference/quote-service-mm/submit-quote) as requests arrive.
-3. Listen on [`mm:quotes:{mm_id}`](/guides/websocket#subscribing-to-channels) for `quote:accepted`,
-   then [confirm](/api-reference/mm/confirm-quote) before the deadline.
-4. Keep the durable record with an [MM webhook endpoint](/guides/webhooks) (`?owner_kind=mm`).
-
-See [Market making](/guides/market-maker) for the full loop, including cashout pricing.
+The maker loop is on [Market making](/guides/market-maker), including cashout pricing.
 
 ## Every event, side by side
 

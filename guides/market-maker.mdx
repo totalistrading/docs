@@ -103,6 +103,13 @@ fee on your side, while acquiring a position does not.
 See [Early cashout](/guides/early-cashout) for the auction rules, the payload, and the error
 reasons.
 
+## Capital efficiency
+
+Market makers do not lock the full risk of every position independently. Totalis margins a maker's
+book as a portfolio, so collateral reflects their incremental worst case exposure. Hedged or
+offsetting positions require less locked capital than the naive sum. This is what lets makers quote
+deep, competitive odds.
+
 ## Get set up
 
 <CardGroup cols={2}>

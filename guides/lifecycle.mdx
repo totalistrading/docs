@@ -11,9 +11,9 @@ underlying markets resolve, or you close it early.
 ## At a glance
 
 - A parlay is 2 to 5 legs on one bet of 1 to 100 USDC, priced live by competing market makers.
-- Your funds move once, at `confirmed`. Nothing is touched before that point.
-- The position is live on chain at `executed` and settles when the last market resolves.
-- An `executed` position can be closed early through a cashout auction of about 10 seconds.
+- Your funds move once, when the maker confirms your trade. Nothing is touched before that.
+- The position then goes live on chain and settles by itself when the last market resolves.
+- A live position can be closed early through a short cashout auction, about 10 seconds.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/lifecycle-light.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/lifecycle-dark.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
@@ -32,6 +32,7 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
     - **Polymarket**: the `condition_id`, the `0x` prefixed hex string. Not the slug and not the
       question id. Both sides of a binary share one `condition_id` and are told apart by `side`.
 
+    <Accordion title="The call">
     ```bash
     POST /v1/quote-requests
     {
@@ -42,6 +43,7 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
       "bet_amount": 25
     }
     ```
+    </Accordion>
 
     Totalis validates each market, applies leg exclusion rules, and broadcasts the request to market
     makers. Correlated legs cannot be combined. See
@@ -56,20 +58,22 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
 
   <Step title="Market makers quote it">
     Makers stream the request and submit quotes with payout odds. You watch them arrive on the quote
-    request [stream](/api-reference/quote-service/stream). Each quote carries:
-
+    request [stream](/api-reference/quote-service/stream). The best one is always on top.
+    <Accordion title="What a quote carries">
     | Field | Meaning |
     | --- | --- |
     | `user_cost` | Your net stake, `bet_amount` minus the taker fee. |
     | `payout_odds` | The multiple applied to your net stake, never to the gross bet. |
     | `total_payout` | `user_cost * payout_odds`. What you receive if every leg wins. |
     | `book_seq` | The SSE event's sequence number. You send it back at commit to prove your pricing was current. |
+    </Accordion>
   </Step>
 
   <Step title="Commit the best quote">
     Accept a quote to lock the trade. Totalis selects the best still valid quote for the version you
     saw, and creates the parlay with that quote already accepted.
 
+    <Accordion title="The call">
     ```bash
     POST /v1/quote-requests/<id>/commit
     {
@@ -79,7 +83,7 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
       "min_payout_odds_seen": 4.0
     }
     ```
-
+    </Accordion>
     The response returns the real `rfq_id`, the accepted quote, and the payout odds. Status becomes
     `accepted`. If the commit fails, no funds moved and no trade happened. See
     [Errors](/api-reference/errors) for the rejection reasons.
@@ -143,21 +147,11 @@ against you.
   </Step>
 </Steps>
 
-A cashout resolves one of two ways, and they are not the same for your integration:
-
-| Winning bidder | What happens | Parlay status |
-| --- | --- | --- |
-| The maker who backs the position | The position closes. Realized P&L lands on the parlay's `cashout` object. | `bought_back` |
-| Any other maker | They acquire the position. It stays open under new ownership. | unchanged, stays `executed` |
-
-<Warning>
-Do not wait on `bought_back` to detect an acquisition. When another maker wins, the parlay status
-does not change. See [Early cashout](/guides/early-cashout).
-</Warning>
+The auction resolves in one of two ways, and they look different to an integration. [Early cashout](/guides/early-cashout) explains both. One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
 
 ## Status reference
 
-The `status` on a parlay (RFQ):
+The `status` on a parlay. In the API the parlay object is called an RFQ, so the field lives on `GET /v1/rfqs/{id}`:
 
 | Status | Meaning | Funds |
 | --- | --- | --- |

@@ -41,8 +41,8 @@ Environment. The key never leaves the enclave, and Privy cannot extract it eithe
 To trade, you grant Totalis permission to sign on your behalf inside that enclave. This is a one
 time consent in the app, described under [Enable trading](/guides/funding#enable-trading-first).
 
-This is semi-custodial. You explicitly grant the permission and can revoke it at any time. Totalis
-can sign your trades. It never holds your key and cannot move it.
+Non-custodial with delegated signing means exactly this: you grant the permission and can revoke it
+at any time. Totalis can sign your trades. It never holds your key and cannot move it.
 
 ## Gas is sponsored
 
@@ -78,10 +78,3 @@ A precise statement of the trust model, since "non-custodial" gets used loosely:
 | Cancel a position when a leg is voided | Prevent you from revoking delegation |
 
 Every vault, position, and settlement is on the Solana blockchain and independently verifiable.
-
-## Capital efficiency for makers
-
-Market makers do not lock the full risk of every position independently. Totalis margins a maker's
-book as a portfolio, so collateral reflects their incremental worst case exposure. Hedged or
-offsetting positions require less locked capital than the naive sum. This is what lets makers quote
-deep, competitive odds.

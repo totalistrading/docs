@@ -103,6 +103,4 @@ parse or construct one.
 
 ### What reconciliation is the only way to catch
 
-A cashout bid that acquires a position emits no event to the buyer on any push channel. If you bid
-on auctions for positions you do not already back, a reconcile loop against your position reads is
-the only way you learn you won. See [Event catalog](/guides/event-catalog#the-acquisition-gap).
+One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap). If you bid on auctions for positions you do not already back, a reconcile loop against your position reads is how you learn you won.
