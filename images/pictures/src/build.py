@@ -1,9 +1,12 @@
 """Emit one HTML file per concept picture from compact specs. Shared look lives in pics.css.
 Rule of the system: at most four columns across, plain words only, one highlighted object per picture."""
 import pathlib, html as H
-HEAD = '''<!doctype html><html><head><meta charset="utf-8">
+# The look is inlined from pics.style. It is deliberately not a .css file: Mintlify loads every
+# .css in the repo as site CSS, and these rules would restyle the docs themselves.
+CSS = pathlib.Path(__file__).with_name('pics.style').read_text(encoding='utf-8')
+HEAD = f'''<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="pics.css"></head><body>'''
+<style>{CSS}</style></head><body>'''
 TAIL = '<script>if (location.search.includes("dark")) document.body.classList.add("dark");</script></body></html>'
 
 def card(title=None, sub=None, kicker=None, badge=None, badge_cls='', lock=False, hi=False, soft=False, w=None, body='', cls=''):

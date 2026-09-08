@@ -106,7 +106,7 @@ backend.
   ```
 
 - **One source, rendered.** Words and layout live in `images/pictures/src/build.py`; the look lives
-  in `images/pictures/src/pics.css`. Change the words, run `python build.py` there, then
+  in `images/pictures/src/pics.style`. Change the words, run `python build.py` there, then
   `cd scripts && npm install && node render-pictures.mjs` to re-render both themes. Commit the
   source and the PNGs together.
 - **The visual language.** A betting slip with venue marks for the parlay. Competing odds tags for
