@@ -22,27 +22,37 @@ away.
 
 <Steps>
   <Step title="Request a cashout">
-    Read `position_id` from the parlay object once it is `executed`.
+    Ask for a cashout on a live position. Totalis opens the auction and gives you a stream to watch it.
 
+    <Accordion title="The call">
     ```bash
     POST /v1/cashout-requests
     { "position_id": "<position-id>" }
-
     GET  /v1/cashout-requests/<id>/stream   # SSE: live buyback quote and status
     ```
+    `position_id` is on the parlay object once it is live.
+    </Accordion>
   </Step>
   <Step title="Market makers bid">
-    Every maker sees the auction and can bid one all-in price. Watch the
-    [cashout stream](/api-reference/quote-service/cashout-stream) for the best live bid. Its
+    Every maker sees the auction and can bid one all-in price. The best live bid is what you see, and
+    it can change until you accept.
+
+    <Accordion title="On the wire">
+    The [cashout stream](/api-reference/quote-service/cashout-stream) carries the best live bid. Its
     `price_micro` is the total you would receive, in microUSDC.
+    </Accordion>
   </Step>
-  <Step title="Commit">
+  <Step title="Accept the price">
+    Take the best bid, or walk away. You are only ever filled at the price you accepted.
+
+    <Accordion title="The call">
     ```bash
     POST /v1/cashout-requests/<id>/commit
     { "min_price_micro": <the price_micro you accepted> }
     ```
-
-    `min_price_micro` is required. Nothing is ever filled at a price you did not see.
+    `min_price_micro` is required. If the best bid has dropped below it, the commit fails and nothing
+    happens.
+    </Accordion>
   </Step>
 </Steps>
 

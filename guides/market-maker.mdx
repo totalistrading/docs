@@ -74,29 +74,15 @@ quoting at size.
 
 ## Quoting rules
 
-### Receiving quote requests
-
-Connect to the [MM SSE stream](/api-reference/quote-service-mm/stream) to receive quote requests in real time. On initial connection you receive a snapshot of all active requests, then incremental updates as new requests arrive.
-
-### Submitting quotes
-
-Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version; submitting again replaces your previous quote. Send only the fields below. The server derives the cost fields from `payout_odds` and the request's **net stake**: `user_cost = bet_amount - taker_fee` (= `user_stake` on the stream), `total_payout = user_cost * payout_odds`, `mm_cost = total_payout - user_cost`.
-
-```json
-{
-  "request_version": 3,
-  "request_hash": "sha256...",
-  "payout_odds": 4.0,
-  "expires_in_ms": 15000
-}
-```
-
-Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically. Re-price and `PUT` a new quote with the new `request_version` and `request_hash`. You do not need to withdraw the old one.
-
-### Withdrawing quotes
-
-Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote on the **current** version before the user commits it, for example if your price moved and you want to stand down. This is not part of the version-change flow: a new `version` already invalidates your prior quote, so you don't withdraw to re-quote.
-
+- One active quote per request version. Submitting again replaces your previous quote.
+- Send `request_version`, `request_hash`, `payout_odds` and `expires_in_ms`, nothing else. The server
+  derives the money fields from your odds and the net stake: `user_cost = bet_amount - taker_fee`,
+  `total_payout = user_cost * payout_odds`, `mm_cost = total_payout - user_cost`.
+- Keep quotes short-lived. The default validity is 15 seconds.
+- When the request moves to a new version, your quote on the old version is invalidated for you.
+  Re-price and `PUT` again with the new version and hash. There is nothing to withdraw first.
+- To stand down on the current version before the user commits, `DELETE` the quote. That is the only
+  reason to withdraw.
 
 ## Your identity across channels
 
