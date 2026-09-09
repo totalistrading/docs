@@ -32,7 +32,7 @@ intersect. Check that yourself before you create the request.
 ## Place a parlay
 
 Three calls: create the quote request with 2 to 5 legs and a bet amount, watch the quote stream,
-then commit the quote you want. Funds move only at `confirmed`.
+then commit the quote you want. Funds move only once the maker confirms.
 [How parlays work](/guides/lifecycle#place-a-parlay).
 
 ## Check my balance
@@ -62,7 +62,7 @@ key holds `positions:read`. The WebSocket carries the same event live as `positi
 
 ## Close a position early
 
-Open a cashout request on an `executed` position, watch the stream for the best all-in price, and
+Open a cashout request on a live position, watch the stream for the best all-in price, and
 commit it. The auction runs about 10 seconds.
 [Early cashout](/guides/early-cashout).
 

@@ -40,11 +40,6 @@ dialog. It cannot be retrieved later, only revoked and replaced.
 Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. Live keys start `api_live_`, test environment keys
 start `api_test_`.
 
-<Note>
-The web app authenticates with a Privy JWT (`Authorization: Bearer <jwt>`) instead of a key. Every
-endpoint accepts either. The one exception is creating a key, which needs a JWT or a key that already
-holds `keys:manage`.
-</Note>
 
 <Note>
 The web app authenticates with a Privy JWT (`Authorization: Bearer <jwt>`) instead of a key. Every
