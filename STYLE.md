@@ -109,9 +109,10 @@ backend.
   in `images/pictures/src/pics.style`. Change the words, run `python build.py` there, then
   `cd scripts && npm install && node render-pictures.mjs` to re-render both themes. Commit the
   source and the PNGs together.
-- **The visual language.** A betting slip with venue marks for the parlay. Competing odds tags for
-  makers. Node and rail connectors. A lifecycle rail under the picture. One accent border and a soft
-  glow on the object the page is about. DM Sans and DM Mono. No avatars, no icons, no arrows.
+- **The visual language.** Polymarket's concept image idiom, deliberately: people as avatar circles,
+  rounded boxes with one or two words, dashed connectors, panels that group a few boxes, a number
+  where a number says it best, one green outline on the object the page is about. Under about
+  fifteen words per picture. The picture carries the idea; the page carries the words.
 - **Screenshots for anything with a screen.** Where the app has the UI, show the app, not a picture.
   Blur balances, addresses and key material. Never show the BYOW preset.
 - **Never inline SVG.** Mintlify strips `text`, `circle`, `marker` and `title` from inline SVG, so it

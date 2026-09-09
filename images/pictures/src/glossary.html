@@ -1,88 +1,81 @@
 <!doctype html><html><head><meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
 <style>:root {
-  --bg: #FAFBFA; --ink: #172019; --muted: #6B7A72; --faint: #9AA69F;
-  --card: #FFFFFF; --card-line: rgba(23,32,25,.10); --well: #F1F3F1;
-  --accent: #16A34A; --accent-ink: #0F7A37; --accent-soft: rgba(22,163,74,.12); --glow: rgba(22,163,74,.10);
-  --warn: #B45309; --warn-soft: rgba(217,119,6,.12);
-  --rail: rgba(23,32,25,.18); --node: #172019;
-  --kalshi: #2563EB; --poly: #7C3AED;
+  --bg: #FAFAFA; --ink: #172019; --muted: #6B7A72;
+  --panel: #F0F1F1; --panel-line: rgba(23,32,25,.06); --box: #E6E8E7; --box-line: rgba(23,32,25,.06);
+  --accent: #16A34A; --accent-ink: #0F7A37; --accent-soft: rgba(22,163,74,.16);
+  --warn: #B45309; --warn-soft: rgba(217,119,6,.16);
+  --dash: rgba(23,32,25,.28);
+  --a1: #16A34A; --a2: #3B82F6; --a3: #A855F7; --a4: #F59E0B; --a5: #EF4444; --a6: #06B6D4;
 }
 body.dark {
-  --bg: #0B0F0D; --ink: #E4EBE6; --muted: #93A099; --faint: #5F6B65;
-  --card: #121714; --card-line: rgba(228,235,230,.10); --well: #181E1A;
-  --accent: #07C983; --accent-ink: #07C983; --accent-soft: rgba(7,201,131,.14); --glow: rgba(7,201,131,.12);
-  --warn: #FBBF24; --warn-soft: rgba(251,191,36,.14);
-  --rail: rgba(228,235,230,.20); --node: #E4EBE6;
-  --kalshi: #60A5FA; --poly: #A78BFA;
+  --bg: #121316; --ink: #E4EBE6; --muted: #8F9A94;
+  --panel: #1B1D22; --panel-line: rgba(228,235,230,.05); --box: #24272D; --box-line: rgba(228,235,230,.05);
+  --accent: #07C983; --accent-ink: #07C983; --accent-soft: rgba(7,201,131,.18);
+  --warn: #FBBF24; --warn-soft: rgba(251,191,36,.18);
+  --dash: rgba(228,235,230,.30);
+  --a1: #22C55E; --a2: #60A5FA; --a3: #C084FC; --a4: #FBBF24; --a5: #F87171; --a6: #22D3EE;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 1540px; height: 952px; background: var(--bg); font-family: "DM Sans", system-ui, sans-serif; color: var(--ink); overflow: hidden; }
-.glow { position: absolute; width: 460px; height: 460px; border-radius: 50%; background: radial-gradient(closest-side, var(--glow), transparent); transform: translate(-50%, -50%); }
-.stage { position: absolute; left: 90px; right: 90px; top: 110px; height: 620px; display: flex; align-items: center; justify-content: center; }
-.col { display: flex; flex-direction: column; align-items: center; }
-.card { background: var(--card); border: 2px solid var(--card-line); border-radius: 22px; padding: 28px 30px; position: relative; width: var(--w, 300px); }
-.card.hi { border-color: var(--accent); border-width: 2.5px; }
-.card.soft { background: transparent; border-style: dashed; }
-.kicker { font-family: "DM Mono", ui-monospace, monospace; font-size: 17px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: 0 0 12px; }
-.title { font-size: 32px; font-weight: 600; margin: 0 0 8px; line-height: 1.12; }
-.sub { font-size: 23px; color: var(--muted); margin: 0; line-height: 1.32; }
-.badge { position: absolute; top: -15px; right: 18px; font: 600 15px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; padding: 4px 12px; border-radius: 999px; background: var(--bg); border: 2px solid var(--card-line); color: var(--muted); white-space: nowrap; }
-.badge.hi { border-color: var(--accent); color: var(--accent-ink); }
-.badge.warn { border-color: var(--warn); color: var(--warn); }
-.lock { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); display: grid; place-items: center; margin-bottom: 14px; }
-.lock::before { content: ""; width: 16px; height: 13px; border: 3px solid var(--accent-ink); border-bottom: 0; border-radius: 8px 8px 0 0; margin-bottom: -2px; }
-.lock::after { content: ""; width: 22px; height: 15px; border-radius: 4px; background: var(--accent-ink); }
+.stage { position: absolute; left: 100px; right: 100px; top: 90px; height: 700px; display: flex; align-items: center; justify-content: center; gap: 0; }
+.inner { display: flex; align-items: center; justify-content: center; }
+.col { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.rowc { display: flex; align-items: center; }
 
-.slip::after { content: ""; position: absolute; left: 22px; right: 22px; bottom: 84px; border-top: 2px dashed var(--card-line); }
-.leg { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 22px; }
-.venue { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font: 700 15px "DM Mono", monospace; color: #fff; flex: 0 0 auto; }
-.venue.k { background: var(--kalshi); } .venue.p { background: var(--poly); }
-.leg .name { flex: 1; color: var(--muted); }
-.pill { font-size: 19px; font-weight: 700; padding: 4px 13px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); }
-.pill.no { background: var(--well); color: var(--muted); }
-.total { display: flex; justify-content: space-between; margin-top: 28px; font-size: 22px; color: var(--muted); }
-.total b { color: var(--ink); font-size: 25px; }
+/* people */
+.avatar { width: 96px; height: 96px; border-radius: 50%; position: relative; overflow: hidden; background: color-mix(in srgb, var(--c) 24%, var(--bg)); flex: 0 0 auto; }
+.avatar::before { content: ""; position: absolute; left: 50%; top: 21%; width: 27%; height: 27%; margin-left: -13.5%; border-radius: 50%; background: var(--c); }
+.avatar::after { content: ""; position: absolute; left: 50%; top: 57%; width: 50%; height: 36%; margin-left: -25%; border-radius: 50% 50% 42% 42%; background: var(--c); opacity: .9; }
+.avatar.sm { width: 70px; height: 70px; }
+.a1 { --c: var(--a1); } .a2 { --c: var(--a2); } .a3 { --c: var(--a3); } .a4 { --c: var(--a4); } .a5 { --c: var(--a5); } .a6 { --c: var(--a6); }
+.people { display: flex; gap: 22px; }
+.who { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.who .label { font-size: 26px; color: var(--muted); }
 
-.tag { display: flex; justify-content: space-between; align-items: center; background: var(--well); border-radius: 14px; padding: 11px 16px; margin-top: 10px; font-size: 22px; color: var(--muted); }
-.tag b { font-family: "DM Mono", monospace; font-size: 26px; color: var(--ink); font-weight: 500; }
-.tag.best { background: var(--accent-soft); color: var(--accent-ink); outline: 2px solid var(--accent); }
-.tag.best b { color: var(--accent-ink); }
+/* boxes and panels */
+.box { background: var(--box); border: 2px solid var(--box-line); border-radius: 22px; min-width: 190px; min-height: 112px; padding: 26px 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.box .t { font-size: 32px; font-weight: 500; line-height: 1.15; }
+.box .s { font-size: 24px; color: var(--muted); line-height: 1.2; }
+.box .n { font-family: "DM Mono", ui-monospace, monospace; font-size: 40px; font-weight: 500; line-height: 1; }
+.box.hi { outline: 3px solid var(--accent); outline-offset: -3px; }
+.box.hi .n, .box.hi .t { color: var(--accent-ink); }
+.box.warn .n { color: var(--warn); }
+.box.tall { min-height: 300px; }
+.box.wide { min-width: 260px; }
+.box.compact { min-width: 150px; padding: 22px 22px; }
+.panel { background: var(--panel); border: 2px solid var(--panel-line); border-radius: 30px; padding: 26px; display: flex; flex-direction: column; gap: 16px; align-items: stretch; }
+.panel .cap { font-size: 26px; color: var(--muted); text-align: center; margin: 0 0 4px; }
+.panel .box { background: var(--box); }
+.chips { display: flex; gap: 14px; justify-content: center; }
+.chip { min-width: 78px; padding: 16px 22px; border-radius: 18px; background: var(--box); font-size: 28px; font-weight: 500; text-align: center; }
+.chip.yes { background: var(--accent-soft); color: var(--accent-ink); }
+.chip.no { color: var(--muted); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
 
-.rows { margin-top: 6px; }
-.row { display: flex; justify-content: space-between; gap: 14px; margin-top: 12px; font-size: 22px; color: var(--muted); }
-.row b { font-family: "DM Mono", monospace; font-weight: 500; color: var(--ink); font-size: 24px; }
-.row b.hi { color: var(--accent-ink); }
-.row b.warn { color: var(--warn); }
+/* connectors */
+.dl { flex: 0 0 auto; width: var(--w, 90px); border-top: 4px dashed var(--dash); }
+.dl.v { width: 0; height: var(--h, 60px); border-top: 0; border-left: 4px dashed var(--dash); }
+.fork { flex: 0 0 auto; width: 90px; align-self: stretch; position: relative; }
+.fork::before { content: ""; position: absolute; left: 44px; top: var(--top, 25%); bottom: var(--bottom, 25%); border-left: 4px dashed var(--dash); }
+.fork .arm { position: absolute; left: 0; width: 100%; border-top: 4px dashed var(--dash); }
+.fork .arm.a { top: var(--top, 25%); } .fork .arm.b { bottom: var(--bottom, 25%); }
+.fork .arm.mid { top: 50%; width: 44px; }
+.stack { display: flex; flex-direction: column; gap: 24px; justify-content: center; }
 
-.link { flex: 0 0 auto; width: var(--lw, 52px); height: 3px; background: var(--rail); position: relative; }
-.link::before, .link::after { content: ""; position: absolute; top: -5px; width: 13px; height: 13px; border-radius: 50%; background: var(--node); }
-.link::before { left: -6px; } .link::after { right: -6px; }
-.link .tip { position: absolute; left: 50%; top: -40px; transform: translateX(-50%); white-space: nowrap; font: 600 18px "DM Mono", monospace; letter-spacing: .06em; color: var(--muted); }
-.link .tip.hi { color: var(--accent-ink); } .link .tip.warn { color: var(--warn); }
-.vlink { width: 3px; height: 36px; background: var(--rail); position: relative; }
-.vlink::before, .vlink::after { content: ""; position: absolute; left: -5px; width: 13px; height: 13px; border-radius: 50%; background: var(--node); }
-.vlink::before { top: -6px; } .vlink::after { bottom: -6px; }
-.fork { flex: 0 0 auto; width: 52px; position: relative; align-self: stretch; }
-.fork::before { content: ""; position: absolute; left: 0; top: var(--top, 25%); bottom: var(--bottom, 25%); width: 3px; background: var(--rail); }
-.fork .arm { position: absolute; left: 0; width: 100%; height: 3px; background: var(--rail); }
-.fork .arm::after { content: ""; position: absolute; right: -6px; top: -5px; width: 13px; height: 13px; border-radius: 50%; background: var(--node); }
-.fork .mid { position: absolute; left: -6px; top: 50%; margin-top: -6px; width: 13px; height: 13px; border-radius: 50%; background: var(--node); }
-.stack { display: flex; flex-direction: column; gap: 22px; justify-content: center; }
-
-.rail { position: absolute; left: 90px; right: 90px; top: 810px; height: 3px; background: var(--rail); }
-.tick { position: absolute; top: -8px; width: 19px; height: 19px; border-radius: 50%; background: var(--bg); border: 3px solid var(--rail); margin-left: -9px; }
-.tick.on { background: var(--accent); border-color: var(--accent); }
-.tick span { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); white-space: nowrap; font: 500 22px "DM Sans", sans-serif; color: var(--muted); }
+/* rail with ticks */
+.rail { position: absolute; left: 100px; right: 100px; top: 830px; border-top: 4px dashed var(--dash); }
+.tick { position: absolute; top: -12px; margin-left: -10px; width: 20px; height: 20px; border-radius: 50%; background: var(--dash); }
+.tick.on { background: var(--accent); }
+.tick span { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 24px; color: var(--muted); }
 .tick.on span { color: var(--accent-ink); }
 
-.channels { position: absolute; left: 90px; right: 90px; top: 170px; }
-.chan { display: grid; grid-template-columns: 330px 1fr; align-items: center; height: 118px; }
-.chan .name { font-size: 30px; font-weight: 600; }
-.chan .name small { display: block; font-size: 21px; font-weight: 400; color: var(--muted); margin-top: 2px; }
-.chan .track { position: relative; height: 60px; }
-.chan .bar { position: absolute; top: 0; height: 60px; border-radius: 14px; background: var(--well); border: 2px solid var(--card-line); display: flex; align-items: center; padding: 0 20px; font-size: 22px; color: var(--muted); white-space: nowrap; overflow: hidden; }
-.chan .bar.hi { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
-.marks { position: absolute; left: 420px; right: 90px; top: 690px; height: 3px; background: var(--rail); }
-.marks .tick span { top: 26px; }
-</style></head><body><div class="glow" style="left:770px;top:420px"></div><div class="stage"><div class="card" style="--w:340px"><p class="kicker">before you commit</p><p class="title">Quote request</p><p class="sub">Your legs and bet, priced live by makers. Gone once it ends.</p></div><div class="link"></div><div class="card hi" style="--w:340px"><span class="badge hi">product name</span><p class="kicker">from commit</p><p class="title">Parlay</p><p class="sub">The record you can query from now on</p></div><div class="link"></div><div class="card" style="--w:340px"><div class="lock"></div><p class="kicker">from executed</p><p class="title">Position</p><p class="sub">Your parlay on chain. Cash out from here.</p></div></div><div class="rail"><div class="tick on" style="left:0%"><span>open</span></div><div class="tick on" style="left:20%"><span>quoted</span></div><div class="tick on" style="left:40%"><span>accepted</span></div><div class="tick on" style="left:60%"><span>confirmed</span></div><div class="tick on" style="left:80%"><span>executed</span></div><div class="tick " style="left:100%"><span>settled</span></div></div><script>if (location.search.includes("dark")) document.body.classList.add("dark");</script></body></html>
+/* channel bars */
+.channels { position: absolute; left: 100px; right: 100px; top: 150px; display: flex; flex-direction: column; gap: 34px; }
+.chan { display: grid; grid-template-columns: 300px 1fr; align-items: center; }
+.chan .name { font-size: 34px; font-weight: 500; }
+.chan .track { position: relative; height: 84px; }
+.chan .bar { position: absolute; top: 0; height: 84px; border-radius: 22px; background: var(--box); border: 2px solid var(--box-line); }
+.chan .bar.hi { background: var(--accent-soft); border-color: transparent; }
+.marks { position: absolute; left: 400px; right: 100px; top: 700px; border-top: 4px dashed var(--dash); }
+</style></head><body><div class="stage"><div class="inner" style="zoom:1.25"><div class="box tall wide"><div class="t">Quote request</div></div><div class="dl" style=--w:140px></div><div class="box hi tall wide"><div class="t">Parlay</div></div><div class="dl" style=--w:140px></div><div class="box tall wide"><div class="t">Position</div></div></div></div><div class="rail"><div class="tick on" style="left:0%"><span>open</span></div><div class="tick on" style="left:40%"><span>commit</span></div><div class="tick on" style="left:72%"><span>on chain</span></div><div class="tick " style="left:100%"><span>settled</span></div></div><script>if (location.search.includes("dark")) document.body.classList.add("dark");</script></body></html>
