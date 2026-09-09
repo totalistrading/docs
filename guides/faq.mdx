@@ -32,7 +32,8 @@ Totalis lists markets that are recurring, have reliable liquidity on the underly
 settle within one week. These span sports, macro, politics, crypto, and weather.
 
 The focus is high frequency, short duration markets that support rapid capital turnover. For the
-current list, query [`GET /markets`](/api-reference/markets/list). No API key needed.
+current list, query [`GET /markets`](/api-reference/markets/list). No API key needed. More venues
+are planned: Totalis is built to be venue agnostic, and a single parlay can already mix venues.
 
 ## What chain are you on?
 
@@ -81,28 +82,6 @@ If a market is cancelled or delisted before all legs in a parlay have resolved, 
 invalid leg, cancels the position, and unlocks both your collateral and the market maker's. Nobody
 loses funds to an external market cancellation.
 
-## How does collateral minimization work?
-
-Without portfolio-level netting, each parlay would post collateral in isolation. A parlay with a
-12,000 USDC max payout would need 12,000 USDC in the vault, an 8,000 USDC max payout parlay would
-need another 8,000, and so on.
-
-That is wasteful when positions are mutually exclusive and cannot both come true. The real worst
-case is one parlay hitting, not both.
-
-<Frame caption="Collateral posted per parlay in isolation, before portfolio netting">
-  <div className="figure-light">
-    <img src="/collateral_minimization.png" alt="Each parlay posting its full max payout as collateral independently" />
-  </div>
-</Frame>
-
-Totalis margins market makers at the portfolio level instead. It computes the true worst case loss
-across all possible outcome states for the whole book, and requires collateral only for that
-scenario.
-
-Modeled across 3 to 5 leg parlays spanning 1000 markets, this cuts required collateral by 30% to 40%
-compared with posting each trade in isolation.
-
 ## How does Totalis make money?
 
 Two fees: a 1% taker fee on your stake charged upfront, and a 1% fee on the profit earned by the
@@ -110,11 +89,6 @@ winning side of each trade.
 
 Both, with a fully worked example and the exact formulae, are on
 [Limits and fees](/guides/limits-and-fees#fees).
-
-## Will you add other prediction markets? Can I make cross-platform parlays?
-
-Yes. Totalis is built as a venue-agnostic derivatives layer designed to aggregate markets across
-prediction market platforms.
 
 ## Is Totalis available to U.S. persons?
 

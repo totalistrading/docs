@@ -115,39 +115,10 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
 
 ## Closing early
 
-Once a parlay is `executed` you do not have to wait for settlement. You open a short **cashout
-auction**: Totalis broadcasts it to every market maker, and the highest live bid wins.
-
-The price you accept is one all-in figure. It can be below your stake if the position has gone
-against you.
-
-<Steps>
-  <Step title="Request a cashout">
-    Read `position_id` from the parlay object once it is `executed`.
-
-    ```bash
-    POST /v1/cashout-requests
-    { "position_id": "<position-id>" }
-
-    GET  /v1/cashout-requests/<id>/stream   # SSE: live buyback quote and status
-    ```
-  </Step>
-  <Step title="Market makers bid">
-    Every maker sees the auction and can bid one all-in price. Watch the
-    [cashout stream](/api-reference/quote-service/cashout-stream) for the best live bid. Its
-    `price_micro` is the total you would receive, in microUSDC.
-  </Step>
-  <Step title="Commit">
-    ```bash
-    POST /v1/cashout-requests/<id>/commit
-    { "min_price_micro": <the price_micro you accepted> }
-    ```
-
-    `min_price_micro` is required. Nothing is ever filled at a price you did not see.
-  </Step>
-</Steps>
-
-The auction resolves in one of two ways, and they look different to an integration. [Early cashout](/guides/early-cashout) explains both. One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
+Once a parlay is live on chain you can leave it before settlement. Totalis runs a short auction among
+market makers, you see the best all-in price live, and you accept it or not. Nothing is ever filled
+at a price you did not see. [Early cashout](/guides/early-cashout) has the steps and the two ways an
+auction can resolve.
 
 ## Status reference
 

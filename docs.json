@@ -62,9 +62,10 @@
               "guides/reading-data",
               "guides/webhooks",
               "guides/websocket",
-              "guides/live-quote-requests",
+              "guides/early-cashout",
+              "guides/quote-requests",
               "guides/market-maker",
-              "guides/early-cashout"
+              "guides/cashout-auctions"
             ]
           },
           {
@@ -283,6 +284,10 @@
     {
       "source": "/api-reference/rfqs/cancel",
       "destination": "/api-reference/quote-service/cancel"
+    },
+    {
+      "source": "/guides/live-quote-requests",
+      "destination": "/guides/quote-requests"
     }
   ],
   "seo": {

@@ -141,3 +141,12 @@ rt = HEAD + '<div class="channels">' + \
      '<div class="marks">' + ''.join(f'<div class="tick on" style="left:{p}%"><span>{t}</span></div>' for p, t in [(0, 'request'), (30, 'commit'), (70, 'settle')]) + \
      '<div class="tick" style="left:100%"><span>later</span></div></div>' + TAIL
 pathlib.Path('realtime-and-data.html').write_text(rt, encoding='utf-8'); print('built realtime-and-data')
+
+# collateral-netting
+page('collateral-netting',
+     stack(card('Parlay A', 'Max payout 12,000 USDC', w=300), card('Parlay B', 'Max payout 8,000 USDC', badge='cannot both win', badge_cls='warn', w=300)) +
+     fork(28, 28) +
+     stack(card('Posted one by one', body=rows(('locked', '20,000', 'warn')) + sub_after('Each parlay backs its own worst case'), w=340),
+           card('Margined as a book', body=rows(('locked', '12,000', 'hi')) + sub_after('Only the true worst case, since both cannot hit'), hi=True, w=340)),
+     None, glow_at=(1040, 470))
+

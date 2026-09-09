@@ -72,6 +72,32 @@ Two markets can share a parlay only if their `exclusion_keys` arrays do not inte
 Check available USDC and locked funds with [`GET /v1/wallet`](/api-reference/user/get-wallet) before
 quoting at size.
 
+## Quoting rules
+
+### Receiving quote requests
+
+Connect to the [MM SSE stream](/api-reference/quote-service-mm/stream) to receive quote requests in real time. On initial connection you receive a snapshot of all active requests, then incremental updates as new requests arrive.
+
+### Submitting quotes
+
+Call [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) with the `request_version` and `request_hash` from the SSE event. One active quote per request version; submitting again replaces your previous quote. Send only the fields below. The server derives the cost fields from `payout_odds` and the request's **net stake**: `user_cost = bet_amount - taker_fee` (= `user_stake` on the stream), `total_payout = user_cost * payout_odds`, `mm_cost = total_payout - user_cost`.
+
+```json
+{
+  "request_version": 3,
+  "request_hash": "sha256...",
+  "payout_odds": 4.0,
+  "expires_in_ms": 15000
+}
+```
+
+Keep quotes short-lived (default 15s). When the request changes to a new version, your prior-version quote is invalidated automatically. Re-price and `PUT` a new quote with the new `request_version` and `request_hash`. You do not need to withdraw the old one.
+
+### Withdrawing quotes
+
+Call [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) to retract a quote on the **current** version before the user commits it, for example if your price moved and you want to stand down. This is not part of the version-change flow: a new `version` already invalidates your prior quote, so you don't withdraw to re-quote.
+
+
 ## Your identity across channels
 
 Your `mm_id` is your `user_id`, which is your Privy DID (`did:privy:...`). It is echoed by
@@ -100,15 +126,27 @@ nothing.
 win costs you depends on whether you already back that position: a closing exit carries the profit
 fee on your side, while acquiring a position does not.
 
-See [Early cashout](/guides/early-cashout) for the auction rules, the payload, and the error
+See [Cashout auctions](/guides/cashout-auctions) for the auction rules, the payload, and the error
 reasons.
 
-## Capital efficiency
+## Collateral minimization
 
-Market makers do not lock the full risk of every position independently. Totalis margins a maker's
-book as a portfolio, so collateral reflects their incremental worst case exposure. Hedged or
-offsetting positions require less locked capital than the naive sum. This is what lets makers quote
-deep, competitive odds.
+Without portfolio-level netting, each parlay would post collateral in isolation. A parlay with a
+12,000 USDC max payout would need 12,000 USDC in the vault, an 8,000 USDC max payout parlay would
+need another 8,000, and so on.
+
+That is wasteful when positions are mutually exclusive and cannot both come true. The real worst
+case is one parlay hitting, not both.
+
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/collateral-netting-light.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/collateral-netting-dark.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
+
+Totalis margins market makers at the portfolio level instead. It computes the true worst case loss
+across all possible outcome states for the whole book, and requires collateral only for that
+scenario.
+
+Modeled across 3 to 5 leg parlays spanning 1000 markets, this cuts required collateral by 30% to 40%
+compared with posting each trade in isolation.
 
 ## Get set up
 
@@ -116,8 +154,11 @@ deep, competitive odds.
   <Card title="Get an API key" icon="key" href="/guides/authentication">
     Generate a key with the `mm:quote` scope to authenticate REST and SSE requests.
   </Card>
-  <Card title="Live quote requests" icon="bolt" href="/guides/live-quote-requests">
-    Versioned quote requests, SSE streaming, commit protection, and rejection codes.
+  <Card title="Quote requests in depth" icon="bolt" href="/guides/quote-requests">
+    Commit protection, rejection codes, and the shapes on the wire.
+  </Card>
+  <Card title="Cashout auctions" icon="gavel" href="/guides/cashout-auctions">
+    Bid on parlay exits and know which outcome you are in.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/api-reference/errors">
     Every rejection reason, and which to alert on rather than log.
