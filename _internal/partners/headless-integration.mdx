@@ -32,6 +32,9 @@ individual holding their own Solana keypair can use it too, as a single sub-acco
 Use the `headless` preset when you mint the key: `POST /v1/api-keys` with
 `{ "preset": "headless", "confirm_withdraw": true }`. It is the only preset that includes `tx:sign`
 and `accounts:provision`. A key lacking a required scope is refused with `403 insufficient_scope`.
+The public API reference lists only the `read_only`, `trading` and `full` presets. `headless` is
+accepted the same way but documented only here. Mint it from a signed-in Totalis session, which holds
+every scope. The team sets this up with you at onboarding.
 
 | Scope | Used for |
 | --- | --- |
@@ -141,12 +144,15 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
     </Accordion>
 
     - Commit waits for the winning maker to confirm, 5 to 8 seconds at most. A missed confirmation
-      comes back on the commit itself as `mm_confirmation_timeout`.
+      comes back on the commit itself as `409` `mm_confirmation_timeout`, with the maker in
+      `failed_mm_id`. The quote request stays open: commit the next best quote, or first update the
+      request with `exclude_mm_ids` to skip that maker.
     - A successful commit does not open the position. It reserves the maker's collateral and puts
       the position in `awaiting_signature`, a headless only state the public status table does not list.
-    - You have about thirty minutes to build, sign and submit. After that the position lapses and the
-      collateral is released.
-    - Commit is idempotent per quote request and sub-account. A retry returns the same `rfq_id`.
+    - You have about thirty minutes to build, sign and submit. After that the position becomes
+      `cancelled` and the collateral is released.
+    - Commit is idempotent per quote request and sub-account. Retrying a commit that succeeded returns
+      the same `rfq_id`.
   </Step>
 
   <Step title="Build, sign, submit">
@@ -186,8 +192,9 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
     The built transaction is not broadcastable on its own. Totalis adds the maker and fee payer
     signatures inside submit, and only after the submitted message matches the built one byte for
     byte. A `build_id` is single use and lives about 90 seconds. If signing is slow, rebuild. If
-    submit returns `submission_indeterminate`, do not resubmit blindly. Check the position or the
-    chain first. A blind retry risks a double create or a double withdraw.
+    submit returns `submission_indeterminate`, do not resubmit blindly. Check first: for a trade,
+    `GET /v1/rfqs/{id}` with `X-Subaccount`; for a withdraw, the vault's balance on chain. A blind
+    retry risks a double create or a double withdraw.
     </Warning>
   </Step>
 
@@ -199,8 +206,11 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
     updates arrive on the [partner webhooks](/_internal/partners/partner-console).
 
     The balance endpoints `GET /v1/wallet`, `GET /v1/vault` and `GET /v1/portfolio` report the
-    calling principal's own account and ignore `X-Subaccount`. For a sub-account's balance, read its
-    owner wallet's USDC token account on chain.
+    calling principal's own account and ignore `X-Subaccount`. For a sub-account's balances, read
+    the chain. Its wallet balance is the owner wallet's USDC token account. Its vault is the program
+    address derived from the seeds `vault` and the owner public key under the vault program
+    `58LfwWEnq1aCG2R18voCBF7zzJNtVSWquQBvdaaDFhme`. The USDC token account owned by that vault holds its gross balance. Locked
+    collateral lives in the vault account's data; ask the team for the account layout.
   </Step>
 
   <Step title="Withdraw">
@@ -246,7 +256,7 @@ Polling a quote request needs `positions:read`. A sub-account key minted from th
 | `subaccount_not_found` | The sub-account id is not active for this principal |
 | `subaccount_pending` | Control has not been proved or activated yet |
 | `subaccount_disabled` | The sub-account is disabled |
-| `mm_confirmation_timeout` | The maker did not confirm in time. Retry, optionally with `exclude_mm_ids` |
+| `mm_confirmation_timeout` | `409`. The maker did not confirm in time. The request stays open: commit the next best quote, or update it with `exclude_mm_ids` to skip `failed_mm_id` |
 | `insufficient_mm_collateral` | No maker could back it. Retry |
 | `awaiting_signature_cap` | This sub-account already has 25 unsigned positions. Sign or let some lapse |
 | `awaiting_signature_principal_cap` | Your principal hit its aggregate unsigned ceiling. Sign or let some lapse |
@@ -279,7 +289,7 @@ A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be 
 
 - 25 positions in `awaiting_signature` per sub-account at once.
 - An aggregate ceiling of unsigned positions per principal across all sub-accounts, 250 by default.
-- Up to 1000 active sub-accounts per principal by default.
+- Up to 1,000 active sub-accounts per principal by default.
 - Lapsed unsigned positions are cleaned up after about thirty minutes and their reserved collateral released.
 - A registration challenge is valid for 10 minutes.
 - `POST /v1/wallet/submit-built-tx` and `POST /v1/vault/build-withdraw-tx` are each capped at 10 requests per minute, counted against the principal account.

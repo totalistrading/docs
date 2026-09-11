@@ -26,7 +26,7 @@ account). See [Headless integration](/_internal/partners/headless-integration).
 | `GET /partner/api-keys` | Keys minted from the console, by prefix |
 | `DELETE /partner/api-keys/{prefix}` | Revoke a console-minted key, effective immediately |
 | `GET /partner/webhooks` | Current webhook settings and the event catalog |
-| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }`. The public endpoint names these `url` and `events` |
+| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }`. The public endpoint names these `url` and `events`, and the two are separate endpoints |
 | `POST /partner/webhooks/rotate-secret` | Generate a `whsec_...` signing secret, returned once |
 | `GET /partner/webhooks/deliveries` | Recent delivery attempts with status and response code |
 | `POST /partner/webhooks/deliveries/{id}/redeliver` | Replay a delivered or dead-lettered delivery |
@@ -64,6 +64,8 @@ Deliveries use the same format as the public webhooks:
 - Headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type` and `X-Totalis-Signature`.
 - Verify the signature over the raw body as the public [Webhooks](/guides/webhooks#verifying-signatures) page shows, in Node or Python.
 - Delivery is at least once with backoff, so dedupe on `X-Totalis-Event-Id`.
+- Payloads carry `rfq_id` but no sub-account id. Map each `rfq_id` to its sub-account from your commit
+  responses.
 
 <Warning>
 Until `funds.deposited` and `funds.withdrawn` are delivered for sub-accounts, track balance movements
