@@ -143,11 +143,13 @@ response then carries `vault_signature` and `vault_amount` beside the transfer `
 - The minimum is one base unit, `0.000001` USDC. The maximum is your wallet plus vault free
   balance. A larger amount returns `400` with the available breakdown in the message.
 - If the recipient has never held USDC, Totalis creates its token account and fronts the rent,
-  about 0.002 SOL. That rent is billed back in USDC out of the withdrawal at the live SOL price,
-  so the recipient receives slightly less than `amount_usdc`. An amount too small to cover it is
+  about 0.002 SOL. That rent is billed back in USDC out of the withdrawal at the live SOL price:
+  about 0.29 USDC on 11 September 2026. The response reports it as `chargeback_usdc`, what arrived
+  as `delivered_usdc`, and sets `recipient_ata_created`. An amount too small to cover it is
   rejected. So is the call if the SOL price is briefly unavailable. Retry in a moment.
-- `Idempotency-Key` is honored. A repeat with the same key replays the original success without
-  moving funds again.
+- `Idempotency-Key` is honored and must be a UUID; anything else returns `400`. A repeat with the
+  same key within 24 hours replays the original success without moving funds again. The vault
+  deposit and withdraw calls follow the same rule.
 - The call has its own per-account rate limit, listed on
   [Limits and fees](/guides/limits-and-fees#rate-limits).
 
