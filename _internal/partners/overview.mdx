@@ -10,9 +10,9 @@ them and share the links with your team.
 
 ## At a glance
 
-- Same API, two custody models. The difference is who holds the Solana signing key.
-- Managed: Totalis holds an embedded wallet per account. Live today, fastest to ship, one account per end user.
-- Headless: you hold the keys, register sub-accounts under one principal, and sign each on-chain action yourself. Built for platforms that custody their own users.
+- Same API, two integration models. The difference is who holds the Solana signing key. Funds sit in on-chain vaults in both.
+- Managed: each account gets a Totalis-managed embedded wallet and delegates signing once. Live today, fastest to ship, one account per end user.
+- Headless: you hold the keys, register sub-accounts under one principal, and sign each on-chain action yourself. Built for platforms that already hold keys for their users.
 - Both models quote, commit and settle the same way, and both use the same API key header.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/integration-models-light.png" alt="Two lanes into the same Totalis venue: managed, where Totalis holds the wallet, and headless, where the partner signs for its sub-accounts" />
@@ -23,15 +23,15 @@ them and share the links with your team.
 | | Managed | Headless |
 | --- | --- | --- |
 | Status | Live | Preview, in active development |
-| Keys held by | Totalis, in an embedded wallet | You, or your end users |
+| Signing key | An embedded wallet whose key lives in a secure enclave. The account delegates signing to Totalis once | Your own key, or your end users' keys |
 | Accounts | One Totalis account per end user | One principal, many sub-accounts |
 | Onboarding | One consent in the Totalis app per account | Fully programmatic, proof of key control |
 | Signing | Totalis signs inside a secure enclave | You sign each transaction Totalis builds |
-| Best for | A desk, a bot, or a small number of users | A platform with its own custody and many users |
+| Best for | A desk, a bot, or a small number of users | A platform that already holds keys for many users |
 
 Pick managed if every end user can hold a Totalis account and log in once. Pick headless if your
-users never touch Totalis directly and you already run custody through Privy, Turnkey, Fireblocks
-or your own keys.
+users never touch Totalis directly and you already hold their keys through Privy, Turnkey, Fireblocks
+or your own signer.
 
 <CardGroup cols={2}>
   <Card title="Managed integration" icon="wallet" href="/_internal/partners/quickstart-managed">

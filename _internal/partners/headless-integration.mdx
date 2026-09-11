@@ -1,7 +1,7 @@
 ---
 title: 'Headless integration'
 icon: 'key'
-description: 'Non-custodial trading for platforms: register sub-accounts under one principal, let Totalis build each transaction, sign it with your own key, and submit it back.'
+description: 'Trading with your own keys: register sub-accounts under one principal, let Totalis build each transaction, sign it yourself, and submit it back.'
 ---
 
 In the headless model you hold the signing keys and Totalis never does. For every on-chain action,
@@ -18,8 +18,8 @@ back. Totalis verifies the bytes, adds its own signatures, and broadcasts.
 
 ## Who it is for
 
-Platforms that custody their own users and cannot hand each of them a Totalis login. You stay the
-custodian of record and sign on their behalf. An individual holding their own Solana keypair can use
+Platforms that hold keys for their own users and cannot hand each of them a Totalis login. You keep
+the keys and sign on their behalf. An individual holding their own Solana keypair can use
 it too, as a single sub-account.
 
 ## Scopes
@@ -101,8 +101,8 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
   </Step>
 
   <Step title="Fund the wallet">
-    Hold native Solana USDC in the owner wallet's token account. There is no deposit call and you do
-    not pre-transfer into the vault. The transaction Totalis builds for a trade includes the deposit.
+    Hold native Solana USDC in the owner wallet's token account. You do not pre-transfer into the vault
+    and the managed deposit call does not apply to sub-accounts. The transaction Totalis builds for a trade includes the deposit.
 
     <Warning>
     Sending USDC straight into the vault's token account bypasses the program's accounting and does
@@ -238,7 +238,7 @@ Polling a quote request needs `positions:read`. A sub-account key minted from th
 | `awaiting_signature_principal_cap` | Your principal hit its aggregate unsigned ceiling. Sign or let some lapse |
 | `quote_expired` | Lowercase core race variant of quote expiry. Request a fresh quote |
 | `cancelled` | The committed ticket was cancelled before confirmation completed |
-| `insufficient_balance` | Custodial path. Usually means `X-Subaccount` was omitted |
+| `insufficient_balance` | Managed path. Usually means `X-Subaccount` was omitted |
 | `COMMIT_FAILED` | Unknown non-retryable core result. Re-poll or escalate |
 | `COMMIT_FAILED_RETRYABLE` | Transient core failure, returned as `503`. Retry |
 | `FORBIDDEN` | Core rejected the commit without a more specific public reason |

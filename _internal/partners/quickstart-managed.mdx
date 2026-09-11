@@ -4,7 +4,9 @@ icon: 'wallet'
 description: 'Programmatic parlay trading with a Totalis-managed wallet and an API key. Live today.'
 ---
 
-In the managed model Totalis provisions and custodies an embedded Solana wallet for each account.
+In the managed model each account gets a Totalis-managed embedded Solana wallet whose key lives in a
+secure enclave, and the account delegates signing to Totalis once. Funds sit in on-chain vaults, as
+they do for every Totalis user.
 You fund it with USDC and trade with an API key. It is the public API used as a partner, so every
 public page applies. This page covers what is specific to running it as a platform.
 
@@ -32,7 +34,7 @@ public page applies. This page covers what is specific to running it as a platfo
   </Step>
   <Step title="Fund the wallet">
     Send native Solana USDC to the address from [`GET /v1/wallet`](/api-reference/user/get-wallet).
-    There is no deposit call; placing a parlay moves the stake into the vault. Card, Apple Pay and
+    Placing a parlay moves the stake into the vault by itself; `POST /v1/vault/deposit` pre-funds it if you prefer. Card, Apple Pay and
     bridge options exist in the app. See [Funding](/guides/funding).
   </Step>
   <Step title="Quote and commit">
