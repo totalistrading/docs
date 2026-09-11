@@ -1,33 +1,59 @@
 ---
-title: 'Partner Integration'
-description: 'Two ways to integrate trading on Totalis: managed custody, available today, and headless non-custodial, in development.'
+title: 'Integrate Totalis'
+icon: 'plug'
+description: 'For partners and terminals putting Totalis parlays in front of their own users: the two integration models, how to choose, and where each guide is.'
 ---
 
-Totalis offers two integration models. Each exposes the same trading surface for markets, quoting, and settlement. They differ in who holds the signing keys for the underlying Solana wallet.
+These pages are for platforms that embed Totalis trading in their own product: a terminal, a
+wallet, a sports or prediction market app. They are not in the public navigation. Bookmark them and
+share the links with your team.
 
-| | Managed (custodial) | Headless (non-custodial) |
+## At a glance
+
+- Same API, two integration models. The difference is who holds the Solana signing key.
+- Funds sit in on-chain vaults in both models.
+- Both models quote and settle the same way and use the same API key header. Headless adds a build, sign and submit step after commit.
+
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/integration-models-light.png" alt="Two lanes into the same Totalis venue: managed, where Totalis holds the wallet, and headless, where the partner signs for its sub-accounts" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/integration-models-dark.png" alt="Two lanes into the same Totalis venue: managed, where Totalis holds the wallet, and headless, where the partner signs for its sub-accounts" />
+
+## Choosing a model
+
+In headless, one **principal** (your platform's Totalis account) registers many **sub-accounts**.
+A sub-account is a Solana public key you prove you control, with its own vault.
+
+| | Managed | Headless |
 | --- | --- | --- |
-| Status | Available today | In development |
-| Keys held by | Totalis-managed wallet | You or your end-users |
-| Onboarding | One-time delegation | Fully programmatic |
-| Best for | Individuals, quick clients | Platforms that custody their own users |
+| Status | Live | Preview, in active development |
+| Accounts | One Totalis account per end user | One principal, many sub-accounts |
+| Signing key | An embedded wallet whose key lives in a secure enclave | Your own key, or your end users' keys |
+| Signing | The account delegates signing to Totalis once. Totalis signs inside the secure enclave | You sign each transaction Totalis builds |
+| Onboarding | One consent in the Totalis app per account | A one time setup with the team for your principal and console access, then fully programmatic with proof of key control |
+| Best for | A desk, a bot, or a small number of users | A platform that already holds keys for many users |
 
-## Choosing a Model
-
-The managed model is the fastest way to go live. Totalis provisions and custodies an embedded wallet. You fund it and trade with an API key. The only step that is not yet programmatic is a single delegation that authorizes Totalis to sign on the wallet's behalf.
-
-The headless model keeps custody with you. Your keys, or your end-users' keys, stay inside your own infrastructure. For every on-chain action, Totalis builds the transaction and returns it unsigned, you sign it, and Totalis broadcasts and settles it. No part of the flow touches a browser, and there is no delegation step. A single API principal manages any number of sub-accounts, each end-user with its own vault. Partners running their own platform use this model.
+Pick managed, the fastest to ship, if every end user can hold a Totalis account and log in once.
+Pick headless if your users never touch Totalis directly and you already hold their keys through
+Privy, Turnkey, Fireblocks or your own signer.
 
 <CardGroup cols={2}>
-  <Card title="Managed Quickstart" href="/_internal/partners/quickstart-managed">
-    Trade today with a Totalis-managed wallet and an API key.
+  <Card title="Managed integration" icon="wallet" href="/_internal/partners/quickstart-managed">
+    Trade today with a Totalis wallet and an API key.
   </Card>
-  <Card title="Headless Integration" href="/_internal/partners/headless-integration">
-    Keep custody of your keys while Totalis builds and settles. Preview.
+  <Card title="Headless integration" icon="key" href="/_internal/partners/headless-integration">
+    Register sub-accounts, build and sign your own transactions.
+  </Card>
+  <Card title="Partner console and webhooks" icon="webhook" href="/_internal/partners/partner-console">
+    Sub-account keys, webhook configuration, delivery replay.
+  </Card>
+  <Card title="Public docs" icon="book" href="/">
+    Concepts, limits, fees and the full API reference. Everything here builds on them.
   </Card>
 </CardGroup>
 
-The base URL and authentication are the same in both models:
+## Shared basics
 
 - Base URL: `https://api.totalis.trade`
-- Authentication: an API key in the `X-API-Key` header on every request.
+- Authentication: an API key in the `X-API-Key` header on every request. Keys are scoped. See [Authentication](/guides/authentication).
+- Markets, quoting, fees and settlement behave exactly as the public docs describe. Start with [How parlays work](/guides/lifecycle) and [Limits and fees](/guides/limits-and-fees).
+- The public pages on [funding](/guides/funding), enabling trading and [delegated signing](/guides/vault-architecture#delegated-signing) describe the managed wallet. They do not apply to headless sub-accounts.
+- Questions and onboarding: [founders@totalis.trade](mailto:founders@totalis.trade).
