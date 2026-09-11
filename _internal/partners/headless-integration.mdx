@@ -4,23 +4,28 @@ icon: 'key'
 description: 'Trading with your own keys: register sub-accounts under one principal, let Totalis build each transaction, sign it yourself, and submit it back.'
 ---
 
-In the headless model you hold the signing keys and Totalis never does. For every on-chain action,
-Totalis builds the transaction and returns it unsigned. You sign it with the owner key and submit it
-back. Totalis verifies the bytes, adds its own signatures, and broadcasts.
+In the headless model you hold the signing keys and Totalis never does. Your **principal** is your
+platform's Totalis account, the one your API key belongs to. Under it you register up to 1,000
+**sub-accounts** by default. A sub-account is a Solana public key you prove you control, with its own vault.
+
+For every on-chain action, Totalis builds the transaction and returns it unsigned. You sign it with
+the sub-account's owner key and submit it back. Totalis verifies the bytes, adds its own signatures,
+and broadcasts.
+
+<Note>
+Preview. The surface is live but still changing. Confirm details with the team before you launch.
+</Note>
 
 ## At a glance
 
-- One API principal, any number of sub-accounts. Each sub-account is a Solana public key you prove you control, with its own vault.
 - Quoting is the public flow. Commit, build, submit and withdraw carry an `X-Subaccount` header.
-- A build is single use and lives 90 seconds. Sign it as built, byte for byte.
+- A build is single use and lives about 90 seconds. Sign it as built, byte for byte.
 - Signing is provider agnostic: a raw keypair, Privy, Turnkey, Fireblocks or hardware. Totalis needs one standard ed25519 signature.
-- Preview. The surface is live but still changing. Confirm details with the team before you launch.
 
 ## Who it is for
 
-Platforms that hold keys for their own users and cannot hand each of them a Totalis login. You keep
-the keys and sign on their behalf. An individual holding their own Solana keypair can use
-it too, as a single sub-account.
+Platforms that hold keys for their own users and cannot hand each of them a Totalis login. An
+individual holding their own Solana keypair can use it too, as a single sub-account.
 
 ## Scopes
 
@@ -35,7 +40,7 @@ and `accounts:provision`. A key lacking a required scope is refused with `403 in
 | `markets:read` | Market reads from a scoped key. `GET /markets` itself is public |
 | `trading:write` | Create and commit quote requests, build a position transaction |
 | `tx:sign` | Submit a signed transaction |
-| `positions:read` | Read quote requests and portfolio |
+| `positions:read` | Read quote requests and parlays. Portfolio also needs `balances:read` |
 | `balances:read` | Read balances |
 | `funds:withdraw` | Build and submit withdrawals |
 
@@ -101,8 +106,9 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
   </Step>
 
   <Step title="Fund the wallet">
-    Hold native Solana USDC in the owner wallet's token account. You do not pre-transfer into the vault
-    and the managed deposit call does not apply to sub-accounts. The transaction Totalis builds for a trade includes the deposit.
+    Hold native Solana USDC in the owner wallet's token account. The transaction Totalis builds for a
+    trade includes the deposit. You do not pre-transfer into the vault, and the managed deposit call
+    does not apply to sub-accounts.
 
     <Warning>
     Sending USDC straight into the vault's token account bypasses the program's accounting and does
@@ -113,7 +119,7 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
   <Step title="Quote and commit">
     Open a quote request under the principal, poll it until makers respond, then commit with
     `X-Subaccount` so the position is attributed to the right sub-account. Quote creation does not
-    read the header; commit does.
+    read the header. Commit does.
 
     <Accordion title="The calls">
     ```bash
@@ -134,17 +140,18 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
     ```
     </Accordion>
 
-    Commit waits for the winning maker to confirm, 5 to 8 seconds at most, so a missed confirmation
-    comes back on the commit itself as `mm_confirmation_timeout`. A successful commit does not open
-    the position. It reserves the maker's collateral and puts the position in `awaiting_signature`, a
-    headless only state the public status table does not list. You have about thirty minutes to
-    build, sign and submit before it lapses and the collateral is released. Commit is idempotent per
-    quote request and sub-account, so a retry returns the same `rfq_id`.
+    - Commit waits for the winning maker to confirm, 5 to 8 seconds at most. A missed confirmation
+      comes back on the commit itself as `mm_confirmation_timeout`.
+    - A successful commit does not open the position. It reserves the maker's collateral and puts
+      the position in `awaiting_signature`, a headless only state the public status table does not list.
+    - You have about thirty minutes to build, sign and submit. After that the position lapses and the
+      collateral is released.
+    - Commit is idempotent per quote request and sub-account. A retry returns the same `rfq_id`.
   </Step>
 
   <Step title="Build, sign, submit">
     Ask Totalis to build the transaction, sign its message with the owner key, and submit it with the
-    same `build_id`. The build call names the parlay `ticket_id`; pass the `rfq_id` from commit.
+    same `build_id`. The build call names the parlay `ticket_id`. Pass the `rfq_id` from commit.
 
     <Accordion title="The calls">
     ```bash
@@ -178,17 +185,17 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
     <Warning>
     The built transaction is not broadcastable on its own. Totalis adds the maker and fee payer
     signatures inside submit, and only after the submitted message matches the built one byte for
-    byte. A `build_id` is single use and lives about 90 seconds; if signing is slow, rebuild. If
+    byte. A `build_id` is single use and lives about 90 seconds. If signing is slow, rebuild. If
     submit returns `submission_indeterminate`, do not resubmit blindly. Check the position or the
-    chain first, since a blind retry risks a double create or a double withdraw.
+    chain first. A blind retry risks a double create or a double withdraw.
     </Warning>
   </Step>
 
   <Step title="Settle and read">
-    Positions settle server side at market resolution with no signature from you, and proceeds land
-    in the sub-account's vault. Read a sub-account's parlays with `GET /v1/rfqs` and
+    Positions settle server side at market resolution with no signature from you. Proceeds land in
+    the sub-account's vault. Read a sub-account's parlays with `GET /v1/rfqs` and
     `GET /v1/rfqs/{id}` plus `X-Subaccount` (`positions:read`). With the header you see only that
-    sub-account's parlays; without it you see only the principal's own, never a sub-account's. Push
+    sub-account's parlays. Without it you see only the principal's own, never a sub-account's. Push
     updates arrive on the [partner webhooks](/_internal/partners/partner-console).
 
     The balance endpoints `GET /v1/wallet`, `GET /v1/vault` and `GET /v1/portfolio` report the
@@ -275,7 +282,9 @@ A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be 
 - Up to 1000 active sub-accounts per principal by default.
 - Lapsed unsigned positions are cleaned up after about thirty minutes and their reserved collateral released.
 - A registration challenge is valid for 10 minutes.
-- `POST /v1/wallet/submit-built-tx` and `POST /v1/vault/build-withdraw-tx` are each capped at 10 requests per minute, counted against the principal account. Every sub-account shares that budget, so a platform submits at most 10 positions a minute, about 600 an hour, in total. Everything else follows the buckets on [Limits and fees](/guides/limits-and-fees#rate-limits).
+- `POST /v1/wallet/submit-built-tx` and `POST /v1/vault/build-withdraw-tx` are each capped at 10 requests per minute, counted against the principal account.
+- Every sub-account shares that budget, so a platform submits at most 10 positions a minute, about 600 an hour, in total.
+- Everything else follows the buckets on [Limits and fees](/guides/limits-and-fees#rate-limits).
 - The caps and ceilings above are defaults. Email [founders@totalis.trade](mailto:founders@totalis.trade) to raise them before you launch.
 
 ## Endpoint reference

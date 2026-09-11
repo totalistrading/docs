@@ -4,17 +4,15 @@ icon: 'wallet'
 description: 'Programmatic parlay trading with a Totalis-managed wallet and an API key. Live today.'
 ---
 
-In the managed model each account gets a Totalis-managed embedded Solana wallet whose key lives in a
+In the managed model each account gets a Totalis-managed embedded Solana wallet. Its key lives in a
 secure enclave, and the account delegates signing to Totalis once. Funds sit in on-chain vaults, as
-they do for every Totalis user.
-You fund it with USDC and trade with an API key. It is the public API used as a partner, so every
-public page applies. This page covers what is specific to running it as a platform.
+they do for every Totalis user. You fund the wallet with USDC and trade with an API key. This is the
+public API used as a partner, so every public page applies.
 
 ## At a glance
 
 - One Totalis account per end user. Each account has its own wallet, vault and API keys.
-- Trading needs one consent in the Totalis app per account. That step is not available through the API.
-- After that, everything is programmatic: markets, quotes, commits, reads, withdrawals.
+- One consent in the Totalis app per account enables trading. After that, everything is programmatic: markets, quotes, commits, reads, withdrawals.
 - Network fees are sponsored. Wallets hold USDC only.
 
 ## How it works
@@ -22,20 +20,20 @@ public page applies. This page covers what is specific to running it as a platfo
 <Steps>
   <Step title="Create the account and a key">
     The end user logs in at [app.totalis.trade](https://app.totalis.trade) and creates an API key
-    under Settings, then API Keys. Use the **Trading** preset for a bot that places parlays, or
-    **Read-only** for display. The key is shown once. See
+    under Settings, then API Keys. Use the Trading preset for a bot that places parlays, or
+    Read-only for display. The key is shown once. See
     [Authentication](/guides/authentication) for the scope catalog.
   </Step>
   <Step title="Enable trading, once">
     The user approves a consent dialog in the app that delegates signing to Totalis inside a secure
-    enclave. Check the state from your side with
+    enclave. Check the state with
     [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status). Until it is on,
     commits and withdrawals are refused. See [Vaults and custody](/guides/vault-architecture).
   </Step>
   <Step title="Fund the wallet">
     Send native Solana USDC to the address from [`GET /v1/wallet`](/api-reference/user/get-wallet).
-    Placing a parlay moves the stake into the vault by itself; `POST /v1/vault/deposit` pre-funds it if you prefer. Card, Apple Pay and
-    bridge options exist in the app. See [Funding](/guides/funding).
+    Placing a parlay moves the stake into the vault by itself. To pre-fund the vault, call
+    `POST /v1/vault/deposit`. See [Funding](/guides/funding).
   </Step>
   <Step title="Quote and commit">
     Open a quote request with 2 to 5 legs, watch the stream, commit the best quote. The commit body
@@ -45,8 +43,8 @@ public page applies. This page covers what is specific to running it as a platfo
   <Step title="Settle and withdraw">
     Positions settle by themselves when the last market resolves. Read outcomes from
     [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) or take the `position.settled` webhook.
-    Withdraw with [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw), which reaches
-    the wallet and the vault's free balance in one call.
+    Withdraw with [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw). One call
+    reaches both the wallet and the vault's free balance.
   </Step>
 </Steps>
 
@@ -71,8 +69,8 @@ Two markets can share a parlay only if their `exclusion_keys` do not intersect. 
 ## What managed cannot do for a platform
 
 - It cannot hold many users under one key. Each end user is a Totalis account with their own login, consent and keys.
-- It cannot skip the in-app consent. Delegation is granted by the user in the app and reported, not granted, by the API.
+- It cannot skip the in-app consent. The user grants delegation in the app. The API only reports it.
 - It cannot let you sign. Totalis signs inside the enclave for the life of the delegation.
 
-If any of those is a blocker, use the [headless integration](/_internal/partners/headless-integration),
-where one principal registers sub-accounts and signs for them.
+If any of those is a blocker, use the [headless integration](/_internal/partners/headless-integration).
+There, one principal (your platform's Totalis account) registers sub-accounts and signs for them.

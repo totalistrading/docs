@@ -4,15 +4,16 @@ icon: 'webhook'
 description: 'The partner console routes under /partner: list sub-accounts, mint sub-account keys, configure webhooks, and replay deliveries.'
 ---
 
-The partner console is a small set of routes under `/partner` that manage things which belong to
-your platform rather than to any one sub-account: the keys you hand to sub-accounts, and the webhook
-endpoint that receives events for all of them. They authenticate with a partner console session, not
-an API key.
+The partner console routes under `/partner` manage what belongs to your platform rather than to one
+sub-account: the keys you hand to sub-accounts, and the webhook endpoint that receives events for
+all of them. They authenticate with a partner console session, not an API key.
+
+A sub-account is a Solana public key registered under your principal (your platform's Totalis
+account). See [Headless integration](/_internal/partners/headless-integration).
 
 ## At a glance
 
 - One webhook endpoint per partner receives events for every sub-account.
-- Deliveries are signed, retried, and can be replayed. Same format as the public webhooks.
 - Sub-account keys are minted here and are clamped to `trading:write`, `tx:sign` and `markets:read`.
 - Two balance events are not yet delivered for headless sub-accounts.
 
@@ -33,14 +34,14 @@ an API key.
 ## Sub-account keys
 
 Mint one with `{ "name": "...", "scopes": [...], "expires_in_days": 90 }`, all optional.
-`expires_in_days` is at most 365; without it the key does not expire. Requested scopes are clamped
-to `trading:write`, `tx:sign` and `markets:read`, and a key that leaks is revoked with
+`expires_in_days` is at most 365. Without it the key does not expire. Requested scopes are clamped
+to `trading:write`, `tx:sign` and `markets:read`. Revoke a leaked key with
 `DELETE /partner/api-keys/{prefix}`.
 
-A sub-account key can trade and sign for exactly one sub-account. It cannot read quote requests or
-balances, and it cannot withdraw, so a platform that uses them also keeps a principal key with
-`positions:read` for polling and `funds:withdraw` for withdrawals. The two patterns are compared
-under [Two ways to hold keys](/_internal/partners/headless-integration#two-ways-to-hold-keys).
+A sub-account key trades and signs for exactly one sub-account. It cannot read quote requests or
+balances, and it cannot withdraw. A platform that uses these keys also keeps a principal key with
+`positions:read` for polling and `funds:withdraw` for withdrawals. See
+[Two ways to hold keys](/_internal/partners/headless-integration#two-ways-to-hold-keys).
 
 ## Webhooks
 
@@ -57,10 +58,12 @@ exists. The URL must be HTTPS and must not resolve to private infrastructure.
 | `funds.deposited` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
 | `funds.withdrawn` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
 
-Each delivery is a `POST` with a JSON body of `{ id, type, data }` and the headers
-`X-Totalis-Event-Id`, `X-Totalis-Event-Type` and `X-Totalis-Signature`. Verify the signature over the
-raw body exactly as the public [Webhooks](/guides/webhooks#verifying-signatures) page shows, in Node
-or Python. Delivery is at least once with backoff, so dedupe on `X-Totalis-Event-Id`.
+Deliveries use the same format as the public webhooks:
+
+- Each delivery is a `POST` with a JSON body of `{ id, type, data }`.
+- Headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type` and `X-Totalis-Signature`.
+- Verify the signature over the raw body as the public [Webhooks](/guides/webhooks#verifying-signatures) page shows, in Node or Python.
+- Delivery is at least once with backoff, so dedupe on `X-Totalis-Event-Id`.
 
 <Warning>
 Until `funds.deposited` and `funds.withdrawn` are delivered for sub-accounts, track balance movements
