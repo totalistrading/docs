@@ -261,10 +261,10 @@ parse leniently and ignore keys you do not use.
 
 ## Reconnection
 
-Every SSE event includes an `id:` field. Persist it. On reconnect, pass it as the `last_event_id` query parameter to replay the events you missed instead of the full snapshot. The stream retains a few minutes of events at peak traffic. If your id has aged out, you get the full snapshot again, starting with `snapshot_begin`, so treat every snapshot as authoritative. The stream also sends a `: keepalive` comment about every 3 seconds. If nothing arrives for much longer, reconnect.
+Every SSE event includes an `id:` field. Persist it. On reconnect, pass it as the `last_event_id` query parameter to ask for the events you missed instead of a fresh snapshot. You get a replay only while that id is still retained on the server; otherwise the full snapshot is sent again, starting with `snapshot_begin`. On production in September 2026, reconnects received the full snapshot even with an id seconds old, so treat every snapshot as authoritative and do not depend on replay. The stream also sends a `: keepalive` comment about every 3 seconds. If nothing arrives for much longer, reconnect.
 
 ```
-GET /v1/mm/quote-requests/stream?last_event_id=evt_abc123
+GET /v1/mm/quote-requests/stream?last_event_id=1789161257595-0
 ```
 
 The taker-fee rate is read once per connection. On a long-lived stream, `user_stake` reflects the rate in effect when you connected. Reconnect after a fee rate change to get `user_stake` at the new rate.
