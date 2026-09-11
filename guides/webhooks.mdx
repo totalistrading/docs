@@ -7,6 +7,12 @@ description: 'Receive HMAC-signed events when your positions settle, get bought 
 Totalis posts signed events to your server as they happen and retries failed deliveries with backoff. You
 receive only the events your key's scopes allow.
 
+<Warning>
+Webhook delivery is still being enabled. Email [founders@totalis.trade](mailto:founders@totalis.trade)
+before you build on it. Until then, follow events on the [WebSocket](/guides/websocket) or by
+polling.
+</Warning>
+
 Your endpoint belongs to your **account** (the principal), not to the key that created it. Any of
 your active keys with the right scope can manage it. Revoking one key among several does not stop
 delivery.
