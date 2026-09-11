@@ -10,8 +10,9 @@ their aliases are in the [Glossary](/guides/glossary), along with the
 
 <Note>
 `quote:*` WebSocket events (`quote:accepted`, `quote:confirmed`, `quote:executed`, `quote:expired`,
-`quote:rejected`, `quote:withdrawn`) go only to the market maker whose quote they concern, on their private
-`mm:quotes:{mm_id}` channel. `rfq:*` and `position:*` events go to `rfq:{rfq_id}`, the channel a
+`quote:rejected`, `quote:withdrawn`) go to the market maker whose quote they concern, on their private
+`mm:quotes:{mm_id}` channel. The bettor's own authenticated connections also receive
+`quote:confirmed` and `quote:executed` for their trade. `rfq:*` and `position:*` events go to `rfq:{rfq_id}`, the channel a
 user or anyone tracking a specific trade subscribes to. `vault:deposited` and `vault:withdrawn` go to
 the account's own connections and are not in the table.
 
