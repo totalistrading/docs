@@ -3300,7 +3300,7 @@
       },
       "UserVaultResponse": {
         "type": "object",
-        "description": "Vault state with active position summaries (GET /v1/vault response).\nReturns the caller's bettor-side vault (owner_type='user') when one\nexists; falls back to their maker-side vault (owner_type='mm') for\npure-MM accounts so the portfolio surface reflects every USDC the\ncaller controls. `positions` is the bettor-side active list when\nreturning the user vault, or the maker-side active list (joined via\n`q.market_maker_id`) when returning the MM vault.\n",
+        "description": "Your vault and its active positions. A wallet has one on-chain vault, which backs both your bets and your quotes. `positions` lists your bettor-side positions, or your maker-side ones if you have never placed a bet.",
         "properties": {
           "vault_pda": {
             "type": "string"
