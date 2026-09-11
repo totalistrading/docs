@@ -234,6 +234,23 @@ This is a distinct event name from `quote_request`, with a different payload. It
 Every field above is always present. For the full auction mechanics, see
 [Early cashout](/guides/cashout-auctions).
 
+## Leg fields
+
+Legs use the same field names on every event and both venues. What the fields hold is venue specific.
+The examples above are Kalshi.
+
+| Field | Kalshi | Polymarket |
+| --- | --- | --- |
+| `id` | Our leg id, a UUID. Stable for the life of the leg. Not a venue identifier. | Same. |
+| `venue` | `kalshi` | `polymarket` |
+| `market_ticker` | The Kalshi market ticker, for example `KXBTC-26JUN01-T72500`. | The `condition_id`, the `0x` prefixed hex string. Resolve a Polymarket leg by this field. |
+| `event_ticker` | The Kalshi event ticker, for example `KXBTC-26JUN01`. | The Gamma event slug, for example `will-bitcoin-hit-100k-in-june`. A slug, not a ticker. |
+| `side` | `yes` or `no` | Same. |
+| `resolution` | On `cashout_request` legs only. See above. | Same. |
+
+Legs are forwarded from the backend and can carry extra display fields beyond these. The set is
+additive and differs by event, so parse leniently and ignore keys you do not use.
+
 ## Reconnection
 
 Every SSE event includes an `id:` field. Persist this value. On reconnect, pass it as the `last_event_id` query parameter to replay any events you missed instead of receiving the full snapshot again.

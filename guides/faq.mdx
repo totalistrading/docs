@@ -29,10 +29,12 @@ A parlay holds 2 to 5 legs. Full constraints are on
 ## What markets does Totalis offer?
 
 Totalis lists markets that are recurring, have reliable liquidity on the underlying platform, and
-settle within one week. These span sports, macro, politics, crypto, and weather.
+settle within one week. They span eight categories: politics, sports, crypto, finance, economics,
+entertainment, weather, and tech.
 
 The focus is high frequency, short duration markets that support rapid capital turnover. For the
-current list, query [`GET /markets`](/api-reference/markets/list). No API key needed. More venues
+current list, query [`GET /markets`](/api-reference/markets/list) and filter with `category` and
+`subcategory`. No API key needed. More venues
 are planned: Totalis is built to be venue agnostic, and a single parlay can already mix venues.
 
 ## What chain are you on?
@@ -56,8 +58,8 @@ platforms, and portfolio-level risk management.
 
 ## Can I not just do this on Kalshi?
 
-Kalshi offers combos on specific sports markets with limited options, because it has to create an
-order book for every combination, which does not scale.
+Kalshi Combos bundle Kalshi's own contracts, sports first, and each combination trades as its own
+market with a dedicated order book. The catalog is bounded by what the exchange lists.
 
 Totalis sits on top of prediction markets as a derivatives layer and uses a quote request system to
 price any combination of outcomes. You can build parlays across sports, crypto, weather,
