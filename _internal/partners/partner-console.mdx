@@ -45,6 +45,7 @@ exists. The URL must be HTTPS and must not resolve to private infrastructure.
 | `position.settled` | `positions:read` | Delivered | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
 | `position.cancelled` | `positions:read` | Delivered | `rfq_id`, `reason`, `occurred_at` |
 | `position.bought_back` | `positions:read` | Delivered | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `position.transferred` | `positions:read` | Delivered, seller side only | `rfq_id`, `price`, `buyer_wallet`, `tx_signature`, `occurred_at` |
 | `parlay.status_changed` | `positions:read` | Delivered | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
 | `funds.deposited` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
 | `funds.withdrawn` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
