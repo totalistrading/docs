@@ -49,15 +49,20 @@ to retry.
 
 Each route draws from one of three buckets.
 
-| Bucket | Routes | Keyed by | Limit |
+| Bucket | Covers | Keyed by | Limit |
 | --- | --- | --- | --- |
-| Authenticated | `/v1/*` except `/v1/markets*` and the quote service routes, plus the flat roots below | your account | 300 / minute, 100 without a key |
-| Public | `/markets*`, `/v1/markets*`, `/referral*` | source IP | 100 / minute |
-| Quote service | `/v1/quote-requests*`, `/v1/cashout-requests*`, `/v1/mm/quote-requests*`, `/v1/mm/cashout-requests*` | source IP | 300 / minute by default |
+| Authenticated | Every route that needs a key, apart from the two rows below | your account | 300 / minute, 100 without a key |
+| Public | Market data and referral lookups | source IP | 100 / minute |
+| Quote service | Quote requests and cashouts, for bettors and makers | source IP | 300 / minute by default |
 
-The authenticated bucket also covers `/app/*`, `/rfqs*`, `/parlay-shares*`, and the flat
-`/mm/quotes*` and `/mm/positions*` aliases. Every route in it draws down the same 300, including the
-maker reads at `/v1/mm/quotes` and `/v1/mm/positions`.
+The exact route prefixes:
+
+- **Public:** `/markets*`, `/v1/markets*`, `/referral*`.
+- **Quote service:** `/v1/quote-requests*`, `/v1/cashout-requests*`, `/v1/mm/quote-requests*`,
+  `/v1/mm/cashout-requests*`.
+- **Authenticated:** everything else under `/v1/*`, plus `/app/*`, `/rfqs*`, `/parlay-shares*`, and
+  the flat `/mm/quotes*` and `/mm/positions*` aliases. They all draw down the same 300, including the
+  maker reads at `/v1/mm/quotes` and `/v1/mm/positions`.
 
 These calls move money and carry their own per-account cap, counted on top of the shared 300:
 
