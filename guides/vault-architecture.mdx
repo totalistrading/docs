@@ -14,7 +14,7 @@ hand.
 - Non-custodial. Funds sit in an on-chain vault controlled by the protocol program, not in a Totalis account.
 - One vault per account with three balances: gross, locked, and free.
 - You delegate signing once. Totalis signs trades inside a secure enclave and can never extract your key.
-- Your stake and the maker's collateral lock in one atomic transaction when you commit.
+- Your stake and the maker's collateral lock in one atomic transaction when the maker confirms your trade.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/vault-architecture-light.png" alt="Your wallet funds your vault, your stake and the maker's collateral lock in a position, the fee vault takes 1% of profit, and settlement follows the venues" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/vault-architecture-dark.png" alt="Your wallet funds your vault, your stake and the maker's collateral lock in a position, the fee vault takes 1% of profit, and settlement follows the venues" />
@@ -51,8 +51,8 @@ never SOL.
 
 ## How a position locks and settles
 
-When you commit to a quote, your stake and the maker's collateral lock together in a single atomic
-transaction. There is no window where one side is funded and the other is not.
+When the maker confirms your trade, your stake and the maker's collateral lock together in a single
+atomic transaction. There is no window where one side is funded and the other is not.
 
 Settlement moves funds in exactly one of three ways:
 
@@ -60,7 +60,7 @@ Settlement moves funds in exactly one of three ways:
 | --- | --- |
 | You win | You receive the maker's collateral, minus the profit fee on your profit. |
 | You lose | Your stake transfers to the maker, minus the fee on their profit. |
-| A leg is voided | The position is cancelled and both sides' collateral is released. Nobody wins or loses. |
+| A leg is voided | The position is cancelled and both sides' collateral is released. You get your full bet back, taker fee included. |
 
 The fee rate is written onto each position when it is created, so settlement always uses the rate
 that applied at trade time. Both fees and the full math are on

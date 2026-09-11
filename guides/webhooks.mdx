@@ -21,8 +21,9 @@ Webhooks are the durable channel. For the same events live on a connection, use 
 
 ## Configuring your endpoint
 
-Set your endpoint URL and the events you want with `PUT /v1/webhooks` (managing the endpoint needs
-`account:read` to view it, `account:write` to change it):
+Set your endpoint URL and the events you want with `PUT /v1/webhooks`. Viewing the endpoint needs
+`account:read` and changing it needs `account:write`. Maker endpoints use `mm:quote` instead, see
+[Maker endpoints](#maker-endpoints).
 
 ```bash
 curl -X PUT https://api.totalis.trade/v1/webhooks \
@@ -44,13 +45,20 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
   a `funds.*` delivery needs `balances:read`.
 </Info>
 
-<Note>
-  **Market makers** manage a separate endpoint with `?owner_kind=mm` (gated on `mm:quote`). Its events
-  carry the MM's side of a position (`mm_result`, plus `mm_pays_user` on buyback) rather than the
-  bettor's. A maker endpoint can subscribe only to `position.settled`, `position.cancelled` and
-  `position.bought_back`, the events a backing maker is party to. A `user` endpoint (the default)
-  ships your own bettor-side event data.
-</Note>
+### Maker endpoints
+
+Market makers manage a separate endpoint by adding `?owner_kind=mm` to each webhook call. Viewing
+and changing it both need `mm:quote`, in place of `account:read` and `account:write`. A maker
+endpoint can subscribe only to the three events a backing maker is party to, and each `data`
+carries the maker's side of the position:
+
+| Event | Maker `data` fields |
+| --- | --- |
+| `position.settled` | `rfq_id`, `mm_id`, `mm_result` (`won` or `lost`), `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `rfq_id`, `mm_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `rfq_id`, `mm_id`, `amount`, `mm_pays_user` (`true` when you paid the user, `false` when you collected), `tx_signature`, `occurred_at` |
+
+A `user` endpoint, the default, ships your own bettor side event data from the catalog below.
 
 ## Event catalog
 

@@ -11,15 +11,16 @@ underlying markets resolve, or you close it early.
 ## At a glance
 
 - A parlay is 2 to 5 legs on one bet of 1 to 100 USDC, priced live by competing market makers.
-- Your funds move once, when the maker confirms your trade. Nothing is touched before that.
+- Nothing is held while you only request quotes. From commit, your bet is held against your balance, and it moves on chain once, when the maker confirms.
 - The position then goes live on chain and settles by itself when the last market resolves.
 - A live position can be closed early through a short cashout auction, about 10 seconds.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/lifecycle-light.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/lifecycle-dark.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
 
-Collateral locks at `confirmed`. Before that point no funds have moved, and a parlay that ends at
-`cancelled` or `expired` never touches your balance.
+Collateral locks at `confirmed`. Between commit and confirmation your bet is held against your
+balance but not moved. A parlay that ends at `cancelled` or `expired` before funding releases the
+hold and never moves your funds.
 
 ## Place a parlay
 
@@ -51,8 +52,9 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
     [Limits and fees](/guides/limits-and-fees) for the constraints.
 
     <Warning>
-    The amount that locks is your bet amount minus a 1% taker fee, charged upfront. A 25 USDC bet
-    locks a 24.75 net stake. Do not expect the locked stake to match `bet_amount`.
+    Odds apply to your bet amount minus a 1% taker fee. A 25 USDC bet carries a 24.75 net stake, so
+    do not expect the stake to match `bet_amount`. The fee locks with the stake and comes back to you
+    if the parlay is voided.
     </Warning>
   </Step>
 
@@ -95,8 +97,8 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
     USDC.
 
     Status moves to `confirmed`, then `executed` once the position is live on-chain. If the maker
-    does not confirm in time, the parlay reopens for other makers, or expires if its window has
-    passed. Your funds are never touched in that path.
+    does not confirm in time, the parlay expires with reason `mm_confirmation_timeout`, the hold on
+    your bet is released, and nothing moves. Request quotes again to retry.
   </Step>
 
   <Step title="It settles automatically">
@@ -105,8 +107,8 @@ Collateral locks at `confirmed`. Before that point no funds have moved, and a pa
     - **Every leg wins.** You receive the full payout, your stake plus the maker's collateral, minus
       the profit fee.
     - **Any leg loses.** Your stake transfers to the maker, minus the fee on their profit.
-    - **A leg is voided.** The position is cancelled, both sides' collateral is released, and nobody
-      wins or loses.
+    - **A leg is voided.** The whole position is cancelled and both sides' collateral is released.
+      You get your full bet back, taker fee included, and nobody wins or loses.
 
     Status becomes `settled`. Read the outcome and transaction signatures from
     [`GET /v1/rfqs/{id}`](/api-reference/parlays/get).
@@ -126,19 +128,20 @@ The `status` on a parlay. In the API the parlay object is called an RFQ, so the 
 
 | Status | Meaning | Funds |
 | --- | --- | --- |
-| `open` | Awaiting quotes, or reopened after a maker missed confirmation. | none moved |
-| `quoted` | At least one maker has quoted. | none moved |
-| `accepted` | You committed a quote. Awaiting maker confirmation. | none moved |
+| `accepted` | You committed a quote. Awaiting maker confirmation. | held, not moved |
 | `confirmed` | Maker confirmed. Funding on-chain. | locking |
 | `executed` | Live on-chain. Eligible for early cashout. | locked |
 | `settled` | Resolved and paid out. | released |
 | `bought_back` | Closed early via a cashout that the backing maker won. | released |
 | `cancelled` | Ended before funding, or a leg was voided. | released or never moved |
-| `expired` | Ended before funding. | none moved |
+| `expired` | Ended before funding, for example when the maker missed confirmation. | hold released |
+
+The enum also contains `open` and `quoted`. They belong to an older flow: a parlay placed through a
+quote request is created at `accepted` and never shows them.
 
 Quotes carry their own status: `pending` while live, `accepted`, `confirmed` and `executed` as the
-trade progresses, `withdrawn` when the maker pulled it, `expired` when its validity lapsed, and
-`rejected` when you accepted a different quote on the same request.
+trade progresses, `withdrawn` when the maker pulled it, `expired` when its validity lapsed or the
+maker missed confirmation, and `rejected` when you accepted a different quote on the same request.
 
 ## Constraints
 

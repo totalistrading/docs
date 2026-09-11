@@ -53,7 +53,6 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authenticatio
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
         <ResponseField name="bet_amount" type="number">The bet amount in USDC.</ResponseField>
-        <ResponseField name="implied_probability" type="number">Display-only value, commonly `0`. Not computed by the server; a client may set it later in the flow, and it is relayed as-is. Do not price from it.</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 expiration timestamp.</ResponseField>
         <ResponseField name="legs" type="array">Validated legs with enriched metadata.</ResponseField>
         <ResponseField name="input_legs" type="array">The legs exactly as you submitted them.</ResponseField>
@@ -97,7 +96,6 @@ curl -X POST https://api.totalis.trade/v1/quote-requests \
       "book_seq": 0,
       "status": "active",
       "bet_amount": 25,
-      "implied_probability": 0,
       "expires_at": "2026-06-01T18:45:30.000Z",
       "legs": [
         {

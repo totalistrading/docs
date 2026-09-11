@@ -13,8 +13,11 @@ listed below still resolves through a redirect, so old bookmarks keep working, b
 not supported surface.
 </Note>
 
-{/* Re-date this entry to the production deploy day of the September backend stack before #91 merges. */}
-<Update label="3 September 2026" description="Position ids for makers, the fee rate echoed on quotes, and stricter auth errors." tags={["Added", "Changed"]}>
+<Update label="11 September 2026" description="Position ids for makers, the fee rate echoed on quotes, stricter auth errors, and implied_probability removed." tags={["Added", "Changed", "Removed"]}>
+  **Removed: `implied_probability` on quote requests.** Quote requests and the market maker stream
+  no longer carry the field. It was always `0` and never used for pricing, so drop it from any
+  parser that requires it.
+
   **Added: `position_id` on the market maker position reads.**
   [`GET /v1/mm/positions`](/api-reference/mm/list-positions) and
   [`GET /v1/mm/positions/{id}`](/api-reference/mm/get-position) now return the on-chain
@@ -39,9 +42,10 @@ not supported surface.
   sent only a `message`. Branch on `code`, never on `message`. See
   [WebSocket](/guides/websocket#authentication) for the four values.
 
-  **Clarified: rate limits are two buckets, not one.** Public market reads are keyed per IP and do
+  **Clarified: rate limits are three buckets, not one.** Public market reads are keyed per IP and do
   not draw down the authenticated per-account budget, and sending an API key to a public read does
-  not raise its limit. See [Limits and fees](/guides/limits-and-fees#rate-limits).
+  not raise its limit. The quote service routes have their own per-IP limit. See
+  [Limits and fees](/guides/limits-and-fees#rate-limits).
 </Update>
 
 <Update label="27 August 2026" description="The World Cup reward pool ended." tags={["Removed"]}>

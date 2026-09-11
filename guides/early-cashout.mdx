@@ -10,7 +10,7 @@ away.
 
 ## At a glance
 
-- Any live parlay can be cashed out early. The auction runs about 10 seconds.
+- Any live parlay can be cashed out early, up to 30 seconds before it expires. The auction runs about 10 seconds.
 - Every market maker sees it and bids one all-in price. You are shown the best one as it changes.
 - You are only ever paid a price you explicitly accepted. If the price moves before you commit, nothing happens.
 - The price can be below your stake if the parlay has gone against you.
@@ -58,9 +58,14 @@ away.
 
 ## What the price means
 
-The bid you accept is a single all-in figure. It is what lands in your wallet. There is no separate
-fee line and no second taker fee for leaving: the profit fee is already inside the number. See
+The bid you accept is a single all-in figure, and exactly that amount lands in your vault as free
+balance, not in your wallet. Trade with it or withdraw it from there. There is no separate fee line
+and no second taker fee for leaving: the profit fee is already inside the number. See
 [Fees on an early exit](/guides/limits-and-fees#fees-on-an-early-exit).
+
+On a closing exit your stake is released and the difference between the price and your stake moves
+between you and the maker. That difference, before the profit fee, is the `amount` on the
+`position.bought_back` webhook, and `mm_pays_user` gives its direction.
 
 The price can be below your stake. A parlay that has gone against you exits for less than it cost,
 and you never pay more than your stake to leave.

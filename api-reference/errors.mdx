@@ -3,8 +3,8 @@ title: 'Errors'
 description: 'Every error the Totalis API returns: the envelope, the HTTP status meanings, the top level codes, the per surface rejection reasons, and which ones to retry.'
 ---
 
-Every error code the API can return is listed on this page. Other pages link here rather than
-restating them.
+The error codes and reasons a public integration branches on are listed on this page. Endpoint
+pages add the reasons specific to them.
 
 ## Envelope
 
@@ -33,13 +33,15 @@ notice, so never match on it. `error.details` carries surface specific context, 
 | `403` | The credential is valid but not permitted to do this. | Check scopes, or the key format. |
 | `404` | The object does not exist, is not yours, or has already been evicted. | Treat as normal on short lived objects. |
 | `409` | A state conflict. Something changed underneath you. | Re-read state and decide. Often not retryable. |
+| `410` | The object expired and is gone, such as a cashout auction past its window. | Start a new one. |
 | `413` | Payload too large. | Reduce the request body. |
 | `429` | Rate limited. | Wait `error.retry_after` seconds. |
 | `500` | Something failed on our side. | Retry with backoff. |
+| `502` | Part of the work landed and the rest did not, such as `PARTIAL_VAULT_ONLY` on a withdrawal. | Read `error.details` before retrying. See [Funding](/guides/funding#when-it-fails). |
 | `503` | Temporarily unavailable. | Retry with backoff. |
 
-A parlay id you do not own returns `404`, not `403`. The API does not confirm the existence of other
-accounts' objects.
+A parlay id you do not own returns `404`, not `403`, so the API never confirms that another
+account's parlay exists. Quote request ids you do not own return `403`.
 
 ## Top level codes
 
@@ -50,6 +52,7 @@ accounts' objects.
 | `FORBIDDEN` | 403 |
 | `NOT_FOUND` | 404 |
 | `CONFLICT` | 409 |
+| `GONE` | 410 |
 | `PAYLOAD_TOO_LARGE` | 413 |
 | `RATE_LIMITED` | 429 |
 | `INTERNAL_ERROR` | 500 |

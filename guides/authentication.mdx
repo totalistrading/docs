@@ -17,7 +17,8 @@ being able to trade, and trade without being able to withdraw.
   <Step title="Create the key">
     Name it and choose its scopes. Grant only what this integration needs. The presets map to the
     scope groups below: **Read-only** is the four read scopes, **Trading** adds `trading:write` and
-    `funds:deposit`, and **Custom** lets you tick scopes one by one.
+    `funds:deposit`, and **Custom** lets you tick scopes one by one. The API also accepts `full`
+    and `headless` presets; see [Create API key](/api-reference/user/create-api-key).
 
     <Frame caption="Creating a key with the Trading preset. Each checkbox is one scope from the catalog below.">
       <img src="/images/app/02-api-keys.png" alt="The API Keys settings page with a key name, the Trading preset selected, and the read, trading and funds permissions checked" />
@@ -37,14 +38,14 @@ The full API key is displayed only at creation. Store it in a secret manager bef
 dialog. It cannot be retrieved later, only revoked and replaced.
 </Warning>
 
-Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. Live keys start `api_live_`, test environment keys
-start `api_test_`.
-
+Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. Every key you create is a live key and starts
+`api_live_`. There is no public test environment, so start with small real bets, or email
+[founders@totalis.trade](mailto:founders@totalis.trade) if you need a staging setup.
 
 <Note>
 The web app authenticates with a Privy JWT (`Authorization: Bearer <jwt>`) instead of a key. Every
-endpoint accepts either. The one exception is creating a key, which needs a JWT or a key that already
-holds `keys:manage`.
+endpoint accepts either. Creating, listing and revoking keys needs `keys:manage`, which a Privy
+session always holds and a key holds only if you granted it.
 </Note>
 
 ## Using your API key
@@ -72,8 +73,8 @@ the key lacks is rejected with `403` and reason `insufficient_scope`.
 | Scope | Grants | Risk |
 | --- | --- | --- |
 | `account:read` | View account profile and username. | low |
-| `markets:read` | Browse markets, including each market's `exclusion_keys`. | low |
-| `positions:read` | View quote requests, portfolio, stats, and P&L. | low |
+| `markets:read` | Browse markets and exclusion groups. Market reads are public today, so no public endpoint checks it. | low |
+| `positions:read` | View quote requests, parlays, stats, and P&L. Portfolio also needs `balances:read`. | low |
 | `balances:read` | View wallet and vault balances and delegation status. | low |
 | `funds:deposit` | Move USDC into the vault. | low |
 | `trading:write` | Create, modify, commit, and cancel quote requests. Places parlays. | medium |
@@ -82,9 +83,10 @@ the key lacks is rejected with `403` and reason `insufficient_scope`.
 | `funds:withdraw` | Move USDC out of the vault or wallet to any address. | **high** |
 | `tx:sign` | Submit arbitrary signed Solana transactions. | **high** |
 | `keys:manage` | Create, list, and revoke API keys. | **high** |
+| `accounts:provision` | Register and disable sub-accounts for platform integrations. Never in a default preset. | **high** |
 
 <Warning>
-The three high risk scopes each let a leaked key take everything. `funds:withdraw` sends USDC to any
+The high risk scopes each let a leaked key take everything. `funds:withdraw` sends USDC to any
 address. `tx:sign` submits arbitrary transactions. `keys:manage` mints more keys, including ones
 that outlive your revocation of the original. Issue them only to keys that genuinely need them, and
 never to a key that also lives in a browser or a CI log.
@@ -95,8 +97,8 @@ Pick scopes by integration shape:
 | Integration | Scopes |
 | --- | --- |
 | Dashboard or reconciliation, read only | `account:read`, `positions:read`, `balances:read` |
-| Trading bot | the read scopes, plus `trading:write`, plus `funds:deposit` if it tops up the vault |
-| Market maker | the read scopes, plus `mm:quote` |
+| Trading bot | the four read scopes, plus `trading:write`, plus `funds:deposit` if it tops up the vault |
+| Market maker | the four read scopes, plus `mm:quote`, plus `funds:deposit` if you park collateral in the vault |
 
 ## Managing keys
 
@@ -123,7 +125,7 @@ A new key can never grant a scope the creating credential does not already hold.
 | --- | --- |
 | Active | Valid and accepted. |
 | Revoked | Manually revoked. Rejected with `401`. |
-| Expired | Past its expiration date. Rejected with `401`. |
+| Expired | Past its expiration date. Rejected with `401`. Keys you create yourself never expire; only keys minted with an expiry, such as partner sub-account keys, reach this state. |
 
 Revocation takes effect immediately. Webhook endpoints belong to your account rather than to the
 key that created them, so revoking one key among several does not stop webhook delivery. See

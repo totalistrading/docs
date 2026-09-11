@@ -71,8 +71,9 @@ permission to sign transactions on your behalf inside a secure enclave. See
 
 <Warning>
 Enabling trading is an interactive step. You approve a consent dialog in the app, once. It cannot be
-done from the REST API. `POST /v1/wallet/enable-trading` only reports status. It does not grant the
-permission.
+granted from the REST API. `POST /v1/wallet/enable-trading` checks that delegation is in place and
+returns its status. It does not grant the permission. On older accounts it also credits any pending
+welcome airdrop.
 </Warning>
 
 Check the current state with
@@ -112,7 +113,7 @@ One call reaches everything that is not locked in an open position.
 
 | Pool | What it holds | Withdrawable |
 | --- | --- | --- |
-| Wallet | USDC you sent, minus holds for quote requests that are open, quoted, accepted, or confirmed | Yes |
+| Wallet | USDC you sent, minus holds for parlays you committed that have not funded yet | Yes |
 | Vault free balance | Settled winnings and unlocked collateral: `gross - locked` | Yes, through a vault tap |
 | Vault locked | Collateral behind your `executed` positions | No, until they settle or you cash out |
 
@@ -141,6 +142,7 @@ same two numbers as **Available to withdraw** and **In open positions**.
   rejected, and so is the call if the SOL price is briefly unavailable. Retry in a moment.
 - `Idempotency-Key` is honored. A repeat with the same key replays the original success without
   moving funds again.
+- Limited to 5 calls per minute per account.
 
 ### When it fails
 
