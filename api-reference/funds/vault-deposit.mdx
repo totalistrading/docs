@@ -1,0 +1,12 @@
+---
+title: 'Deposit into the vault'
+description: 'Move USDC from your wallet into your on-chain vault ahead of trading. Optional for bettors, usual for market makers.'
+openapi: 'POST /v1/vault/deposit'
+---
+
+<Note>
+You do not need this call to trade. Placing a parlay moves the stake from your wallet into the vault
+in the same step. Use it to hold collateral in the vault ahead of time, which market makers do
+before quoting. The vault is created on your first trade, so this call returns `404` until then.
+Needs the `funds:deposit` scope and trading enabled. Limited to 10 calls per minute.
+</Note>

@@ -1,7 +1,7 @@
 ---
 title: 'Funding your wallet'
 icon: 'wallet'
-description: 'Send USDC to your Solana wallet, enable trading, and withdraw. There is no separate deposit call.'
+description: 'Send USDC to your Solana wallet, enable trading, and withdraw. Trading funds the vault by itself; a deposit call exists if you want to pre-fund it.'
 ---
 
 You fund your account by sending USDC to your Solana wallet address. Once it lands you are ready to
@@ -10,7 +10,7 @@ deposit step.
 
 ## At a glance
 
-- Fund by sending native Solana USDC to your wallet address. There is no deposit call.
+- Fund by sending native Solana USDC to your wallet address. Placing a parlay moves the stake into the vault by itself.
 - Enable trading once, in the app. The API can only report whether it is on.
 - Your wallet never needs SOL. Network fees are sponsored.
 - One withdraw call reaches your wallet and your vault's free balance together.
@@ -80,7 +80,11 @@ Check the current state with
 
 ## How your balance is used
 
-There is no deposit call because the vault funds itself at trade time.
+You do not have to deposit before you trade. Placing a parlay moves the stake from the wallet into the
+vault in the same step. Two calls exist for moving money between the two on purpose:
+[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) pre-funds the vault from the wallet, and
+[`POST /v1/vault/withdraw`](/api-reference/funds/vault-withdraw) moves free balance back to the wallet.
+Market makers use the first to hold collateral ahead of quoting.
 
 | Where the money is | What happens |
 | --- | --- |

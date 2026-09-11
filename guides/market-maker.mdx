@@ -57,6 +57,7 @@ There is no separate market maker role. Any authenticated user with an API key t
 
 | Step | Endpoint |
 | --- | --- |
+| Hold collateral in your vault ahead of quoting | [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
 | Check invalid leg combinations | `exclusion_keys` on [`GET /v1/markets/list`](/api-reference/markets/list-flat) |
 | Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
@@ -70,7 +71,8 @@ There is no separate market maker role. Any authenticated user with an API key t
 Two markets can share a parlay only if their `exclusion_keys` arrays do not intersect.
 
 Check available USDC and locked funds with [`GET /v1/wallet`](/api-reference/user/get-wallet) before
-quoting at size.
+quoting at size. Your quotes are backed by the vault's free balance, so top it up with
+[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) rather than leaving USDC in the wallet.
 
 ## Quoting rules
 

@@ -154,6 +154,8 @@
             "group": "Funds and vault",
             "pages": [
               "api-reference/funds/get-vault",
+              "api-reference/funds/vault-deposit",
+              "api-reference/funds/vault-withdraw",
               "api-reference/funds/wallet-withdraw",
               "api-reference/funds/delegation-status",
               "api-reference/funds/enable-trading",

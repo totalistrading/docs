@@ -1692,6 +1692,163 @@
           }
         }
       }
+    },
+    "/v1/vault/deposit": {
+      "post": {
+        "operationId": "depositToVault",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Deposit USDC into vault",
+        "description": "Moves USDC from your wallet into your on-chain vault. The vault is created on your first trade, so this call returns 404 until then. Trading funds the vault by itself; use this to hold collateral ahead of time. Market makers deposit through it as well.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VaultDepositRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deposit finalized and reflected in the database mirror",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/VaultTransactionResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Deposit accepted; chain outcome or database balance update is pending recovery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/VaultTransactionResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "description": "No vault found (vault is created on first trade)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Solana integration not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vault/withdraw": {
+      "post": {
+        "operationId": "withdrawFromVault",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Withdraw USDC from vault",
+        "description": "Moves free balance from your on-chain vault back to your wallet. Only the free balance moves; the on-chain program enforces that locked collateral stays put. To send USDC to an external address use POST /v1/wallet/withdraw, which taps the vault for you.",
+        "security": [
+          {
+            "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VaultWithdrawRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawal submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/VaultTransactionResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "description": "No vault found (vault is created on first trade)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "description": "Solana integration not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3333,6 +3490,59 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "VaultDepositRequest": {
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 1000000,
+            "description": "USDC amount to deposit (max 1,000,000)"
+          }
+        }
+      },
+      "VaultTransactionResult": {
+        "type": "object",
+        "description": "Response for vault deposit/withdraw operations.",
+        "properties": {
+          "tx_signature": {
+            "type": "string",
+            "description": "Solana transaction signature"
+          },
+          "amount": {
+            "type": "number",
+            "description": "USDC amount deposited/withdrawn"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "chain_pending",
+              "balance_pending"
+            ],
+            "description": "`completed` means the finalized chain effect and database mirror\nboth committed. `chain_pending` means the broadcast outcome still\nneeds chain recovery. `balance_pending` means the transaction\nfinalized but the database mirror still needs recovery. Pending\nstates fence the vault, and balances may remain stale meanwhile.\nThe pending values are returned by deposits; withdrawals retain\ntheir existing error response while durable recovery is pending.\n"
+          }
+        }
+      },
+      "VaultWithdrawRequest": {
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 1000000,
+            "description": "USDC amount to withdraw (max 1,000,000)"
           }
         }
       }
