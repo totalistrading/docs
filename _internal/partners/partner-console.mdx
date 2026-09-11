@@ -22,18 +22,25 @@ an API key.
 | --- | --- |
 | `GET /partner/sub-accounts` | Your registered sub-accounts, without secrets |
 | `POST /partner/sub-accounts/{id}/api-keys` | Mint a key restricted to one sub-account |
+| `GET /partner/api-keys` | Keys minted from the console, by prefix |
+| `DELETE /partner/api-keys/{prefix}` | Revoke a console-minted key, effective immediately |
 | `GET /partner/webhooks` | Current webhook settings and the event catalog |
-| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }` |
+| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }`. The public endpoint names these `url` and `events` |
 | `POST /partner/webhooks/rotate-secret` | Generate a `whsec_...` signing secret, returned once |
 | `GET /partner/webhooks/deliveries` | Recent delivery attempts with status and response code |
 | `POST /partner/webhooks/deliveries/{id}/redeliver` | Replay a delivered or dead-lettered delivery |
 
 ## Sub-account keys
 
+Mint one with `{ "name": "...", "scopes": [...], "expires_in_days": 90 }`, all optional.
+`expires_in_days` is at most 365; without it the key does not expire. Requested scopes are clamped
+to `trading:write`, `tx:sign` and `markets:read`, and a key that leaks is revoked with
+`DELETE /partner/api-keys/{prefix}`.
+
 A sub-account key can trade and sign for exactly one sub-account. It cannot read quote requests or
-balances, so a platform that uses them also keeps a principal key with `positions:read` for the
-polling side of the loop. The two patterns are compared under
-[Two ways to hold keys](/_internal/partners/headless-integration#two-ways-to-hold-keys).
+balances, and it cannot withdraw, so a platform that uses them also keeps a principal key with
+`positions:read` for polling and `funds:withdraw` for withdrawals. The two patterns are compared
+under [Two ways to hold keys](/_internal/partners/headless-integration#two-ways-to-hold-keys).
 
 ## Webhooks
 
@@ -57,6 +64,7 @@ or Python. Delivery is at least once with backoff, so dedupe on `X-Totalis-Event
 
 <Warning>
 Until `funds.deposited` and `funds.withdrawn` are delivered for sub-accounts, track balance movements
-from your own signed transactions and from on-chain reads of the sub-account vault. The balance
-endpoints report the calling principal's own account, not a sub-account.
+from your own signed transactions, from `GET /v1/rfqs` with `X-Subaccount`, and from the owner
+wallet's USDC token account on chain. The balance endpoints report the calling principal's own
+account, not a sub-account.
 </Warning>

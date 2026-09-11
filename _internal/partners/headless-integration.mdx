@@ -134,15 +134,17 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
     ```
     </Accordion>
 
-    Committing does not open the position. It reserves the maker's collateral and puts the position
-    in `awaiting_signature`. You have about thirty minutes to build, sign and submit before it lapses
-    and the collateral is released. Commit is idempotent per quote request and sub-account, so a retry
-    returns the same `rfq_id`.
+    Commit waits for the winning maker to confirm, 5 to 8 seconds at most, so a missed confirmation
+    comes back on the commit itself as `mm_confirmation_timeout`. A successful commit does not open
+    the position. It reserves the maker's collateral and puts the position in `awaiting_signature`, a
+    headless only state the public status table does not list. You have about thirty minutes to
+    build, sign and submit before it lapses and the collateral is released. Commit is idempotent per
+    quote request and sub-account, so a retry returns the same `rfq_id`.
   </Step>
 
   <Step title="Build, sign, submit">
     Ask Totalis to build the transaction, sign its message with the owner key, and submit it with the
-    same `build_id`.
+    same `build_id`. The build call names the parlay `ticket_id`; pass the `rfq_id` from commit.
 
     <Accordion title="The calls">
     ```bash
@@ -184,9 +186,14 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
 
   <Step title="Settle and read">
     Positions settle server side at market resolution with no signature from you, and proceeds land
-    in the sub-account's vault. Track sub-accounts with [webhooks](/_internal/partners/partner-console)
-    and on-chain reads. The balance endpoints `GET /v1/wallet`, `GET /v1/vault` and
-    `GET /v1/portfolio` report the calling principal's own account and ignore `X-Subaccount`.
+    in the sub-account's vault. Read a sub-account's parlays with `GET /v1/rfqs` and
+    `GET /v1/rfqs/{id}` plus `X-Subaccount` (`positions:read`). With the header you see only that
+    sub-account's parlays; without it you see only the principal's own, never a sub-account's. Push
+    updates arrive on the [partner webhooks](/_internal/partners/partner-console).
+
+    The balance endpoints `GET /v1/wallet`, `GET /v1/vault` and `GET /v1/portfolio` report the
+    calling principal's own account and ignore `X-Subaccount`. For a sub-account's balance, read its
+    owner wallet's USDC token account on chain.
   </Step>
 
   <Step title="Withdraw">
@@ -214,7 +221,7 @@ Polling a quote request needs `positions:read`. A sub-account key minted from th
 
 | Pattern | How | Trade-off |
 | --- | --- | --- |
-| Split keys, for multi-tenant platforms | Poll and choose with a principal key that has `positions:read`. Commit, build and submit with the sub-account key. | The sub-account key can only ever act for its one account, so a leak is contained. |
+| Split keys, for multi-tenant platforms | Poll and choose with a principal key that has `positions:read`. Commit, build and submit with the sub-account key. Withdraw with the principal key, since a sub-account key cannot. | The sub-account key can only ever act for its one account, so a leak is contained. |
 | One principal key, for a single tenant | One `headless` key runs the whole loop. | It can build, sign and submit for any of your sub-accounts. You give up the per-account clamp. |
 
 ## Why a commit is refused
@@ -236,12 +243,12 @@ Polling a quote request needs `positions:read`. A sub-account key minted from th
 | `insufficient_mm_collateral` | No maker could back it. Retry |
 | `awaiting_signature_cap` | This sub-account already has 25 unsigned positions. Sign or let some lapse |
 | `awaiting_signature_principal_cap` | Your principal hit its aggregate unsigned ceiling. Sign or let some lapse |
-| `quote_expired` | Lowercase core race variant of quote expiry. Request a fresh quote |
+| `quote_expired` | Lowercase variant of quote expiry from a late race. Request a fresh quote |
 | `cancelled` | The committed ticket was cancelled before confirmation completed |
-| `insufficient_balance` | Managed path. Usually means `X-Subaccount` was omitted |
-| `COMMIT_FAILED` | Unknown non-retryable core result. Re-poll or escalate |
-| `COMMIT_FAILED_RETRYABLE` | Transient core failure, returned as `503`. Retry |
-| `FORBIDDEN` | Core rejected the commit without a more specific public reason |
+| `insufficient_balance` | The check ran against the principal's own managed account, which means `X-Subaccount` was omitted. Without the header, a commit trades the principal's own funds |
+| `COMMIT_FAILED` | Unknown non-retryable result. Re-poll or escalate |
+| `COMMIT_FAILED_RETRYABLE` | Transient failure, returned as `503`. Retry |
+| `FORBIDDEN` | The commit was refused without a more specific public reason |
 
 A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be a UUID`.
 
@@ -255,19 +262,21 @@ A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be 
 | `byte_mismatch` | 400 | The submitted transaction does not match the built one. Rebuild and sign cleanly |
 | `position_not_found` | 404 | No `awaiting_signature` position for this build |
 | `rebuild_required` | 409 | The transaction did not land and the `build_id` is spent. Rebuild |
-| `submission_indeterminate` | 500 | Outcome unknown. Check status before resubmitting |
+| `submission_indeterminate` | 500 | Outcome unknown. Check `GET /v1/rfqs/{id}` with `X-Subaccount`, or the chain, before resubmitting. Submit takes no `Idempotency-Key` |
 | `insufficient_balance` | 400 | On a withdraw, the vault free balance is too low |
 | `withdraw_scope_required` | 403 | The build is a withdraw and the key lacks `funds:withdraw` |
-| `PARTNER_WITHDRAW_FORBIDDEN` | 403 | A withdraw submitted with a partner delegated key |
+| `PARTNER_WITHDRAW_FORBIDDEN` | 403 | A withdraw submitted with a key minted from the partner console. Withdraw with a principal key that holds `funds:withdraw` |
 | `subaccount_disabled` | 409 | A create build for a disabled sub-account. Withdraws still work |
 
 ## Limits
 
 - 25 positions in `awaiting_signature` per sub-account at once.
-- An aggregate ceiling of unsigned positions per principal across all sub-accounts, 250 by default and environment tunable.
-- Up to 1000 active sub-accounts per principal by default, environment tunable.
+- An aggregate ceiling of unsigned positions per principal across all sub-accounts, 250 by default.
+- Up to 1000 active sub-accounts per principal by default.
 - Lapsed unsigned positions are cleaned up after about thirty minutes and their reserved collateral released.
-- Build, submit and withdraw are limited to roughly ten requests per minute each. Everything else follows the buckets on [Limits and fees](/guides/limits-and-fees#rate-limits).
+- A registration challenge is valid for 10 minutes.
+- `POST /v1/wallet/submit-built-tx` and `POST /v1/vault/build-withdraw-tx` are each capped at 10 requests per minute, counted against the principal account. Every sub-account shares that budget, so a platform submits at most 10 positions a minute, about 600 an hour, in total. Everything else follows the buckets on [Limits and fees](/guides/limits-and-fees#rate-limits).
+- The caps and ceilings above are defaults. Email [founders@totalis.trade](mailto:founders@totalis.trade) to raise them before you launch.
 
 ## Endpoint reference
 
@@ -280,6 +289,7 @@ A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be 
 | `DELETE /v1/accounts/{id}` | `accounts:provision` | |
 | `POST /v1/quote-requests` | `trading:write` | |
 | `GET /v1/quote-requests/{id}` | `positions:read` | |
+| `GET /v1/rfqs`, `GET /v1/rfqs/{id}` | `positions:read` | `X-Subaccount` to read one sub-account's parlays |
 | `POST /v1/quote-requests/{id}/commit` | `trading:write` | `X-Subaccount` |
 | `POST /v1/positions/build-tx` | `trading:write` | `X-Subaccount` |
 | `POST /v1/vault/build-withdraw-tx` | `funds:withdraw` | `X-Subaccount` |

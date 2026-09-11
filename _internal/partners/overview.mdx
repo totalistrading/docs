@@ -25,7 +25,7 @@ them and share the links with your team.
 | Status | Live | Preview, in active development |
 | Signing key | An embedded wallet whose key lives in a secure enclave. The account delegates signing to Totalis once | Your own key, or your end users' keys |
 | Accounts | One Totalis account per end user | One principal, many sub-accounts |
-| Onboarding | One consent in the Totalis app per account | Fully programmatic, proof of key control |
+| Onboarding | One consent in the Totalis app per account | A one time setup with the team for your principal and console access, then fully programmatic with proof of key control |
 | Signing | Totalis signs inside a secure enclave | You sign each transaction Totalis builds |
 | Best for | A desk, a bot, or a small number of users | A platform that already holds keys for many users |
 
@@ -52,5 +52,5 @@ or your own signer.
 
 - Base URL: `https://api.totalis.trade`
 - Authentication: an API key in the `X-API-Key` header on every request. Keys are scoped; see [Authentication](/guides/authentication).
-- Markets, quoting, fees and settlement behave exactly as the public docs describe. Start with [How parlays work](/guides/lifecycle) and [Limits and fees](/guides/limits-and-fees).
+- Markets, quoting, fees and settlement behave exactly as the public docs describe. Start with [How parlays work](/guides/lifecycle) and [Limits and fees](/guides/limits-and-fees). The public pages on [funding](/guides/funding), enabling trading and [delegated signing](/guides/vault-architecture#delegated-signing) describe the managed wallet and do not apply to headless sub-accounts.
 - Questions and onboarding: [founders@totalis.trade](mailto:founders@totalis.trade).
