@@ -60,7 +60,7 @@ After authenticating, subscribe to channels to receive events:
 | Channel | Description |
 |---------|-------------|
 | `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, accepted details, confirmed, expired, withdrawn) |
-| `rfq:{rfq_id}` | Position and status updates for a specific trade |
+| `rfq:{rfq_id}` | Status changes, cancellation, expiry and position events for one trade |
 
 The channel key is your **`mm_id`**, which is the same value as your `user_id`: your Privy DID (`did:privy:...`), echoed back by `auth:success` here and by the [`connected`](/api-reference/quote-service-mm/stream#connected) event on the MM SSE stream.
 
@@ -115,6 +115,16 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
   **`draft_quote_id`** is the id of your own draft quote: the `quote.id` returned when you [submitted it](/api-reference/quote-service-mm/submit-quote). Use it to correlate which of your drafts was lifted; use `quote_id` (the accepted quote) for the [confirmation call](/api-reference/mm/confirm-quote).
 </Note>
 
+### Parlay events
+
+Delivered on `rfq:{rfq_id}`. These are the user-facing mirror of the maker's `quote:*` events.
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `rfq:status` | The parlay moved to a new status: `accepted`, `confirmed`, `executed` or `cancelled`. Same moments as the `parlay.status_changed` webhook. | `{ rfq_id, status, updated_at, accepted_quote_id? }` |
+| `rfq:cancelled` | The parlay was cancelled. | `{ rfq_id, reason? }` |
+| `rfq:expired` | The parlay expired before it was funded. | `{ rfq_id }` |
+
 ### Position events
 
 `position_pda` is the on-chain account address for the position, not a lookup key. To fetch or reference a position through the API, use `rfq_id` (or `position_id`, once it is [set on the RFQ](/api-reference/parlays/get)) instead.
@@ -124,6 +134,7 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 | `position:created` | Vault position created, collateral locked. | `{ rfq_id, position_pda, timestamp }` |
 | `position:settled` | Position settled with outcome. | `{ rfq_id, position_pda, outcome, tx_signature, timestamp }` |
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
+| `position:failed` | One attempt to create the position on chain failed and will be retried. Delivered on `rfq:{rfq_id}`, to the user, and to the maker. | `{ rfq_id, reason, retry_count, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
 | `position:bought_back` | A position was closed early by a winning cashout bid. See the note below. | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
 
@@ -133,6 +144,15 @@ the maker whose exposure closed, and directly to any connection authenticated as
 that maker. Subscribe on `rfq:{rfq_id}` and dedupe on `tx_signature`. `amount` is decimal USDC, and
 `quote_id` is the position's original accepted quote, not the winning bid. One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
 </Note>
+
+### Balance events
+
+Delivered to every connection authenticated as you, with no subscription. Amounts are decimal USDC.
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `vault:deposited` | USDC moved into your vault, whether by a trade or by `POST /v1/vault/deposit`. | `{ amount, vault_balance, free_balance }` |
+| `vault:withdrawn` | USDC moved out of your vault. | `{ amount, vault_balance, free_balance }` |
 
 ## Keep-alive
 

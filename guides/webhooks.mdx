@@ -47,7 +47,9 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
 <Note>
   **Market makers** manage a separate endpoint with `?owner_kind=mm` (gated on `mm:quote`). Its events
   carry the MM's side of a position (`mm_result`, plus `mm_pays_user` on buyback) rather than the
-  bettor's. A `user` endpoint (the default) ships your own bettor-side event data.
+  bettor's. A maker endpoint can subscribe only to `position.settled`, `position.cancelled` and
+  `position.bought_back`, the events a backing maker is party to. A `user` endpoint (the default)
+  ships your own bettor-side event data.
 </Note>
 
 ## Event catalog
@@ -66,6 +68,7 @@ curl -X PUT https://api.totalis.trade/v1/webhooks \
 | `position.settled` | `positions:read` | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
 | `position.cancelled` | `positions:read` | `rfq_id`, `reason`, `occurred_at` |
 | `position.bought_back` | `positions:read` | `rfq_id`, `amount` (the directional buyback amount, net on top of the refunded stake. `mm_pays_user` gives the direction), `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `position.transferred` | `positions:read` | Seller side only: your position was taken over by a winning cashout bid from a maker other than the one backing it. `rfq_id`, `price`, `buyer_wallet`, `tx_signature`, `occurred_at` |
 | `parlay.status_changed` | `positions:read` | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
 | `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 | `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |

@@ -136,8 +136,9 @@ The `status` on a parlay. In the API the parlay object is called an RFQ, so the 
 | `cancelled` | Ended before funding, or a leg was voided. | released or never moved |
 | `expired` | Ended before funding. | none moved |
 
-Quotes carry their own status: `withdrawn` when the maker pulled it, `expired` when its validity
-lapsed, `rejected` when you accepted a different quote on the same request.
+Quotes carry their own status: `pending` while live, `accepted`, `confirmed` and `executed` as the
+trade progresses, `withdrawn` when the maker pulled it, `expired` when its validity lapsed, and
+`rejected` when you accepted a different quote on the same request.
 
 ## Constraints
 
