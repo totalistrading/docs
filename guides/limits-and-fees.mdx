@@ -33,7 +33,7 @@ request, rather than discovering the rejection at create time.
 | --- | --- | --- | --- |
 | Quote validity | 15 s | 5 to 60 s | How long a maker's submitted quote stays live (`expires_in_ms`) |
 | Quote request expiry | 90 s | set by the server | How long your request accepts quotes. Each update restarts it. There is no request field for it |
-| Maker confirmation | 5 s | configurable, floor 5 s | How long the winning maker has to confirm after you commit |
+| Maker confirmation | 5 s | 5 to 8 s | How long the winning maker has to confirm after you commit. Your commit call waits for it |
 | Cashout auction | about 10 s | fixed | How long an early exit auction accepts bids |
 | Cashout cutoff | 30 s | configurable | No cashout opens, and no maker quote is accepted, within this long of a position's or market's end |
 | Cashout bid validity | 15000 ms | 5000 to 60000 ms | How long your cashout bid stays live |

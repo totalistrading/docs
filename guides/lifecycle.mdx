@@ -86,8 +86,9 @@ hold and never moves your funds.
     }
     ```
     </Accordion>
-    The response returns the real `rfq_id`, the accepted quote, and the payout odds. Status becomes
-    `accepted`. If the commit fails, no funds moved and no trade happened. See
+    The call waits the few seconds it takes the maker to confirm, then returns the real `rfq_id`,
+    the accepted quote, and the payout odds, with the parlay already `confirmed`. If the commit
+    fails, no funds moved and no trade happened. See
     [Errors](/api-reference/errors) for the rejection reasons.
   </Step>
 
@@ -128,7 +129,7 @@ The `status` on a parlay. In the API the parlay object is called an RFQ, so the 
 
 | Status | Meaning | Funds |
 | --- | --- | --- |
-| `accepted` | You committed a quote. Awaiting maker confirmation. | held, not moved |
+| `accepted` | You committed a quote and the maker is confirming. The commit call waits through this. | held, not moved |
 | `confirmed` | Maker confirmed. Funding on-chain. | locking |
 | `executed` | Live on-chain. Eligible for early cashout. | locked |
 | `settled` | Resolved and paid out. | released |
