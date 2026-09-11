@@ -1,0 +1,61 @@
+---
+title: 'Partner console and webhooks'
+icon: 'webhook'
+description: 'The partner console routes under /partner: list sub-accounts, mint sub-account keys, configure webhooks, and replay deliveries.'
+---
+
+The partner console is a small set of routes under `/partner` that manage things which belong to
+your platform rather than to any one sub-account: the keys you hand to sub-accounts, and the webhook
+endpoint that receives events for all of them. They authenticate with a partner console session, not
+an API key.
+
+## At a glance
+
+- One webhook endpoint per partner receives events for every sub-account.
+- Deliveries are signed, retried, and can be replayed. Same format as the public webhooks.
+- Sub-account keys are minted here and are clamped to `trading:write`, `tx:sign` and `markets:read`.
+- Two balance events are not yet delivered for headless sub-accounts.
+
+## Routes
+
+| Route | Purpose |
+| --- | --- |
+| `GET /partner/sub-accounts` | Your registered sub-accounts, without secrets |
+| `POST /partner/sub-accounts/{id}/api-keys` | Mint a key restricted to one sub-account |
+| `GET /partner/webhooks` | Current webhook settings and the event catalog |
+| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }` |
+| `POST /partner/webhooks/rotate-secret` | Generate a `whsec_...` signing secret, returned once |
+| `GET /partner/webhooks/deliveries` | Recent delivery attempts with status and response code |
+| `POST /partner/webhooks/deliveries/{id}/redeliver` | Replay a delivered or dead-lettered delivery |
+
+## Sub-account keys
+
+A sub-account key can trade and sign for exactly one sub-account. It cannot read quote requests or
+balances, so a platform that uses them also keeps a principal key with `positions:read` for the
+polling side of the loop. The two patterns are compared under
+[Two ways to hold keys](/_internal/partners/headless-integration#two-ways-to-hold-keys).
+
+## Webhooks
+
+Configure the URL and the events you want, then rotate a secret. Deliveries start only once a secret
+exists. The URL must be HTTPS and must not resolve to private infrastructure.
+
+| Event | Scope | For headless sub-accounts | `data` |
+| --- | --- | --- | --- |
+| `position.settled` | `positions:read` | Delivered | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `positions:read` | Delivered | `rfq_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `positions:read` | Delivered | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `parlay.status_changed` | `positions:read` | Delivered | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
+| `funds.deposited` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
+| `funds.withdrawn` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
+
+Each delivery is a `POST` with a JSON body of `{ id, type, data }` and the headers
+`X-Totalis-Event-Id`, `X-Totalis-Event-Type` and `X-Totalis-Signature`. Verify the signature over the
+raw body exactly as the public [Webhooks](/guides/webhooks#verifying-signatures) page shows, in Node
+or Python. Delivery is at least once with backoff, so dedupe on `X-Totalis-Event-Id`.
+
+<Warning>
+Until `funds.deposited` and `funds.withdrawn` are delivered for sub-accounts, track balance movements
+from your own signed transactions and from on-chain reads of the sub-account vault. The balance
+endpoints report the calling principal's own account, not a sub-account.
+</Warning>
