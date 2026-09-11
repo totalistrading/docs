@@ -100,3 +100,12 @@ page('collateral-netting',
      stack(box('Parlay A', n='12,000'), box('Parlay B', n='8,000')) + fork(28, 28, mid=True) +
      stack(box('One by one', n='20,000', warn=True), box('As a book', n='12,000', hi=True)),
      None, zoom=1.4)
+
+# Integration models: managed and headless lanes into one venue
+page('integration-models',
+     stack(col(who(2, 'Your users')), col(who(2, 'Your platform'))) + fork(28, 28, mid=True) +
+     stack(panel(box('Totalis wallet'), box('Totalis signs', s='enclave'), cap='Managed'),
+           panel(box('Your keys'), box('You sign', s='Totalis builds'), cap='Headless')) +
+     fork(28, 28, mid=True) + box('Totalis', s='quotes, positions, settlement', tall=True, hi=True),
+     None, zoom=1.15)
+

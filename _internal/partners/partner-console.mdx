@@ -1,0 +1,76 @@
+---
+title: 'Partner console and webhooks'
+icon: 'webhook'
+description: 'The partner console routes under /partner: list sub-accounts, mint sub-account keys, configure webhooks, and replay deliveries.'
+---
+
+The partner console routes under `/partner` manage what belongs to your platform rather than to one
+sub-account: the keys you hand to sub-accounts, and the webhook endpoint that receives events for
+all of them. They authenticate with a partner console session, not an API key.
+
+A sub-account is a Solana public key registered under your principal (your platform's Totalis
+account). See [Headless integration](/_internal/partners/headless-integration).
+
+## At a glance
+
+- One webhook endpoint per partner receives events for every sub-account.
+- Sub-account keys are minted here and are clamped to `trading:write`, `tx:sign` and `markets:read`.
+- Two balance events are not yet delivered for headless sub-accounts.
+
+## Routes
+
+| Route | Purpose |
+| --- | --- |
+| `GET /partner/sub-accounts` | Your registered sub-accounts, without secrets |
+| `POST /partner/sub-accounts/{id}/api-keys` | Mint a key restricted to one sub-account |
+| `GET /partner/api-keys` | Keys minted from the console, by prefix |
+| `DELETE /partner/api-keys/{prefix}` | Revoke a console-minted key, effective immediately |
+| `GET /partner/webhooks` | Current webhook settings and the event catalog |
+| `PUT /partner/webhooks` | Set `{ webhook_url, webhook_events }`. The public endpoint names these `url` and `events`, and the two are separate endpoints |
+| `POST /partner/webhooks/rotate-secret` | Generate a `whsec_...` signing secret, returned once |
+| `GET /partner/webhooks/deliveries` | Recent delivery attempts with status and response code |
+| `POST /partner/webhooks/deliveries/{id}/redeliver` | Replay a delivered or dead-lettered delivery |
+
+## Sub-account keys
+
+Mint one with `{ "name": "...", "scopes": [...], "expires_in_days": 90 }`, all optional.
+`expires_in_days` is at most 365. Without it the key does not expire. Requested scopes are clamped
+to `trading:write`, `tx:sign` and `markets:read`. Revoke a leaked key with
+`DELETE /partner/api-keys/{prefix}`.
+
+A sub-account key trades and signs for exactly one sub-account. It cannot read quote requests or
+balances, and it cannot withdraw. A platform that uses these keys also keeps a principal key with
+`positions:read` for polling and `funds:withdraw` for withdrawals. See
+[Two ways to hold keys](/_internal/partners/headless-integration#two-ways-to-hold-keys).
+
+## Webhooks
+
+Webhook delivery is still being enabled. Email [founders@totalis.trade](mailto:founders@totalis.trade)
+before you build on it. Configure the URL and the events you want, then rotate a secret. Deliveries start only once a secret
+exists. The URL must be HTTPS and must not resolve to private infrastructure.
+
+| Event | Scope | For headless sub-accounts | `data` |
+| --- | --- | --- | --- |
+| `position.settled` | `positions:read` | Delivered | `rfq_id`, `outcome`, `tx_signature`, `occurred_at` |
+| `position.cancelled` | `positions:read` | Delivered | `rfq_id`, `reason`, `occurred_at` |
+| `position.bought_back` | `positions:read` | Delivered | `rfq_id`, `amount`, `mm_pays_user`, `tx_signature`, `occurred_at` |
+| `position.transferred` | `positions:read` | Delivered, seller side only | `rfq_id`, `price`, `buyer_wallet`, `tx_signature`, `occurred_at` |
+| `parlay.status_changed` | `positions:read` | Delivered | `rfq_id`, `status`, `accepted_quote_id`, `occurred_at` |
+| `funds.deposited` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
+| `funds.withdrawn` | `balances:read` | Not yet | `amount_usdc`, `vault_balance`, `occurred_at` |
+
+Deliveries use the same format as the public webhooks:
+
+- Each delivery is a `POST` with a JSON body of `{ id, type, data }`.
+- Headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type` and `X-Totalis-Signature`.
+- Verify the signature over the raw body as the public [Webhooks](/guides/webhooks#verifying-signatures) page shows, in Node or Python.
+- Delivery is at least once with backoff, so dedupe on `X-Totalis-Event-Id`.
+- Payloads carry `rfq_id` but no sub-account id. Map each `rfq_id` to its sub-account from your commit
+  responses.
+
+<Warning>
+Until `funds.deposited` and `funds.withdrawn` are delivered for sub-accounts, track balance movements
+from your own signed transactions, from `GET /v1/rfqs` with `X-Subaccount`, and from the owner
+wallet's USDC token account on chain. The balance endpoints report the calling principal's own
+account, not a sub-account.
+</Warning>
