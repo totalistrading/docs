@@ -17,7 +17,7 @@ on-chain.
 | **Quote request** | Before commit | The price discovery object. Has its own `id` and `status` (`active`, then `committed`, `cancelled` or `expired`). Once it commits or dies it is gone. It never becomes a queryable record. |
 | **RFQ** | After commit | The API object created at commit, with its own `rfq_id` and status progression. [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) returns it. |
 | **Parlay** | Any | The product name for the RFQ. Same object: say parlay in a UI or conversation, use `rfq` in code. |
-| **Position** | Once funded | The RFQ's on-chain footprint, present once `status` reaches `confirmed`. Carries `position_id` and `position_pda`. |
+| **Position** | Once funded | The RFQ's on-chain footprint, present once the trade is funded on chain (`status` `executed`). Carries `position_id` and `position_pda`. |
 | **Leg** | Any | One outcome inside a parlay. A parlay holds 2 to 5 legs. Every leg must win for the parlay to pay out. |
 
 ## Money fields
@@ -39,13 +39,13 @@ The full chain:
 ```
 # bet_amount_micro is bet_amount in microUSDC (millionths of a USDC: 1000000 = 1 USDC)
 taker_fee    = floor(bet_amount_micro * 100 / 10000)   # integer microUSDC
-user_stake   = bet_amount - taker_fee
+user_stake   = bet_amount - taker_fee                  # both in microUSDC
 total_payout = user_stake * payout_odds
 mm_risk      = total_payout - user_stake
 ```
 
 <Warning>
-Odds apply to the net stake, never to the gross bet. A 25 USDC bet at 4.0 odds pays 99.00, not
+Odds apply to the net stake, never to the gross bet. A 25 USDC bet at 4.0 odds pays out 99.00 before the profit fee, not
 100.00, because the 1% taker fee comes off first. Pricing against `bet_amount` overprices every
 quote you submit. See [Limits and fees](/guides/limits-and-fees#fees).
 </Warning>
@@ -76,7 +76,7 @@ converted for you.
 | --- | --- | --- |
 | `usdc_balance` | [`GET /v1/wallet`](/api-reference/user/get-wallet) | USDC sitting in your Solana wallet. |
 | `vault_balance` | `GET /v1/wallet` | Gross USDC in your vault, including collateral that is currently locked. |
-| `locked_amount` | `GET /v1/wallet` | Everything you have committed: in-flight requests, stakes on live positions, and maker-side collateral. |
+| `locked_amount` | `GET /v1/wallet` | Everything held or locked: bets you committed that have not funded yet, stakes on live positions, and maker-side collateral. |
 | `locked_collateral` | [`GET /v1/vault`](/api-reference/funds/get-vault) | The vault's own view of locked collateral. Already counted inside `locked_amount`, so do not subtract it twice. |
 
 ```

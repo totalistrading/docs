@@ -7,7 +7,7 @@ description: 'Every constraint and fee on Totalis: parlay size, bet range, payou
 ## At a glance
 
 - 2 to 5 legs, 1 to 100 USDC per bet, payout odds between 1.0001 and 1000.
-- Two fees, both 1%: a taker fee on the bet, charged upfront, and a profit fee on the winner's profit at settlement. A 25 USDC bet at 4.0 odds pays 98.26 if every leg wins.
+- Two fees, both 1%: a taker fee on the bet, and a profit fee on the winner's profit at settlement. A 25 USDC bet at 4.0 odds pays 98.2575 (98.26 rounded) if every leg wins.
 - Odds apply to the net stake after the taker fee, never to the gross bet.
 - Every expiring object carries its own timestamp. Honor it over any default on this page.
 
@@ -41,9 +41,9 @@ Do not hardcode these defaults. They are configurable. Every object that expires
 `expires_at` or `valid_until` timestamp, and that timestamp is what counts.
 </Warning>
 
-If the maker misses the confirmation window, the parlay expires with reason
-`mm_confirmation_timeout` and the hold on your bet is released. No funds move. Request quotes again
-to retry.
+If the maker misses the confirmation window, the commit returns `409` with reason
+`mm_confirmation_timeout` and the maker's id in `failed_mm_id`. Nothing moves and your quote request
+stays open, so you can commit the next best quote, or leave that maker out with `exclude_mm_ids`.
 
 ## Rate limits
 
@@ -51,7 +51,7 @@ Each route draws from one of three buckets.
 
 | Bucket | Covers | Keyed by | Limit |
 | --- | --- | --- | --- |
-| Authenticated | Every route that needs a key, apart from the two rows below | your account | 300 / minute, 100 without a key |
+| Authenticated | Every route that needs a key, apart from the two rows below | your account | 300 / minute. Requests without a valid key get 100 per IP |
 | Public | Market data and referral lookups | source IP | 100 / minute |
 | Quote service | Quote requests and cashouts, for bettors and makers | source IP | 300 / minute by default |
 
@@ -94,7 +94,7 @@ Totalis charges two fees, at different times and on different bases.
 
 | Fee | Rate | Base | When |
 | --- | --- | --- | --- |
-| Taker fee | 1% | Your gross `bet_amount` | Upfront, when you place the trade |
+| Taker fee | 1% | Your gross `bet_amount` | Locked with your stake when the trade funds. Kept at settlement or cashout, returned if a leg is voided |
 | Profit fee | 1% | The winning side's profit | At settlement, or on a closing cashout |
 
 The taker fee comes off first. Odds apply to what remains, never to your gross bet.
@@ -102,7 +102,7 @@ The taker fee comes off first. Odds apply to what remains, never to your gross b
 ```
 # bet_amount_micro is bet_amount in microUSDC (millionths of a USDC: 1000000 = 1 USDC)
 taker_fee    = floor(bet_amount_micro * 100 / 10000)   # 1% = 100 bps, integer microUSDC
-user_stake   = bet_amount - taker_fee                  # called user_cost before commit
+user_stake   = bet_amount - taker_fee                  # both in microUSDC; called user_cost before commit
 total_payout = user_stake * payout_odds
 mm_risk      = total_payout - user_stake               # called mm_cost before commit
 ```
@@ -143,11 +143,12 @@ and accrual rules are on [Referrals](/referrals).
 
 ## Network
 
-| | |
+| Item | Value |
 | --- | --- |
 | Chain | Solana mainnet |
 | Settlement asset | USDC (SPL) |
 | Mint | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| Vault program | `58LfwWEnq1aCG2R18voCBF7zzJNtVSWquQBvdaaDFhme` |
 | Network fees | Sponsored by Totalis. Your wallet never needs SOL. |
 
 <Warning>

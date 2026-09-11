@@ -11,7 +11,7 @@ trade.
 
 - Send native Solana USDC only. Placing a parlay moves the stake into your vault by itself, so there is no separate deposit step.
 - Enable trading once, in the app. The API can only report whether it is on.
-- Your wallet never needs SOL. Network fees are sponsored.
+- Network fees are sponsored, so your wallet only needs USDC. The one exception is a small rent charge, taken in USDC, on a first withdrawal to a new address.
 - One withdraw call reaches your wallet and your vault's free balance together.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/funding-light.png" alt="Send USDC, enable trading once, trade with the stake moving into the vault by itself, withdraw any time" />
@@ -89,7 +89,7 @@ trade.
 | Vault | When you place a parlay, your stake moves from the wallet into the vault and locks, in one step. |
 
 Trade eligibility is checked against your combined wallet and vault free balance. If the total
-covers your stake, the trade goes through.
+covers your bet amount, the trade goes through.
 
 Two calls move money between the two on purpose:
 
@@ -178,6 +178,6 @@ covers only the first.
   <img src="/images/app/17-withdraw-solana.png" alt="The Withdraw USDC form showing the amount available to withdraw, a recipient Solana address field, and an amount field" />
 </Frame>
 
-<Frame caption="Withdraw to another chain opens Unifold, which bridges USDC to Ethereum, Bitcoin and other chains. It has its own minimum and processing time.">
+<Frame caption="Withdraw to another chain opens Unifold, which sends your funds on to Ethereum, Bitcoin and other chains. It has its own minimum and processing time.">
   <img src="/images/app/18-withdraw-other-chain.png" alt="The Unifold cash out dialog with token, chain, recipient address, amount with a 3 USD minimum, and processing time" />
 </Frame>

@@ -9,9 +9,9 @@ runs a short auction. You see the best price live and accept it or walk away.
 
 ## At a glance
 
-- Any live parlay can be cashed out early, up to 30 seconds before it expires. The auction runs about 10 seconds.
+- Any live parlay can be cashed out early, until 30 seconds before its markets close. The auction runs about 10 seconds.
 - Every market maker sees the auction and can bid one all-in price. You see the best one as it changes.
-- You are never paid less than the price you accepted. If the best bid drops below it before you commit, the commit fails and nothing happens.
+- You receive the best live bid, never less than the price you accepted. If the best bid drops below it before you commit, the commit fails and nothing happens.
 - The price can be below your stake if the parlay has gone against you.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/early-cashout-light.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
@@ -68,8 +68,8 @@ When the exit closes the position (see the table below), your stake is released.
 between the price and your stake moves between you and the maker. On the `position.bought_back`
 webhook, `amount` is that difference before the profit fee, and `mm_pays_user` gives its direction.
 
-A parlay that has gone against you exits for less than it cost. You never pay more than your stake
-to leave.
+A parlay that has gone against you exits for less than it cost, but you never pay anything to
+leave. If no maker bids before the auction ends, nothing happens and your parlay stays open.
 
 ## What happens to the position
 
@@ -78,11 +78,11 @@ An auction resolves one of two ways. Both pay you the same. They look different 
 | Winning bidder | What happens | How it shows |
 | --- | --- | --- |
 | The maker who backs your position | The position closes. | The parlay reads as bought back, with realized P&L on its `cashout` object. |
-| Any other maker | They take over the position, which stays open under their name. | The parlay stays live in your reads. |
+| Any other maker | You are out and paid. The position moves to the buyer's account and stays open there. | The parlay leaves your reads. |
 
 <Note>
-Do not wait for a bought back status to know a cashout succeeded, because a transfer to another
-maker leaves the parlay live. Use the commit response, or the `position.bought_back` webhook when
+Do not wait for a bought back status to know a cashout succeeded, because a sale to another
+maker never shows as bought back. Use the commit response, or the `position.bought_back` webhook when
 the backing maker won. Market makers: the other side of the auction is on
 [Cashout auctions](/guides/cashout-auctions).
 </Note>

@@ -81,8 +81,9 @@ A `user` endpoint, the default, receives your own bettor-side event data from th
 | `funds.deposited` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 | `funds.withdrawn` | `balances:read` | `amount_usdc`, `vault_balance`, `occurred_at` |
 
-- **`position.bought_back`**: `amount` is the directional buyback amount, net on top of the refunded
-  stake. `mm_pays_user` gives the direction.
+- **`position.bought_back`**: `amount` is what moves between you and the maker on top of your released stake,
+  before the profit fee. `mm_pays_user` gives the direction. The seller always receives exactly the
+  accepted price.
 - **`position.transferred`**: seller side only. Your position was taken over by a winning cashout
   bid from a maker other than the one backing it.
 - **`parlay.status_changed`**: tracks an RFQ's live progression. `status` is one of `accepted`,

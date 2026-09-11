@@ -5,7 +5,7 @@ description: 'Stream parlay quote requests, submit payout odds, confirm fills wi
 ---
 
 Any account can make markets. You need an API key with the `mm:quote` scope, USDC to back your
-quotes, and a bot on two channels: the SSE quote request stream for pricing, and the WebSocket for
+quotes, trading enabled once in the app (see [Funding](/guides/funding#enable-trading)), and a bot on two channels: the SSE quote request stream for pricing, and the WebSocket for
 fills.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/market-maker-light.png" alt="A request arrives, you quote, the user commits, you confirm within five seconds, collateral locks, settlement pays out" />
@@ -34,7 +34,8 @@ fills.
     When a user commits your quote, you get `quote:accepted` on the `mm:quotes:{mm_id}` channel of
     the [WebSocket](/guides/websocket), with the `quote_id` and a `confirmation_deadline` a few
     seconds away. Confirm with [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote)
-    before that timestamp. The SSE stream only says a request closed, so keep the socket open.
+    before that timestamp. The SSE stream only says a request closed, so keep the socket open. Confirm with the event's
+    `quote_id`, not the draft id your submit returned.
   </Step>
   <Step title="Reconcile">
     After a disconnect or a restart, list [`GET /v1/mm/quotes?status=accepted`](/api-reference/mm/list-quotes)
@@ -65,7 +66,9 @@ fills.
 - Submit and confirm take no `Idempotency-Key`. After a timeout, read
   [`GET /v1/mm/quotes?status=accepted`](/api-reference/mm/list-quotes) before you confirm again.
 
-Quote validity and the confirmation window are on [Limits and fees](/guides/limits-and-fees#timing).
+Quote validity, the confirmation window, and the quote service's 300 requests a minute per IP are on
+[Limits and fees](/guides/limits-and-fees#timing). Re-quote when a quote is about to lapse or your
+price moves, not on a timer.
 
 ## Your balance
 
@@ -76,6 +79,10 @@ Your vault is created with your first filled position. Until then keep USDC in t
 [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) returns `404` before the vault exists,
 and is optional after.
 
+Live quotes do not reserve collateral. Each quote is checked on its own when you submit it, so if
+several fill at once, a confirm can fail for lack of funds. A missed confirmation loses the fill, and
+the bettor can leave you out of that request.
+
 ## Profit and loss
 
 | Outcome | You |
@@ -84,11 +91,14 @@ and is optional after.
 | Every leg wins | Pay `mm_risk` |
 | A leg is voided | Get your collateral back. Nothing else moves |
 
+There is no maker P&L endpoint yet. Record `user_stake` and `mm_risk` when you confirm, and settle
+them against `mm_result` on the maker `position.settled` webhook.
+
 ## Collateral and the ILP
 
 You do not lock each position's full `mm_risk` on its own. Totalis locks your worst-case loss across
 your whole book of open positions. It finds that number exactly by solving an integer linear program
-(ILP) over every way your markets can resolve, so positions that cannot all lose together share
+(ILP) over every way your markets can resolve, so positions that cannot all pay out at once share
 collateral.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/collateral-netting-light.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
@@ -134,8 +144,9 @@ microUSDC, through
 [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). The
 highest live bid wins, and ties go to the earliest. To pass, submit nothing.
 
-If you back the position, a win closes it and the profit fee falls on your side. If you do not, a
-win acquires it. [Cashout auctions](/guides/cashout-auctions) has the rules, payload and errors.
+If you back the position, a win closes it, and the profit fee comes out of whichever side profits.
+If you do not, a win acquires it: the position moves to your account as the bettor side, and shows
+in `GET /v1/rfqs`. [Cashout auctions](/guides/cashout-auctions) has the rules, payload and errors.
 
 ## Your identity
 
