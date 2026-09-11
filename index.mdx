@@ -4,9 +4,10 @@ description: 'APIs for building and settling custom parlays across prediction ma
 icon: 'house'
 ---
 
-Totalis turns individual prediction market bets into custom parlays. Pick 2 to 5 outcomes across
-Kalshi, Polymarket, and other venues, and combine them into one position. Market makers compete to
-price it, and trades settle on Solana. Totalis is not available to U.S. persons.
+Totalis turns individual prediction market bets into custom parlays. A **parlay** is one bet on
+several outcomes that pays out only if every outcome happens. Pick 2 to 5 outcomes across Kalshi,
+Polymarket, and combine them into one position. Market makers compete to price it,
+and trades settle on Solana. Totalis is not available to U.S. persons.
 
 <CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/guides/quickstart">
@@ -28,8 +29,7 @@ Market data is public. This call needs no key and no signup:
 curl "https://api.totalis.trade/markets?limit=3"
 ```
 
-Everything else needs a key. [Quickstart](/guides/quickstart) gets you to an authenticated call in
-about five minutes.
+Everything else needs an API key. Start with the [Quickstart](/guides/quickstart).
 
 ## How it works
 
@@ -38,11 +38,12 @@ about five minutes.
     Pick 2 to 5 outcomes from any supported market and set your bet amount.
   </Step>
   <Step title="Get competitive quotes">
-    Open a quote request. Market makers compete in real time to offer the best payout odds.
+    Open a quote request: your outcomes and amount, sent to market makers for pricing. They compete
+    in real time to offer the best payout odds.
   </Step>
   <Step title="Trade and settle">
-    Accept a quote. Once the maker confirms, your stake and the maker's collateral lock into on-chain
-    Solana vaults, and the position settles automatically once the markets resolve.
+    Accept a quote. When the maker confirms, your stake and the maker's collateral lock in on-chain
+    Solana vaults. The position settles automatically when the markets resolve.
   </Step>
 </Steps>
 

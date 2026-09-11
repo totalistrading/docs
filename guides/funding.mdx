@@ -4,13 +4,12 @@ icon: 'wallet'
 description: 'Send USDC to your Solana wallet, enable trading, and withdraw. Trading funds the vault by itself; a deposit call exists if you want to pre-fund it.'
 ---
 
-You fund your account by sending USDC to your Solana wallet address. Once it lands you are ready to
-trade. Placing a parlay pulls your stake into the vault automatically, so there is no separate
-deposit step.
+You fund your account by sending USDC to your Solana wallet address. Once it lands, you are ready to
+trade.
 
 ## At a glance
 
-- Fund by sending native Solana USDC to your wallet address. Placing a parlay moves the stake into the vault by itself.
+- Send native Solana USDC only. Placing a parlay moves the stake into your vault by itself, so there is no separate deposit step.
 - Enable trading once, in the app. The API can only report whether it is on.
 - Your wallet never needs SOL. Network fees are sponsored.
 - One withdraw call reaches your wallet and your vault's free balance together.
@@ -26,6 +25,7 @@ deposit step.
 | Bridge from another chain | In the app | A few minutes | From the chains the app offers. Delivers native Solana USDC |
 | Send USDC directly | Any Solana wallet or exchange | Seconds | Native Solana USDC only |
 
+To send USDC directly:
 
 <Steps>
   <Step title="Get your wallet address">
@@ -46,34 +46,33 @@ deposit step.
   </Step>
 
   <Step title="Send native USDC on Solana">
-    Transfer USDC to that address from any wallet or exchange that supports SPL tokens. The chain,
-    token, and mint are on [Limits and fees](/guides/limits-and-fees#network).
+    Transfer USDC to that address from any wallet or exchange that supports Solana (SPL) tokens. The
+    chain, token, and mint are on [Limits and fees](/guides/limits-and-fees#network).
 
     <Warning>
     Send only native Solana USDC at the documented mint. Bridged USDC, other tokens, and transfers
     on another chain are not credited and may be unrecoverable.
     </Warning>
-
-    You do not need SOL. Network fees are sponsored, so your wallet only ever holds USDC.
   </Step>
 
   <Step title="Confirm it landed">
     Poll [`GET /v1/wallet`](/api-reference/user/get-wallet) until the balance reflects your
-    transfer. You are now ready to request quotes and place parlays.
+    transfer. Then [enable trading](#enable-trading) once, and you are ready to place parlays.
   </Step>
 </Steps>
 
 ## Enable trading
 
-Before you can place a parlay or withdraw, your wallet must be delegated. You grant Totalis
-permission to sign transactions on your behalf inside a secure enclave. See
-[Vaults and custody](/guides/vault-architecture) for what that permission does and does not cover.
+Enable trading before you place a parlay or withdraw. This delegates signing: you let Totalis sign
+transactions on your behalf inside a secure enclave, the protected environment that holds your
+wallet's private key. [Vaults and custody](/guides/vault-architecture) covers what that permission
+does and does not allow.
 
 <Warning>
-Enabling trading is an interactive step. You approve a consent dialog in the app, once. It cannot be
-granted from the REST API. `POST /v1/wallet/enable-trading` checks that delegation is in place and
-returns its status. It does not grant the permission. On older accounts it also credits any pending
-welcome airdrop.
+You enable trading by approving a consent dialog in the app, once. The REST API cannot grant it.
+`POST /v1/wallet/enable-trading` checks that delegation is in place and returns its status. It does
+not grant the permission. On
+older accounts it also credits any pending welcome airdrop.
 </Warning>
 
 Check the current state with
@@ -81,17 +80,23 @@ Check the current state with
 
 ## How your balance is used
 
-You do not have to deposit before you trade. Placing a parlay moves the stake from the wallet into the
-vault in the same step. Two calls exist for moving money between the two on purpose:
-[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) pre-funds the vault from the wallet, and
-[`POST /v1/vault/withdraw`](/api-reference/funds/vault-withdraw) moves free balance back to the wallet.
-Market makers use the first to hold collateral ahead of quoting.
+Your money sits in two places: your wallet and your vault. You do not have to deposit before you
+trade.
 
 | Where the money is | What happens |
 | --- | --- |
 | Wallet | USDC you send lands here. |
 | Vault | When you place a parlay, your stake moves from the wallet into the vault and locks, in one step. |
-| Eligibility | Checked against your combined wallet and vault free balance. If the total covers your stake, the trade goes through. |
+
+Trade eligibility is checked against your combined wallet and vault free balance. If the total
+covers your stake, the trade goes through.
+
+Two calls move money between the two on purpose:
+
+- [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) pre-funds the vault from the
+  wallet. Market makers use it to hold collateral ahead of quoting.
+- [`POST /v1/vault/withdraw`](/api-reference/funds/vault-withdraw) moves free balance back to the
+  wallet.
 
 Field by field definitions of each balance are in the
 [Glossary](/guides/glossary#balance-fields).
@@ -114,13 +119,15 @@ One call reaches everything that is not locked in an open position.
 | Pool | What it holds | Withdrawable |
 | --- | --- | --- |
 | Wallet | USDC you sent, minus holds for parlays you committed that have not funded yet | Yes |
-| Vault free balance | Settled winnings and unlocked collateral: `gross - locked` | Yes, through a vault tap |
+| Vault free balance | Settled winnings and unlocked collateral: `gross - locked` | Yes, moved to your wallet first |
 | Vault locked | Collateral behind your `executed` positions | No, until they settle or you cash out |
 
+The app shows the withdrawable total as **Available to withdraw** and the locked part as **In open
+positions**.
+
 If the amount exceeds your wallet balance, Totalis first moves the shortfall from your vault to
-your wallet, waits for that transaction to confirm, then sends the external transfer. The response
-then carries `vault_signature` and `vault_amount` beside the transfer `signature`. The app shows the
-same two numbers as **Available to withdraw** and **In open positions**.
+your wallet. It waits for that transaction to confirm, then sends the external transfer. The
+response then carries `vault_signature` and `vault_amount` beside the transfer `signature`.
 
 <Accordion title="For integrators: rules and failure modes">
 
@@ -135,14 +142,14 @@ same two numbers as **Available to withdraw** and **In open positions**.
   rejected too.
 - The minimum is one base unit, `0.000001` USDC. The maximum is your wallet plus vault free
   balance. A larger amount returns `400` with the available breakdown in the message.
-- You never need SOL. Network fees are sponsored.
 - If the recipient has never held USDC, Totalis creates its token account and fronts the rent,
   about 0.002 SOL. That rent is billed back in USDC out of the withdrawal at the live SOL price,
   so the recipient receives slightly less than `amount_usdc`. An amount too small to cover it is
-  rejected, and so is the call if the SOL price is briefly unavailable. Retry in a moment.
+  rejected. So is the call if the SOL price is briefly unavailable. Retry in a moment.
 - `Idempotency-Key` is honored. A repeat with the same key replays the original success without
   moving funds again.
-- Limited to 5 calls per minute per account.
+- The call has its own per-account rate limit, listed on
+  [Limits and fees](/guides/limits-and-fees#rate-limits).
 
 ### When it fails
 
@@ -150,11 +157,11 @@ same two numbers as **Available to withdraw** and **In open positions**.
 | --- | --- | --- |
 | `400` | Bad recipient, your own address, or more than the available balance | Fix the request |
 | `409` | Wallet is no longer delegated | Enable trading in the app, then retry |
-| `502` with `error.code: PARTIAL_VAULT_ONLY` | The vault tap succeeded, the external transfer did not. `error.details.vault_signature` shows the vault move | Retry with the same amount. The wallet now covers it, so the vault is not tapped again |
+| `502` with `error.code: PARTIAL_VAULT_ONLY` | The vault move succeeded, the external transfer did not. `error.details.vault_signature` shows the vault move | Retry with the same amount. The wallet now covers it, so the vault is not tapped again |
 | `502` with any other code | The transfer was broadcast but not confirmed in time | Look up the returned signature before retrying, so you do not send twice |
 
-The partial case returns `502` rather than `200` on purpose. Idempotent retries against a `502`
-re-enter the handler, where a cached `200` would have replayed a half-finished result.
+The partial case returns `502`, not `200`, on purpose. An idempotent retry against a `502` runs
+again, where a cached `200` would replay a half-finished result.
 
 </Accordion>
 

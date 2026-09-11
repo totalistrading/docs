@@ -7,14 +7,17 @@ openapi: 'GET /v1/markets/list'
 <Note>
   **Building parlays.** Every market carries an `exclusion_keys` array. Two
   markets can share a parlay only if their arrays do not intersect. A plain
-  set-intersection check, with no correlation rules to maintain client-side.
+  set-intersection check is all you need, with no correlation rules to
+  maintain client-side.
 </Note>
 
-All prices (`yes_bid`, `yes_ask`, `no_bid`, `no_ask`, `last_price`) are probabilities as decimals in `[0, 1]`, regardless of venue. Kalshi's cent prices are normalized.
+All prices (`yes_bid`, `yes_ask`, `no_bid`, `no_ask`, `last_price`) are decimal probabilities in `[0, 1]` on every venue. Kalshi's cent prices are normalized.
 
-By default the feed returns tradeable markets only (`status` of `active` or `open`); pass `status=all` for every status. Paging stops once `offset + limit` passes 10,000, so a full sync splits the universe with filters such as `venue` or `category` rather than paging one long list.
+The feed returns tradeable markets only (`status` of `active` or `open`) by default. Pass `status=all` for every status.
+
+Paging stops once `offset + limit` passes 10,000. For a full sync, split the universe with filters such as `venue` or `category` instead of paging one long list.
 
 <Tip>
-  For every market in a single game, `GET /markets/events/{event_ticker}`
-  returns one event's complete market set in a single request.
+  `GET /markets/events/{event_ticker}` returns every market in one event,
+  such as a single game, in one request.
 </Tip>

@@ -5,22 +5,18 @@ description: 'The path a parlay takes from quote request, through market maker p
 ---
 
 A parlay starts as a **quote request**: your legs, priced live by market makers. It becomes a real
-**position** the moment you commit to a quote. From there it settles automatically when the
+**position** once you commit to a quote and the maker confirms, a few seconds later. From there it settles automatically when the
 underlying markets resolve, or you close it early.
 
 ## At a glance
 
 - A parlay is 2 to 5 legs on one bet of 1 to 100 USDC, priced live by competing market makers.
-- Nothing is held while you only request quotes. From commit, your bet is held against your balance, and it moves on chain once, when the maker confirms.
+- Requesting quotes holds nothing. From commit, your bet is held against your balance. It moves on chain once, when the maker confirms.
 - The position then goes live on chain and settles by itself when the last market resolves.
-- A live position can be closed early through a short cashout auction, about 10 seconds.
+- You can close a live position early through a cashout auction of about 10 seconds.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/lifecycle-light.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/lifecycle-dark.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
-
-Collateral locks at `confirmed`. Between commit and confirmation your bet is held against your
-balance but not moved. A parlay that ends at `cancelled` or `expired` before funding releases the
-hold and never moves your funds.
 
 ## Place a parlay
 
@@ -46,10 +42,10 @@ hold and never moves your funds.
     ```
     </Accordion>
 
-    Totalis validates each market, applies leg exclusion rules, and broadcasts the request to market
-    makers. Correlated legs cannot be combined. See
-    [Create quote request](/api-reference/quote-service/create) for the full field reference and
-    [Limits and fees](/guides/limits-and-fees) for the constraints.
+    Totalis checks each market, rejects correlated legs (markets whose exclusion rules conflict),
+    and sends the request to market makers. The full field reference is on
+    [Create quote request](/api-reference/quote-service/create), and the constraints are on
+    [Limits and fees](/guides/limits-and-fees).
 
     <Warning>
     Odds apply to your bet amount minus a 1% taker fee. A 25 USDC bet carries a 24.75 net stake, so
@@ -59,21 +55,22 @@ hold and never moves your funds.
   </Step>
 
   <Step title="Market makers quote it">
-    Makers stream the request and submit quotes with payout odds. You watch them arrive on the quote
-    request [stream](/api-reference/quote-service/stream). The best one is always on top.
+    Makers receive the request and submit quotes with payout odds. You watch them arrive on the
+    quote request [stream](/api-reference/quote-service/stream). The best one is always on top.
+
     <Accordion title="What a quote carries">
     | Field | Meaning |
     | --- | --- |
     | `user_cost` | Your net stake, `bet_amount` minus the taker fee. |
     | `payout_odds` | The multiple applied to your net stake, never to the gross bet. |
     | `total_payout` | `user_cost * payout_odds`. What you receive if every leg wins. |
-    | `book_seq` | The SSE event's sequence number. You send it back at commit to prove your pricing was current. |
+    | `book_seq` | The sequence number of the stream event that showed you the quote. You send it back at commit to prove your pricing was current. |
     </Accordion>
   </Step>
 
   <Step title="Commit the best quote">
-    Accept a quote to lock the trade. Totalis selects the best still valid quote for the version you
-    saw, and creates the parlay with that quote already accepted.
+    Accept a quote to lock the trade. Totalis selects the best still valid quote for the version of
+    the request you saw, and creates the parlay with that quote already accepted.
 
     <Accordion title="The call">
     ```bash
@@ -86,20 +83,24 @@ hold and never moves your funds.
     }
     ```
     </Accordion>
-    The call waits the few seconds it takes the maker to confirm, then returns the real `rfq_id`,
-    the accepted quote, and the payout odds, with the parlay already `confirmed`. If the commit
-    fails, no funds moved and no trade happened. See
-    [Errors](/api-reference/errors) for the rejection reasons.
+
+    The call waits the few seconds it takes the maker to confirm. It then returns the parlay's real
+    `rfq_id`, the accepted quote, and the payout odds, with the parlay already `confirmed`.
+
+    If the commit fails, no funds moved and no trade happened. The rejection reasons are on
+    [Errors](/api-reference/errors).
   </Step>
 
   <Step title="The parlay funds on-chain">
-    The maker confirms, and your stake and the maker's collateral lock atomically in
-    [on-chain Solana vaults](/guides/vault-architecture). Gas is sponsored, so you only ever need
-    USDC.
+    The maker confirms, and your stake and the maker's collateral lock together, in one transaction,
+    in [on-chain Solana vaults](/guides/vault-architecture). Network fees are sponsored, so you only
+    ever need USDC.
 
-    Status moves to `confirmed`, then `executed` once the position is live on-chain. If the maker
-    does not confirm in time, the parlay expires with reason `mm_confirmation_timeout`, the hold on
-    your bet is released, and nothing moves. Request quotes again to retry.
+    Status moves to `confirmed`, then `executed` once the position is live on chain.
+
+    If the maker does not confirm in time, the parlay expires with reason
+    `mm_confirmation_timeout`. The hold on your bet is released and nothing moves. Request quotes
+    again to retry.
   </Step>
 
   <Step title="It settles automatically">
@@ -118,31 +119,38 @@ hold and never moves your funds.
 
 ## Closing early
 
-Once a parlay is live on chain you can leave it before settlement. Totalis runs a short auction among
-market makers, you see the best all-in price live, and you accept it or not. Nothing is ever filled
-at a price you did not see. [Early cashout](/guides/early-cashout) has the steps and the two ways an
-auction can resolve.
+You can leave a live parlay before settlement. Totalis runs a short auction among market makers.
+You see the best all-in price live and accept it or not. You are never filled at a price you did
+not see. [Early cashout](/guides/early-cashout) has the steps and the two ways an auction can
+resolve.
 
 ## Status reference
 
-The `status` on a parlay. In the API the parlay object is called an RFQ, so the field lives on `GET /v1/rfqs/{id}`:
+In the API, a parlay is called an **RFQ** (request for quote). Its `status` field, returned by
+[`GET /v1/rfqs/{id}`](/api-reference/parlays/get), takes these values:
 
 | Status | Meaning | Funds |
 | --- | --- | --- |
 | `accepted` | You committed a quote and the maker is confirming. The commit call waits through this. | held, not moved |
-| `confirmed` | Maker confirmed. Funding on-chain. | locking |
-| `executed` | Live on-chain. Eligible for early cashout. | locked |
+| `confirmed` | Maker confirmed. Funding on chain. | locking |
+| `executed` | Live on chain. Eligible for early cashout. | locked |
 | `settled` | Resolved and paid out. | released |
 | `bought_back` | Closed early via a cashout that the backing maker won. | released |
 | `cancelled` | Ended before funding, or a leg was voided. | released or never moved |
 | `expired` | Ended before funding, for example when the maker missed confirmation. | hold released |
 
-The enum also contains `open` and `quoted`. They belong to an older flow: a parlay placed through a
+The enum also contains `open` and `quoted`. They belong to an older flow. A parlay placed through a
 quote request is created at `accepted` and never shows them.
 
-Quotes carry their own status: `pending` while live, `accepted`, `confirmed` and `executed` as the
-trade progresses, `withdrawn` when the maker pulled it, `expired` when its validity lapsed or the
-maker missed confirmation, and `rejected` when you accepted a different quote on the same request.
+Each quote has its own `status`:
+
+| Quote status | Meaning |
+| --- | --- |
+| `pending` | Live. |
+| `accepted`, `confirmed`, `executed` | The trade is progressing. |
+| `withdrawn` | The maker pulled it. |
+| `expired` | Its validity lapsed, or the maker missed confirmation. |
+| `rejected` | You accepted a different quote on the same request. |
 
 ## Constraints
 

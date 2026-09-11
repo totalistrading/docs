@@ -5,9 +5,11 @@ openapi: 'POST /v1/vault/deposit'
 ---
 
 <Note>
-You do not need this call to trade or to quote. Placing a parlay moves the stake from your wallet into
-the vault in the same step, and maker quotes are backed by wallet USDC plus vault free balance. Your
-vault is created with your first filled position, as bettor or maker, so this call returns `404`
-until then. Needs the `funds:deposit` scope and trading enabled. Limited to 10 calls per minute per
-account.
+You do not need this call to trade or to quote. Placing a parlay moves the stake from your wallet
+into the vault in the same step. Maker quotes are backed by wallet USDC plus vault free balance.
+
+Your vault is created with your first filled position, as bettor or maker. Until then this call
+returns `404`.
+
+Needs the `funds:deposit` scope and trading enabled. Limited to 10 calls per minute per account.
 </Note>

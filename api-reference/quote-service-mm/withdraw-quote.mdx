@@ -4,10 +4,10 @@ api: 'DELETE /v1/mm/quote-requests/{id}/quote'
 description: 'Withdraw your active quote from a quote request before the user commits it.'
 ---
 
-Withdraw your active quote from a quote request. If the quote has already expired naturally, the response indicates `already_expired` instead of returning an error.
+Withdraw your active quote from a quote request. If the quote already expired naturally, you get `already_expired` instead of an error.
 
 <Note>
-Withdraw only to retract a **current version** quote you no longer want to honor, for example when your price moved before the user committed. You do **not** need to withdraw when the request changes `version`: your prior version quote is invalidated automatically. To quote the new version, [submit](/api-reference/quote-service-mm/submit-quote) again with the new `request_version` and `request_hash`.
+Withdraw only to retract a current-version quote you no longer want to honor, for example when your price moved before the user committed. A `version` change needs no withdraw: your prior-version quote is invalidated automatically. To quote the new version, [submit](/api-reference/quote-service-mm/submit-quote) again with the new `request_version` and `request_hash`.
 </Note>
 
 ## Authentication
@@ -27,18 +27,16 @@ X-API-Key: <key>
 ## Request body (optional)
 
 <ParamField body="request_version" type="integer">
-  The request version your quote was submitted for. Defaults to the current version if omitted.
+  The request version your quote was submitted for. Defaults to the current version.
 </ParamField>
 
 <ParamField body="request_hash" type="string">
-  The request hash your quote was submitted for. Defaults to the current hash if omitted.
+  The request hash your quote was submitted for. Defaults to the current hash.
 </ParamField>
 
 ## Response
 
-Returns `204 No Content` when the quote is successfully withdrawn.
-
-If the quote had already expired naturally, returns `200 OK`:
+Returns `204 No Content` when the quote is withdrawn, or `200 OK` if it had already expired naturally:
 
 ```json
 {

@@ -4,13 +4,11 @@ api: 'POST /v1/quote-requests/{id}/cancel'
 description: 'Cancel an active quote request.'
 ---
 
-Cancel an active quote request. All pending market maker quotes are invalidated and the request is removed from the live stream. Returns `204 No Content` on success.
-
-You can only cancel a quote request while its status is `active`.
+Cancel a quote request while its status is `active`. Every pending quote is invalidated, and the request is removed from the live stream.
 
 ## Authentication
 
-API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
+Send your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
 X-API-Key: <your-api-key>

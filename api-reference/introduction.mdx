@@ -1,10 +1,10 @@
 ---
 title: 'API overview'
-description: 'The Totalis REST, SSE, and WebSocket API: base URL, authentication, response envelope, units, pagination, and where the error and limit references live.'
+description: 'The Totalis REST, SSE, and WebSocket API: base URL, authentication, response envelope, pagination, units, errors, and rate limits.'
 ---
 
-The Totalis API is REST over HTTPS with JSON bodies, in `snake_case`. It adds Server-Sent Events for
-live quote pricing and a [WebSocket](/guides/websocket) for post-trade events.
+The Totalis API is REST over HTTPS with JSON bodies, in `snake_case`. It adds Server-Sent Events
+(SSE) for live quote pricing and a [WebSocket](/guides/websocket) for post-trade events.
 
 ## Base URL
 
@@ -29,10 +29,10 @@ X-API-Key: <your-api-key>
 ```
 
 The web dashboard authenticates with Privy instead, sending `Authorization: Bearer <jwt>`. Either
-scheme works on any authenticated endpoint. The exception is minting a new API key
-(`POST /v1/api-keys`), which requires a Privy JWT or a key with the `keys:manage` scope.
+scheme works on any authenticated endpoint. Minting a new API key (`POST /v1/api-keys`) requires a
+Privy JWT or a key with the `keys:manage` scope.
 
-Every key is scoped. See [Authentication](/guides/authentication) for the catalog.
+Every key is scoped. The scope catalog is on [Authentication](/guides/authentication#scopes).
 
 ## Response envelope
 
@@ -51,8 +51,8 @@ List endpoints add cursor-based pagination in `meta`:
 }
 ```
 
-To page, pass the previous response's `meta.cursor` as `?cursor=`. Cursors are opaque. Do not parse
-or build them.
+To page, pass the previous response's `meta.cursor` as `?cursor=`. Cursors are opaque, so do not
+parse or build them.
 
 ## Units
 
@@ -62,8 +62,8 @@ USDC. Every other money field is a **decimal USDC number**. Both conventions app
 payload on the cashout surface.
 </Note>
 
-Market prices are decimal probabilities from 0 to 1, normalized across venues. The full unit table
-is in the [Glossary](/guides/glossary#units).
+Market prices are decimal probabilities from 0 to 1 on every venue. The full unit table is in the
+[Glossary](/guides/glossary#units).
 
 ## Errors
 
@@ -79,8 +79,8 @@ Every error, on every endpoint, has the same shape:
 }
 ```
 
-Branch on `error.code`, never on `error.message`. Every code, every per-surface rejection reason,
-and which ones to retry are on [Errors](/api-reference/errors).
+Branch on `error.code`, never on `error.message`. Codes, rejection reasons, and retry guidance are
+on [Errors](/api-reference/errors).
 
 ## Rate limits
 

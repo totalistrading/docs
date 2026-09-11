@@ -4,8 +4,8 @@ icon: 'tower-broadcast'
 description: 'Which channel to use when: SSE for live quote pricing, WebSocket for live trade events, webhooks for durable delivery, and REST reads for state on demand.'
 ---
 
-Totalis moves data over four channels. Each covers a different phase of a trade and offers a
-different delivery guarantee. Pick by what you are doing, not by protocol preference.
+Totalis has four data channels. Pick one by the phase of the trade you are in and the delivery
+guarantee you need.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/realtime-and-data-light.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/realtime-and-data-dark.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
@@ -21,25 +21,25 @@ All four authenticate with the same [API key](/guides/authentication).
 
 ## One trade, three phases
 
-
-**Pricing is SSE.** Every quote request gets its own stream at
-[`GET /v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream). A cashout request gets
-one at [`GET /v1/cashout-requests/{id}/stream`](/api-reference/quote-service/cashout-stream). The
-stream exists only while the request is live and closes after a terminal event. Market makers watch
+**Pricing is SSE.** Each quote request has its own stream at
+[`GET /v1/quote-requests/{id}/stream`](/api-reference/quote-service/stream). Each cashout request
+has one at [`GET /v1/cashout-requests/{id}/stream`](/api-reference/quote-service/cashout-stream). A
+stream exists only while its request is live and closes after a terminal event. Market makers watch
 the firehose variant, [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream).
 
-**From commit onward it is events.** The moment you commit, the quote request becomes an RFQ and the
-SSE stream ends. Acceptance, confirmation, on-chain execution, and settlement arrive on the
-[WebSocket](/guides/websocket) and as [webhooks](/guides/webhooks).
+**From commit onward it is events.** When you commit, the quote request becomes an
+[RFQ](/guides/glossary#the-noun-stack) and the SSE stream ends. Acceptance, confirmation, on-chain
+execution, and settlement arrive on the [WebSocket](/guides/websocket) and as
+[webhooks](/guides/webhooks).
 
 **State is always readable.** The [read endpoints](/guides/reading-data) return current truth
-whenever you ask. They are how you backfill after downtime and reconcile what the push channels told
+whenever you ask. Use them to backfill after downtime and to reconcile what the push channels told
 you.
 
 ## WebSocket or webhooks
 
-Both deliver post-trade lifecycle events, and for most of the lifecycle they overlap. They differ in
-the delivery guarantee.
+Both deliver post-trade lifecycle events and overlap for most of the lifecycle. They differ in the
+delivery guarantee.
 
 | | WebSocket | Webhooks |
 | --- | --- | --- |
@@ -48,10 +48,6 @@ the delivery guarantee.
 | Signed | No, the connection is authenticated | Yes, HMAC per delivery |
 | Replay | No | [Yes](/guides/webhooks#replaying-deliveries) |
 | Best for | Live UIs and trading bots, where latency matters | Accounting, notifications, any system of record |
-
-Running both is common: the WebSocket for immediacy, webhooks for the durable record.
-
-One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
 
 ## Typical integrations
 
@@ -77,9 +73,9 @@ One cashout outcome reaches the buyer on no channel: a bid that acquires a posit
 
 ### Market maker
 
-The maker loop is on [Market making](/guides/market-maker), including cashout pricing.
+The maker loop, including cashout pricing, is on [Market making](/guides/market-maker).
 
 ## Every event, side by side
 
-The [event catalog](/guides/event-catalog) maps every lifecycle moment across all four channels in
-one table, with the exact event names each one uses.
+The [event catalog](/guides/event-catalog) gives the exact event name each channel uses for every
+moment in a trade.

@@ -4,24 +4,23 @@ icon: 'vault'
 description: 'How Totalis holds collateral: non-custodial on-chain Solana vaults, delegated signing inside a secure enclave, sponsored gas, and automatic settlement.'
 ---
 
-Totalis is non-custodial. Your funds sit in an on-chain Solana vault that the protocol's program
+Totalis is **non-custodial**: your funds sit in an on-chain Solana vault that the protocol's program
 controls, not in a Totalis held account. You enable trading once by delegating signing permission.
-After that, placing, settling, and closing parlays happens without you signing each transaction by
-hand.
+After that, you place, settle, and close parlays without signing each transaction by hand.
 
 ## At a glance
 
-- Non-custodial. Funds sit in an on-chain vault controlled by the protocol program, not in a Totalis account.
-- One vault per account with three balances: gross, locked, and free.
-- You delegate signing once. Totalis signs trades inside a secure enclave and can never extract your key.
+- One vault per account, with three balances: gross, locked, and free.
+- Totalis signs trades inside a secure enclave and can never extract your key. You can revoke the permission at any time.
 - Your stake and the maker's collateral lock in one atomic transaction when the maker confirms your trade.
+- Network fees are sponsored. Your wallet only ever needs USDC.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/vault-architecture-light.png" alt="Your wallet funds your vault, your stake and the maker's collateral lock in a position, the fee vault takes 1% of profit, and settlement follows the venues" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/vault-architecture-dark.png" alt="Your wallet funds your vault, your stake and the maker's collateral lock in a position, the fee vault takes 1% of profit, and settlement follows the venues" />
 
 ## Your vault
 
-You have one persistent vault, reused across every parlay. It tracks three balances:
+Your vault is persistent and reused across every parlay. It tracks three balances:
 
 | Balance | Meaning |
 | --- | --- |
@@ -29,25 +28,25 @@ You have one persistent vault, reused across every parlay. It tracks three balan
 | Locked | Collateral committed to your active positions. |
 | Free | `gross - locked`. Available to trade or withdraw. |
 
-Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). You fund the vault by
-sending USDC to your wallet (see [Funding](/guides/funding)). Placing a parlay moves your stake into
-the vault and locks it in one atomic step.
+Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). To fund the vault, send
+USDC to your wallet (see [Funding](/guides/funding)). Placing a parlay moves your stake into the
+vault and locks it in one atomic step.
 
 ## Delegated signing
 
-Your wallet is a Privy embedded wallet whose private key lives inside a Trusted Execution
-Environment. The key never leaves the enclave, and Privy cannot extract it either.
+Your wallet is a Privy embedded wallet. Its private key lives inside a Trusted Execution Environment,
+a secure enclave the key never leaves. Privy cannot extract it either.
 
 To trade, you grant Totalis permission to sign on your behalf inside that enclave. This is a one
 time consent in the app, described under [Enable trading](/guides/funding#enable-trading).
 
-Non-custodial with delegated signing means exactly this: you grant the permission and can revoke it
-at any time. Totalis can sign your trades. It never holds your key and cannot move it.
+You can revoke the permission at any time. Totalis can sign your trades. It never holds your key
+and cannot move it.
 
 ## Gas is sponsored
 
-Totalis pays the network fees for trading and settlement. Your wallet only ever needs to hold USDC,
-never SOL.
+Totalis pays the network fees (gas) for trading and settlement. Your wallet only ever needs to hold
+USDC, never SOL.
 
 ## How a position locks and settles
 
@@ -58,7 +57,7 @@ Settlement moves funds in exactly one of three ways:
 
 | Outcome | Result |
 | --- | --- |
-| You win | You receive the maker's collateral, minus the profit fee on your profit. |
+| You win | Your stake comes back and you receive the maker's collateral, minus the profit fee on your profit. |
 | You lose | Your stake transfers to the maker, minus the fee on their profit. |
 | A leg is voided | The position is cancelled and both sides' collateral is released. You get your full bet back, taker fee included. |
 
@@ -67,8 +66,6 @@ that applied at trade time. Both fees and the full math are on
 [Limits and fees](/guides/limits-and-fees).
 
 ## What Totalis can and cannot do
-
-A precise statement of the trust model, since "non-custodial" gets used loosely:
 
 | Totalis can | Totalis cannot |
 | --- | --- |

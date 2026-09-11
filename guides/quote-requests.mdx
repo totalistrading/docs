@@ -1,15 +1,17 @@
 ---
 title: 'Quote requests in depth'
 icon: 'bolt'
-description: 'The fields that protect a commit, the reasons a commit is refused, the SSE event shape, and the quote request object.'
+description: 'The fields that protect a commit, where to find the reasons a commit is refused, the SSE event shape, and the quote request object.'
 ---
 
-This is the layer under [How parlays work](/guides/lifecycle): the exact fields that protect a commit,
-the reasons a commit is refused, and the shapes on the wire. Read that page first if you have not.
+A **quote request** is the pre-trade price-discovery object (see the
+[Glossary](/guides/glossary#the-noun-stack)). For the full lifecycle, start with
+[How parlays work](/guides/lifecycle).
 
 ## Commit protection
 
-The commit endpoint requires these fields to ensure you're locking in the price you actually saw:
+[Commit](/api-reference/quote-service/commit) requires four fields. Together they make sure you lock
+in the price you actually saw.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -29,19 +31,12 @@ The commit endpoint requires these fields to ensure you're locking in the price 
 
 ## Rejection codes
 
-If a commit fails, `error.details.reason` tells you why:
-
-| Reason | What happened |
-| --- | --- |
-| `QUOTE_CHANGED` | The request was updated since your last fetch. Re-fetch and try again. |
-| `MARKET_NOT_LIVE` | One or more markets expired, halted, or were delisted. Remove the affected legs. |
-| `QUOTE_EXPIRED` | All quotes expired. Wait for a fresh quote and retry. |
-| `COMMIT_FAILED` | The commit could not be completed. No eligible market maker had sufficient collateral, for example. Not retryable, and the trade did not happen. |
-| `COMMIT_FAILED_RETRYABLE` | Temporary error. Retry after a short delay. |
+If a commit fails, `error.details.reason` tells you why. Each reason and what to do about it is on
+[Errors](/api-reference/errors#committing-a-quote).
 
 ## SSE event format
 
-Events on the user stream (`/v1/quote-requests/{id}/stream`):
+Events on the user stream (`/v1/quote-requests/{id}/stream`) look like this:
 
 ```json
 {
@@ -58,7 +53,8 @@ Events on the user stream (`/v1/quote-requests/{id}/stream`):
 }
 ```
 
-When no quotes are active, `best_quote` is `null`. Store `book_seq` and `best_quote.id` from the latest event. You need both for the commit request.
+When no quotes are active, `best_quote` is `null`. Store `book_seq` and `best_quote.id` from the
+latest event. You send them as `displayed_quote_book_seq` and `displayed_quote_id` when you commit.
 
 ## Quote request object
 
