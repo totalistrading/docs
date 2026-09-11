@@ -1,11 +1,8 @@
 ---
 title: 'Limits and fees'
 icon: 'scale-balanced'
-description: 'Every constraint and every fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
+description: 'Every constraint and fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
 ---
-
-The limits, windows, rate limits and fees that shape an integration are on this page. Endpoint pages
-repeat the caps that apply to them.
 
 ## At a glance
 
@@ -18,56 +15,51 @@ repeat the caps that apply to them.
 
 | Constraint | Value | Enforced at |
 | --- | --- | --- |
-| Legs per parlay | 2 to 5 | [Create quote request](/api-reference/quote-service/create) |
+| [Legs](/guides/glossary#the-noun-stack) per parlay | 2 to 5 | [Create quote request](/api-reference/quote-service/create) |
 | Bet amount | 1 to 100 USDC | Create quote request |
 | Payout odds | 1.0001 to 1000 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
-| Leg combinations | Two markets can share a parlay only if their `exclusion_keys` arrays do not intersect | Create quote request |
+| Leg combinations | No two legs' markets may share an `exclusion_keys` entry | Create quote request |
 
-Correlated legs are rejected. Read each market's `exclusion_keys` from
-[List markets](/api-reference/markets/list-flat) and intersect them yourself before you build a
-request, rather than discovering the rejection at create time.
+Correlated legs are rejected. To avoid the rejection, read each market's
+[`exclusion_keys`](/guides/glossary#protocol-fields) from
+[List markets](/api-reference/markets/list-flat) and check for overlap before you create the request.
 
 ## Timing
 
 | Window | Default | Range | What it governs |
 | --- | --- | --- | --- |
-| Quote validity | 15 s | 5 to 60 s | How long a maker's submitted quote stays live (`expires_in_ms`) |
-| Quote request expiry | 90 s | set by the server | How long your request accepts quotes. Each update restarts it. There is no request field for it |
+| Quote validity | 15 s | 5 to 60 s | How long a maker's quote stays live (`expires_in_ms`) |
+| Quote request expiry | 90 s | set by the server | How long your request accepts quotes. Each update restarts it. Not settable in the request |
 | Maker confirmation | 5 s | 5 to 8 s | How long the winning maker has to confirm after you commit. Your commit call waits for it |
-| Cashout auction | about 10 s | fixed | How long an early exit auction accepts bids |
-| Cashout cutoff | 30 s | configurable | No cashout opens, and no maker quote is accepted, within this long of a position's or market's end |
+| Cashout auction | about 10 s | fixed | How long a cashout auction accepts bids |
+| Cashout cutoff | 30 s | configurable | Within this long of a position's or market's end, no cashout opens and no maker quote is accepted |
 | Cashout bid validity | 15000 ms | 5000 to 60000 ms | How long your cashout bid stays live |
 | WebSocket authentication | 10 s | fixed | How long you have to send the auth message after connecting |
 
 <Warning>
-Do not hardcode these defaults. Every object that expires carries its own `expires_at` or
-`valid_until` timestamp. Honor the timestamp on the object, not the number in this table. The
-defaults are configurable, so the table tells you the shape of the window, not a guarantee for a
-specific request.
+Do not hardcode these defaults. They are configurable. Every object that expires carries its own
+`expires_at` or `valid_until` timestamp, and that timestamp is what counts.
 </Warning>
 
 If the maker misses the confirmation window, the parlay expires with reason
-`mm_confirmation_timeout` and the hold on your bet is released. Your funds never move in that path.
-Request quotes again to retry.
+`mm_confirmation_timeout` and the hold on your bet is released. No funds move. Request quotes again
+to retry.
 
 ## Rate limits
 
-There are three buckets. Which one a route debits depends on whether the limiter runs before or
-after authentication, and on which service answers.
+Each route draws from one of three buckets.
 
 | Bucket | Routes | Keyed by | Limit |
 | --- | --- | --- | --- |
-| Authenticated | `/v1/*` apart from the market and quote service routes below, plus `/app/*`, `/rfqs*`, `/parlay-shares*`, and the flat `/mm/quotes*` and `/mm/positions*` aliases | your account | 300 / minute, 100 without a key |
+| Authenticated | `/v1/*` except `/v1/markets*` and the quote service routes, plus the flat roots below | your account | 300 / minute, 100 without a key |
 | Public | `/markets*`, `/v1/markets*`, `/referral*` | source IP | 100 / minute |
 | Quote service | `/v1/quote-requests*`, `/v1/cashout-requests*`, `/v1/mm/quote-requests*`, `/v1/mm/cashout-requests*` | source IP | 300 / minute by default |
 
-The first bucket is shared: every authenticated route on the main API draws down the same 300,
-including the maker reads at `/v1/mm/quotes` and `/v1/mm/positions` and their flat `/mm/...`
-aliases. The quote service routes are proxied to a separate service with its own per-IP limiter and
-do not draw down the 300.
+The authenticated bucket also covers `/app/*`, `/rfqs*`, `/parlay-shares*`, and the flat
+`/mm/quotes*` and `/mm/positions*` aliases. Every route in it draws down the same 300, including the
+maker reads at `/v1/mm/quotes` and `/v1/mm/positions`.
 
-A few calls that move money carry their own cap as well, keyed to your account and counted on top
-of the shared 300:
+These calls move money and carry their own per-account cap, counted on top of the shared 300:
 
 | Call | Limit |
 | --- | --- |
@@ -75,46 +67,47 @@ of the shared 300:
 | [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit), [`POST /v1/vault/withdraw`](/api-reference/funds/vault-withdraw) | 10 / minute each |
 | [`POST /v1/wallet/submit-tx`](/api-reference/user/submit-tx) | 10 / minute |
 
-What this means when you size a client:
+When you size a client:
 
-- Market reads do **not** debit your authenticated budget.
-- Sending an API key to a public read does **not** raise its limit. Those routes never resolve the
-  key, so you stay on the per-IP bucket.
-- Both per-IP buckets are per **source IP**, not per key. A market maker fleet behind one NAT shares
-  a single 100 / minute market-read budget and a single quote service budget across every process
-  and every key it runs.
+- Market reads and quote service calls do not draw down your authenticated budget.
+- Sending an API key to a public read does not raise its limit. Those routes never resolve the key.
+- Per-IP buckets count the source IP, not the key. A market maker fleet behind one NAT shares one
+  100 / minute market-read budget and one quote service budget across every process and key.
 
 Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. A
-`429` response includes `error.retry_after`, in seconds. See [Errors](/api-reference/errors).
+`429` carries a `Retry-After` header, in seconds. Main API routes also put it in `error.retry_after`;
+quote service routes send only the header. See [Errors](/api-reference/errors).
 
 <Note>
-`X-RateLimit-Limit` reports the ceiling that applied, not which counter produced it, so two routes
-can both report `100` from different buckets. Watch `X-RateLimit-Remaining` to tell them apart.
+`X-RateLimit-Limit` reports the ceiling that applied, not the bucket. Two routes can both report
+`100` from different buckets. Watch `X-RateLimit-Remaining` to tell them apart.
 </Note>
 
 ## Fees
 
-Totalis charges two fees. They are charged at different times, against different bases.
+Totalis charges two fees, at different times and on different bases.
 
 | Fee | Rate | Base | When |
 | --- | --- | --- | --- |
 | Taker fee | 1% | Your gross `bet_amount` | Upfront, when you place the trade |
 | Profit fee | 1% | The winning side's profit | At settlement, or on a closing cashout |
 
-The taker fee is why odds never apply to your gross bet. It comes off first, and everything
-downstream is priced against what remains.
+The taker fee comes off first. Odds apply to what remains, never to your gross bet.
 
 ```
+# bet_amount_micro is bet_amount in microUSDC (millionths of a USDC: 1000000 = 1 USDC)
 taker_fee    = floor(bet_amount_micro * 100 / 10000)   # 1% = 100 bps, integer microUSDC
 user_stake   = bet_amount - taker_fee                  # called user_cost before commit
 total_payout = user_stake * payout_odds
 mm_risk      = total_payout - user_stake               # called mm_cost before commit
 ```
 
+The field names are defined in the [Glossary](/guides/glossary#money-fields).
+
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/limits-and-fees-light.png" alt="A 25 USDC bet: 1% taker fee, 24.75 net stake, 4.0 odds, 99 payout, 98.26 received after the 1% profit fee" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/limits-and-fees-dark.png" alt="A 25 USDC bet: 1% taker fee, 24.75 net stake, 4.0 odds, 99 payout, 98.26 received after the 1% profit fee" />
 
-Worked example, matching the diagram. You bet 25 USDC and a maker quotes 4.0 payout odds:
+Example: you bet 25 USDC and a maker quotes 4.0 payout odds. Amounts are in USDC.
 
 | Step | Amount |
 | --- | --- |
@@ -128,20 +121,20 @@ Worked example, matching the diagram. You bet 25 USDC and a maker quotes 4.0 pay
 | You receive | 98.2575 |
 
 <Note>
-The fee rate is written onto the position when it is created. A later rate change never reprices a
-position that is already live. Settlement always uses the rate that applied at trade time.
+The fee rate is fixed on the position when it is created. Settlement uses that rate, even if the
+rate changes while the position is live.
 </Note>
 
 ### Fees on an early exit
 
-An [early cashout](/guides/early-cashout) is a real settlement, not a refund. The bid you accept is
-a single all-in figure with the profit fee already inside it. There is no separate fee line to
-subtract, and no second taker fee for leaving.
+An [early cashout](/guides/early-cashout) is a settlement, not a refund. The bid you accept is one
+all-in amount with the profit fee already included. No separate fee is deducted, and you pay no
+second taker fee for leaving.
 
 ### Referral share
 
-A share of the trading fees generated by traders you refer is paid back to you in USDC. The rate,
-the claim minimum, and how accrual works are on [Referrals](/referrals).
+You earn a USDC share of the trading fees generated by traders you refer. The rate, claim minimum
+and accrual rules are on [Referrals](/referrals).
 
 ## Network
 

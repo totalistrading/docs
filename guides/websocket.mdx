@@ -4,13 +4,16 @@ icon: 'plug'
 description: 'Real-time trade confirmations and position updates via WebSocket.'
 ---
 
-The Totalis WebSocket pushes post-trade events in real time: quote acceptances, confirmations, and position settlements. Connect, authenticate, subscribe to the channels you need, and handle events as they arrive.
+The Totalis WebSocket pushes post-trade events live: quote acceptances, confirmations, and position
+settlements. You connect, authenticate, subscribe to channels, and handle events as they arrive.
 
-For pre-trade live pricing, use the SSE streams instead: the [maker stream](/api-reference/quote-service-mm/stream) for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for the best current quote. The WebSocket covers everything from quote acceptance onward.
+For pre-trade pricing, use the SSE streams: the [maker stream](/api-reference/quote-service-mm/stream)
+for incoming quote requests, and the [quote-request stream](/api-reference/quote-service/stream) for
+the best current quote.
 
 <Note>
-Events reach you only while you are connected, and missed events are not redelivered. For durable
-delivery to a server, use [webhooks](/guides/webhooks). One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
+Events reach you only while you are connected. Missed events are not redelivered. For durable
+delivery to a server, use [webhooks](/guides/webhooks).
 </Note>
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/websocket-light.png" alt="Connect, authenticate before the timeout, subscribe to your channel, and events arrive while pings keep it open" />
@@ -24,34 +27,36 @@ wss://api.totalis.trade/ws
 
 ## Authentication
 
-Send an auth message with your API key immediately after connecting:
+Send an auth message with your API key as soon as you connect:
 
 ```json
 { "type": "auth", "api_key": "<your-api-key>" }
 ```
 
-Success:
-```json
+The server answers with one of:
+
+<CodeGroup>
+```json Success
 { "type": "auth:success", "user_id": "did:privy:abc123", "user_type": "unified" }
 ```
 
-Error:
-```json
+```json Error
 { "type": "auth:error", "code": "INVALID_CREDENTIALS", "message": "Invalid API key" }
 ```
+</CodeGroup>
 
-Every `auth:error` carries a `code`. Branch on it rather than on `message`, which is not stable.
+Every `auth:error` carries a `code`. Branch on `code`, not on `message`, which is not stable.
 
 | `code` | Meaning | Retry |
 | --- | --- | --- |
-| `INVALID_CREDENTIALS` | The key is missing, malformed, invalid, or you are already authenticated. | no, fix the credential |
-| `TOKEN_INVALID` | A Privy JWT failed verification. | no |
-| `AUTH_TIMEOUT` | You connected but sent no auth message within 10 seconds. The socket closes with code `4001`. | yes, reconnect and authenticate |
-| `SERVICE_UNAVAILABLE` | Authentication could not be completed on our side. | yes, with backoff |
+| `INVALID_CREDENTIALS` | The key is missing, malformed, invalid, or you are already authenticated. | No. Fix the credential. |
+| `TOKEN_INVALID` | A Privy JWT failed verification. | No |
+| `AUTH_TIMEOUT` | You connected but sent no auth message within 10 seconds. The socket closes with code `4001`. | Yes. Reconnect and authenticate. |
+| `SERVICE_UNAVAILABLE` | Authentication could not be completed on our side. | Yes, with backoff |
 
 ## Subscribing to channels
 
-After authenticating, subscribe to channels to receive events:
+After you authenticate, subscribe to each channel you want:
 
 ```json
 { "type": "subscribe", "channel": "mm:quotes:<your-mm-id>" }
@@ -62,7 +67,9 @@ After authenticating, subscribe to channels to receive events:
 | `mm:quotes:{mm_id}` | Your quote lifecycle updates (accepted, accepted details, confirmed, expired, withdrawn) |
 | `rfq:{rfq_id}` | Status changes, cancellation, expiry and position events for one trade |
 
-The channel key is your **`mm_id`**, which is the same value as your `user_id`: your Privy DID (`did:privy:...`), echoed back by `auth:success` here and by the [`connected`](/api-reference/quote-service-mm/stream#connected) event on the MM SSE stream.
+Your **`mm_id`** is the same value as your `user_id`: your Privy DID (`did:privy:...`). `auth:success`
+returns it, and so does the [`connected`](/api-reference/quote-service-mm/stream#connected) event on
+the MM SSE stream.
 
 ## Events
 
@@ -70,8 +77,8 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `quote:accepted` | A user committed your quote. You must confirm it before `confirmation_deadline` (5 s from acceptance by default, but configurable, so always honor the timestamp). | `{ quote_id, rfq_id, confirmation_deadline }` |
-| `mm_quote:accepted` | MM-only accepted quote details for the selected market maker. Use this to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation; do not depend on ordering versus `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
+| `quote:accepted` | A user committed your quote. Confirm it before `confirmation_deadline`. The default is 5 s from acceptance but it is configurable, so always honor the timestamp. | `{ quote_id, rfq_id, confirmation_deadline }` |
+| `mm_quote:accepted` | Accepted quote details, sent only to the selected market maker. Use it to reserve local exposure or record analytics immediately. Its `quote_id` is valid for confirmation. Do not depend on its order relative to `quote:accepted`. | `{ rfq_id, quote_id, user_id, quote, exposure_legs, confirmation_deadline, accepted_at }` |
 | `quote:confirmed` | You confirmed the quote. Vault settlement begins. | `{ quote_id, rfq_id, execution_id }` |
 | `quote:executed` | On-chain vault position created. | `{ quote_id, rfq_id }` |
 | `quote:expired` | Quote expired before confirmation. | `{ quote_id, rfq_id }` |
@@ -112,7 +119,10 @@ The channel key is your **`mm_id`**, which is the same value as your `user_id`: 
 ```
 
 <Note>
-  **`draft_quote_id`** is the id of your own draft quote: the `quote.id` returned when you [submitted it](/api-reference/quote-service-mm/submit-quote). Use it to correlate which of your drafts was lifted; use `quote_id` (the accepted quote) for the [confirmation call](/api-reference/mm/confirm-quote).
+`draft_quote_id` is the `quote.id` you got back when you
+[submitted your draft quote](/api-reference/quote-service-mm/submit-quote). Use it to see which of
+your drafts was lifted. Use `quote_id`, the accepted quote, for the
+[confirmation call](/api-reference/mm/confirm-quote).
 </Note>
 
 ### Parlay events
@@ -127,7 +137,9 @@ Delivered on `rfq:{rfq_id}`. These are the user-facing mirror of the maker's `qu
 
 ### Position events
 
-`position_pda` is the on-chain account address for the position, not a lookup key. To fetch or reference a position through the API, use `rfq_id` (or `position_id`, once it is [set on the RFQ](/api-reference/parlays/get)) instead.
+`position_pda` is the position's on-chain account address, not a lookup key. To fetch or reference
+a position through the API, use `rfq_id`, or `position_id` once it is
+[set on the RFQ](/api-reference/parlays/get).
 
 | Event | Description | Data |
 |-------|-------------|------|
@@ -136,13 +148,16 @@ Delivered on `rfq:{rfq_id}`. These are the user-facing mirror of the maker's `qu
 | `position:cancelled` | Position cancelled, collateral unlocked. | `{ rfq_id, position_pda, reason, timestamp }` |
 | `position:failed` | One attempt to create the position on chain failed and will be retried. Delivered on `rfq:{rfq_id}`, to the user, and to the maker. | `{ rfq_id, reason, retry_count, timestamp }` |
 | `position:error` | Position execution error. | `{ rfq_id, error, timestamp }` |
-| `position:bought_back` | A position was closed early by a winning cashout bid. See the note below. | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
+| `position:bought_back` | A winning cashout bid closed the position early. See the note below. | `{ rfq_id, position_pda, amount, mm_pays_user, tx_signature, quote_id, timestamp }` |
 
 <Note>
 `position:bought_back` fans out to the `rfq:{rfq_id}` channel, to the `mm:quotes:{mm_id}` channel of
 the maker whose exposure closed, and directly to any connection authenticated as the seller or as
-that maker. Subscribe on `rfq:{rfq_id}` and dedupe on `tx_signature`. `amount` is decimal USDC, and
-`quote_id` is the position's original accepted quote, not the winning bid. One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap).
+that maker. Subscribe on `rfq:{rfq_id}` and dedupe on `tx_signature`.
+
+`amount` is decimal USDC. `quote_id` is the position's original accepted quote, not the winning bid.
+For bids that acquire a position instead, see
+[the acquisition gap](/guides/event-catalog#the-acquisition-gap).
 </Note>
 
 ### Balance events
@@ -162,7 +177,8 @@ Send periodic pings to keep the connection open:
 { "type": "ping" }
 ```
 
-Response:
+The server replies:
+
 ```json
 { "type": "pong", "timestamp": "2026-06-01T12:00:00.000Z" }
 ```

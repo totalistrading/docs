@@ -1,14 +1,12 @@
 ---
 title: 'Market making'
 icon: 'handshake'
-description: 'Stream live parlay quote requests over SSE, submit competitive payout odds, confirm accepted trades, and bid on early cashout auctions.'
+description: 'Stream parlay quote requests, submit payout odds, confirm fills within seconds, bid on early cashouts, and size collateral with portfolio netting.'
 ---
 
-Market makers stream incoming parlay quote requests over SSE, submit competitive prices, and earn
-the spread when users commit and confirm trades.
-
-There is no separate market maker role. Any authenticated user with an API key that holds the
-`mm:quote` scope can quote.
+Any account can make markets. You need an API key with the `mm:quote` scope, USDC to back your
+quotes, and a bot on two channels: the SSE quote request stream for pricing, and the WebSocket for
+fills.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/market-maker-light.png" alt="A request arrives, you quote, the user commits, you confirm within five seconds, collateral locks, settlement pays out" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/market-maker-dark.png" alt="A request arrives, you quote, the user commits, you confirm within five seconds, collateral locks, settlement pays out" />
@@ -16,158 +14,155 @@ There is no separate market maker role. Any authenticated user with an API key t
 ## How it works
 
 <Steps>
-  <Step title="Connect to the quote request stream">
-    Open an SSE connection to
-    [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) to receive live
-    quote requests. On connect you get a snapshot of all active requests, then incremental updates.
-
-    Match on the exact event names in the
-    [event summary table](/api-reference/quote-service-mm/stream#sse-event-types). The separators on
-    this stream are not consistent: `quote_request` and `quote_request_expired` use underscores,
-    while `quote_request:updated` uses a colon.
+  <Step title="Stream quote requests">
+    Open [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream). You get a
+    snapshot of every active request, then updates. Match event names exactly as the
+    [event table](/api-reference/quote-service-mm/stream#sse-event-types) lists them. Each leg
+    carries `current_yes_price` and `current_no_price`, the venue prices when the request was
+    created, as a starting point for your own pricing.
   </Step>
-  <Step title="Submit draft quotes">
-    Analyze the legs and submit payout odds via
-    [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) for the
-    exact `version` and `request_hash` you received.
+  <Step title="Submit a quote">
+    Send `payout_odds` for the exact `version` and `request_hash` you received, with
+    [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote).
 
     <Warning>
-    Price `payout_odds` and size collateral against the net stake (`user_stake`), never against
-    `bet_amount`. The taker fee comes off first, so `user_stake` is what your odds are applied to.
-    Quoting off the gross bet overprices every quote you submit. See
-    [Limits and fees](/guides/limits-and-fees#fees).
+    Odds apply to the net stake, `user_stake`, never to `bet_amount`. Quoting off the gross bet
+    overprices every quote. See [Limits and fees](/guides/limits-and-fees#fees).
     </Warning>
   </Step>
-  <Step title="Confirm trades">
-    When a user commits your quote, Totalis creates an accepted RFQ and sends `quote:accepted` on the
-    `mm:quotes:{mm_id}` channel of the [WebSocket](/guides/websocket), so keep a socket open beside
-    the SSE stream. The SSE stream tells you a request ended, but not the `quote_id` or deadline you
-    need to confirm. The same channel also receives `mm_quote:accepted`, which carries details
-    visible only to you: `user_id`, final quote economics, and exposure legs.
-
-    Confirm with [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before
-    `confirmation_deadline`. Honor the timestamp on the event rather than assuming the default
-    window. The user's stake and your collateral then lock together in on-chain Solana vaults.
-
-    After a dropped connection or a restart, reconcile with
-    [`GET /v1/mm/quotes?status=accepted`](/api-reference/mm/list-quotes) and confirm anything still
-    open.
+  <Step title="Confirm the fill">
+    When a user commits your quote, you get `quote:accepted` on the `mm:quotes:{mm_id}` channel of
+    the [WebSocket](/guides/websocket), with the `quote_id` and a `confirmation_deadline` a few
+    seconds away. Confirm with [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote)
+    before that timestamp. The SSE stream only says a request closed, so keep the socket open.
+  </Step>
+  <Step title="Reconcile">
+    After a disconnect or a restart, list [`GET /v1/mm/quotes?status=accepted`](/api-reference/mm/list-quotes)
+    and confirm anything still open.
   </Step>
 </Steps>
 
-## Core quoting loop
+## Endpoints
 
-| Step | Endpoint |
+| Step | Endpoint or event |
 | --- | --- |
-| Keep collateral in your wallet, or park it in your vault once it exists | [`GET /v1/wallet`](/api-reference/user/get-wallet), [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) |
-| Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
-| Check invalid leg combinations | `exclusion_keys` on [`GET /v1/markets/list`](/api-reference/markets/list-flat) |
-| Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
-| Submit a draft quote | [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) |
-| Withdraw a draft quote | [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) |
-| Receive committed trades | `quote:accepted` on `mm:quotes:{mm_id}` |
-| Receive accepted trade details | `mm_quote:accepted` on `mm:quotes:{mm_id}` |
-| Confirm an accepted quote | [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
-| Reconcile quotes after a disconnect | [`GET /v1/mm/quotes`](/api-reference/mm/list-quotes) |
-
-Two markets can share a parlay only if their `exclusion_keys` arrays do not intersect.
-
-Check available USDC and locked funds with [`GET /v1/wallet`](/api-reference/user/get-wallet) before
-quoting at size. Your quotes are backed by your spendable balance: wallet USDC plus your vault's free
-balance. The submit check (`insufficient_collateral`) and the confirm check both read that same sum,
-so USDC in either place counts.
-
-Your vault is created with your first filled position. Until then, keep collateral in the wallet:
-[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) returns `404` before the vault exists,
-and is optional after.
+| Check your balance | [`GET /v1/wallet`](/api-reference/user/get-wallet) |
+| Stream quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
+| Submit or replace a quote | [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) |
+| Withdraw a quote | [`DELETE /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/withdraw-quote) |
+| Receive fills | `quote:accepted` and `mm_quote:accepted` on `mm:quotes:{mm_id}` |
+| Confirm a fill | [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) |
+| Reconcile | [`GET /v1/mm/quotes`](/api-reference/mm/list-quotes) |
+| Bid on an early cashout | [`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) |
 
 ## Quoting rules
 
-- One active quote per request version. Submitting again replaces your previous quote.
-- Send `request_version`, `request_hash`, `payout_odds` and `expires_in_ms`, nothing else. The server
-  derives the money fields from your odds and the net stake: `user_cost = bet_amount - taker_fee`,
-  `total_payout = user_cost * payout_odds`, `mm_cost = total_payout - user_cost`.
-- Keep quotes short-lived. The default validity is 15 seconds.
-- When the request moves to a new version, your quote on the old version is invalidated for you.
-  Re-price and `PUT` again with the new version and hash. There is nothing to withdraw first.
-- To stand down on the current version before the user commits, `DELETE` the quote. That is the only
-  reason to withdraw.
+- One live quote per request version. Submitting again replaces it.
+- Send only `request_version`, `request_hash`, `payout_odds` and, optionally, `expires_in_ms`. The
+  server derives every money field from your odds and the net stake.
+- A new version invalidates your old quote. Re-price and submit again. There is nothing to withdraw.
+- `DELETE` a quote only to stand down on the current version before the user commits.
 - Submit and confirm take no `Idempotency-Key`. After a timeout, read
   [`GET /v1/mm/quotes?status=accepted`](/api-reference/mm/list-quotes) before you confirm again.
 
-Your result on each filled position: if any leg loses you receive the user's `user_stake`, minus the
-1% profit fee on it. If every leg wins you pay `mm_risk`. If a leg is voided your collateral comes
-back and nothing else moves.
+Quote validity and the confirmation window are on [Limits and fees](/guides/limits-and-fees#timing).
 
-## Your identity across channels
+## Your balance
 
-Your `mm_id` is your `user_id`, which is your Privy DID (`did:privy:...`). It is echoed by
-`auth:success` on the WebSocket and by the
-[`connected`](/api-reference/quote-service-mm/stream#connected) event on the MM SSE stream, and it
-is the key in the `mm:quotes:{mm_id}` channel name.
+Quotes are backed by wallet USDC plus your vault's free balance. The submit check
+(`insufficient_collateral`) and the confirm check both read that sum.
 
-<Warning>
-`counterparty_mm_id` is not your id and not the bidder's id. It names the maker who already backs a
-position. On a broadcast cashout auction that is usually not the maker whose bid wins. See the
-[Glossary](/guides/glossary#identifiers).
-</Warning>
+Your vault is created with your first filled position. Until then keep USDC in the wallet.
+[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) returns `404` before the vault exists,
+and is optional after.
 
-## Pricing early cashouts
+## Profit and loss
 
-A user can leave an active position before it settles. Totalis opens a short auction on that
-position and broadcasts it to every market maker, on the stream you already consume, as a
-[`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event.
+| Outcome | You |
+| --- | --- |
+| Any leg loses | Receive the user's `user_stake`, minus the profit fee on it |
+| Every leg wins | Pay `mm_risk` |
+| A leg is voided | Get your collateral back. Nothing else moves |
 
-You reply with one all-in price via
-[`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). The
-highest live bid wins and ties go to the earliest bid. There is no decline endpoint. To pass, submit
-nothing.
+## Collateral and the ILP
 
-`price_micro` is what the user receives, all-in, in microUSDC. It may be below their stake. What a
-win costs you depends on whether you already back that position: a closing exit carries the profit
-fee on your side, while acquiring a position does not.
-
-See [Cashout auctions](/guides/cashout-auctions) for the auction rules, the payload, and the error
-reasons.
-
-## Collateral minimization
-
-Without portfolio-level netting, each parlay would post collateral in isolation. A parlay with a
-12,000 USDC max payout would need 12,000 USDC in the vault, an 8,000 USDC max payout parlay would
-need another 8,000, and so on.
-
-That is wasteful when positions are mutually exclusive and cannot both come true. The real worst
-case is one parlay hitting, not both.
+You do not lock each position's full `mm_risk` on its own. Totalis locks your worst-case loss across
+your whole book of open positions. It finds that number exactly by solving an integer linear program
+(ILP) over every way your markets can resolve, so positions that cannot all lose together share
+collateral.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/collateral-netting-light.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/collateral-netting-dark.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
 
-Totalis margins market makers at the portfolio level instead. It computes the true worst case loss
-across all possible outcome states for the whole book, and requires collateral only for that
-scenario.
+In the picture, two parlays cannot both win. Locked one by one they need 20,000 USDC. As a book they
+need 12,000, the larger of the two.
+
+| When | What locks |
+| --- | --- |
+| Your first open position | Its full `mm_risk` |
+| Each new position | Only the rise in your book's worst-case loss, from 0 up to that position's `mm_risk`. This is `mm_collateral_locked` on the position |
+| A position settles, is cancelled, or is bought back | Your worst case is recomputed, and collateral no longer needed returns to your vault free balance |
+
+<Warning>
+Netting lowers what stays locked, not what you need to quote. Submitting a quote and confirming a
+fill both require wallet plus vault free balance to cover the quote's full `mm_risk`, plus the
+`mm_risk` of any fills not yet on chain.
+</Warning>
+
+The solver treats these as linked, and everything else as independent:
+
+- The legs of one position. It pays only if every leg hits.
+- Markets in one event where only one can resolve yes, such as the winner of a game.
+- Kalshi strike ladders on the same underlier or game, such as BTC above 100k and above 90k, or a
+  game's totals and spreads.
+- A team's total over a line and the game's total over the same line.
+- Markets that have resolved but not yet settled. They are fixed to their result.
+
+Treating two markets as independent can only overstate your worst case, never understate it. If a
+solve runs out of time you are locked a safe upper bound, never more than the plain sum of your
+`mm_risk`.
+
+In Totalis backtests the saving was 10% to 30% for generalist books, 20% to 40% for books on a single
+league, and over 70% for books of long-tail parlays with four or more legs.
+
+## Early cashouts
+
+A user can leave a live position before it settles. Totalis broadcasts a short auction to every
+maker as a [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event on the
+stream you already read. Reply with one all-in `price_micro`, the amount the user receives in
+microUSDC, through
+[`PUT /v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote). The
+highest live bid wins, and ties go to the earliest. To pass, submit nothing.
+
+If you back the position, a win closes it and the profit fee falls on your side. If you do not, a
+win acquires it. [Cashout auctions](/guides/cashout-auctions) has the rules, payload and errors.
+
+## Your identity
+
+Your `mm_id` is your `user_id`, a Privy DID (`did:privy:...`). `auth:success` on the WebSocket and
+the [`connected`](/api-reference/quote-service-mm/stream#connected) event on the SSE stream both
+return it, and it names your `mm:quotes:{mm_id}` channel.
+
+<Warning>
+`counterparty_mm_id` is not your id and not the bidder's id. It names the maker who already backs a
+position. See the [Glossary](/guides/glossary#identifiers).
+</Warning>
 
 ## Get set up
 
 <CardGroup cols={2}>
   <Card title="Get an API key" icon="key" href="/guides/authentication">
-    Generate a key with the `mm:quote` scope to authenticate REST and SSE requests.
-  </Card>
-  <Card title="Quote requests in depth" icon="bolt" href="/guides/quote-requests">
-    Commit protection, rejection codes, and the shapes on the wire.
+    A key with the four read scopes and `mm:quote`.
   </Card>
   <Card title="Cashout auctions" icon="gavel" href="/guides/cashout-auctions">
     Bid on parlay exits and know which outcome you are in.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/api-reference/errors">
-    Every rejection reason, and which to alert on rather than log.
+    Every rejection reason, and which to alert on.
   </Card>
   <Card title="MM API reference" icon="chart-line" href="/api-reference/quote-service-mm/stream">
-    Full endpoint reference for the maker side of the quote service.
+    Every maker endpoint and event.
   </Card>
 </CardGroup>
 
-## Provide liquidity at scale
-
-To provide liquidity on Totalis at scale, contact
-[founders@totalis.trade](mailto:founders@totalis.trade) to discuss onboarding, integration, and
-partnership terms.
+To provide liquidity at scale, email [founders@totalis.trade](mailto:founders@totalis.trade).

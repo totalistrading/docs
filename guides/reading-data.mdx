@@ -4,9 +4,9 @@ icon: 'chart-line'
 description: 'Pull account state on demand: portfolio, parlay history, settlement outcomes, P&L, and balances, for backfill and reconciliation.'
 ---
 
-The push channels ([webhooks](/guides/webhooks) and the [WebSocket](/guides/websocket)) tell you
-when things happen. The read endpoints let you pull state on demand, for backfill, reconciliation,
-and display. See [Real time and data channels](/guides/realtime-and-data) for how they fit together.
+Read endpoints return your current state on demand. Use them to backfill, reconcile, and display.
+For events as they happen, use [webhooks](/guides/webhooks) or the [WebSocket](/guides/websocket).
+[Real time and data channels](/guides/realtime-and-data) compares all four channels.
 
 Authenticated reads take a scoped API key and live under `/v1`. Market data at `/markets` is public
 and needs no key.
@@ -31,9 +31,7 @@ and needs no key.
 | Parameter | Behavior |
 | --- | --- |
 | `status` | Comma joined, for example `?status=executed,settled`. See the [status reference](/guides/lifecycle#status-reference). |
-| `include=quotes` | Attaches each parlay's `quotes` array. Without it, `quotes` is `null`, meaning not requested. With it, an empty array means no quotes were submitted. |
-
-That distinction matters: `null` and `[]` mean different things here.
+| `include=quotes` | Attaches each parlay's `quotes` array. Without it, `quotes` is `null`, meaning not requested. With it, an empty array `[]` means no quotes were submitted. |
 
 ## P&L windows
 
@@ -49,7 +47,8 @@ the API. To value open positions, price each leg yourself against live
 
 ## Balances
 
-[`GET /v1/wallet`](/api-reference/user/get-wallet) returns every balance in one call.
+[`GET /v1/wallet`](/api-reference/user/get-wallet) returns every balance in one call. Each field is
+defined in the [Glossary](/guides/glossary#balance-fields).
 
 ```
 total USDC you control = usdc_balance + vault_balance
@@ -58,11 +57,9 @@ available to trade     = usdc_balance + vault_balance - locked_amount
 
 <Warning>
 Do not subtract `/v1/vault`'s `locked_collateral` on top of `locked_amount`. It is already counted
-inside `locked_amount`. Subtracting both understates your available balance and will make a bot
-refuse trades it can afford.
+inside `locked_amount`. Subtracting both understates your available balance and makes a bot refuse
+trades it can afford.
 </Warning>
-
-Each field is defined in the [Glossary](/guides/glossary#balance-fields).
 
 ## Settlement outcomes
 
@@ -72,7 +69,7 @@ Once it is terminal, the response carries the full settlement detail:
 | Field | Contents |
 | --- | --- |
 | per-leg `outcome` | How each leg resolved. |
-| `status` | `settled`, `cancelled`, or `bought_back`. |
+| `status` | `settled`, `cancelled`, `expired`, or `bought_back`. |
 | payout | The amount paid to the winning side. |
 | `settle_tx`, `cancel_tx`, `buyback_tx` | On-chain transaction signatures. |
 
@@ -103,4 +100,5 @@ parse or construct one.
 
 ### What reconciliation is the only way to catch
 
-One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of closing it. See [the acquisition gap](/guides/event-catalog#the-acquisition-gap). If you bid on auctions for positions you do not already back, a reconcile loop against your position reads is how you learn you won.
+Cashout bids that acquire a position you did not back. See
+[the acquisition gap](/guides/event-catalog#the-acquisition-gap).

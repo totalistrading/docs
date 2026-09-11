@@ -1,46 +1,41 @@
 ---
 title: 'Event catalog'
 icon: 'list'
-description: 'Every lifecycle moment mapped across SSE, WebSocket, webhooks, and REST, with the exact event name each channel uses and the one outcome that notifies nobody.'
+description: 'The exact event name each channel uses for every moment in a trade, across SSE, WebSocket, webhooks, and REST.'
 ---
 
-A single trade crosses four channels. This is every lifecycle moment on all four, side by side.
-
-Read a row to see one moment across every channel. Read a column to follow one channel start to
-finish.
-
-Field names, identifiers, and the aliases the same value travels under are in the
-[Glossary](/guides/glossary). Event name grammar per channel is
-[there too](/guides/glossary#event-naming).
+Each row below is one moment in a trade. Each column is one channel. Field names, identifiers, and
+their aliases are in the [Glossary](/guides/glossary), along with the
+[event naming rules](/guides/glossary#event-naming) for each channel.
 
 <Note>
 `quote:*` WebSocket events (`quote:accepted`, `quote:confirmed`, `quote:executed`, `quote:expired`,
-`quote:rejected`, `quote:withdrawn`) deliver only to the awarded market maker, on their private
-`mm:quotes:{mm_id}` channel. `rfq:*` and `position:*` events deliver on `rfq:{rfq_id}`, the channel a
+`quote:rejected`, `quote:withdrawn`) go only to the awarded market maker, on their private
+`mm:quotes:{mm_id}` channel. `rfq:*` and `position:*` events go to `rfq:{rfq_id}`, the channel a
 user or anyone tracking a specific trade subscribes to. `vault:deposited` and `vault:withdrawn` go to
 the account's own connections and are not in the table.
 
-The two families are not interchangeable views of the same moment. Several rows below have a
-WebSocket event for the maker and nothing for the user, or the reverse.
+The two families are not interchangeable. Some rows have a WebSocket event for the maker and none
+for the user, or the reverse.
 </Note>
 
 ## One trade, across every channel
 
 | Lifecycle moment | SSE, user stream | SSE, MM stream | WebSocket | Webhook | REST status |
 | --- | --- | --- | --- | --- | --- |
-| **Quote request created** | no dedicated created event. The stream opens after creation and the first frame is `best_quote`, often `null` | `quote_request` | not on this channel. WebSocket starts at commit | not on this channel. Webhooks are post-trade only | quote request `status: "active"` via [`GET /v1/quote-requests/{id}`](/api-reference/quote-service/get) |
-| **Quote updated** | `best_quote` | `quote_request:updated`, and only when the request itself changes via `PATCH`. No MM stream event exists for an individual quote submission, yours or a competitor's | not on this channel | not on this channel | `version` and `book_seq` increment, `status` stays `"active"` |
-| **Quote accepted, committed** | `status` (`status: "committed"`), then the terminal `committed` event, then the stream closes | `quote_request_expired` with `reason: "committed"`. `won: true` for the winning maker, `false` for everyone else | `quote:accepted` and `mm_quote:accepted` to the maker. `rfq:status` with `status: "accepted"` on `rfq:{rfq_id}` for anyone watching the trade | `parlay.status_changed` with `status: "accepted"` and `accepted_quote_id` set | RFQ `status: "accepted"` |
-| **Confirmed by maker** | not on this channel. The stream closed at commit | not on this channel | `quote:confirmed` to the maker. `rfq:status` with `status: "confirmed"` on `rfq:{rfq_id}` | `parlay.status_changed` with `status: "confirmed"` | RFQ `status: "confirmed"` |
-| **Executed on-chain** | not on this channel | not on this channel | `quote:executed` to the maker. `rfq:status` with `status: "executed"` and `position:created` with `position_pda` on `rfq:{rfq_id}`. A failed creation attempt that will be retried arrives as `position:failed` | `parlay.status_changed` with `status: "executed"` | RFQ `status: "executed"` |
-| **Settled** | not on this channel | not on this channel | `position:settled` with `outcome` and `tx_signature` | `position.settled`. This is the terminal outcome event. `parlay.status_changed` stops at `executed` and `cancelled` and never carries `"settled"` | RFQ `status: "settled"` |
-| **Exited early** | not on this stream. See the separate [cashout stream](/api-reference/quote-service/cashout-stream), whose terminal `status` event reports `"committed"` | `cashout_request` announces only the **opening** of the auction, broadcast to every maker. There is no SSE event for its completion | `position:bought_back` on `rfq:{rfq_id}`, only when the winning bid **closes** the position. Nothing is delivered when a bid **acquires** it. See [the acquisition gap](#the-acquisition-gap) | `position.bought_back` with `amount`, `mm_pays_user`, `tx_signature` on a close. `position.transferred` is attributed to the seller only | **Depends on the outcome.** A close gives `status: "bought_back"` with the `cashout` object populated. A transfer leaves the position active and repoints ownership, so the RFQ does **not** become `bought_back` |
-| **Cancelled** | `cancelled`, when the quote request is abandoned pre-commit via [Cancel](/api-reference/quote-service/cancel) | `quote_request_expired` with `reason: "cancelled"` | `rfq:cancelled` and `rfq:status` with `status: "cancelled"` on `rfq:{rfq_id}`, plus `position:cancelled` when a funded position is cancelled. A pre-commit cancellation never reaches a position, so only the `rfq:*` events fire | not delivered pre-commit. Post-commit fires **both** `parlay.status_changed` (`status: "cancelled"`) and `position.cancelled`, so dedupe on `X-Totalis-Event-Id` | quote request `status: "cancelled"` pre-commit, RFQ `status: "cancelled"` post-commit |
-| **Expired** | `expired`, when the TTL lapsed with no commit | `quote_request_expired` with `reason: "expired"` | `rfq:expired` on `rfq:{rfq_id}` when the whole parlay expires. `quote:expired` to a maker means that maker's accepted quote lapsed before confirmation | **none.** No webhook event exists for expiry, before or after commit | quote request `status: "expired"` pre-commit, RFQ `status: "expired"` post-commit |
+| **Quote request created** | No dedicated created event. The stream opens after creation and the first frame is `best_quote`, often `null`. | `quote_request` | None. WebSocket starts at commit. | None. Webhooks are post-trade only. | Quote request `status: "active"` via [`GET /v1/quote-requests/{id}`](/api-reference/quote-service/get) |
+| **Quote updated** | `best_quote` | `quote_request:updated`, only when the request itself changes via `PATCH`. No MM stream event exists for an individual quote submission, yours or a competitor's. | None | None | `version` and `book_seq` increment. `status` stays `"active"`. |
+| **Quote accepted, committed** | `status` (`status: "committed"`), then the terminal `committed` event, then the stream closes. | `quote_request_expired` with `reason: "committed"`. `won: true` for the winning maker, `false` for everyone else. | `quote:accepted` and `mm_quote:accepted` to the maker. `rfq:status` with `status: "accepted"` on `rfq:{rfq_id}` for anyone watching the trade. | `parlay.status_changed` with `status: "accepted"` and `accepted_quote_id` set | RFQ `status: "accepted"` |
+| **Confirmed by maker** | None. The stream closed at commit. | None | `quote:confirmed` to the maker. `rfq:status` with `status: "confirmed"` on `rfq:{rfq_id}`. | `parlay.status_changed` with `status: "confirmed"` | RFQ `status: "confirmed"` |
+| **Executed on-chain** | None | None | `quote:executed` to the maker. `rfq:status` with `status: "executed"` and `position:created` with `position_pda` on `rfq:{rfq_id}`. A failed creation attempt that will be retried arrives as `position:failed`. | `parlay.status_changed` with `status: "executed"` | RFQ `status: "executed"` |
+| **Settled** | None | None | `position:settled` with `outcome` and `tx_signature` | `position.settled`, the terminal outcome event. `parlay.status_changed` stops at `executed` and `cancelled` and never carries `"settled"`. | RFQ `status: "settled"` |
+| **Exited early** | None. The separate [cashout stream](/api-reference/quote-service/cashout-stream) ends with a terminal `status` event reporting `"committed"`. | `cashout_request`, broadcast to every maker when the auction opens. No SSE event marks its completion. | `position:bought_back` on `rfq:{rfq_id}`, only when the winning bid closes the position. Nothing is delivered when a bid acquires it. See [the acquisition gap](#the-acquisition-gap). | `position.bought_back` with `amount`, `mm_pays_user`, `tx_signature` on a close. `position.transferred` goes to the seller only. | Depends on the outcome. A close sets `status: "bought_back"` and populates the `cashout` object. A transfer leaves the position active and repoints ownership, so the RFQ does not become `bought_back`. |
+| **Cancelled** | `cancelled`, when the quote request is abandoned pre-commit via [Cancel](/api-reference/quote-service/cancel) | `quote_request_expired` with `reason: "cancelled"` | `rfq:cancelled` and `rfq:status` with `status: "cancelled"` on `rfq:{rfq_id}`, plus `position:cancelled` when a funded position is cancelled. A pre-commit cancellation never reaches a position, so only the `rfq:*` events fire. | None pre-commit. Post-commit fires both `parlay.status_changed` (`status: "cancelled"`) and `position.cancelled`, with different event ids, so match the pair on `rfq_id`. | Quote request `status: "cancelled"` pre-commit, RFQ `status: "cancelled"` post-commit |
+| **Expired** | `expired`, when the TTL lapsed with no commit | `quote_request_expired` with `reason: "expired"` | `rfq:expired` on `rfq:{rfq_id}` when the whole parlay expires. `quote:expired` to a maker means that maker's accepted quote lapsed before confirmation. | None. No webhook event exists for expiry, before or after commit. | Quote request `status: "expired"` pre-commit, RFQ `status: "expired"` post-commit |
 
 ## The acquisition gap
 
-An early cashout resolves one of two ways, and only one of them notifies you live.
+An early cashout resolves one of two ways. Only one of them notifies you live.
 
 ### A closing exit is well covered
 
@@ -49,29 +44,32 @@ and `quote_id`. It fans out to four places at once:
 
 | Destination | Needs a subscription |
 | --- | --- |
-| The `rfq:{rfq_id}` channel, the canonical one for `position:*` events | yes, and this is the one to subscribe to |
-| The `mm:quotes:{mm_id}` channel of the maker whose exposure closed | yes |
-| Any connection authenticated as the seller | no, it arrives on identity alone |
-| Any connection authenticated as that maker | no |
+| The `rfq:{rfq_id}` channel, the canonical one for `position:*` events | Yes. Subscribe to this one. |
+| The `mm:quotes:{mm_id}` channel of the maker whose exposure closed | Yes |
+| Any connection authenticated as the seller | No, it arrives on identity alone |
+| Any connection authenticated as that maker | No |
 
-Because the last two arrive on identity alone, you may see the same event twice if you also hold the
-`rfq:{rfq_id}` subscription. Dedupe on `tx_signature`.
+The last two arrive on identity alone. If you also hold the `rfq:{rfq_id}` subscription, you may
+see the same event twice. Dedupe on `tx_signature`.
 
-The `position.bought_back` webhook carries the same moment for integrations that prefer webhooks.
+The `position.bought_back` webhook carries the same moment.
 
 ### An acquiring bid notifies the buyer of nothing
 
 <Warning>
+One cashout outcome reaches the buyer on no channel: a bid that acquires a position instead of
+closing it.
+
 When the winning bid comes from a market maker that was not the position's counterparty, the
-position transfers to them and stays open. There is **no WebSocket event and no buyer-side webhook**
-for that today. `position.transferred` is attributed to the seller.
+position transfers to them and stays open. There is no WebSocket event and no buyer-side webhook for
+that. `position.transferred` goes to the seller.
 
 If you bid on auctions for positions you do not already back, reconcile acquisitions from
 [your position reads](/api-reference/mm/list-positions) rather than waiting for a push.
 </Warning>
 
-The RFQ status is not a fallback signal here either. A transfer leaves the position `executed`, so
-polling for `bought_back` will never fire.
+Polling the RFQ status does not help either. A transfer leaves it `executed`, so polling for
+`bought_back` never fires.
 
 ## Delivery guarantees
 

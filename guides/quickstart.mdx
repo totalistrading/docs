@@ -6,32 +6,34 @@ description: 'Call the public market data endpoint with no account, then get a s
 
 ## 1. Call the API right now
 
-Market data needs no key and no account. Run this before you sign up for anything:
+Market data needs no key and no account:
 
 ```bash
 curl "https://api.totalis.trade/markets?limit=3"
 ```
 
-Every market in the response carries the `ticker` and `venue` you will reference when you build a
-parlay leg. See [List markets](/api-reference/markets/list) for filters by category, venue, and
-search.
+Every market in the response carries the `ticker` and `venue` you reference when you build a parlay
+leg (one outcome inside a parlay). [List markets](/api-reference/markets/list) has the filters for
+category, venue, and search.
 
 Everything past this point needs a key.
 
 ## 2. Get an API key
 
 Create a key from the [Totalis Dashboard](https://app.totalis.trade), under account settings, then
-API keys. Give it only the scopes your integration needs. For a read-only start, `account:read`,
-`positions:read`, and `balances:read` are enough. See
-[Authentication](/guides/authentication) for the full scope catalog.
+API keys. Give it only the scopes (permissions) your integration needs. For a read-only start,
+`account:read`, `positions:read`, and `balances:read` are enough. The full scope catalog is on
+[Authentication](/guides/authentication).
 
 <Frame caption="The key form in the app. Pick the Read-only preset for a first key.">
   <img src="/images/app/02-api-keys.png" alt="The API Keys settings page with a key name field, permission presets, and the scope checkboxes" />
 </Frame>
 
 <Warning>
-Copy the key when it is shown. The full key is displayed exactly once and cannot be retrieved later.
+Copy the key when it is shown. It is displayed exactly once and cannot be retrieved later.
 </Warning>
+
+Store it in an environment variable:
 
 ```bash
 export TOTALIS_API_KEY="api_live_..."
@@ -81,12 +83,12 @@ Reads work as soon as your key does. Placing a parlay needs two more things:
 <Steps>
   <Step title="USDC in your wallet">
     Send native Solana USDC to the address from
-    [`GET /v1/wallet`](/api-reference/user/get-wallet). Placing a parlay moves the stake into the vault by itself. See
-    [Funding](/guides/funding).
+    [`GET /v1/wallet`](/api-reference/user/get-wallet). When you place a parlay, the stake moves
+    into your on-chain vault by itself. See [Funding](/guides/funding).
   </Step>
   <Step title="Trading enabled">
-    A one time consent in the app that delegates signing permission. This cannot be done from the
-    REST API. Check the current state with
+    A one time consent in the app that lets Totalis sign trades on your behalf. You cannot do this
+    from the REST API. Check the current state with
     [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status).
   </Step>
 </Steps>

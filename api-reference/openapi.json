@@ -638,8 +638,7 @@
                     "enum": [
                       "read_only",
                       "trading",
-                      "full",
-                      "headless"
+                      "full"
                     ],
                     "description": "A scope bundle. With neither `preset` nor `scopes`, the key gets `trading`."
                   },

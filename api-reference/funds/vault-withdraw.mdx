@@ -5,8 +5,9 @@ openapi: 'POST /v1/vault/withdraw'
 ---
 
 <Note>
-This moves USDC from the vault to your wallet only. Only the free balance moves; the on-chain
-program enforces that locked collateral stays put. To send USDC to an external address, use
+This moves USDC from the vault to your wallet only. Only the free balance moves: the on-chain
+program keeps locked collateral in place. To send USDC to an external address, use
 [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw), which taps the vault for you.
+
 Needs the `funds:withdraw` scope. Limited to 10 calls per minute.
 </Note>

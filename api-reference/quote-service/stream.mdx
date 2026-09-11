@@ -4,11 +4,11 @@ api: 'GET /v1/quote-requests/{id}/stream'
 description: 'Subscribe to real-time best-quote updates for a quote request via Server-Sent Events.'
 ---
 
-Open a Server-Sent Events (SSE) stream to receive real-time best-quote updates for a specific quote request. As market makers submit, update, and withdraw quotes, you receive the current best offer automatically.
+Open a Server-Sent Events (SSE) stream for one quote request. You receive the current best quote each time market makers submit, update, or withdraw quotes.
 
 ## Authentication
 
-API key required. Pass your API key in the `X-API-Key` header. The key needs the `positions:read` scope.
+Send your API key in the `X-API-Key` header. The key needs the `positions:read` scope.
 
 ```
 X-API-Key: <your-api-key>
@@ -26,7 +26,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authenticatio
 
 ### `best_quote`
 
-Sent whenever the quote book changes (new quote submitted, quote updated, quote withdrawn, or quote expired). The `book_seq` increments monotonically so you can detect missed updates.
+Sent whenever the quote book changes: a quote is submitted, updated, withdrawn, or expires. `book_seq` increments monotonically, so a gap means you missed an update.
 
 ```json
 {
@@ -58,7 +58,7 @@ When no quotes are active, `best_quote` is `null`:
 
 ### `status`
 
-Sent when the quote request transitions out of the `active` state (committed, cancelled, or expired). The stream closes after this event. `committed_rfq_id` is the created RFQ id when `status` is `committed`, and `null` otherwise.
+Sent when the quote request leaves `active` (committed, cancelled, or expired). `committed_rfq_id` is the created RFQ id when `status` is `committed`, and `null` otherwise.
 
 ```json
 {
@@ -67,11 +67,11 @@ Sent when the quote request transitions out of the `active` state (committed, ca
 }
 ```
 
-Immediately after `status`, the stream emits one **terminal event** matching the outcome, then closes. Listen for either the generic `status` event or the specific one below.
+Immediately after `status`, the stream sends one **terminal event** for the outcome (`committed`, `cancelled`, or `expired`) and closes. Listen for either `status` or the terminal event.
 
 ### `committed`
 
-The quote request was committed into a real RFQ. Use `rfq_id` to follow the trade through confirmation and settlement on the [WebSocket](/guides/websocket) `rfq:{rfq_id}` channel.
+The quote request was committed into an [RFQ](/guides/glossary#the-noun-stack). Follow the trade through confirmation and settlement on the [WebSocket](/guides/websocket) `rfq:{rfq_id}` channel.
 
 ```json
 {
@@ -82,7 +82,7 @@ The quote request was committed into a real RFQ. Use `rfq_id` to follow the trad
 
 ### `cancelled`
 
-The quote request was cancelled (by you, via [Cancel](/api-reference/quote-service/cancel)).
+You cancelled the quote request with [Cancel](/api-reference/quote-service/cancel).
 
 ```json
 {
@@ -102,10 +102,10 @@ The quote request reached its `expires_at` without being committed.
 
 ## Integration guide
 
-1. Open the SSE stream after creating or updating a quote request.
-2. On each `best_quote` event, update your displayed payout odds and store the `book_seq` and best quote `id`.
-3. When the user is ready to commit, pass `expected_version`, `displayed_quote_id`, `displayed_quote_book_seq`, and `min_payout_odds_seen` to the [Commit](/api-reference/quote-service/commit) endpoint.
-4. On a terminal event, close the stream and handle the outcome. When the request commits, read the new RFQ id from `committed_rfq_id` (on the `status` event) or `rfq_id` (on the `committed` event), then follow the trade on the [WebSocket](/guides/websocket) `rfq:{rfq_id}` channel.
+1. Open the stream after you create or update a quote request.
+2. On each `best_quote` event, update the payout odds you display. Store `book_seq` and the best quote `id`.
+3. To commit, send `expected_version`, `displayed_quote_id`, `displayed_quote_book_seq`, and `min_payout_odds_seen` to [Commit](/api-reference/quote-service/commit).
+4. On a terminal event, close the stream and handle the outcome. On a commit, read the RFQ id from `committed_rfq_id` (`status` event) or `rfq_id` (`committed` event). Follow the trade on the [WebSocket](/guides/websocket) `rfq:{rfq_id}` channel.
 
 ## Errors
 
@@ -164,12 +164,14 @@ async function streamQuotes(id, apiKey) {
 ```
 
 ```python Python
-import requests
 import json
+import os
+import requests
 
-url = 'https://api.totalis.trade/v1/quote-requests/1a6d1f06.../stream'
+quote_request_id = '1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40'
+url = f'https://api.totalis.trade/v1/quote-requests/{quote_request_id}/stream'
 headers = {
-    'X-API-Key': api_key,
+    'X-API-Key': os.environ['TOTALIS_API_KEY'],
     'Accept': 'text/event-stream',
 }
 

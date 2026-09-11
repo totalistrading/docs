@@ -4,13 +4,11 @@ api: 'PATCH /v1/quote-requests/{id}'
 description: 'Update the legs or bet amount on an active quote request.'
 ---
 
-Update an active quote request with new legs or a different bet amount. This increments the `version` and recomputes the `request_hash`, which automatically invalidates all existing market maker quotes. MMs receive the updated request and can submit fresh prices.
-
-You can only update a quote request while its status is `active`.
+Replace the legs or bet amount on a quote request while its status is `active`. The update increments `version` and recomputes `request_hash`. Every existing quote is invalidated, and market makers receive the new request to quote again.
 
 ## Authentication
 
-API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
+Send your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
 X-API-Key: <your-api-key>

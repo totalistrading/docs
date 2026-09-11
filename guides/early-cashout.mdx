@@ -4,15 +4,14 @@ icon: 'hand-holding-dollar'
 description: 'Leave a parlay before it settles: a short auction, one all-in price, and what happens to your position afterwards.'
 ---
 
-You do not have to wait for settlement. Once a parlay is live on chain, you can ask market makers to
-buy you out. Totalis runs a short auction, you see the best price live, and you accept it or walk
-away.
+Once a parlay is live on chain, you can ask market makers to buy you out before it settles. Totalis
+runs a short auction. You see the best price live and accept it or walk away.
 
 ## At a glance
 
 - Any live parlay can be cashed out early, up to 30 seconds before it expires. The auction runs about 10 seconds.
-- Every market maker sees it and bids one all-in price. You are shown the best one as it changes.
-- You are only ever paid a price you explicitly accepted. If the price moves before you commit, nothing happens.
+- Every market maker sees the auction and can bid one all-in price. You see the best one as it changes.
+- You are never paid less than the price you accepted. If the best bid drops below it before you commit, the commit fails and nothing happens.
 - The price can be below your stake if the parlay has gone against you.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/early-cashout-light.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
@@ -34,16 +33,17 @@ away.
     </Accordion>
   </Step>
   <Step title="Market makers bid">
-    Every maker sees the auction and can bid one all-in price. The best live bid is what you see, and
-    it can change until you accept.
+    Every maker sees the auction and can bid one all-in price. You see the best live bid, and it can
+    change until you accept.
 
     <Accordion title="On the wire">
     The [cashout stream](/api-reference/quote-service/cashout-stream) carries the best live bid. Its
-    `price_micro` is the total you would receive, in microUSDC.
+    `price_micro` is the total you would receive, in microUSDC: an integer where `1000000` is 1 USDC.
+    See [Units](/guides/glossary#units).
     </Accordion>
   </Step>
   <Step title="Accept the price">
-    Take the best bid, or walk away. You are only ever filled at the price you accepted.
+    Take the best bid, or walk away.
 
     <Accordion title="The call">
     ```bash
@@ -58,17 +58,18 @@ away.
 
 ## What the price means
 
-The bid you accept is a single all-in figure, and exactly that amount lands in your vault as free
-balance, not in your wallet. Trade with it or withdraw it from there. There is no separate fee line
-and no second taker fee for leaving: the profit fee is already inside the number. See
-[Fees on an early exit](/guides/limits-and-fees#fees-on-an-early-exit).
+The bid you accept is one all-in figure. Exactly that amount lands in your vault as free balance,
+not in your wallet. You can trade with it or withdraw it from there.
 
-On a closing exit your stake is released and the difference between the price and your stake moves
-between you and the maker. That difference, before the profit fee, is the `amount` on the
-`position.bought_back` webhook, and `mm_pays_user` gives its direction.
+The profit fee is already inside the number. There is no separate fee line and no second taker fee
+for leaving. See [Fees on an early exit](/guides/limits-and-fees#fees-on-an-early-exit).
 
-The price can be below your stake. A parlay that has gone against you exits for less than it cost,
-and you never pay more than your stake to leave.
+When the exit closes the position (see the table below), your stake is released. The difference
+between the price and your stake moves between you and the maker. On the `position.bought_back`
+webhook, `amount` is that difference before the profit fee, and `mm_pays_user` gives its direction.
+
+A parlay that has gone against you exits for less than it cost. You never pay more than your stake
+to leave.
 
 ## What happens to the position
 
@@ -77,10 +78,11 @@ An auction resolves one of two ways. Both pay you the same. They look different 
 | Winning bidder | What happens | How it shows |
 | --- | --- | --- |
 | The maker who backs your position | The position closes. | The parlay reads as bought back, with realized P&L on its `cashout` object. |
-| Any other maker | They take over the position, which stays open under their name. You are paid the same. | The parlay stays live in your reads. |
+| Any other maker | They take over the position, which stays open under their name. | The parlay stays live in your reads. |
 
 <Note>
-If you build on the API, do not wait for a bought back status to know a cashout succeeded. Use the
-commit response, or the `position.bought_back` webhook when the backing maker won. Market makers
-have their own page for the other side of the auction: [Cashout auctions](/guides/cashout-auctions).
+Do not wait for a bought back status to know a cashout succeeded, because a transfer to another
+maker leaves the parlay live. Use the commit response, or the `position.bought_back` webhook when
+the backing maker won. Market makers: the other side of the auction is on
+[Cashout auctions](/guides/cashout-auctions).
 </Note>

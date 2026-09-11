@@ -4,9 +4,9 @@ icon: 'key'
 description: 'Scoped API keys: how to get one, how to send it, the scope catalog, and how to manage and revoke keys.'
 ---
 
-Every request carries your API key. On REST and the quote streams it goes in the `X-API-Key`
-header; on the WebSocket it goes in the first message. Keys are scoped, so a key can read without
-being able to trade, and trade without being able to withdraw.
+Every authenticated request carries your API key. On REST and the quote streams, send it in the
+`X-API-Key` header. On the WebSocket, send it in the first message. Keys are scoped, so a key can
+read without being able to trade, and trade without being able to withdraw.
 
 ## Getting your API key
 
@@ -16,9 +16,9 @@ being able to trade, and trade without being able to withdraw.
   </Step>
   <Step title="Create the key">
     Name it and choose its scopes. Grant only what this integration needs. The presets map to the
-    scope groups below: **Read-only** is the four read scopes, **Trading** adds `trading:write` and
-    `funds:deposit`, and **Custom** lets you tick scopes one by one. The API also accepts `full`
-    and `headless` presets; see [Create API key](/api-reference/user/create-api-key).
+    [scopes](#scopes) below: **Read-only** is the four read scopes, **Trading** adds `trading:write`
+    and `funds:deposit`, and **Custom** lets you tick scopes one by one. The API also accepts a
+    `full` preset. See [Create API key](/api-reference/user/create-api-key).
 
     <Frame caption="Creating a key with the Trading preset. Each checkbox is one scope from the catalog below.">
       <img src="/images/app/02-api-keys.png" alt="The API Keys settings page with a key name, the Trading preset selected, and the read, trading and funds permissions checked" />
@@ -34,18 +34,18 @@ being able to trade, and trade without being able to withdraw.
 </Steps>
 
 <Warning>
-The full API key is displayed only at creation. Store it in a secret manager before you close the
-dialog. It cannot be retrieved later, only revoked and replaced.
+Store the key in a secret manager before you close the dialog. It cannot be retrieved later, only
+revoked and replaced.
 </Warning>
 
 Keys match `api_(live|test)_[A-Za-z0-9_-]{28,36}`. Every key you create is a live key and starts
-`api_live_`. There is no public test environment, so start with small real bets, or email
+`api_live_`. There is no public test environment. Start with small real bets, or email
 [founders@totalis.trade](mailto:founders@totalis.trade) if you need a staging setup.
 
 <Note>
 The web app authenticates with a Privy JWT (`Authorization: Bearer <jwt>`) instead of a key. Every
-endpoint accepts either. Creating, listing and revoking keys needs `keys:manage`, which a Privy
-session always holds and a key holds only if you granted it.
+endpoint accepts either. Creating, listing and revoking keys needs `keys:manage`. A Privy session
+always holds it. A key holds it only if you granted it.
 </Note>
 
 ## Using your API key
@@ -61,14 +61,13 @@ On the WebSocket, authenticate after connecting:
 { "type": "auth", "api_key": "<your-api-key>" }
 ```
 
-A credential that does not start with `api_` is rejected with `403` and reason
-`wrong_api_key_type`, and the response carries a hint about the expected format. A well formed but
-invalid or revoked key gets `401`. See [Errors](/api-reference/errors).
+A credential that does not start with `api_` gets `403` with reason `wrong_api_key_type`. A
+well-formed but invalid or revoked key gets `401`. See [Errors](/api-reference/errors#authentication).
 
 ## Scopes
 
-Every key carries the set of scopes you selected at creation. A request to an endpoint whose scope
-the key lacks is rejected with `403` and reason `insufficient_scope`.
+A key holds the scopes you chose at creation. A request that needs a scope the key lacks gets `403`
+with reason `insufficient_scope`.
 
 | Scope | Grants | Risk |
 | --- | --- | --- |
@@ -83,16 +82,15 @@ the key lacks is rejected with `403` and reason `insufficient_scope`.
 | `funds:withdraw` | Move USDC out of the vault or wallet to any address. | **high** |
 | `tx:sign` | Submit arbitrary signed Solana transactions. | **high** |
 | `keys:manage` | Create, list, and revoke API keys. | **high** |
-| `accounts:provision` | Register and disable sub-accounts for platform integrations. Never in a default preset. | **high** |
 
 <Warning>
-The high risk scopes each let a leaked key take everything. `funds:withdraw` sends USDC to any
-address. `tx:sign` submits arbitrary transactions. `keys:manage` mints more keys, including ones
-that outlive your revocation of the original. Issue them only to keys that genuinely need them, and
-never to a key that also lives in a browser or a CI log.
+Each high-risk scope lets a leaked key take everything. `funds:withdraw` sends USDC to any address.
+`tx:sign` submits arbitrary transactions. `keys:manage` mints more keys, including ones that outlive
+your revocation of the original. Grant them only to keys that need them, and never to a key that
+lives in a browser or a CI log.
 </Warning>
 
-Pick scopes by integration shape:
+Scopes by integration:
 
 | Integration | Scopes |
 | --- | --- |
@@ -108,9 +106,9 @@ Pick scopes by integration shape:
 | Create key | [`POST /v1/api-keys`](/api-reference/user/create-api-key) |
 | Revoke key | [`DELETE /v1/api-keys/{prefix}`](/api-reference/user/revoke-api-key) |
 
-`{prefix}` is the `key_prefix` value returned by both list and create. It is the short leading
-fragment of the key that listings expose in place of the full secret. The app shows the same
-prefix, scopes, request count and state for each key, with a Revoke control on active keys.
+`{prefix}` is the `key_prefix` value returned by both list and create: the short leading fragment
+that listings show in place of the full secret. The app shows each key's prefix, scopes, request
+count and state, with a Revoke control on active keys.
 
 <Frame caption="The key list in the app. Only the prefix of each key is ever shown again.">
   <img src="/images/app/09-api-keys-list.png" alt="Four API keys listed with their prefix, scopes, creation date, request count, and an active or revoked state" />
@@ -125,8 +123,11 @@ A new key can never grant a scope the creating credential does not already hold.
 | --- | --- |
 | Active | Valid and accepted. |
 | Revoked | Manually revoked. Rejected with `401`. |
-| Expired | Past its expiration date. Rejected with `401`. Keys you create yourself never expire; only keys minted with an expiry, such as partner sub-account keys, reach this state. |
+| Expired | Past its expiration date. Rejected with `401`. |
 
-Revocation takes effect immediately. Webhook endpoints belong to your account rather than to the
-key that created them, so revoking one key among several does not stop webhook delivery. See
+Keys you create yourself never expire, so they reach the Expired state only if they were minted with
+an expiry.
+
+Revocation takes effect immediately. Revoking one key among several does not stop webhook delivery,
+because webhook endpoints belong to your account, not to the key that created them. See
 [Webhooks](/guides/webhooks).
