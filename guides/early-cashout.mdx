@@ -1,123 +1,88 @@
 ---
 title: 'Early cashout'
-description: 'Bid on parlay exits: one broadcast auction, one all-in price.'
+icon: 'hand-holding-dollar'
+description: 'Leave a parlay before it settles: a short auction, one all-in price, and what happens to your position afterwards.'
 ---
 
-A user can leave a parlay before it settles. When they do, Totalis opens a short auction on that
-position and pushes it to **every** market maker on the stream you already consume. You reply with
-one number. The highest live bid wins.
+Once a parlay is live on chain, you can ask market makers to buy you out before it settles. Totalis
+runs a short auction. You see the best price live and accept it or walk away.
 
-<Info>
-**Units.** Every `*_micro` field is an integer of micro-USDC (`1_000_000` = $1.00). The money
-fields beside them — `user_stake`, `mm_risk`, `total_payout`, and the `amount` on the settlement
-event — are decimal USDC. (`payout_odds` is a multiplier, not an amount.) Both conventions appear in
-the same payload, so scale before you compare.
-</Info>
+## At a glance
+
+- Any live parlay can be cashed out early, until 30 seconds before its markets close. The auction runs about 10 seconds.
+- Every market maker sees the auction and can bid one all-in price. You see the best one as it changes.
+- You receive the best live bid, never less than the price you accepted. If the best bid drops below it before you commit, the commit fails and nothing happens.
+- The price can be below your stake if the parlay has gone against you.
+
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/early-cashout-light.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/early-cashout-dark.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
 
 ## How it works
 
 <Steps>
-  <Step title="Receive the auction">
-    A [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) event arrives on
-    [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream). It carries the
-    position's legs and economics. Auctions are broadcast, so you see exits on positions you have
-    no relationship with.
+  <Step title="Request a cashout">
+    Ask for a cashout on a live position. Totalis opens the auction and gives you a stream to watch it.
+
+    <Accordion title="The call">
+    ```bash
+    POST /v1/cashout-requests
+    { "position_id": "<position-id>" }
+    GET  /v1/cashout-requests/<id>/stream   # SSE: live buyback quote and status
+    ```
+    `position_id` is on the parlay object once it is live.
+    </Accordion>
   </Step>
-  <Step title="Price the exit">
-    Re-value the parlay at current odds, and read `legs[].resolution` carefully. **`void` beats
-    everything:** any void leg cancels the whole position at settlement and refunds the stake, so
-    such a position is worth about the stake even if a sibling leg already resolved `lost`. Absent
-    a void leg, one `lost` leg makes the parlay worthless. Nothing stops an auction opening on a
-    position whose legs are already decided, so `resolution` is your only defence.
+  <Step title="Market makers bid">
+    Every maker sees the auction and can bid one all-in price. You see the best live bid, and it can
+    change until you accept.
+
+    <Accordion title="On the wire">
+    The [cashout stream](/api-reference/quote-service/cashout-stream) carries the best live bid. Its
+    `price_micro` is the total you would receive, in microUSDC: an integer where `1000000` is 1 USDC.
+    See [Units](/guides/glossary#units).
+    </Accordion>
   </Step>
-  <Step title="Bid one all-in price">
-    `PUT` your bid to
-    [`/v1/mm/cashout-requests/{id}/quote`](/api-reference/quote-service-mm/cashout-quote) before
-    `expires_at`. `price_micro` is what the **user receives**, all-in. Highest live bid wins; ties
-    go to the earliest bid.
-  </Step>
-  <Step title="Reconcile the outcome">
-    If you win as the counterparty you receive `position:bought_back`. If you win as anyone else
-    you acquire the position and, today, receive no event — see
-    [Knowing you won](#knowing-you-won).
+  <Step title="Accept the price">
+    Take the best bid, or walk away.
+
+    <Accordion title="The call">
+    ```bash
+    POST /v1/cashout-requests/<id>/commit
+    { "min_price_micro": <the price_micro you accepted> }
+    ```
+    `min_price_micro` is required. If the best bid has dropped below it, the commit fails and nothing
+    happens.
+    </Accordion>
   </Step>
 </Steps>
 
-## The auction
+## What the price means
 
-| Property | Value |
-| --- | --- |
-| Lifetime | about 10 seconds (`expires_at` on the push) |
-| Visibility | broadcast to every market maker |
-| Your bid TTL | `expires_in_ms`, 5000 to 60000, default 15000 |
-| Winner | highest `price_micro`; ties to the earliest bid (a replacement re-times your bid) |
-| Refusing | submit nothing. There is no decline endpoint |
-| Pulling a bid | `DELETE /v1/mm/cashout-requests/{id}/quote` |
+The bid you accept is one all-in figure. Exactly that amount lands in your vault as free balance,
+not in your wallet. You can trade with it or withdraw it from there.
 
-`price_micro` is a single all-in figure: no direction field, no separate fee term, no gross-vs-net.
-What you send is what the user sees on screen and what they walk away with. It can be **below their
-stake** — a losing parlay exits for less than it cost, and the user never pays more than their
-stake to leave.
+The profit fee is already inside the number. There is no separate fee line and no second taker fee
+for leaving. See [Fees on an early exit](/guides/limits-and-fees#fees-on-an-early-exit).
 
-A bid may outlive the auction. Nothing tells you your bid lost, lapsed, or that the auction closed,
-so age bids out locally against `expires_at`. To pull a live bid before it lapses,
-`DELETE /v1/mm/cashout-requests/{id}/quote`: `204` when it was removed, `200` with
-`{"status": "already_withdrawn"}` if it had already gone (idempotent, not an error), `409` once the
-auction is no longer active.
+When the exit closes the position (see the table below), your stake is released. The difference
+between the price and your stake moves between you and the maker. On the `position.bought_back`
+webhook, `amount` is that difference before the profit fee, and `mm_pays_user` gives its direction.
 
-<Warning>
-Your bid being best does not guarantee a fill. The user is only ever filled at a price they
-explicitly accepted, so if the book moves down between their tap and their commit, the commit fails
-and nobody trades.
-</Warning>
+A parlay that has gone against you exits for less than it cost, but you never pay anything to
+leave. If no maker bids before the auction ends, nothing happens and your parlay stays open.
 
-## Knowing you won
+## What happens to the position
 
-There is no per-auction result event on the MM stream.
+An auction resolves one of two ways. Both pay you the same. They look different in your data.
 
-| Outcome | What you get |
-| --- | --- |
-| You won as the counterparty | `position:bought_back` on `mm:quotes:{mm_id}`, plus a copy delivered straight to any connection authenticated as you (no subscription needed, so dedupe on `tx_signature`), plus the `position.bought_back` webhook (needs `positions:read`). `amount` is decimal USDC; `mm_pays_user` tells you which direction applied. |
-| You won and acquired the position | **Nothing today.** Reconcile from your position reads. |
-| You lost, or the auction expired | Nothing. Your bid simply lapses. |
-
-A bought-back parlay reports a realized cash-out P&L rather than a win or loss — the exit is a real
-settlement, not a refund.
-
-## Errors
-
-| Status | `details.reason` | Meaning |
+| Winning bidder | What happens | How it shows |
 | --- | --- | --- |
-| 400 | validation | Non-integer or non-positive `price_micro`, `expires_in_ms` out of range, unknown field, malformed JSON. |
-| 400 | `price_above_max_payout` | Bid exceeds `total_payout`. Response carries `max_price_micro`. |
-| 400 | `price_above_buyback_bound` | You are the counterparty and the bid exceeds what your collateral covers after the fee. |
-| 401 | — | Missing or invalid API key. |
-| 403 | `insufficient_scope` | Your key lacks `mm:quote`. |
-| 404 | — | Auction unknown or already evicted at its TTL. The normal "too slow" outcome. |
-| 409 | `self_quote` | You opened this auction (you are the seller). Bidding on a position you *back* is allowed — that win closes the position. |
-| 409 | `not_active` | Committed or cancelled before your bid landed. |
-| 409 | `expired` | The auction expired as your bid landed. |
-| 409 | `MARKET_NEAR_CLOSE` | The underlying market is too close to close to exit. |
-| 409 | `buyback_wallet_missing` | You back this position but no wallet is on record, so a *closing* exit cannot be built. Only **your** bids fail — others can still win it as an acquisition, so do not blacklist the position. |
-| 429 | — | Rate limited. Honour `Retry-After`. |
+| The maker who backs your position | The position closes. | The parlay reads as bought back, with realized P&L on its `cashout` object. |
+| Any other maker | You are out and paid. The position moves to the buyer's account and stays open there. | The parlay leaves your reads. |
 
-Commit-time rejections never reach you as an HTTP response — you learn of them only by not being
-filled. The ones worth knowing: `amount_over_bound` (the fee-aware ceiling, re-checked when the fee
-rate was unavailable at bid time), `insufficient_buyer_balance` / `buyer_no_vault` (acquisition, your
-funding), and `already_transferred` (the position had already moved).
-
-Treat `404` and the race-class `409`s as ordinary lost auctions and log them quietly. Treat `400`,
-`401` and `403` as your own bug: if every bid fails that way you are silently out of the market.
-
-## Checklist
-
-1. Handle `cashout_request` on the MM stream, and reconnect with `last_event_id` — with a 10 s
-   lifetime, a reconnect gap means lost auctions.
-2. Price from `legs`, `user_stake` and `total_payout`, respecting `legs[].resolution`. These are
-   decimal USDC; your bid is micro-USDC.
-3. Decide from your own book whether you back the position — that determines whether a win closes
-   it or acquires it.
-4. Bid before `expires_at`; expire your own bids locally.
-5. Keep free balance ahead of outstanding bids.
-6. Alert on 400, 401 and 403. Log 404 and race-class 409s quietly.
-7. Reconcile wins from `position:bought_back` or, for an acquisition, your position reads.
+<Note>
+Do not wait for a bought back status to know a cashout succeeded, because a sale to another
+maker never shows as bought back. Use the commit response, or the `position.bought_back` webhook when
+the backing maker won. Market makers: the other side of the auction is on
+[Cashout auctions](/guides/cashout-auctions).
+</Note>

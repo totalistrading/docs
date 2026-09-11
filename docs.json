@@ -7,6 +7,15 @@
     "light": "#07C983",
     "dark": "#15803D"
   },
+  "fonts": {
+    "family": "DM Sans"
+  },
+  "background": {
+    "color": {
+      "light": "#FAFBFA",
+      "dark": "#0B0F0D"
+    }
+  },
   "favicon": "/favicon.png",
   "api": {
     "mdx": {
@@ -22,10 +31,16 @@
         "tab": "Guides",
         "groups": [
           {
+            "group": "Overview",
+            "pages": [
+              "index"
+            ]
+          },
+          {
             "group": "Get started",
             "pages": [
-              "index",
               "guides/quickstart",
+              "guides/how-do-i",
               "guides/authentication"
             ]
           },
@@ -33,8 +48,10 @@
             "group": "Core concepts",
             "pages": [
               "guides/lifecycle",
+              "guides/limits-and-fees",
               "guides/funding",
-              "guides/vault-architecture"
+              "guides/vault-architecture",
+              "guides/glossary"
             ]
           },
           {
@@ -45,15 +62,17 @@
               "guides/reading-data",
               "guides/webhooks",
               "guides/websocket",
-              "guides/live-quote-requests",
+              "guides/early-cashout",
+              "guides/quote-requests",
               "guides/market-maker",
-              "guides/early-cashout"
+              "guides/cashout-auctions"
             ]
           },
           {
             "group": "Resources",
             "pages": [
               "guides/faq",
+              "changelog",
               "referrals",
               "terms-of-service",
               "privacy-policy"
@@ -67,7 +86,8 @@
           {
             "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/errors"
             ]
           },
           {
@@ -131,9 +151,11 @@
             ]
           },
           {
-            "group": "Funds & vault",
+            "group": "Funds and vault",
             "pages": [
               "api-reference/funds/get-vault",
+              "api-reference/funds/vault-deposit",
+              "api-reference/funds/vault-withdraw",
               "api-reference/funds/wallet-withdraw",
               "api-reference/funds/delegation-status",
               "api-reference/funds/enable-trading",
@@ -163,6 +185,12 @@
     "dark": "/logo/totalis-dark.png"
   },
   "navbar": {
+    "links": [
+      {
+        "label": "Get an API key",
+        "href": "https://app.totalis.trade/settings/api-keys"
+      }
+    ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
@@ -258,6 +286,10 @@
     {
       "source": "/api-reference/rfqs/cancel",
       "destination": "/api-reference/quote-service/cancel"
+    },
+    {
+      "source": "/guides/live-quote-requests",
+      "destination": "/guides/quote-requests"
     }
   ],
   "seo": {

@@ -1,0 +1,81 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap">
+<style>:root {
+  --bg: #FAFAFA; --ink: #172019; --muted: #6B7A72;
+  --panel: #F0F1F1; --panel-line: rgba(23,32,25,.06); --box: #E6E8E7; --box-line: rgba(23,32,25,.06);
+  --accent: #16A34A; --accent-ink: #0F7A37; --accent-soft: rgba(22,163,74,.16);
+  --warn: #B45309; --warn-soft: rgba(217,119,6,.16);
+  --dash: rgba(23,32,25,.28);
+  --a1: #16A34A; --a2: #3B82F6; --a3: #A855F7; --a4: #F59E0B; --a5: #EF4444; --a6: #06B6D4;
+}
+body.dark {
+  --bg: #121316; --ink: #E4EBE6; --muted: #8F9A94;
+  --panel: #1B1D22; --panel-line: rgba(228,235,230,.05); --box: #24272D; --box-line: rgba(228,235,230,.05);
+  --accent: #07C983; --accent-ink: #07C983; --accent-soft: rgba(7,201,131,.18);
+  --warn: #FBBF24; --warn-soft: rgba(251,191,36,.18);
+  --dash: rgba(228,235,230,.30);
+  --a1: #22C55E; --a2: #60A5FA; --a3: #C084FC; --a4: #FBBF24; --a5: #F87171; --a6: #22D3EE;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1540px; height: 952px; background: var(--bg); font-family: "DM Sans", system-ui, sans-serif; color: var(--ink); overflow: hidden; }
+.stage { position: absolute; left: 100px; right: 100px; top: 90px; height: 700px; display: flex; align-items: center; justify-content: center; gap: 0; }
+.inner { display: flex; align-items: center; justify-content: center; }
+.col { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.rowc { display: flex; align-items: center; }
+
+/* people */
+.avatar { width: 96px; height: 96px; border-radius: 50%; position: relative; overflow: hidden; background: color-mix(in srgb, var(--c) 24%, var(--bg)); flex: 0 0 auto; }
+.avatar::before { content: ""; position: absolute; left: 50%; top: 21%; width: 27%; height: 27%; margin-left: -13.5%; border-radius: 50%; background: var(--c); }
+.avatar::after { content: ""; position: absolute; left: 50%; top: 57%; width: 50%; height: 36%; margin-left: -25%; border-radius: 50% 50% 42% 42%; background: var(--c); opacity: .9; }
+.avatar.sm { width: 70px; height: 70px; }
+.a1 { --c: var(--a1); } .a2 { --c: var(--a2); } .a3 { --c: var(--a3); } .a4 { --c: var(--a4); } .a5 { --c: var(--a5); } .a6 { --c: var(--a6); }
+.people { display: flex; gap: 22px; }
+.who { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.who .label { font-size: 26px; color: var(--muted); }
+
+/* boxes and panels */
+.box { background: var(--box); border: 2px solid var(--box-line); border-radius: 22px; min-width: 190px; min-height: 112px; padding: 26px 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.box .t { font-size: 32px; font-weight: 500; line-height: 1.15; }
+.box .s { font-size: 24px; color: var(--muted); line-height: 1.2; }
+.box .n { font-family: "DM Mono", ui-monospace, monospace; font-size: 40px; font-weight: 500; line-height: 1; }
+.box.hi { outline: 3px solid var(--accent); outline-offset: -3px; }
+.box.hi .n, .box.hi .t { color: var(--accent-ink); }
+.box.warn .n { color: var(--warn); }
+.box.tall { min-height: 300px; }
+.box.wide { min-width: 260px; }
+.box.compact { min-width: 150px; padding: 22px 22px; }
+.panel { background: var(--panel); border: 2px solid var(--panel-line); border-radius: 30px; padding: 26px; display: flex; flex-direction: column; gap: 16px; align-items: stretch; }
+.panel .cap { font-size: 26px; color: var(--muted); text-align: center; margin: 0 0 4px; }
+.panel .box { background: var(--box); }
+.chips { display: flex; gap: 14px; justify-content: center; }
+.chip { min-width: 78px; padding: 16px 22px; border-radius: 18px; background: var(--box); font-size: 28px; font-weight: 500; text-align: center; }
+.chip.yes { background: var(--accent-soft); color: var(--accent-ink); }
+.chip.no { color: var(--muted); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* connectors */
+.dl { flex: 0 0 auto; width: var(--w, 90px); border-top: 4px dashed var(--dash); }
+.dl.v { width: 0; height: var(--h, 60px); border-top: 0; border-left: 4px dashed var(--dash); }
+.fork { flex: 0 0 auto; width: 90px; align-self: stretch; position: relative; }
+.fork::before { content: ""; position: absolute; left: 44px; top: var(--top, 25%); bottom: var(--bottom, 25%); border-left: 4px dashed var(--dash); }
+.fork .arm { position: absolute; left: 0; width: 100%; border-top: 4px dashed var(--dash); }
+.fork .arm.a { top: var(--top, 25%); } .fork .arm.b { bottom: var(--bottom, 25%); }
+.fork .arm.mid { top: 50%; width: 44px; }
+.stack { display: flex; flex-direction: column; gap: 24px; justify-content: center; }
+
+/* rail with ticks */
+.rail { position: absolute; left: 100px; right: 100px; top: 830px; border-top: 4px dashed var(--dash); }
+.tick { position: absolute; top: -12px; margin-left: -10px; width: 20px; height: 20px; border-radius: 50%; background: var(--dash); }
+.tick.on { background: var(--accent); }
+.tick span { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 24px; color: var(--muted); }
+.tick.on span { color: var(--accent-ink); }
+
+/* channel bars */
+.channels { position: absolute; left: 100px; right: 100px; top: 150px; display: flex; flex-direction: column; gap: 34px; }
+.chan { display: grid; grid-template-columns: 300px 1fr; align-items: center; }
+.chan .name { font-size: 34px; font-weight: 500; }
+.chan .track { position: relative; height: 84px; }
+.chan .bar { position: absolute; top: 0; height: 84px; border-radius: 22px; background: var(--box); border: 2px solid var(--box-line); }
+.chan .bar.hi { background: var(--accent-soft); border-color: transparent; }
+.marks { position: absolute; left: 400px; right: 100px; top: 700px; border-top: 4px dashed var(--dash); }
+</style></head><body><div class="stage"><div class="inner" style="zoom:1.15"><div class="who"><div class="avatar a1"></div><div class="label">You</div></div><div class="dl"></div><div class="box"><div class="t">Connect</div></div><div class="dl"></div><div class="box hi"><div class="t">Auth</div><div class="s">API key</div></div><div class="dl"></div><div class="box"><div class="t">Subscribe</div></div><div class="dl"></div><div class="box tall"><div class="t">Events</div></div></div></div><script>if (location.search.includes("dark")) document.body.classList.add("dark");</script></body></html>

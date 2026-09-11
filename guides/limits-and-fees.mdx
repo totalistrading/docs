@@ -1,0 +1,157 @@
+---
+title: 'Limits and fees'
+icon: 'scale-balanced'
+description: 'Every constraint and fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
+---
+
+## At a glance
+
+- 2 to 5 legs, 1 to 100 USDC per bet, payout odds between 1.0001 and 1000.
+- Two fees, both 1%: a taker fee on the bet, and a profit fee on the winner's profit at settlement. A 25 USDC bet at 4.0 odds pays 98.2575 (98.26 rounded) if every leg wins.
+- Odds apply to the net stake after the taker fee, never to the gross bet.
+- Every expiring object carries its own timestamp. Honor it over any default on this page.
+
+## Parlay construction
+
+| Constraint | Value | Enforced at |
+| --- | --- | --- |
+| [Legs](/guides/glossary#the-noun-stack) per parlay | 2 to 5 | [Create quote request](/api-reference/quote-service/create) |
+| Bet amount | 1 to 100 USDC | Create quote request |
+| Payout odds | 1.0001 to 1000 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
+| Leg combinations | No two legs' markets may share an `exclusion_keys` entry | Create quote request |
+
+Correlated legs are rejected. To avoid the rejection, read each market's
+[`exclusion_keys`](/guides/glossary#protocol-fields) from
+[List markets](/api-reference/markets/list-flat) and check for overlap before you create the request.
+
+## Timing
+
+| Window | Default | Range | What it governs |
+| --- | --- | --- | --- |
+| Quote validity | 15 s | 5 to 60 s | How long a maker's quote stays live (`expires_in_ms`) |
+| Quote request expiry | 90 s | set by the server | How long your request accepts quotes. Each update restarts it. Not settable in the request |
+| Maker confirmation | 5 s | 5 to 8 s | How long the winning maker has to confirm after you commit. Your commit call waits for it |
+| Cashout auction | about 10 s | fixed | How long a cashout auction accepts bids |
+| Cashout cutoff | 30 s | configurable | Within this long of a position's or market's end, no cashout opens and no maker quote is accepted |
+| Cashout bid validity | 15000 ms | 5000 to 60000 ms | How long your cashout bid stays live |
+| WebSocket authentication | 10 s | fixed | How long you have to send the auth message after connecting |
+
+<Warning>
+Do not hardcode these defaults. They are configurable. Every object that expires carries its own
+`expires_at` or `valid_until` timestamp, and that timestamp is what counts.
+</Warning>
+
+If the maker misses the confirmation window, the commit returns `409` with reason
+`mm_confirmation_timeout` and the maker's id in `failed_mm_id`. Nothing moves and your quote request
+stays open, so you can commit the next best quote, or leave that maker out with `exclude_mm_ids`.
+
+## Rate limits
+
+Each route draws from one of three buckets.
+
+| Bucket | Covers | Keyed by | Limit |
+| --- | --- | --- | --- |
+| Authenticated | Every route that needs a key, apart from the two rows below | your account | 300 / minute. Requests without a valid key get 100 per IP |
+| Public | Market data and referral lookups | source IP | 100 / minute |
+| Quote service | Quote requests and cashouts, for bettors and makers | source IP | 300 / minute by default |
+
+The exact route prefixes:
+
+- **Public:** `/markets*`, `/v1/markets*`, `/referral*`.
+- **Quote service:** `/v1/quote-requests*`, `/v1/cashout-requests*`, `/v1/mm/quote-requests*`,
+  `/v1/mm/cashout-requests*`.
+- **Authenticated:** everything else under `/v1/*`, plus `/app/*`, `/rfqs*`, `/parlay-shares*`, and
+  the flat `/mm/quotes*` and `/mm/positions*` aliases. They all draw down the same 300, including the
+  maker reads at `/v1/mm/quotes` and `/v1/mm/positions`.
+
+These calls move money and carry their own per-account cap, counted on top of the shared 300:
+
+| Call | Limit |
+| --- | --- |
+| [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw) | 5 / minute |
+| [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit), [`POST /v1/vault/withdraw`](/api-reference/funds/vault-withdraw) | 10 / minute each |
+| [`POST /v1/wallet/submit-tx`](/api-reference/user/submit-tx) | 10 / minute |
+
+When you size a client:
+
+- Market reads and quote service calls do not draw down your authenticated budget.
+- Sending an API key to a public read does not raise its limit. Those routes never resolve the key.
+- Per-IP buckets count the source IP, not the key. A market maker fleet behind one NAT shares one
+  100 / minute market-read budget and one quote service budget across every process and key.
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. A
+`429` carries a `Retry-After` header, in seconds. Main API routes also put it in `error.retry_after`;
+quote service routes send only the header. See [Errors](/api-reference/errors).
+
+<Note>
+`X-RateLimit-Limit` reports the ceiling that applied, not the bucket. Two routes can both report
+`100` from different buckets. Watch `X-RateLimit-Remaining` to tell them apart.
+</Note>
+
+## Fees
+
+Totalis charges two fees, at different times and on different bases.
+
+| Fee | Rate | Base | When |
+| --- | --- | --- | --- |
+| Taker fee | 1% | Your gross `bet_amount` | Locked with your stake when the trade funds. Kept at settlement or cashout, returned if a leg is voided |
+| Profit fee | 1% | The winning side's profit | At settlement, or on a closing cashout |
+
+The taker fee comes off first. Odds apply to what remains, never to your gross bet.
+
+```
+# bet_amount_micro is bet_amount in microUSDC (millionths of a USDC: 1000000 = 1 USDC)
+taker_fee    = floor(bet_amount_micro * 100 / 10000)   # 1% = 100 bps, integer microUSDC
+user_stake   = bet_amount - taker_fee                  # both in microUSDC; called user_cost before commit
+total_payout = user_stake * payout_odds
+mm_risk      = total_payout - user_stake               # called mm_cost before commit
+```
+
+The field names are defined in the [Glossary](/guides/glossary#money-fields).
+
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/limits-and-fees-light.png" alt="A 25 USDC bet: 1% taker fee, 24.75 net stake, 4.0 odds, 99 payout, 98.26 received after the 1% profit fee" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/limits-and-fees-dark.png" alt="A 25 USDC bet: 1% taker fee, 24.75 net stake, 4.0 odds, 99 payout, 98.26 received after the 1% profit fee" />
+
+Example: you bet 25 USDC and a maker quotes 4.0 payout odds. Amounts are in USDC.
+
+| Step | Amount |
+| --- | --- |
+| Bet amount | 25.00 |
+| Taker fee (1%, upfront) | 0.25 |
+| Net stake (`user_stake`) | 24.75 |
+| Total payout at 4.0 odds | 99.00 |
+| Maker's locked risk (`mm_risk`) | 74.25 |
+| Your profit if every leg wins | 74.25 |
+| Profit fee (1% of profit) | 0.7425 |
+| You receive | 98.2575 |
+
+<Note>
+The fee rate is fixed on the position when it is created. Settlement uses that rate, even if the
+rate changes while the position is live.
+</Note>
+
+### Fees on an early exit
+
+An [early cashout](/guides/early-cashout) is a settlement, not a refund. The bid you accept is one
+all-in amount with the profit fee already included. No separate fee is deducted, and you pay no
+second taker fee for leaving.
+
+### Referral share
+
+You earn a USDC share of the trading fees generated by traders you refer. The rate, claim minimum
+and accrual rules are on [Referrals](/referrals).
+
+## Network
+
+| Item | Value |
+| --- | --- |
+| Chain | Solana mainnet |
+| Settlement asset | USDC (SPL) |
+| Mint | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| Vault program | `58LfwWEnq1aCG2R18voCBF7zzJNtVSWquQBvdaaDFhme` |
+| Network fees | Sponsored by Totalis. Your wallet never needs SOL. |
+
+<Warning>
+Send only native Solana USDC at the mint above. Bridged USDC, other tokens, and transfers on another
+chain are not credited and may be unrecoverable.
+</Warning>

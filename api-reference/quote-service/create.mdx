@@ -1,30 +1,28 @@
 ---
-title: "Create Quote Request"
-api: "POST /v1/quote-requests"
-description: "Create a new quote request for a multi-leg parlay."
+title: 'Create quote request'
+api: 'POST /v1/quote-requests'
+description: 'Create a new quote request for a multi-leg parlay.'
 ---
 
-Create a new live quote request. It's immediately broadcast to all connected market makers, who begin submitting competitive prices in real time.
-
-A quote request requires 2-5 legs and a USDC bet amount. Each leg specifies a market ticker, a side (`yes` or `no`), and optionally a venue.
+Create a live [quote request](/guides/glossary#the-noun-stack) for a parlay of 2-5 legs. Every connected market maker receives it immediately and starts quoting.
 
 ## Authentication
 
-API key required. Pass your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
+Send your API key in the `X-API-Key` header. The key needs the `trading:write` scope.
 
 ```
 X-API-Key: <your-api-key>
 ```
 
-A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentication](/guides/authentication).
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/guides/authentication).
 
 ## Request body
 
 <ParamField body="legs" type="array" required>
-  Array of 2-5 parlay legs.
+  2-5 parlay legs. See [Limits and fees](/guides/limits-and-fees#parlay-construction).
   <Expandable title="Leg object">
     <ParamField body="market_ticker" type="string" required>
-      The market ticker on the venue (e.g., `KXBTC-26JUN01-T72500`).
+      The market ticker on the venue, such as `KXBTC-26JUN01-T72500`.
     </ParamField>
     <ParamField body="side" type="string" required>
       `"yes"` or `"no"`.
@@ -36,7 +34,12 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
 </ParamField>
 
 <ParamField body="bet_amount" type="number" required>
-  USDC bet amount. Must be between 1 and 100.
+  Bet amount in USDC, from 1 to 100.
+</ParamField>
+
+<ParamField body="exclude_mm_ids" type="string[]">
+  Up to 50 market maker ids whose quotes you do not want, such as the `failed_mm_id` from a commit
+  that timed out.
 </ParamField>
 
 ## Response
@@ -52,10 +55,9 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted — see [Authentica
         <ResponseField name="request_hash" type="string">Hash of the current request parameters.</ResponseField>
         <ResponseField name="book_seq" type="integer">Quote book sequence number, starts at `0`.</ResponseField>
         <ResponseField name="status" type="string">`"active"`</ResponseField>
-        <ResponseField name="bet_amount" type="number">The bet amount in USDC.</ResponseField>
-        <ResponseField name="implied_probability" type="number">Display-only value, commonly `0`. Not computed by the server; a client may set it later in the flow, and it is relayed as-is. Do not price from it.</ResponseField>
+        <ResponseField name="bet_amount" type="number">Bet amount in USDC.</ResponseField>
         <ResponseField name="expires_at" type="string">ISO 8601 expiration timestamp.</ResponseField>
-        <ResponseField name="legs" type="array">Validated legs with enriched metadata.</ResponseField>
+        <ResponseField name="legs" type="array">The validated legs, with added metadata.</ResponseField>
         <ResponseField name="input_legs" type="array">The legs exactly as you submitted them.</ResponseField>
       </Expandable>
     </ResponseField>
@@ -97,7 +99,6 @@ curl -X POST https://api.totalis.trade/v1/quote-requests \
       "book_seq": 0,
       "status": "active",
       "bet_amount": 25,
-      "implied_probability": 0,
       "expires_at": "2026-06-01T18:45:30.000Z",
       "legs": [
         {

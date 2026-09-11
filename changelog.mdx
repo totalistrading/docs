@@ -1,0 +1,107 @@
+---
+title: 'Changelog'
+icon: 'clock-rotate-left'
+description: 'Changes to the public Totalis API surface: endpoints added, endpoints retired, renames, and behavior changes that affect a running integration.'
+---
+
+Changes to the public API surface, newest first.
+
+<Note>
+This log starts on 18 July 2026. Earlier changes are not tracked here. Every retired path listed
+below still resolves through a redirect, so old bookmarks keep working, but the old paths are not
+supported surface.
+</Note>
+
+<Update label="11 September 2026" description="Position ids for makers, the fee rate echoed on quotes, stricter auth errors, and implied_probability removed." tags={["Added", "Changed", "Removed"]}>
+  **Removed: `implied_probability` on quote requests.** Quote requests and the market maker stream
+  no longer carry the field. It was always `0` and never used for pricing. Drop it from any parser
+  that requires it.
+
+  **Added: `position_id` on the market maker position reads.**
+  [`GET /v1/mm/positions`](/api-reference/mm/list-positions) and
+  [`GET /v1/mm/positions/{id}`](/api-reference/mm/get-position) now return the on-chain
+  `position_id`, hex encoded and lowercase. It matches the `position_id` on a broadcast
+  [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request), so a maker can tell
+  whether an auction is on a position they back without keeping a side index.
+
+  **Added: `taker_fee_bps` on the submit quote response.**
+  [`PUT /v1/mm/quote-requests/{id}/quote`](/api-reference/quote-service-mm/submit-quote) echoes the
+  fee rate the quote was priced at.
+
+  **Changed: submitting a quote now fails closed on the fee rate.** If the taker fee rate cannot be
+  read, the request returns `503` with `details.reason: "fee_unavailable"` instead of pricing at
+  0 bps. Previously a config read failure silently priced the quote against the gross bet instead of
+  the net stake, so the maker underwrote a larger base than intended. Retry on this reason.
+
+  **Changed: a malformed API key now returns `403` everywhere.** The SSE surface previously returned
+  `401` for a credential that does not start with `api_`, while REST returned `403`. Both now
+  return `403` with `details.reason: "wrong_api_key_type"`.
+
+  **Changed: every WebSocket `auth:error` now carries a `code`.** The auth timeout path previously
+  sent only a `message`. Branch on `code`, never on `message`. See
+  [WebSocket](/guides/websocket#authentication) for the four values.
+
+  **Clarified: rate limits are three buckets, not one.** Public market reads are keyed per IP and do
+  not draw down the authenticated per-account budget, and sending an API key to a public read does
+  not raise its limit. The quote service routes have their own per-IP limit. See
+  [Limits and fees](/guides/limits-and-fees#rate-limits).
+</Update>
+
+<Update label="27 August 2026" description="The World Cup reward pool ended." tags={["Removed"]}>
+  **Removed: World Cup reward pool.** The FIFA World Cup 10k reward pool challenge ended and its
+  page was removed. `/guides/world-cup-reward-pool` now redirects to [Referrals](/referrals).
+</Update>
+
+<Update label="31 July 2026" description="Early cashout replaces early exit, with one auction model." tags={["Renamed", "Changed"]}>
+  **Renamed: early exit auctions are now early cashout.** The guide moved from
+  `/guides/early-exit-auctions` to [`/guides/early-cashout`](/guides/early-cashout).
+
+  **Changed: one auction model replaces two flows.** The separate buyback and takeover flows are
+  gone. A single broadcast auction now covers both outcomes. A winning bid from the maker who backs
+  the position closes it. A winning bid from anyone else acquires it. Bids are one all-in
+  `price_micro` figure, with no direction field and no separate fee term.
+
+  If you still branch on the old buyback and takeover distinction, replace it with a comparison of
+  the winning `market_maker_id` against `counterparty_mm_id`. See
+  [Cashout auctions](/guides/cashout-auctions).
+</Update>
+
+<Update label="22 July 2026" description="The blockhash endpoint is gone." tags={["Retired"]}>
+  **Retired: `GET /v1/wallet/blockhash`.** The endpoint was removed. Transactions are built and
+  sponsored server side, so clients no longer fetch a blockhash.
+</Update>
+
+<Update label="21 July 2026" description="Maker heartbeat is gone. Liveness comes from the stream." tags={["Retired"]}>
+  **Retired: `POST /v1/mm/heartbeat`.** Market maker liveness now comes from the SSE stream
+  connection. Remove any heartbeat loop. Holding the
+  [MM stream](/api-reference/quote-service-mm/stream) open is enough.
+</Update>
+
+<Update label="20 July 2026" description="Maker position reads and the referral program." tags={["Added"]}>
+  **Added: market maker position reads.** [`GET /v1/mm/positions`](/api-reference/mm/list-positions)
+  and [`GET /v1/mm/positions/{id}`](/api-reference/mm/get-position) return your active positions
+  with their full parlay legs.
+
+  **Added: [referral program](/referrals).** Earn 20% of the trading fees generated by traders you
+  refer, claimable at 25 USDC.
+</Update>
+
+<Update label="18 July 2026" description="Quote listing for makers, and the quote service paths moved." tags={["Added", "Renamed"]}>
+  **Added: [`GET /v1/mm/quotes`](/api-reference/mm/list-quotes).** Reconcile your quotes and their
+  lifecycle status after a disconnect.
+
+  **Renamed: quote service paths.** The quote service and market maker endpoints moved out of the
+  flat `/rfqs` and `/mm` documentation roots:
+
+  | Old path | New path |
+  | --- | --- |
+  | `/api-reference/rfqs/create` | [`/api-reference/quote-service/create`](/api-reference/quote-service/create) |
+  | `/api-reference/rfqs/get` | [`/api-reference/quote-service/get`](/api-reference/quote-service/get) |
+  | `/api-reference/rfqs/accept-quote` | [`/api-reference/quote-service/commit`](/api-reference/quote-service/commit) |
+  | `/api-reference/rfqs/cancel` | [`/api-reference/quote-service/cancel`](/api-reference/quote-service/cancel) |
+  | `/api-reference/mm/submit-quote` | [`/api-reference/quote-service-mm/submit-quote`](/api-reference/quote-service-mm/submit-quote) |
+  | `/api-reference/mm/withdraw-quote` | [`/api-reference/quote-service-mm/withdraw-quote`](/api-reference/quote-service-mm/withdraw-quote) |
+  | `/api-reference/mm/list-rfqs` | [`/api-reference/quote-service-mm/stream`](/api-reference/quote-service-mm/stream) |
+
+  The `/v1/...` request paths did not change. Only the documentation routes moved.
+</Update>

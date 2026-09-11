@@ -1,0 +1,12 @@
+{
+  "name": "totalis-docs-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Renders the concept pictures in images/pictures/src to PNG pairs.",
+  "scripts": {
+    "pictures": "node render-pictures.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}
