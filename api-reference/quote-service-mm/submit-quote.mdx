@@ -90,7 +90,9 @@ When a submit is rejected with `409 Conflict`, the `error.details.reason` field 
 |--------|------|-------------|
 | 400 | `VALIDATION_ERROR` | Invalid body. See `details.issues`. |
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | The credential does not start with `api_` (`details.reason: "wrong_api_key_type"`), or the key lacks `mm:quote`. |
 | 409 | `CONFLICT` | Quote rejected. See `details.reason` above. |
+| 503 | `SERVICE_UNAVAILABLE` | The taker fee rate could not be read (`details.reason: "fee_unavailable"`). The quote was not priced. Retry. |
 
 <RequestExample>
 ```bash

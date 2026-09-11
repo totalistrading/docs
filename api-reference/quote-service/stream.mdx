@@ -112,7 +112,7 @@ The quote request reached its `expires_at` without being committed.
 | Status | Code | Description |
 |--------|------|-------------|
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
-| 403 | `FORBIDDEN` | You do not own this quote request. |
+| 403 | `FORBIDDEN` | You do not own this quote request, or the credential does not start with `api_` (`details.reason: "wrong_api_key_type"`). |
 | 404 | `NOT_FOUND` | Quote request not found. |
 
 <RequestExample>

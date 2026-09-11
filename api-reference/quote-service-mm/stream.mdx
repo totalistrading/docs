@@ -255,6 +255,7 @@ The taker-fee rate is read once per connection (server-side), so `user_stake` on
 | Status | Code | Description |
 |--------|------|-------------|
 | 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | The credential does not start with `api_` (`details.reason: "wrong_api_key_type"`), or the key lacks `mm:quote`. |
 
 <RequestExample>
 ```bash curl
