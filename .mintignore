@@ -1,0 +1,11 @@
+# Files Mintlify must not build or serve. Gitignore syntax.
+# Leaving a page out of docs.json only hides it from the sidebar; it stays live at its URL.
+# Entries here are excluded from the build and cannot be reached by URL.
+# https://www.mintlify.com/docs/organize/mintignore
+
+# Admin key authentication and admin routes. Internal operations only, never partner facing.
+_internal/admin-reference.mdx
+
+# Contributor files that are not product documentation.
+STYLE.md
+README.md
