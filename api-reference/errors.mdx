@@ -35,7 +35,7 @@ Every error, on every endpoint, has the same shape:
 | `410` | The object expired and is gone, such as a cashout auction past its window. | Start a new one. |
 | `413` | Payload too large. | Reduce the request body. |
 | `429` | Rate limited. | Wait the seconds in the `Retry-After` header. Main API routes also put them in `error.retry_after`. |
-| `500` | Something failed on our side. | Retry with backoff. |
+| `500` | Something failed on our side. | Retry with backoff, unless the endpoint documents an indeterminate outcome. Then check state before you retry. |
 | `502` | Partial success, such as `PARTIAL_VAULT_ONLY` on a withdrawal. | Read `error.details` before retrying. See [Funding](/guides/funding#when-it-fails). |
 | `503` | Temporarily unavailable. | Retry with backoff. |
 
@@ -83,6 +83,7 @@ trade did not happen.
 | `MARKET_NOT_LIVE` | A leg's market expired, halted, or was delisted. | Remove the affected leg. Retrying will not help. |
 | `COMMIT_FAILED` | The commit could not complete, for example because no eligible maker had enough collateral. | Not retryable. |
 | `COMMIT_FAILED_RETRYABLE` | A temporary failure. | Retry after a short delay. |
+| `mm_confirmation_timeout` | The chosen maker did not confirm in time. Returned as `409`, with the maker in `failed_mm_id`. | The request stays open. Commit the next best quote, or leave that maker out with `exclude_mm_ids`. |
 
 ## Submitting a quote
 
@@ -130,6 +131,7 @@ HTTP response. You learn of them by not being filled.
 | `insufficient_buyer_balance` | You would acquire the position but your free balance does not cover it. |
 | `buyer_no_vault` | You would acquire the position but have no vault. |
 | `already_transferred` | The position had already moved. |
+| `buyer_is_counterparty` | A safety check: your wallet already backs the position, so the win has to close it rather than acquire it. |
 
 ## Triage
 
@@ -137,8 +139,8 @@ HTTP response. You learn of them by not being filled.
 | --- | --- |
 | `400`, `401`, `403` | **Alert.** These are your bug. If every request fails this way, you are silently out of the market. |
 | `404` and race-class `409` (`not_active`, `expired`) | **Log quietly.** On short-lived objects these are ordinary lost races, not failures. |
-| `429` | **Back off** for `error.retry_after` seconds. |
-| `500`, `503` | **Retry** with exponential backoff. |
+| `429` | **Back off** for the seconds in `Retry-After`. |
+| `500`, `503` | **Retry** with exponential backoff, unless the outcome is documented as indeterminate. Then check state first. |
 
 <Warning>
 Separate `400` / `401` / `403` from `404` / `409` in your alerting from day one. Logged together, a

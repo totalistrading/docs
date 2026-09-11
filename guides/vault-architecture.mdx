@@ -40,8 +40,14 @@ a secure enclave the key never leaves. Privy cannot extract it either.
 To trade, you grant Totalis permission to sign on your behalf inside that enclave. This is a one
 time consent in the app, described under [Enable trading](/guides/funding#enable-trading).
 
-You can revoke the permission at any time. Totalis can sign your trades. It never holds your key
-and cannot move it.
+While trading is enabled, Totalis can sign transactions for your wallet, including sending unlocked
+USDC. The API does that only for a withdrawal that you, or a key with `funds:withdraw`, request.
+You stay in control:
+
+| To | In the app |
+| --- | --- |
+| Stop Totalis signing for you | **Settings**, **Trading**, **Revoke**. Trading and API withdrawals stop until you enable trading again. |
+| Hold your own key | **Settings**, **Wallet**, export the private key, then use Phantom, Backpack or any Solana wallet. Move vault free balance to your wallet first. |
 
 ## Gas is sponsored
 
@@ -70,8 +76,10 @@ that applied at trade time. Both fees and the full math are on
 | Totalis can | Totalis cannot |
 | --- | --- |
 | Sign trading transactions inside the enclave, while your delegation is active | Extract or hold your private key |
-| Create and settle positions against verified market outcomes | Move locked collateral to an arbitrary address |
+| Settle each leg to its venue's official result | Move locked collateral to an arbitrary address |
+| Send your unlocked USDC while trading is enabled, which the API does only on a withdrawal you request | Keep you from revoking trading or exporting your key |
 | Collect the protocol fee defined on the position | Change the fee rate on a position that is already live |
-| Cancel a position when a leg is voided | Prevent you from revoking delegation |
+| Cancel a position when a leg is voided | Change what a live position pays |
 
-Every vault, position, and settlement is on the Solana blockchain and independently verifiable.
+Every vault, position, and settlement is on the Solana blockchain and independently verifiable. The
+vault program is `58LfwWEnq1aCG2R18voCBF7zzJNtVSWquQBvdaaDFhme`.

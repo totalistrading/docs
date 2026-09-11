@@ -32,7 +32,8 @@ handles the two very differently.
 <Warning>
 Do not wait on `bought_back` to detect a win. If you bid on positions you do not already back, a
 win transfers the position to you and emits no event to you. Reconcile acquisitions from
-[your position reads](/api-reference/mm/list-positions).
+[`GET /v1/rfqs`](/api-reference/parlays/list): an acquired position moves to your account as the
+bettor side.
 </Warning>
 
 ## How it works
@@ -101,7 +102,7 @@ There is no per-auction result event on the MM stream.
 | Outcome | What you get |
 | --- | --- |
 | You won as the counterparty | `position:bought_back` on `mm:quotes:{mm_id}`. A copy also reaches any connection authenticated as you, with no subscription needed, so dedupe on `tx_signature`. The `position.bought_back` webhook also fires; it needs `positions:read`. `amount` is decimal USDC, and `mm_pays_user` tells you which direction applied. |
-| You won and acquired the position | Nothing today. Reconcile from your position reads. |
+| You won and acquired the position | Nothing today. The position appears in your `GET /v1/rfqs` and pays you `total_payout` if every leg wins. |
 | You lost, or the auction expired | Nothing. Your bid lapses. |
 
 A bought-back parlay reports a realized cashout P&L, not a win or loss. The exit is a real
@@ -142,7 +143,7 @@ response, is on [Errors](/api-reference/errors#bidding-on-a-cashout-auction).
     Alert on `400`, `401`, and `403`. Log `404` and race class `409` quietly.
   </Step>
   <Step title="Reconcile wins">
-    Take closing wins from `position:bought_back`. Take acquisitions from your position reads,
+    Take closing wins from `position:bought_back`. Take acquisitions from `GET /v1/rfqs`,
     because nothing will tell you.
   </Step>
 </Steps>

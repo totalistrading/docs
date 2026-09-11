@@ -5,7 +5,7 @@ description: 'The path a parlay takes from quote request, through market maker p
 ---
 
 A parlay starts as a **quote request**: your legs, priced live by market makers. It becomes a real
-**position** once you commit to a quote and the maker confirms, a few seconds later. From there it settles automatically when the
+**position** once you commit to a quote, the maker confirms, and it funds on chain, all within seconds. From there it settles automatically when the
 underlying markets resolve, or you close it early.
 
 ## At a glance
@@ -86,8 +86,11 @@ underlying markets resolve, or you close it early.
 
     The call waits the few seconds it takes the maker to confirm. It then returns the parlay's real
     `rfq_id`, the accepted quote, and the payout odds, with the parlay already `confirmed`.
+    The response's own `status`, `committed`, is the quote request's.
 
-    If the commit fails, no funds moved and no trade happened. The rejection reasons are on
+    If the commit fails, no funds moved and no trade happened. When the maker misses the
+    confirmation window you get `409` with reason `mm_confirmation_timeout`, and your quote request
+    stays open, so you can commit the next best quote. The rejection reasons are on
     [Errors](/api-reference/errors).
   </Step>
 
@@ -97,20 +100,17 @@ underlying markets resolve, or you close it early.
     ever need USDC.
 
     Status moves to `confirmed`, then `executed` once the position is live on chain.
-
-    If the maker does not confirm in time, the parlay expires with reason
-    `mm_confirmation_timeout`. The hold on your bet is released and nothing moves. Request quotes
-    again to retry.
   </Step>
 
   <Step title="It settles automatically">
-    When every leg's market has resolved, the position settles:
+    The position settles as soon as the result is decided: when any leg loses, or when every leg has
+    resolved.
 
-    - **Every leg wins.** You receive the full payout, your stake plus the maker's collateral, minus
-      the profit fee.
+    - **Every leg wins.** You receive the full payout, `total_payout`, minus the profit fee.
     - **Any leg loses.** Your stake transfers to the maker, minus the fee on their profit.
     - **A leg is voided.** The whole position is cancelled and both sides' collateral is released.
-      You get your full bet back, taker fee included, and nobody wins or loses.
+      You get your full bet back, taker fee included, and nobody wins or loses. If a leg
+      loses before any void is known, the position has already settled as a loss.
 
     Status becomes `settled`. Read the outcome and transaction signatures from
     [`GET /v1/rfqs/{id}`](/api-reference/parlays/get).

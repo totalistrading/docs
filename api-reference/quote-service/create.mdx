@@ -37,6 +37,11 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authenticatio
   Bet amount in USDC, from 1 to 100.
 </ParamField>
 
+<ParamField body="exclude_mm_ids" type="string[]">
+  Up to 50 market maker ids whose quotes you do not want, such as the `failed_mm_id` from a commit
+  that timed out.
+</ParamField>
+
 ## Response
 
 <ResponseField name="data" type="object">

@@ -10,7 +10,7 @@ their aliases are in the [Glossary](/guides/glossary), along with the
 
 <Note>
 `quote:*` WebSocket events (`quote:accepted`, `quote:confirmed`, `quote:executed`, `quote:expired`,
-`quote:rejected`, `quote:withdrawn`) go only to the awarded market maker, on their private
+`quote:rejected`, `quote:withdrawn`) go only to the market maker whose quote they concern, on their private
 `mm:quotes:{mm_id}` channel. `rfq:*` and `position:*` events go to `rfq:{rfq_id}`, the channel a
 user or anyone tracking a specific trade subscribes to. `vault:deposited` and `vault:withdrawn` go to
 the account's own connections and are not in the table.
@@ -65,7 +65,8 @@ position transfers to them and stays open. There is no WebSocket event and no bu
 that. `position.transferred` goes to the seller.
 
 If you bid on auctions for positions you do not already back, reconcile acquisitions from
-[your position reads](/api-reference/mm/list-positions) rather than waiting for a push.
+[`GET /v1/rfqs`](/api-reference/parlays/list), where an acquired position appears on your account,
+rather than waiting for a push.
 </Warning>
 
 Polling the RFQ status does not help either. A transfer leaves it `executed`, so polling for
