@@ -4,7 +4,8 @@ icon: 'scale-balanced'
 description: 'Every constraint and every fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
 ---
 
-Every number the API enforces lives on this page. Other pages link here rather than restating them.
+The limits, windows, rate limits and fees that shape an integration are on this page. Endpoint pages
+repeat the caps that apply to them.
 
 ## At a glance
 
@@ -31,10 +32,12 @@ request, rather than discovering the rejection at create time.
 | Window | Default | Range | What it governs |
 | --- | --- | --- | --- |
 | Quote validity | 15 s | 5 to 60 s | How long a maker's submitted quote stays live (`expires_in_ms`) |
-| Quote request expiry | 300 s | 30 s to 24 h | How long your request accepts quotes before it expires uncommitted |
+| Quote request expiry | 90 s | set by the server | How long your request accepts quotes. Each update restarts it. There is no request field for it |
 | Maker confirmation | 5 s | configurable, floor 5 s | How long the winning maker has to confirm after you commit |
 | Cashout auction | about 10 s | fixed | How long an early exit auction accepts bids |
+| Cashout cutoff | 30 s | configurable | No cashout opens, and no maker quote is accepted, within this long of a position's or market's end |
 | Cashout bid validity | 15000 ms | 5000 to 60000 ms | How long your cashout bid stays live |
+| WebSocket authentication | 10 s | fixed | How long you have to send the auth message after connecting |
 
 <Warning>
 Do not hardcode these defaults. Every object that expires carries its own `expires_at` or
@@ -43,8 +46,9 @@ defaults are configurable, so the table tells you the shape of the window, not a
 specific request.
 </Warning>
 
-If the maker misses the confirmation window, the parlay reopens for other makers, or expires if its
-own window has passed. Your funds are never touched in that path.
+If the maker misses the confirmation window, the parlay expires with reason
+`mm_confirmation_timeout` and the hold on your bet is released. Your funds never move in that path.
+Request quotes again to retry.
 
 ## Rate limits
 
@@ -53,7 +57,7 @@ after authentication, and on which service answers.
 
 | Bucket | Routes | Keyed by | Limit |
 | --- | --- | --- | --- |
-| Authenticated | `/v1/*` except `/v1/markets*`, `/app/*`, `/rfqs*`, `/parlay-shares*`, and the flat `/mm/quotes*` and `/mm/positions*` aliases | your account | 300 / minute, 100 without a key |
+| Authenticated | `/v1/*` apart from the market and quote service routes below, plus `/app/*`, `/rfqs*`, `/parlay-shares*`, and the flat `/mm/quotes*` and `/mm/positions*` aliases | your account | 300 / minute, 100 without a key |
 | Public | `/markets*`, `/v1/markets*`, `/referral*` | source IP | 100 / minute |
 | Quote service | `/v1/quote-requests*`, `/v1/cashout-requests*`, `/v1/mm/quote-requests*`, `/v1/mm/cashout-requests*` | source IP | 300 / minute by default |
 
@@ -61,6 +65,15 @@ The first bucket is shared: every authenticated route on the main API draws down
 including the maker reads at `/v1/mm/quotes` and `/v1/mm/positions` and their flat `/mm/...`
 aliases. The quote service routes are proxied to a separate service with its own per-IP limiter and
 do not draw down the 300.
+
+A few calls that move money carry their own cap as well, keyed to your account and counted on top
+of the shared 300:
+
+| Call | Limit |
+| --- | --- |
+| [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw) | 5 / minute |
+| [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit), [`POST /v1/vault/withdraw`](/api-reference/funds/vault-withdraw) | 10 / minute each |
+| [`POST /v1/wallet/submit-tx`](/api-reference/user/submit-tx) | 10 / minute |
 
 What this means when you size a client:
 

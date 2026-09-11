@@ -39,9 +39,11 @@ There is no separate market maker role. Any authenticated user with an API key t
     </Warning>
   </Step>
   <Step title="Confirm trades">
-    When a user commits your quote, Totalis creates an accepted RFQ and sends `quote:accepted` on
-    `mm:quotes:{mm_id}`. The same subscription also receives `mm_quote:accepted`, which carries
-    details visible only to you: `user_id`, final quote economics, and exposure legs.
+    When a user commits your quote, Totalis creates an accepted RFQ and sends `quote:accepted` on the
+    `mm:quotes:{mm_id}` channel of the [WebSocket](/guides/websocket), so keep a socket open beside
+    the SSE stream. The SSE stream tells you a request ended, but not the `quote_id` or deadline you
+    need to confirm. The same channel also receives `mm_quote:accepted`, which carries details
+    visible only to you: `user_id`, final quote economics, and exposure legs.
 
     Confirm with [`POST /v1/mm/quotes/{quoteId}/confirm`](/api-reference/mm/confirm-quote) before
     `confirmation_deadline`. Honor the timestamp on the event rather than assuming the default
@@ -57,7 +59,7 @@ There is no separate market maker role. Any authenticated user with an API key t
 
 | Step | Endpoint |
 | --- | --- |
-| Hold collateral in your vault ahead of quoting | [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) |
+| Keep collateral in your wallet, or park it in your vault once it exists | [`GET /v1/wallet`](/api-reference/user/get-wallet), [`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) |
 | Pull market context and current prices | [`GET /markets`](/api-reference/markets/list) |
 | Check invalid leg combinations | `exclusion_keys` on [`GET /v1/markets/list`](/api-reference/markets/list-flat) |
 | Stream live quote requests | [`GET /v1/mm/quote-requests/stream`](/api-reference/quote-service-mm/stream) |
@@ -71,8 +73,13 @@ There is no separate market maker role. Any authenticated user with an API key t
 Two markets can share a parlay only if their `exclusion_keys` arrays do not intersect.
 
 Check available USDC and locked funds with [`GET /v1/wallet`](/api-reference/user/get-wallet) before
-quoting at size. Your quotes are backed by the vault's free balance, so top it up with
-[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) rather than leaving USDC in the wallet.
+quoting at size. Your quotes are backed by your spendable balance: wallet USDC plus your vault's free
+balance. The submit check (`insufficient_collateral`) and the confirm check both read that same sum,
+so USDC in either place counts.
+
+Your vault is created with your first filled position. Until then, keep collateral in the wallet:
+[`POST /v1/vault/deposit`](/api-reference/funds/vault-deposit) returns `404` before the vault exists,
+and is optional after.
 
 ## Quoting rules
 
@@ -85,6 +92,12 @@ quoting at size. Your quotes are backed by the vault's free balance, so top it u
   Re-price and `PUT` again with the new version and hash. There is nothing to withdraw first.
 - To stand down on the current version before the user commits, `DELETE` the quote. That is the only
   reason to withdraw.
+- Submit and confirm take no `Idempotency-Key`. After a timeout, read
+  [`GET /v1/mm/quotes?status=accepted`](/api-reference/mm/list-quotes) before you confirm again.
+
+Your result on each filled position: if any leg loses you receive the user's `user_stake`, minus the
+1% profit fee on it. If every leg wins you pay `mm_risk`. If a leg is voided your collateral comes
+back and nothing else moves.
 
 ## Your identity across channels
 
@@ -132,9 +145,6 @@ case is one parlay hitting, not both.
 Totalis margins market makers at the portfolio level instead. It computes the true worst case loss
 across all possible outcome states for the whole book, and requires collateral only for that
 scenario.
-
-Modeled across 3 to 5 leg parlays spanning 1000 markets, this cuts required collateral by 30% to 40%
-compared with posting each trade in isolation.
 
 ## Get set up
 

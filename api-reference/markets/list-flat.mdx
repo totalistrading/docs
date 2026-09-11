@@ -1,6 +1,6 @@
 ---
 title: 'List markets (flat)'
-description: 'A flat, paginated feed of every individual market, ungrouped and never truncated. Built for market makers and partners syncing the full tradeable universe.'
+description: 'A flat, paginated feed of individual markets, ungrouped. Built for market makers and partners syncing the tradeable universe.'
 openapi: 'GET /v1/markets/list'
 ---
 
@@ -11,6 +11,8 @@ openapi: 'GET /v1/markets/list'
 </Note>
 
 All prices (`yes_bid`, `yes_ask`, `no_bid`, `no_ask`, `last_price`) are probabilities as decimals in `[0, 1]`, regardless of venue. Kalshi's cent prices are normalized.
+
+By default the feed returns tradeable markets only (`status` of `active` or `open`); pass `status=all` for every status. Paging stops once `offset + limit` passes 10,000, so a full sync splits the universe with filters such as `venue` or `category` rather than paging one long list.
 
 <Tip>
   For every market in a single game, `GET /markets/events/{event_ticker}`

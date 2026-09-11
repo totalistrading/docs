@@ -32,7 +32,7 @@ Send an auth message with your API key immediately after connecting:
 
 Success:
 ```json
-{ "type": "auth:success", "user_id": "did:privy:abc123", "user_type": "user" }
+{ "type": "auth:success", "user_id": "did:privy:abc123", "user_type": "unified" }
 ```
 
 Error:
@@ -46,7 +46,7 @@ Every `auth:error` carries a `code`. Branch on it rather than on `message`, whic
 | --- | --- | --- |
 | `INVALID_CREDENTIALS` | The key is missing, malformed, invalid, or you are already authenticated. | no, fix the credential |
 | `TOKEN_INVALID` | A Privy JWT failed verification. | no |
-| `AUTH_TIMEOUT` | You connected but sent no auth message inside the window. | yes, reconnect and authenticate |
+| `AUTH_TIMEOUT` | You connected but sent no auth message within 10 seconds. The socket closes with code `4001`. | yes, reconnect and authenticate |
 | `SERVICE_UNAVAILABLE` | Authentication could not be completed on our side. | yes, with backoff |
 
 ## Subscribing to channels

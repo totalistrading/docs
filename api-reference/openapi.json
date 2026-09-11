@@ -93,7 +93,7 @@
           {
             "name": "date_filter",
             "in": "query",
-            "description": "Time bucket filter. If omitted, a default 7-day horizon is applied. Pass `all` to retrieve all active markets regardless of close date.",
+            "description": "Time bucket filter. If omitted, no date filter applies, the same as passing `all`.",
             "schema": {
               "type": "string",
               "enum": [
@@ -617,6 +617,9 @@
         "security": [
           {
             "PrivyJWT": []
+          },
+          {
+            "ApiKey": []
           }
         ],
         "requestBody": {
@@ -629,6 +632,27 @@
                   "name": {
                     "type": "string",
                     "description": "Optional display name for the key."
+                  },
+                  "preset": {
+                    "type": "string",
+                    "enum": [
+                      "read_only",
+                      "trading",
+                      "full",
+                      "headless"
+                    ],
+                    "description": "A scope bundle. With neither `preset` nor `scopes`, the key gets `trading`."
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An explicit scope list. Overrides `preset`. A key can never hold a scope its creator lacks."
+                  },
+                  "confirm_withdraw": {
+                    "type": "boolean",
+                    "description": "Required as `true` when the resulting key would hold `funds:withdraw`."
                   }
                 }
               }
@@ -867,7 +891,7 @@
           "Vault"
         ],
         "summary": "Get user vault state and active positions",
-        "description": "Returns the user's vault balance and active positions. Returns data: null\n(200 OK) if the user has no vault yet (vault is created on first trade).\n",
+        "description": "Returns the user's vault balance and active positions. Returns data: null\n(200 OK) if the user has no vault yet (the vault is created with your first filled position).\n",
         "security": [
           {
             "PrivyJWT": []
@@ -1700,7 +1724,7 @@
           "Vault"
         ],
         "summary": "Deposit USDC into vault",
-        "description": "Moves USDC from your wallet into your on-chain vault. The vault is created on your first trade, so this call returns 404 until then. Trading funds the vault by itself; use this to hold collateral ahead of time. Market makers deposit through it as well.",
+        "description": "Moves USDC from your wallet into your on-chain vault. The vault is created with your first filled position, as bettor or maker, so this call returns 404 until then. Optional: trading moves the stake into the vault by itself, and maker quotes are backed by wallet USDC plus vault free balance.",
         "security": [
           {
             "PrivyJWT": []
@@ -1754,7 +1778,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "404": {
-            "description": "No vault found (vault is created on first trade)",
+            "description": "No vault found (the vault is created with your first filled position)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1825,7 +1849,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "404": {
-            "description": "No vault found (vault is created on first trade)",
+            "description": "No vault found (the vault is created with your first filled position)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2464,7 +2488,7 @@
           },
           "implied_probability": {
             "type": "number",
-            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only; do not price from it."
+            "description": "Legacy. Usually absent, and 0 when present. Never priced from."
           },
           "legs": {
             "type": "array",
@@ -2670,7 +2694,6 @@
           "status",
           "bet_amount",
           "user_stake",
-          "implied_probability",
           "expires_at",
           "created_at",
           "legs"
@@ -2698,10 +2721,6 @@
           "user_stake": {
             "type": "number",
             "description": "Net stake the MM underwrites = bet_amount - taker_fee, where taker_fee = floor(bet_amount_micro * taker_fee_bps / 10000) is computed in integer microUSDC (1 USDC = 1e6 micro). Price and size against this, not bet_amount, when the taker fee is on."
-          },
-          "implied_probability": {
-            "type": "number",
-            "description": "Client-supplied decimal probability (0-1), relayed as-is; commonly 0. Informational only; do not price from it."
           },
           "expires_at": {
             "type": "string",
@@ -2863,56 +2882,6 @@
           }
         }
       },
-      "SubmitQuoteRequest": {
-        "type": "object",
-        "required": [
-          "rfq_id",
-          "payout_odds"
-        ],
-        "properties": {
-          "rfq_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "RFQ to quote."
-          },
-          "payout_odds": {
-            "type": "number",
-            "minimum": 1.0001,
-            "maximum": 1000,
-            "description": "Multiplier, from 1.0001x to 1000x. Must be a finite number."
-          },
-          "valid_for_seconds": {
-            "type": "integer",
-            "minimum": 10,
-            "maximum": 600,
-            "default": 60,
-            "description": "Quote validity window, from 10s to 10min. Defaults to 60s."
-          },
-          "leg_prices": {
-            "type": "array",
-            "description": "Optional per-leg price snapshot. Each entry is `{ leg_id, odds }` where `odds` is a decimal (0-1). Note: the response shape (`Quote.leg_prices[]`) uses `leg_odds` for the same value. The request field is named `odds`, the response field is named `leg_odds`.",
-            "items": {
-              "type": "object",
-              "required": [
-                "leg_id",
-                "odds"
-              ],
-              "properties": {
-                "leg_id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "odds": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1,
-                  "description": "Implied per-leg price, decimal (0-1)."
-                }
-              }
-            }
-          }
-        }
-      },
       "AcceptQuoteResponse": {
         "type": "object",
         "required": [
@@ -2933,7 +2902,7 @@
               "confirmation_deadline": {
                 "type": "string",
                 "format": "date-time",
-                "description": "Deadline by which the market maker must call `POST /v1/mm/quotes/{quoteId}/confirm`. If the MM misses this deadline, the RFQ transitions based on its own `expires_at`:\n\n- **RFQ still within `expires_at`**: RFQ reverts to `open` (with `accepted_quote_id` and `market_maker_id` cleared so other MMs can quote again) and the accepted quote becomes `withdrawn`.\n- **RFQ past `expires_at`**: RFQ becomes `expired` and the accepted quote becomes `expired`.\n\nThe accepted quote never transitions to `rejected` via the deadline path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote."
+                "description": "Deadline by which the market maker must call `POST /v1/mm/quotes/{quoteId}/confirm`. If the MM misses it, the RFQ and the accepted quote both become `expired`, with reason `mm_confirmation_timeout`. The accepted quote never becomes `rejected` on this path. `rejected` is reserved for sibling pending quotes auto-rejected when the user accepts a different quote."
               }
             }
           }
