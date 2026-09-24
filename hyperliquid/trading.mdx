@@ -34,7 +34,7 @@ The examples use TypeScript with [viem](https://viem.sh) for signing and
 | --- | --- |
 | A personal API key with the taker bot scopes | [Authentication](/hyperliquid/authentication#recommended-scope-sets) |
 | The private key of your Totalis wallet | App, Account, then Private key. See [Keys and signatures](/hyperliquid/authentication#keys-and-signatures). |
-| USDC in your Totalis balance | Deposit in the [Totalis app](https://app.totalis.trade). The stake is taken from your vault balance. |
+| USDC in your vault balance | [Deposit](/hyperliquid/funding#deposit-into-the-vault) over the API, or in the [Totalis app](https://app.totalis.trade). The stake is taken from your vault balance. |
 
 ## 1. Set up a client
 
@@ -86,12 +86,13 @@ const taker = me.wallets[0].address; // must be the wallet you sign with
 if (taker !== wallet.address.toLowerCase()) throw new Error("exported key is not your Totalis wallet");
 
 const vault = await get("/v1/vault"); // { chain_id: "999", vault_address: "0xedf7...", ... }
-const balances = await get("/v1/me/product-balances");
+const { balances } = await get("/v1/me/balances");
+const vaultUsdc = BigInt(balances.find((b: any) => b.kind === "USER")?.amount ?? "0");
 ```
 
 `vault.chain_id` and `vault.vault_address` go into every signature's EIP-712 domain. Read them from
-the API rather than hard-coding them. In `balances`, the `TOTALIS` product's `VAULT_FREE` component
-is what a stake draws from.
+the API rather than hard-coding them. `vaultUsdc` is your vault balance, which the stake is taken
+from. To top it up, see [Funding](/hyperliquid/funding).
 
 ## 3. Choose your legs
 

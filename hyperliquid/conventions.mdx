@@ -97,12 +97,12 @@ Every other Hyperliquid page links here rather than restating these values.
 | Maximum ticket payout | 100,000 USDC |
 | Entry RFQ open for quotes | 20 seconds after creation |
 | Cashout RFQ open for bids | 30 seconds after creation |
-| Quote life (`expiry`) | At most 30 seconds. The venue refuses to start an attempt on a quote with 2 seconds or less left. |
-| Signed quote submission | `expiry` between now + 5 and now + 25 seconds |
+| Quote life (`expiry`) | In the future and at most 30 seconds out. The venue refuses to start an attempt on a quote with 2 seconds or less left. |
 | Cashout bid life | `expiry` between now + 25 and now + 60 seconds |
 | Maker confirmation deadline | 2 seconds after the taker starts an attempt |
 | Sell-back signature life | At most 60 seconds |
 | Withdrawal (`Exit`) signature life | At most 3,600 seconds |
+| USDC authorization window (deposit, payout) | `valid_after` at or before now, and at most 900 seconds from `valid_after` to `valid_before` |
 | Maker vault withdrawal delay | 86,400 seconds between request and execution |
 | Request body | 64 KiB |
 
@@ -116,6 +116,6 @@ the seconds to wait. Back off for at least that long before retrying.
 
 | Route | Per maker, per minute |
 | --- | --- |
-| Submit quote, publish book quote, withdraw book quote | 120 each |
+| Publish book quote, withdraw book quote | 120 each |
 | Confirm attempt | 120 |
 | List maker confirmation requests | 1,200 |

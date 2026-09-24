@@ -193,13 +193,15 @@
                 "pages": [
                   "hyperliquid/quickstart",
                   "hyperliquid/authentication",
-                  "hyperliquid/conventions"
+                  "hyperliquid/conventions",
+                  "hyperliquid/coming-from-solana"
                 ]
               },
               {
                 "group": "Guides",
                 "pages": [
                   "hyperliquid/trading",
+                  "hyperliquid/funding",
                   "hyperliquid/market-makers"
                 ]
               }

@@ -11,8 +11,8 @@ curl https://hip4-api.totalis.trade/v1/me \
   -H "Authorization: Bearer $TOTALIS_HL_API_KEY"
 ```
 
-The API key is the only credential. Public market reads, discovery, and the public RFQ listing work
-without one. If you send a key to a public route it must still be valid: an expired or revoked key
+The API key is the only credential. Public market reads and the public RFQ listing work without
+one. If you send a key to a public route it must still be valid: an expired or revoked key
 returns `401`, never an anonymous response.
 
 ## Keys and signatures
@@ -67,9 +67,9 @@ maker member loses a permission, every key they issued loses it too.
 | `ticket:settle` | Settle or claim a ticket you own. |
 | `ticket:transfer` | Transfer a ticket you own. |
 | `ticket:cashout` | Cash out a ticket you own. |
-| `funding:deposit` | Deposit, or fund an accept from your wallet or HyperCore. |
-| `funding:withdraw` | Withdraw and track withdrawals. |
-| `sponsorship:use` | Let Totalis pay the gas for the transaction. Required with `ticket:accept` and `ticket:cashout`. |
+| `funding:deposit` | Deposit USDC from your wallet into the vault. |
+| `funding:withdraw` | Withdraw from the vault, or send wallet USDC to another address. |
+| `sponsorship:use` | Let Totalis pay the gas. Required by every command that sends a transaction: accept, cashout, settle, claim, transfer, deposit, and withdraw. |
 | `maker:access:read` | Read the makers you are a member of. |
 | `operations:submit` | Attach your own transaction to an existing operation you own. |
 
@@ -91,6 +91,7 @@ maker member loses a permission, every key they issued loses it too.
 | --- | --- |
 | Read-only dashboard | `identity:read`, `account:read`, `account:stream` |
 | Taker bot | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:settle`, `ticket:cashout`, `sponsorship:use` |
+| Taker bot that moves its own funds | The taker bot scopes, plus `funding:deposit` and `funding:withdraw` |
 | Market maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 
 ## Errors

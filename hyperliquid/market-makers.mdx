@@ -153,6 +153,12 @@ A quote is the exact terms you are willing to fill. Build it from the RFQ, compu
 and publish it to the RFQ's book. Publishing does not need a signature. You sign only when a taker
 takes it (step 6).
 
+<Note>
+The Totalis stream carries RFQs and lifecycle events, not prices. Price each leg from your own
+Hyperliquid market data, such as Hyperliquid's public
+[info API and WebSocket](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api).
+</Note>
+
 ```ts
 import { hashTypedData } from "viem";
 import { v7 as uuidv7 } from "uuid";
@@ -182,6 +188,21 @@ const types = {
   ],
 } as const;
 
+// The API quote as the EIP-712 message. Confirmation signs this same message.
+function toMessage(quote: any) {
+  return {
+    makerId: BigInt(quote.maker_id),
+    legs: quote.legs.map((l: any) => ({ outcomeId: l.outcome_id, side: l.side })),
+    stake: BigInt(quote.stake),
+    payout: BigInt(quote.payout),
+    feeBps: quote.fee_bps,
+    takerFeeBps: quote.taker_fee_bps,
+    taker: quote.taker,
+    expiry: BigInt(quote.expiry),
+    salt: BigInt(quote.salt),
+  };
+}
+
 function buildQuote(rfq: any, payout: bigint, feeBps: number, takerFeeBps: number) {
   const salt = BigInt("0x" + crypto.getRandomValues(new Uint8Array(32)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), ""));
   const quote = {
@@ -195,21 +216,10 @@ function buildQuote(rfq: any, payout: bigint, feeBps: number, takerFeeBps: numbe
     expiry: String(Math.floor(Date.now() / 1000) + 20),
     salt: salt.toString(),
   };
-  const message = {
-    makerId: BigInt(quote.maker_id),
-    legs: quote.legs.map((l: any) => ({ outcomeId: l.outcome_id, side: l.side })),
-    stake: BigInt(quote.stake),
-    payout: BigInt(quote.payout),
-    feeBps: quote.fee_bps,
-    takerFeeBps: quote.taker_fee_bps,
-    taker: quote.taker,
-    expiry: BigInt(quote.expiry),
-    salt,
-  };
-  return { quote, message, digest: hashTypedData({ domain, types, primaryType: "Quote", message }) };
+  return { quote, digest: hashTypedData({ domain, types, primaryType: "Quote", message: toMessage(quote) }) };
 }
 
-const { quote, message, digest } = buildQuote(rfq, 61_000_000n, 100, 20);
+const { quote, digest } = buildQuote(rfq, 61_000_000n, 100, 20);
 await command(`/v1/rfqs/${rfq.rfq_id}/book-quotes`, { quote_digest: digest, quote });
 ```
 
@@ -233,7 +243,7 @@ for requests continuously:
 ```ts
 const { confirmations } = await get("/v1/maker/confirmations");
 for (const c of confirmations) {
-  const ok = stillWantThisRisk(c.quote); // re-check prices and headroom
+  const ok = stillWantThisRisk(c.quote); // your own check of prices and vault headroom
   const body = ok
     ? {
         decision: "CONFIRM",
@@ -246,8 +256,8 @@ for (const c of confirmations) {
 }
 ```
 
-- `toMessage` converts the API quote into the EIP-712 message exactly as in `buildQuote`. Sign the
-  terms in the request, which are the terms you published.
+- Sign the terms in the request, which are the terms you published. `toMessage` is the function from
+  step 5.
 - `quoteSigner` is a viem account for your quote signer key. The contract rejects any other signer.
 - The `Idempotency-Key` must equal `attempt_id`.
 
@@ -259,14 +269,6 @@ for (const c of confirmations) {
 
 Run confirmation polling on its own worker so a slow pricing loop never makes you miss the deadline.
 The polling rate limit is on [Limits and timing](/hyperliquid/conventions#rate-limits).
-
-### Firm quotes
-
-You can also publish a quote that is already signed with
-[Submit quote](/hyperliquid/api-reference/rfqs-and-quotes/submit-quote): send the same `quote` and
-`quote_digest` plus `maker_signature`. A taker can then take it without the confirmation round trip,
-so you cannot decline it. A firm quote stays executable until its `expiry` even if you withdraw it
-from the book, so keep expiries short.
 
 ## 7. Bid on cashouts
 
