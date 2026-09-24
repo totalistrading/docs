@@ -52,6 +52,11 @@ app session. A key cannot manage keys.
 A key's effective permissions are its scopes intersected with what its owner can do right now. If a
 maker member loses a permission, every key they issued loses it too.
 
+Maker reads also need the key owner's current maker permissions: `READ_CAPITAL`, `READ_POSITIONS`,
+`READ_ACTIVITY`, and `READ_PERFORMANCE`. The maker controller holds all four. Each
+[API reference](/hyperliquid/api-reference/account/list-balances) page lists the scopes and maker
+permissions its route needs.
+
 ### Personal scopes
 
 | Scope | Grants |

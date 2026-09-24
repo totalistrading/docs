@@ -492,7 +492,7 @@
       "get": {
         "operationId": "listCashoutBook",
         "summary": "List cashout book",
-        "description": "Current unsigned offers for the authenticated RFQ owner. Each requires live maker confirmation on acceptance.\n\nRequires an API key with `quote:read`.",
+        "description": "Current unsigned offers for the authenticated RFQ owner. Each requires live maker confirmation on acceptance.\n\nRequires a personal key with `quote:read`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -540,7 +540,7 @@
       "post": {
         "operationId": "publishCashoutBook",
         "summary": "Publish cashout book quote",
-        "description": "Publish unsigned cash-out terms. Selection and maker confirmation precede signing.\n\nRequires an API key with `quote:write`.",
+        "description": "Publish unsigned cash-out terms. Selection and maker confirmation precede signing.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -618,7 +618,7 @@
       "get": {
         "operationId": "getCashoutConfirmation",
         "summary": "Get cashout attempt",
-        "description": "Recover the existing attempt without sending or replaying a financial command. An absent attempt alone does not rule out a delayed original request.\n\nRequires an API key with `quote:read`.",
+        "description": "Recover the existing attempt without sending or replaying a financial command. An absent attempt alone does not rule out a delayed original request.\n\nRequires a personal key with `quote:read`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -666,7 +666,7 @@
       "post": {
         "operationId": "beginCashoutConfirmation",
         "summary": "Begin cashout attempt",
-        "description": "Select exact unsigned cash-out terms. Maker confirmation has a server-owned two-second deadline. CONFIRMED returns a signed offer for the owner to countersign; it does not mean execution.\n\nRequires an API key with `ticket:cashout`.",
+        "description": "Select exact unsigned cash-out terms. Maker confirmation has a server-owned two-second deadline. CONFIRMED returns a signed offer for the owner to countersign; it does not mean execution.\n\nRequires a personal key with `ticket:cashout`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -736,7 +736,7 @@
       "get": {
         "operationId": "listBookQuotes",
         "summary": "List book quotes",
-        "description": "Current unsigned offers for the authenticated RFQ owner. Each requires live maker confirmation on acceptance.\n\nRequires an API key with `quote:read`.",
+        "description": "Current unsigned offers for the authenticated RFQ owner. Each requires live maker confirmation on acceptance.\n\nRequires a personal key with `quote:read`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -784,7 +784,7 @@
       "post": {
         "operationId": "publishBookQuote",
         "summary": "Publish book quote",
-        "description": "Publish or replace an unsigned ENTRY quote. Maker RFQ credentials authenticate the offer; financial signatures are deferred to confirmation.\n\nRequires an API key with `quote:write`.",
+        "description": "Publish or replace an unsigned ENTRY quote. Maker RFQ credentials authenticate the offer; financial signatures are deferred to confirmation.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -862,7 +862,7 @@
       "delete": {
         "operationId": "withdrawBookQuote",
         "summary": "Withdraw book quote",
-        "description": "Idempotently withdraw this exact unsigned ENTRY quote or CASHOUT bid from the shared book. COMMITTED returns 409 and cannot be cancelled through this endpoint.\n\nRequires an API key with `quote:write`.",
+        "description": "Idempotently withdraw this exact unsigned ENTRY quote or CASHOUT bid from the shared book. COMMITTED returns 409 and cannot be cancelled through this endpoint.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -932,7 +932,7 @@
       "get": {
         "operationId": "getConfirmation",
         "summary": "Get attempt",
-        "description": "Recover the existing attempt without sending or replaying a financial command. An absent attempt alone does not rule out a delayed original request.\n\nRequires an API key with `quote:read`.",
+        "description": "Recover the existing attempt without sending or replaying a financial command. An absent attempt alone does not rule out a delayed original request.\n\nRequires a personal key with `quote:read`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -980,7 +980,7 @@
       "post": {
         "operationId": "beginConfirmation",
         "summary": "Begin attempt",
-        "description": "Create one attempt for exact taker-authorized terms, with a fixed two-second maker deadline. attempt_id must equal Idempotency-Key; replay never restarts a deadline.\n\nRequires an API key with `ticket:accept`.",
+        "description": "Create one attempt for exact taker-authorized terms, with a fixed two-second maker deadline. attempt_id must equal Idempotency-Key; replay never restarts a deadline.\n\nRequires a personal key with `ticket:accept`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1058,7 +1058,7 @@
       "post": {
         "operationId": "abandonConfirmation",
         "summary": "Abandon attempt",
-        "description": "Atomically tombstone an unreceived attempt ID or return the original admitted attempt. Does not revoke an issued signature or cancel execution.\n\nRequires an API key with `rfq:write`.",
+        "description": "Atomically tombstone an unreceived attempt ID or return the original admitted attempt. Does not revoke an issued signature or cancel execution.\n\nRequires a personal key with `rfq:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1126,7 +1126,7 @@
       "post": {
         "operationId": "finishConfirmation",
         "summary": "Confirm attempt",
-        "description": "Selected maker confirms with the exact selected ENTRY Quote or CASHOUT SellBack/Transfer signature, or declines. Returns the plain Confirmation state; only the owner cash-out attempt endpoint includes the confirmed bid and maker signature. Late responses cannot reopen a closed attempt. Core-funded ENTRY promotion returns CONFIRMED while payment is pending, then COMMITTED after execution admission or WITHDRAWN when the attempt ends. Maker backing remains reserved while its signature can execute. Other ENTRY promotion and execution admission are atomic.\n\nRequires an API key with `quote:write`.",
+        "description": "Selected maker confirms with the exact selected ENTRY Quote or CASHOUT SellBack/Transfer signature, or declines. Returns the plain Confirmation state; only the owner cash-out attempt endpoint includes the confirmed bid and maker signature. Late responses cannot reopen a closed attempt. Core-funded ENTRY promotion returns CONFIRMED while payment is pending, then COMMITTED after execution admission or WITHDRAWN when the attempt ends. Maker backing remains reserved while its signature can execute. Other ENTRY promotion and execution admission are atomic.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1191,7 +1191,7 @@
       "get": {
         "operationId": "listMakerConfirmations",
         "summary": "List maker confirmation requests",
-        "description": "At most 100 pending confirmation requests for this authenticated maker, ordered by fixed deadline. No taker signatures are disclosed.\n\nRequires an API key with `quote:read`.",
+        "description": "At most 100 pending confirmation requests for this authenticated maker, ordered by fixed deadline. No taker signatures are disclosed.\n\nRequires a maker key with `quote:read`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1241,7 +1241,7 @@
       "get": {
         "operationId": "listRfqs",
         "summary": "List open RFQs",
-        "description": "Cursor-bounded discovery of currently open RFQs for market makers.\n\nRequires an API key with `rfq:read`; callers without a key receive the public projection.",
+        "description": "Cursor-bounded discovery of currently open RFQs for market makers.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1331,7 +1331,7 @@
             "$ref": "#/components/responses/Error"
           }
         },
-        "description": "Requires an API key with `rfq:write`."
+        "description": "Requires a personal key with `rfq:write`."
       }
     },
     "/v1/rfqs/{rfq_id}": {
@@ -1343,7 +1343,7 @@
       "get": {
         "operationId": "getRfq",
         "summary": "Get RFQ",
-        "description": "Canonical state for an open RFQ; authenticated owners can also recover its terminal off-chain state.\n\nRequires an API key with `rfq:read`; callers without a key receive the public projection.",
+        "description": "Canonical state for an open RFQ; authenticated owners can also recover its terminal off-chain state.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1390,7 +1390,7 @@
       "post": {
         "operationId": "cancelRfq",
         "summary": "Cancel RFQ",
-        "description": "Stops venue delivery of an unselected RFQ; it does not invalidate a canonical maker signature.\n\nRequires an API key with `rfq:write`.",
+        "description": "Stops venue delivery of an unselected RFQ; it does not invalidate a canonical maker signature.\n\nRequires a personal key with `rfq:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1438,7 +1438,7 @@
         "tags": [
           "Account"
         ],
-        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires an API key with `account:read`.",
+        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires a personal key with `account:read`.",
         "security": [
           {
             "apiKey": [
@@ -1543,7 +1543,7 @@
         "tags": [
           "Account"
         ],
-        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires an API key with `account:read`.",
+        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires a personal key with `account:read`.",
         "security": [
           {
             "apiKey": [
@@ -1621,7 +1621,7 @@
       "get": {
         "operationId": "listBalances",
         "summary": "List balances",
-        "description": "Canonical user or maker balance projections for the authenticated principal with a chain checkpoint.\n\nRequires an API key with `account:read`, `vault:read`.",
+        "description": "Canonical user or maker balance projections for the authenticated principal with a chain checkpoint.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -1664,7 +1664,7 @@
       "get": {
         "operationId": "listTickets",
         "summary": "List tickets",
-        "description": "Cursor-paginated tickets for the authenticated participant or maker.\n\nRequires an API key with `account:read`, `vault:read`.",
+        "description": "Cursor-paginated tickets for the authenticated participant or maker.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -1718,7 +1718,7 @@
       "get": {
         "operationId": "listOperations",
         "summary": "List operations",
-        "description": "Cursor-paginated durable and chain-first operations for the authenticated principal.\n\nRequires an API key with `account:read`, `vault:read`.",
+        "description": "Cursor-paginated durable and chain-first operations for the authenticated principal.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -1777,7 +1777,7 @@
       "get": {
         "operationId": "getOperation",
         "summary": "Get operation",
-        "description": "One authorized durable operation and its latest canonical chain evidence.\n\nRequires an API key with `account:read`, `vault:read`.",
+        "description": "One authorized durable operation and its latest canonical chain evidence.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -1828,7 +1828,7 @@
       "get": {
         "operationId": "getTicket",
         "summary": "Get ticket",
-        "description": "Authorized immutable quote economics plus current canonical ticket lifecycle.\n\nRequires an API key with `account:read`, `vault:read`.",
+        "description": "Authorized immutable quote economics plus current canonical ticket lifecycle.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -1879,7 +1879,7 @@
       "get": {
         "operationId": "getMakerVault",
         "summary": "Get maker vault",
-        "description": "Canonical maker vault state and chain checkpoint for the authenticated maker credential or linked dashboard identity.\n\nRequires an API key with `vault:read`.",
+        "description": "Canonical maker vault state and chain checkpoint for the authenticated maker credential or linked dashboard identity.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
         "tags": [
           "Account"
         ],
@@ -1942,7 +1942,7 @@
       "get": {
         "operationId": "getMakerVaultFundingTransaction",
         "summary": "Get maker vault funding transaction",
-        "description": "Returns the exact zero-value depositMaker call for the matching maker dashboard or credential when the pinned release is enabled. The MM wallet must approve USDC, sign and submit the call, and pay HyperEVM gas in HYPE; this read does not claim durable admission or chain success.\n\nRequires an API key with `vault:read`.",
+        "description": "Returns the exact zero-value depositMaker call for the matching maker dashboard or credential when the pinned release is enabled. The MM wallet must approve USDC, sign and submit the call, and pay HyperEVM gas in HYPE; this read does not claim durable admission or chain success.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
         "tags": [
           "Account"
         ],
@@ -1991,7 +1991,7 @@
       "get": {
         "operationId": "getCollateralReduction",
         "summary": "Get collateral reduction",
-        "description": "Returns solver status separately from the durable chain operation and committed evidence.\n\nRequires an API key with `vault:read`.",
+        "description": "Returns solver status separately from the durable chain operation and committed evidence.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
         "tags": [
           "Account"
         ],
@@ -2040,7 +2040,7 @@
       "post": {
         "operationId": "createCollateralReduction",
         "summary": "Create collateral reduction",
-        "description": "Durably triggers a server-derived HyperEVM attestation job for this maker. The request has no body and accepts no caller-authored risk input.\n\nRequires an API key with `vault:write`.",
+        "description": "Durably triggers a server-derived HyperEVM attestation job for this maker. The request has no body and accepts no caller-authored risk input.\n\nRequires a maker key with `vault:write`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2092,7 +2092,7 @@
       "post": {
         "operationId": "deposit",
         "summary": "Deposit",
-        "description": "For the bound Privy embedded wallet only, validates and durably sponsors exact ParlayVault.depositUserWithAuthorization calldata; 202 is not chain success.\n\nRequires an API key with `funding:deposit`, `sponsorship:use`.",
+        "description": "For the bound Privy embedded wallet only, validates and durably sponsors exact ParlayVault.depositUserWithAuthorization calldata; 202 is not chain success.\n\nRequires a personal key with `funding:deposit`, `sponsorship:use`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2152,7 +2152,7 @@
       "post": {
         "operationId": "withdraw",
         "summary": "Withdraw",
-        "description": "Validates an exact owner-signed HyperEVM Exit and durably queues withdrawWithSig; 202 is not chain success.\n\nRequires an API key with `funding:withdraw`, `sponsorship:use`.",
+        "description": "Validates an exact owner-signed HyperEVM Exit and durably queues withdrawWithSig; 202 is not chain success.\n\nRequires a personal key with `funding:withdraw`, `sponsorship:use`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2212,7 +2212,7 @@
       "post": {
         "operationId": "createTotalisWithdrawal",
         "summary": "Create Totalis withdrawal",
-        "description": "Wallet-first Totalis withdrawal for the bound Privy embedded wallet. When wallet USDC is insufficient, the nested owner-signed vault withdrawal must equal the exact shortfall. Poll until READY_FOR_PAYOUT_CLAIM, then claim the exact transfer once.\n\nRequires an API key with `funding:withdraw`.",
+        "description": "Wallet-first Totalis withdrawal for the bound Privy embedded wallet. When wallet USDC is insufficient, the nested owner-signed vault withdrawal must equal the exact shortfall. Poll until READY_FOR_PAYOUT_CLAIM, then claim the exact transfer once.\n\nRequires a personal key with `funding:withdraw`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2281,7 +2281,7 @@
       "get": {
         "operationId": "getTotalisWithdrawal",
         "summary": "Get Totalis withdrawal",
-        "description": "Resumes and returns the authenticated participant's wallet-first Totalis withdrawal continuation.\n\nRequires an API key with `account:read`.",
+        "description": "Resumes and returns the authenticated participant's wallet-first Totalis withdrawal continuation.\n\nRequires a personal key with `account:read`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2335,7 +2335,7 @@
       "post": {
         "operationId": "claimTotalisPayout",
         "summary": "Claim Totalis withdrawal payout",
-        "description": "Atomically claims the one outward wallet payout and durably reserves its EVM nonce before returning exact ERC-20 transfer fields. Exact replays reuse that nonce, so only one transaction can commit.\n\nRequires an API key with `funding:withdraw`.",
+        "description": "Atomically claims the one outward wallet payout and durably reserves its EVM nonce before returning exact ERC-20 transfer fields. Exact replays reuse that nonce, so only one transaction can commit.\n\nRequires a personal key with `funding:withdraw`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2397,7 +2397,7 @@
       "post": {
         "operationId": "submitTotalisPayout",
         "summary": "Record Totalis payout submission",
-        "description": "Verifies the participant's exact USDC TransferWithAuthorization signature, durably enqueues the sponsor-paid transaction, and reconciles the exact finalized receipt before terminal success.\n\nRequires an API key with `funding:withdraw`, `sponsorship:use`.",
+        "description": "Verifies the participant's exact USDC TransferWithAuthorization signature, durably enqueues the sponsor-paid transaction, and reconciles the exact finalized receipt before terminal success.\n\nRequires a personal key with `funding:withdraw`, `sponsorship:use`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2465,7 +2465,7 @@
       "post": {
         "operationId": "claimTicket",
         "summary": "Claim ticket",
-        "description": "Queues the permissionless HyperEVM claim for an authenticated owner's settled ticket.\n\nRequires an API key with `sponsorship:use`, `ticket:settle`.",
+        "description": "Queues the permissionless HyperEVM claim for an authenticated owner's settled ticket.\n\nRequires a personal key with `sponsorship:use`, `ticket:settle`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2533,7 +2533,7 @@
       "post": {
         "operationId": "sellBackTicket",
         "summary": "Sell back ticket",
-        "description": "Validates the current maker and owner signatures over one canonical HyperEVM SellBack and queues it durably.\n\nRequires an API key with `sponsorship:use`, `ticket:cashout`.",
+        "description": "Validates the current maker and owner signatures over one canonical HyperEVM SellBack and queues it durably.\n\nRequires a personal key with `sponsorship:use`, `ticket:cashout`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2601,7 +2601,7 @@
       "post": {
         "operationId": "transferTicket",
         "summary": "Transfer ticket",
-        "description": "Validates seller and buyer signatures over one canonical HyperEVM Transfer and queues it durably.\n\nRequires an API key with `sponsorship:use`, `ticket:transfer`.",
+        "description": "Validates seller and buyer signatures over one canonical HyperEVM Transfer and queues it durably.\n\nRequires a personal key with `sponsorship:use`, `ticket:transfer`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2669,7 +2669,7 @@
       "post": {
         "operationId": "settleTicket",
         "summary": "Settle ticket",
-        "description": "Queues the permissionless HyperEVM settle call for an authenticated owner's open ticket using its immutable projected legs and operator-owned native-read gas policy; no result is invented.\n\nRequires an API key with `sponsorship:use`, `ticket:settle`.",
+        "description": "Queues the permissionless HyperEVM settle call for an authenticated owner's open ticket using its immutable projected legs and operator-owned native-read gas policy; no result is invented.\n\nRequires a personal key with `sponsorship:use`, `ticket:settle`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2732,7 +2732,7 @@
       "post": {
         "operationId": "submitMakerVaultAction",
         "summary": "Submit maker vault action",
-        "description": "Validates one complete portable controller-signed MakerAction or funder-signed EIP-3009 maker deposit, durably records its canonical calldata, and returns the exact zero-value transaction call for the MM to sign and fund. HTTP 202 is not chain success.\n\nRequires an API key with `vault:write`.",
+        "description": "Validates one complete portable controller-signed MakerAction or funder-signed EIP-3009 maker deposit, durably records its canonical calldata, and returns the exact zero-value transaction call for the MM to sign and fund. HTTP 202 is not chain success.\n\nRequires a maker key with `vault:write`, for the actions `SET_QUOTE_SIGNER`, `REQUEST_MAKER_WITHDRAW`, `CANCEL_MAKER_WITHDRAW`, `DEPOSIT_MAKER_AUTHORIZED`.",
         "tags": [
           "Funds and tickets"
         ],
@@ -2832,7 +2832,7 @@
       "post": {
         "operationId": "submitSelfFundedTransaction",
         "summary": "Submit self-funded transaction",
-        "description": "Validates and relays an MM-funded EIP-1559 transaction for the exact previously admitted maker operation. The portable contract calls are permissionless; their embedded controller or funder signature remains financial authority. Totalis never receives the gas payer's private key or allocates its nonce.\n\nRequires an API key with `operations:submit`.",
+        "description": "Validates and relays an MM-funded EIP-1559 transaction for the exact previously admitted maker operation. The portable contract calls are permissionless; their embedded controller or funder signature remains financial authority. Totalis never receives the gas payer's private key or allocates its nonce.\n\nRequires one of:\n\n- a personal key with `operations:submit`\n- a maker key with `operations:submit`",
         "tags": [
           "Funds and tickets"
         ],
@@ -2918,7 +2918,7 @@
             "apiKey": []
           }
         ],
-        "description": "Requires an API key; callers without a key receive the public projection."
+        "description": "No API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key"
       }
     },
     "/v1/me/vault": {
@@ -2956,7 +2956,7 @@
             "$ref": "#/components/responses/RateLimited"
           }
         },
-        "description": "Requires an API key with `account:read`."
+        "description": "Requires a personal key with `account:read`."
       }
     },
     "/v1/me": {
@@ -2994,14 +2994,14 @@
             "$ref": "#/components/responses/Error"
           }
         },
-        "description": "Requires an API key with `identity:read`."
+        "description": "Requires a personal key with `identity:read`."
       }
     },
     "/v1/maker/snapshot": {
       "get": {
         "operationId": "getMakerSnapshot",
         "summary": "Get maker snapshot",
-        "description": "Returns the authenticated maker recovery snapshot and its exact committed-event watermark.\n\nRequires an API key with `quote:read`, `rfq:read`, `vault:read`.",
+        "description": "Returns the authenticated maker recovery snapshot and its exact committed-event watermark.\n\nRequires a maker key with `quote:read`, `rfq:read`, `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`.",
         "tags": [
           "Realtime"
         ],
@@ -3041,7 +3041,7 @@
       "get": {
         "operationId": "listMakerQuotes",
         "summary": "List maker quotes",
-        "description": "Cursor-paginated current executable quotes for the authenticated maker credential or linked dashboard identity.\n\nRequires an API key with `quote:read`.",
+        "description": "Cursor-paginated current executable quotes for the authenticated maker credential or linked dashboard identity.\n\nRequires a maker key with `quote:read`.",
         "tags": [
           "Realtime"
         ],
@@ -3090,7 +3090,7 @@
       "get": {
         "operationId": "listMakerEvents",
         "summary": "List maker events",
-        "description": "Replays at most 100 authenticated maker events retained for 24 hours after a complete cursor.\n\nRequires an API key with `quote:read`, `replay:read`, `rfq:read`, `vault:read`.",
+        "description": "Replays at most 100 authenticated maker events retained for 24 hours after a complete cursor.\n\nRequires one of:\n\n- a maker key with `replay:read`, `rfq:read`\n- a maker key with `replay:read`, `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`, `replay:read`",
         "tags": [
           "Realtime"
         ],
@@ -3161,7 +3161,7 @@
       "get": {
         "operationId": "stream",
         "summary": "Open realtime stream",
-        "description": "WebSocket upgrade for authenticated, principal-scoped committed updates. Browser clients request totalis.realtime.v1 plus auth.<base64url-access-token>; non-browser clients may use the bearer header. See protocol/asyncapi/realtime.json; HTTP resource reads and maker snapshot/replay are recovery paths. Dashboard members select maker_id with account_contract=1, chain_id and vault; all four financial read permissions are required. Membership revision or controller epoch changes close the connection. RFQ detail subscriptions remain transport-credential only.\n\nRequires an API key with `account:stream`, `quote:read`, `rfq:read`, `vault:read`.",
+        "description": "WebSocket upgrade for authenticated, principal-scoped committed updates. Browser clients request totalis.realtime.v1 plus auth.<base64url-access-token>; non-browser clients may use the bearer header. See protocol/asyncapi/realtime.json; HTTP resource reads and maker snapshot/replay are recovery paths. Dashboard members select maker_id with account_contract=1, chain_id and vault; all four financial read permissions are required. Membership revision or controller epoch changes close the connection. RFQ detail subscriptions remain transport-credential only.\n\nRequires one of:\n\n- a personal key with `account:stream`\n- a maker key with `rfq:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`\n- a personal key with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.",
         "tags": [
           "Realtime"
         ],
@@ -3251,7 +3251,7 @@
       "get": {
         "operationId": "getHypercorePortfolio",
         "summary": "Get HyperCore portfolio",
-        "description": "Returns the selected linked main account's read-only authoritative HyperCore USDC balances, HIP-4 balances, open orders, recent ordinary fills, and at most 200 durably retained USDC settlement credits. Each read qualifies at most 16 distinct unseen outcomes newest settlement first; a block of at least 16 recent unsupported outcomes can still delay older supported outcomes pending TT-1476. Outcomes quoted in another currency are omitted only after identity and settlement fraction agree, while malformed or contradictory authority fails closed. Settlement discovery uses one provider-capped userFillsByTime response covering at most the last 30 days, without pagination, so it is not complete account history. Mainnet only.\n\nRequires an API key with `account:read`.",
+        "description": "Returns the selected linked main account's read-only authoritative HyperCore USDC balances, HIP-4 balances, open orders, recent ordinary fills, and at most 200 durably retained USDC settlement credits. Each read qualifies at most 16 distinct unseen outcomes newest settlement first; a block of at least 16 recent unsupported outcomes can still delay older supported outcomes pending TT-1476. Outcomes quoted in another currency are omitted only after identity and settlement fraction agree, while malformed or contradictory authority fails closed. Settlement discovery uses one provider-capped userFillsByTime response covering at most the last 30 days, without pagination, so it is not complete account history. Mainnet only.\n\nRequires a personal key with `account:read`.",
         "tags": [
           "HyperCore"
         ],
@@ -3292,7 +3292,7 @@
       "get": {
         "operationId": "getHypercoreAccountHistory",
         "summary": "Get HyperCore history",
-        "description": "Returns registered-account observations, never authoritative balances or execution. Each section defaults to its newest 200 rows since registration. Supply both from and through as RFC3339 timestamps for a half-open interval of at most 31 days. Sections report truncation independently. Orders are the latest known states of orders placed within the interval, not an as-of reconstruction. Conversions retain each native leg separately and are not trades. Unknown cash delta kinds remain unsupported evidence with explicit gaps. Complete is false before registration, beyond typed coverage, across a gap, or on truncation. Delivery progress alone never proves coverage.\n\nRequires an API key with `account:read`.",
+        "description": "Returns registered-account observations, never authoritative balances or execution. Each section defaults to its newest 200 rows since registration. Supply both from and through as RFC3339 timestamps for a half-open interval of at most 31 days. Sections report truncation independently. Orders are the latest known states of orders placed within the interval, not an as-of reconstruction. Conversions retain each native leg separately and are not trades. Unknown cash delta kinds remain unsupported evidence with explicit gaps. Complete is false before registration, beyond typed coverage, across a gap, or on truncation. Delivery progress alone never proves coverage.\n\nRequires a personal key with `account:read`.",
         "parameters": [
           {
             "name": "from",
@@ -3356,7 +3356,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. Requires exact deployment scope and current subject authorization. Legacy responses remain unchanged.\n\nRequires an API key with `vault:read`.",
+        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. Requires exact deployment scope and current subject authorization. Legacy responses remain unchanged.\n\nRequires a maker key with `vault:read` and the maker permission `READ_POSITIONS`.",
         "security": [
           {
             "apiKey": [
@@ -3447,7 +3447,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires an API key with `vault:read`.",
+        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires a maker key with `vault:read` and the maker permission `READ_ACTIVITY`.",
         "security": [
           {
             "apiKey": [
@@ -3555,7 +3555,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires an API key with `vault:read`.",
+        "description": "Durable scoped activity from qualified chain evidence and operations. Requires account contract 1, exact deployment scope and current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires a maker key with `vault:read` and the maker permission `READ_ACTIVITY`.",
         "security": [
           {
             "apiKey": [
@@ -3639,7 +3639,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Enabled by ACCOUNT_PERFORMANCE_ENABLED with installed activity projection and a qualified release. Complete periods aggregate immutable economic-close evidence; incomplete periods return unavailable metrics. Gas remains unavailable without complete receipt/payer attribution. Require contract 1, exact deployment scope and current per-subject authorization; never infer a House maker from /me.\n\nRequires an API key with `vault:read`.",
+        "description": "Enabled by ACCOUNT_PERFORMANCE_ENABLED with installed activity projection and a qualified release. Complete periods aggregate immutable economic-close evidence; incomplete periods return unavailable metrics. Gas remains unavailable without complete receipt/payer attribution. Require contract 1, exact deployment scope and current per-subject authorization; never infer a House maker from /me.\n\nRequires a maker key with `vault:read` and the maker permission `READ_PERFORMANCE`.",
         "security": [
           {
             "apiKey": [
@@ -3726,7 +3726,7 @@
         "tags": [
           "Maker access"
         ],
-        "description": "Resolve the authenticated account canonical wallet and single admitted maker. Owner dashboard authority derives from verified wallet linkage and current indexed controller evidence, without an expiring dashboard grant. GET performs no provisioning or financial action.\n\nRequires an API key with `maker:access:read`.",
+        "description": "Resolve the authenticated account canonical wallet and single admitted maker. Owner dashboard authority derives from verified wallet linkage and current indexed controller evidence, without an expiring dashboard grant. GET performs no provisioning or financial action.\n\nRequires a personal key with `maker:access:read`.",
         "security": [
           {
             "apiKey": [
@@ -3803,7 +3803,7 @@
         "tags": [
           "Maker access"
         ],
-        "description": "Discover maker vaults controlled by the authenticated participant linked wallets. Does not grant dashboard or transport access. Requires current indexed ownership.\n\nRequires an API key with `maker:access:read`.",
+        "description": "Discover maker vaults controlled by the authenticated participant linked wallets. Does not grant dashboard or transport access. Requires current indexed ownership.\n\nRequires a personal key with `maker:access:read`.",
         "security": [
           {
             "apiKey": [
@@ -3886,7 +3886,7 @@
         "tags": [
           "Maker access"
         ],
-        "description": "Discover current controller-verified memberships for the authenticated participant in this deployment. Personal accounts remain separate; no House DID inference.\n\nRequires an API key with `maker:access:read`.",
+        "description": "Discover current controller-verified memberships for the authenticated participant in this deployment. Personal accounts remain separate; no House DID inference.\n\nRequires a personal key with `maker:access:read`.",
         "security": [
           {
             "apiKey": [
@@ -3976,7 +3976,7 @@
       "get": {
         "operationId": "getMakerRegistration",
         "summary": "Get maker registration",
-        "description": "Returns public transport review status and stable reason codes for the projected maker identity.\n\nRequires an API key; callers without a key receive the public projection.",
+        "description": "Returns public transport review status and stable reason codes for the projected maker identity.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key",
         "tags": [
           "Maker access"
         ],
