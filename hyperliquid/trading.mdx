@@ -70,10 +70,12 @@ function request(path: string, command: object, idempotencyKey = uuidv7()): Requ
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Sends a request, resending the same bytes after a network failure or an AFTER_BACKOFF error.
+// Sends a request, resending the same bytes after a network failure or an AFTER_BACKOFF or
+// BACKOFF error.
 async function send({ path, idempotencyKey, body }: Request, attempts = 3): Promise<any> {
   for (let attempt = 1; ; attempt++) {
     let res: Response;
+    let text: string;
     try {
       res = await fetch(BASE + path, {
         method: "POST",
@@ -84,16 +86,18 @@ async function send({ path, idempotencyKey, body }: Request, attempts = 3): Prom
         },
         body,
       });
+      text = await res.text(); // a dropped connection fails here too, and is retried
     } catch (networkError) {
       if (attempt >= attempts) throw networkError;
       await sleep(1000 * attempt);
       continue;
     }
-    if (res.ok) return res.status === 204 ? null : res.json();
-    const error = await res.json();
-    const retry = error?.error?.retry;
-    if (attempt >= attempts || (retry !== "AFTER_BACKOFF" && retry !== "BACKOFF")) throw error;
-    await sleep(Number(res.headers.get("Retry-After") ?? attempt) * 1000);
+    const data = text ? JSON.parse(text) : null;
+    if (res.ok) return data;
+    const retry = data?.error?.retry;
+    if (attempt >= attempts || (retry !== "AFTER_BACKOFF" && retry !== "BACKOFF")) throw data;
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    await sleep((retryAfter >= 1 ? retryAfter : attempt) * 1000);
   }
 }
 
