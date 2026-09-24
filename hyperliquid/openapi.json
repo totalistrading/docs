@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Totalis Hyperliquid API",
-    "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Market reads need no key. A key never moves funds on its own: every balance-affecting command also carries the exact wallet or maker signature it names.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.",
+    "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.",
     "version": "90.0.0-core-principal-cap"
   },
   "servers": [
@@ -1705,7 +1705,7 @@
       "post": {
         "operationId": "submitQuote",
         "summary": "Submit quote",
-        "description": "The canonical EIP-712 maker signature authenticates the current on-chain maker quote signer.\n\nRequires an API key with `quote:write`; callers without a key receive the public projection.",
+        "description": "The canonical EIP-712 maker signature authenticates the current on-chain maker quote signer.\n\nRequires an API key with `quote:write`.",
         "tags": [
           "RFQs and quotes"
         ],
@@ -1742,7 +1742,6 @@
           }
         },
         "security": [
-          {},
           {
             "apiKey": [
               "quote:write"
@@ -5100,99 +5099,6 @@
         }
       }
     },
-    "/v1/maker-onboarding/challenges": {
-      "post": {
-        "operationId": "createMakerOnboardingChallenge",
-        "summary": "Create maker onboarding challenge",
-        "description": "Creates a five-minute challenge bound to the current projected maker controller.\n\nNo API key required.",
-        "tags": [
-          "Maker access"
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChallengeEnvelope"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Challenge created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Challenge"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {}
-        ]
-      }
-    },
-    "/v1/maker-onboarding/registrations": {
-      "post": {
-        "operationId": "registerMaker",
-        "summary": "Register maker",
-        "description": "Consumes an exact single-use current-controller challenge and creates transport registration without changing on-chain authority. The challenge ID, not an Idempotency-Key, is the replay boundary.\n\nNo API key required.",
-        "tags": [
-          "Maker access"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProofEnvelope"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Registration created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Profile"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {}
-        ]
-      }
-    },
     "/v1/maker-onboarding/registrations/{maker_id}": {
       "parameters": [
         {
@@ -6769,96 +6675,6 @@
           "tech",
           "weather"
         ]
-      },
-      "Challenge": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "challenge_id",
-          "maker_id",
-          "purpose",
-          "scopes",
-          "message",
-          "expires_at"
-        ],
-        "properties": {
-          "challenge_id": {
-            "$ref": "#/components/schemas/Uuid"
-          },
-          "maker_id": {
-            "$ref": "#/components/schemas/NonZeroUInt64String"
-          },
-          "purpose": {
-            "enum": [
-              "MAKER_REGISTER",
-              "MAKER_CREDENTIAL"
-            ]
-          },
-          "scopes": {
-            "type": "array",
-            "maxItems": 4,
-            "uniqueItems": true,
-            "items": {
-              "$ref": "#/components/schemas/MakerTransportScope"
-            }
-          },
-          "message": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2048
-          },
-          "expires_at": {
-            "$ref": "#/components/schemas/CommonTimestamp"
-          }
-        }
-      },
-      "ChallengeEnvelope": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schema_version",
-          "request_id",
-          "sent_at",
-          "command"
-        ],
-        "properties": {
-          "schema_version": {
-            "const": 1
-          },
-          "request_id": {
-            "$ref": "#/components/schemas/Uuid"
-          },
-          "sent_at": {
-            "$ref": "#/components/schemas/CommonTimestamp"
-          },
-          "command": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "maker_id",
-              "purpose"
-            ],
-            "properties": {
-              "maker_id": {
-                "$ref": "#/components/schemas/NonZeroUInt64String"
-              },
-              "purpose": {
-                "enum": [
-                  "MAKER_REGISTER",
-                  "MAKER_CREDENTIAL"
-                ]
-              },
-              "scopes": {
-                "type": "array",
-                "maxItems": 4,
-                "uniqueItems": true,
-                "items": {
-                  "$ref": "#/components/schemas/MakerTransportScope"
-                }
-              }
-            }
-          }
-        }
       },
       "Checkpoint": {
         "type": "object",
@@ -12153,14 +11969,6 @@
           }
         }
       },
-      "MakerTransportScope": {
-        "enum": [
-          "RFQ",
-          "REPLAY",
-          "VAULT",
-          "SPONSORSHIP"
-        ]
-      },
       "MakerUnsignedMetric": {
         "allOf": [
           {
@@ -14333,43 +14141,6 @@
             "items": {
               "type": "string",
               "pattern": "^[A-Z][A-Z0-9_]*$"
-            }
-          }
-        }
-      },
-      "ProofEnvelope": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schema_version",
-          "request_id",
-          "sent_at",
-          "command"
-        ],
-        "properties": {
-          "schema_version": {
-            "const": 1
-          },
-          "request_id": {
-            "$ref": "#/components/schemas/Uuid"
-          },
-          "sent_at": {
-            "$ref": "#/components/schemas/CommonTimestamp"
-          },
-          "command": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "challenge_id",
-              "controller_signature"
-            ],
-            "properties": {
-              "challenge_id": {
-                "$ref": "#/components/schemas/Uuid"
-              },
-              "controller_signature": {
-                "$ref": "#/components/schemas/ContractSignature"
-              }
             }
           }
         }

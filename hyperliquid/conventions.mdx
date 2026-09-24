@@ -74,11 +74,48 @@ Every error uses one envelope:
 | --- | --- |
 | `code` | Branch in code. |
 | `message` | Log or display. Wording may change. |
-| `retry` | Decide whether to retry. `NEVER` means the same request will fail again. `BACKOFF` means wait and retry. |
+| `retry` | Decide whether to retry. See the table below. |
 | `request_id` | Quote to support when reporting a problem. |
 | `field_violations` | Find which request fields failed validation. |
 
-## Rate limits
+| `retry` | What to do |
+| --- | --- |
+| `NEVER` | Do not retry. The same request will fail again. |
+| `AFTER_BACKOFF` | Retry the same request after waiting. Honor `Retry-After` when present. Key management returns `BACKOFF` with the same meaning. |
+| `AFTER_REFRESH` | Re-read the resource (the RFQ, quote book, or attempt) and send a new request built from fresh state. |
+| `AFTER_DELAY` | Retry the same request later. The dependency is temporarily unavailable. |
+| `UNKNOWN` | The outcome is unknown. Re-read the resource before deciding. Never assume it failed. |
 
-A request over its quota returns `429` with a `Retry-After` header holding the seconds to wait.
-Back off for at least that long before retrying.
+## Limits and timing
+
+Every other Hyperliquid page links here rather than restating these values.
+
+| Limit | Value |
+| --- | --- |
+| Legs per RFQ | 1 to 50, strictly ascending `outcome_id`, no outcome twice |
+| Minimum stake | Net stake (stake minus the taker fee) of at least 1 USDC. `1010000` always clears it. |
+| Maximum ticket payout | 100,000 USDC |
+| Entry RFQ open for quotes | 20 seconds after creation |
+| Cashout RFQ open for bids | 30 seconds after creation |
+| Quote life (`expiry`) | At most 30 seconds. The venue refuses to start an attempt on a quote with 2 seconds or less left. |
+| Signed quote submission | `expiry` between now + 5 and now + 25 seconds |
+| Cashout bid life | `expiry` between now + 25 and now + 60 seconds |
+| Maker confirmation deadline | 2 seconds after the taker starts an attempt |
+| Sell-back signature life | At most 60 seconds |
+| Withdrawal (`Exit`) signature life | At most 3,600 seconds |
+| Maker vault withdrawal delay | 86,400 seconds between request and execution |
+| Request body | 64 KiB |
+
+Fees are set on the vault contract and carried in every quote as `fee_bps` and `taker_fee_bps`.
+Sign the values the quote carries. A quote with stale fee values reverts on-chain.
+
+### Rate limits
+
+A request over its quota returns `429 RATE_LIMITED` with `retry: "AFTER_BACKOFF"` and a `Retry-After` header holding
+the seconds to wait. Back off for at least that long before retrying.
+
+| Route | Per maker, per minute |
+| --- | --- |
+| Submit quote, publish book quote, withdraw book quote | 120 each |
+| Confirm attempt | 120 |
+| List maker confirmation requests | 1,200 |
