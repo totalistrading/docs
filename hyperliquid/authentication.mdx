@@ -1,0 +1,81 @@
+---
+title: 'Authentication'
+icon: 'key'
+description: 'Scoped API keys for the Hyperliquid API: personal and maker keys, the scope catalog, and how keys relate to wallet signatures.'
+---
+
+Every authenticated request carries a scoped API key as a bearer token:
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me \
+  -H "Authorization: Bearer $TOTALIS_HL_API_KEY"
+```
+
+Market reads, discovery, and the public RFQ projection need no key. If you send a key to a public
+route it must still be valid: an expired or revoked key returns `401`, never an anonymous response.
+
+## Keys authorize, signatures move funds
+
+A key controls which routes you can call. It never moves funds on its own. Every balance-affecting
+command (accepting an offer, depositing, withdrawing, settling, transferring, or cashing out a
+ticket) also carries the exact wallet or maker signature the command names. A leaked key cannot
+spend your balance without that signature.
+
+## Key types
+
+| Type | Acts for | Created by | Can read personal state | Can read maker state |
+| --- | --- | --- | --- | --- |
+| **Personal key** | One account | You, in the [Totalis app](https://app.totalis.trade/account/api-keys) | Yes | No |
+| **Maker key** | One maker, on one chain and vault | A maker controller or a member with access management permission | No | Yes |
+
+Keys start with `ttk_v1_prd_` in production. You choose an expiry when you create a key, and you can
+revoke it at any time from the same settings page. Key management itself (create, rotate, revoke) requires a signed-in app
+session. A key cannot manage keys.
+
+## Scopes
+
+A key's effective permissions are its scopes intersected with what its owner can do right now. If a
+maker member loses a permission, every key they issued loses it too.
+
+### Personal scopes
+
+| Scope | Grants |
+| --- | --- |
+| `identity:read` | Read your identity and linked wallet. |
+| `account:read` | Read your balances, tickets, operations, activity, and HyperCore history. |
+| `account:stream` | Subscribe to your account events. Replay also requires `replay:read`. |
+| `rfq:read` | Discover open RFQs, read RFQ detail, and subscribe to RFQ discovery. |
+| `rfq:write` | Create and cancel your RFQs, and abandon your uncommitted attempts. |
+| `quote:read` | Read the offers on your RFQs. |
+| `replay:read` | Read retained events within a feed you are already authorized for. |
+| `ticket:accept` | Accept an offer on your RFQ. Requires your signature. |
+| `ticket:settle` | Settle or claim a ticket you own. |
+| `ticket:transfer` | Transfer a ticket you own. |
+| `ticket:cashout` | Cash out a ticket you own. |
+| `funding:deposit` | Submit your signed deposit. |
+| `funding:withdraw` | Submit and track your withdrawals. |
+| `sponsorship:use` | Use a sponsored (gas-free) operation, in addition to that operation's own scope. |
+| `maker:access:read` | Read the makers you are a member of. |
+| `operations:submit` | Attach your own transaction to an existing operation you own. |
+
+### Maker scopes
+
+| Scope | Grants |
+| --- | --- |
+| `rfq:read` | Discover open RFQs and subscribe to RFQ discovery. |
+| `quote:read` | Read your maker's quotes and confirmation state. |
+| `quote:write` | Publish and withdraw quotes, and answer confirmation requests. Quotes still require the maker signature. |
+| `replay:read` | Read retained events within your maker feed. |
+| `vault:read` | Read your maker vault, positions, and collateral jobs. |
+| `vault:write` | Submit maker vault actions and collateral reductions. Each still requires its financial proof. |
+| `operations:submit` | Attach your own transaction to an existing operation your maker owns. |
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `401` | `UNAUTHENTICATED` | The key is missing, malformed, expired, revoked, or for a different environment. |
+| `403` | `FORBIDDEN` | The key is valid but lacks a required scope or maker permission. |
+| `404` | `NOT_FOUND` | The resource does not exist, or belongs to someone else. The two are indistinguishable by design. |
+
+The response body follows the standard [error envelope](/hyperliquid/conventions#errors).

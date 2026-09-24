@@ -1,0 +1,84 @@
+---
+title: 'Conventions'
+icon: 'brackets-curly'
+description: 'Base URLs, value encoding, idempotency, pagination, errors, and rate limits for the Hyperliquid API.'
+---
+
+## Base URLs
+
+| Environment | Base URL | Chain |
+| --- | --- | --- |
+| Production | `https://hip4-api.totalis.trade` | HyperEVM mainnet (chain ID `999`) |
+| Staging | `https://hip4-api-staging.totalis.trade` | HyperEVM testnet (chain ID `998`) |
+
+Keys are bound to one environment. A production key returns `401` on staging.
+
+## Values
+
+| Kind | Encoding | Example |
+| --- | --- | --- |
+| Amount | Base-10 string in native USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
+| Large identifier | Decimal string. Outcome, question, chain, block, and sequence values may exceed JavaScript's safe integer range. | `"1209"` |
+| Address | Lowercase `0x` plus 40 hex characters. Input may be checksummed. | `"0xedf7...3745"` |
+| Digest, signature, hash | Lowercase `0x` hex of fixed length. | `"0xaa41..."` |
+| Timestamp | RFC 3339 UTC. Signed messages use the integer form their EIP-712 type defines. | `"2026-09-24T12:00:00Z"` |
+| Enum | Uppercase snake case. Handle unknown values on reads; unknown values on commands are rejected. | `"ACTIVE"` |
+
+An omitted optional field and an explicit `null` are not interchangeable unless the field says so.
+
+## Idempotency
+
+Every command `POST` requires an `Idempotency-Key` header holding a UUIDv7:
+
+```http
+Idempotency-Key: 0198a6f6-82a5-7abc-9f2a-4f0fb437493e
+```
+
+| You send | You get |
+| --- | --- |
+| The same key and the same body | The original status and resource, without repeating the command. |
+| The same key with a different body | `409 IDEMPOTENCY_KEY_REUSED`. |
+
+A key is scoped to your account, the method, and the route. Generate a new one for every distinct
+command, and reuse it only when retrying that exact command.
+
+## Pagination
+
+List endpoints return `items` and a `page` object. Pass `page.next_cursor` back as `?cursor=` to get
+the next page, and stop when `has_more` is `false`:
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo1NDA2LCJhIjoxMjA5LCJrIjoibWFya2V0In0"
+```
+
+Cursors are opaque. Do not parse or construct them. A filtered page can hold fewer than `limit`
+items, including zero, while `has_more` is still `true`. Keep paging until it is `false`.
+
+## Errors
+
+Every error uses one envelope:
+
+```json
+{
+  "error": {
+    "code": "UNAUTHENTICATED",
+    "message": "Authentication is required.",
+    "retry": "NEVER",
+    "request_id": "01a0d422-34c1-7e93-99ab-69687bd359fa",
+    "field_violations": []
+  }
+}
+```
+
+| Field | Use it to |
+| --- | --- |
+| `code` | Branch in code. |
+| `message` | Log or display. Wording may change. |
+| `retry` | Decide whether to retry. `NEVER` means the same request will fail again. `BACKOFF` means wait and retry. |
+| `request_id` | Quote to support when reporting a problem. |
+| `field_violations` | Find which request fields failed validation. |
+
+## Rate limits
+
+A request over its quota returns `429` with a `Retry-After` header holding the seconds to wait.
+Back off for at least that long before retrying.
