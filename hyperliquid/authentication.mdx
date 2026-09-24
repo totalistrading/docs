@@ -1,0 +1,111 @@
+---
+title: 'Authentication'
+icon: 'key'
+description: 'Scoped API keys for the Hyperliquid API: personal and maker keys, the scope catalog, and where wallet signatures fit.'
+---
+
+Every authenticated request carries a scoped API key as a bearer token:
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me \
+  -H "Authorization: Bearer $TOTALIS_HL_API_KEY"
+```
+
+The API key is the only credential. Public market reads and the public RFQ listing work without
+one. If you send a key to a public route it must still be valid: an expired or revoked key
+returns `401`, never an anonymous response.
+
+## Keys and signatures
+
+A key decides which routes you can call. It cannot move funds by itself. Tickets live in the Totalis
+vault contract on HyperEVM, and the contract only executes a trade, cashout, deposit, or withdrawal
+that carries a signature from the wallet that owns the funds. You call the route with your key and
+put that signature in the request body.
+
+| Action | Signed by | Signature |
+| --- | --- | --- |
+| Accept a quote | Taker wallet | EIP-712 `TakerAccept` |
+| Quote as a market maker | Maker quote signer | EIP-712 `Quote` |
+| Sell back a ticket | Ticket owner | EIP-712 `SellBack` |
+| Withdraw from the vault | Account wallet | EIP-712 `Exit` |
+| Deposit into the vault | Account wallet | EIP-3009 `ReceiveWithAuthorization` on USDC |
+| Settle or claim a ticket | Nobody | None. The key alone is enough. |
+
+Your taker wallet is the embedded wallet linked to your Totalis account. To sign from your own code,
+export its private key from the [Totalis app](https://app.totalis.trade) under Account, then Private
+key, and keep it in your secret store. A leaked API key without that private key cannot spend your
+balance. The [trading walkthrough](/hyperliquid/trading) shows each signature in code.
+
+## Key types
+
+| Type | Acts for | Created in | Reads personal state | Reads maker state |
+| --- | --- | --- | --- | --- |
+| **Personal key** | One account | [Account, then API keys](https://app.totalis.trade/account/api-keys), "Personal account" | Yes | No |
+| **Maker key** | One maker, on one chain and vault | The same page, "Maker account", by the maker controller or a member with access management permission | No | Yes |
+
+Keys start with `ttk_v1_prd_` in production. You choose an expiry when you create a key, and you can
+revoke it at any time from the same page. Creating, rotating, and revoking keys requires a signed-in
+app session. A key cannot manage keys.
+
+## Scopes
+
+A key's effective permissions are its scopes intersected with what its owner can do right now. If a
+maker member loses a permission, every key they issued loses it too.
+
+Maker reads also need the key owner's current maker permissions: `READ_CAPITAL`, `READ_POSITIONS`,
+`READ_ACTIVITY`, and `READ_PERFORMANCE`. The maker controller holds all four. Each
+[API reference](/hyperliquid/api-reference/account/list-balances) page lists the scopes and maker
+permissions its route needs.
+
+### Personal scopes
+
+| Scope | Grants |
+| --- | --- |
+| `identity:read` | Read your identity and linked wallet. |
+| `account:read` | Read your balances, tickets, operations, activity, and HyperCore history. |
+| `account:stream` | Subscribe to your account events. Replay also requires `replay:read`. |
+| `rfq:read` | Discover open RFQs, read RFQ detail, and subscribe to RFQ discovery. |
+| `rfq:write` | Create and cancel your RFQs, and abandon your attempts. |
+| `quote:read` | Read the quotes on your RFQs and the state of your attempts. |
+| `replay:read` | Read retained events within a feed you are already authorized for. |
+| `ticket:accept` | Accept a quote on your RFQ. |
+| `ticket:settle` | Settle or claim a ticket you own. |
+| `ticket:transfer` | Transfer a ticket you own. |
+| `ticket:cashout` | Cash out a ticket you own. |
+| `funding:deposit` | Deposit USDC from your wallet into the vault. |
+| `funding:withdraw` | Withdraw from the vault, or send wallet USDC to another address. |
+| `sponsorship:use` | Let Totalis pay the gas. Required by every command that sends a transaction: accept, cashout, settle, claim, transfer, deposit, and withdraw. |
+| `maker:access:read` | Read the makers you are a member of. |
+| `operations:submit` | Attach your own transaction to an existing operation you own. |
+
+### Maker scopes
+
+| Scope | Grants |
+| --- | --- |
+| `rfq:read` | Discover open RFQs and subscribe to RFQ discovery. |
+| `quote:read` | Read your maker's quotes and confirmation requests. |
+| `quote:write` | Publish, confirm, and withdraw quotes. |
+| `replay:read` | Read retained events within your maker feed. Requires `rfq:read`, `quote:read`, or `vault:read` too. |
+| `vault:read` | Read your maker vault, positions, and collateral jobs. |
+| `vault:write` | Request collateral reductions. |
+| `operations:submit` | Attach your own transaction to an existing operation your maker owns. |
+
+### Recommended scope sets
+
+| Integration | Scopes |
+| --- | --- |
+| Read-only dashboard | `identity:read`, `account:read`, `account:stream` |
+| Taker bot | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:settle`, `ticket:cashout`, `sponsorship:use` |
+| Taker bot that moves its own funds | The taker bot scopes, plus `funding:deposit` and `funding:withdraw` |
+| Market maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
+
+## Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `401` | `UNAUTHENTICATED` | The key is missing, malformed, expired, revoked, or for a different environment. |
+| `403` | `FORBIDDEN` | The key is valid but lacks a required scope or maker permission. |
+| `403` | `WRONG_AUTHORITY` | The key is fine, but the signature in the body is not from the required wallet. |
+| `404` | `NOT_FOUND` | The resource does not exist, or belongs to someone else. The two are indistinguishable by design. |
+
+The response body follows the standard [error envelope](/hyperliquid/conventions#errors).

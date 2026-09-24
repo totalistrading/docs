@@ -1,0 +1,239 @@
+---
+title: 'Funding'
+icon: 'wallet'
+description: 'Deposit USDC into the vault and withdraw it to your wallet or any address, with an API key and sponsored gas.'
+---
+
+Your USDC sits in two balances on HyperEVM:
+
+| Balance | What it is | Read it with |
+| --- | --- | --- |
+| **Wallet** | USDC held by your Totalis wallet, the embedded wallet in `/v1/me`. | The USDC token's `balanceOf` |
+| **Vault** | Your balance inside the Totalis vault contract. Stakes are taken from it. Payouts and cashouts are paid into it. | [List balances](/hyperliquid/api-reference/account/list-balances), the entry with `kind: "USER"` |
+
+Totalis pays the gas for every call on this page, so your wallet needs no HYPE. Each call also needs
+a signature from your wallet. [Keys and signatures](/hyperliquid/authentication#keys-and-signatures)
+explains how to export its private key.
+
+| To | Call | Key scopes | You sign |
+| --- | --- | --- | --- |
+| Move wallet USDC into the vault | [Deposit](/hyperliquid/api-reference/funds-and-tickets/deposit) | `funding:deposit`, `sponsorship:use` | EIP-3009 `ReceiveWithAuthorization` on USDC |
+| Send vault USDC to your wallet or any address | [Withdraw](/hyperliquid/api-reference/funds-and-tickets/withdraw) | `funding:withdraw`, `sponsorship:use` | EIP-712 `Exit` on the vault |
+| Send wallet USDC to any address | [Create Totalis withdrawal](/hyperliquid/api-reference/funds-and-tickets/create-totalis-withdrawal), then claim and submit the payout | `funding:withdraw`, `sponsorship:use` | EIP-3009 `TransferWithAuthorization` on USDC |
+
+The examples reuse `get`, `command`, and `wallet` from
+[step 1 of the trading walkthrough](/hyperliquid/trading#1-set-up-a-client).
+
+## Get USDC into your wallet
+
+Send native USDC on HyperEVM (chain ID `999`) to your wallet address. The token is
+`0xb88339cb7199b77e23db6e890353e22632ba630f`. To fund from another chain, deposit in the
+[Totalis app](https://app.totalis.trade), which bridges it for you.
+
+```ts
+import { createPublicClient, erc20Abi, http } from "viem";
+
+const USDC = "0xb88339cb7199b77e23db6e890353e22632ba630f";
+const rpc = createPublicClient({ transport: http("https://rpc.hyperliquid.xyz/evm") });
+
+const account = wallet.address.toLowerCase() as `0x${string}`;
+const walletUsdc = await rpc.readContract({
+  address: USDC, abi: erc20Abi, functionName: "balanceOf", args: [account],
+});
+const { balances } = await get("/v1/me/balances");
+const vaultUsdc = BigInt(balances.find((b: any) => b.kind === "USER")?.amount ?? "0");
+```
+
+Amounts are USDC base units: `1000000` is 1 USDC.
+
+## Deposit into the vault
+
+Sign a USDC `ReceiveWithAuthorization` that pays the vault, then submit it. The authorization nonce
+is derived from a random `salt`, your address, and the vault, exactly as the vault checks it:
+
+```ts
+import { encodeAbiParameters, keccak256, pad, toHex } from "viem";
+
+const vault = await get("/v1/vault");
+const chainId = Number(vault.chain_id);
+const vaultAddress = vault.vault_address as `0x${string}`;
+
+const value = 50_000_000n; // 50 USDC
+const now = Math.floor(Date.now() / 1000);
+const validAfter = BigInt(now - 60); // already open, allowing for clock skew
+const validBefore = BigInt(now + 600);
+const salt = toHex(crypto.getRandomValues(new Uint8Array(32)));
+const nonce = keccak256(encodeAbiParameters(
+  [{ type: "address" }, { type: "uint256" }, { type: "address" }, { type: "bytes32" }, { type: "bytes32" }],
+  [vaultAddress, BigInt(chainId), account, salt, pad(account, { size: 32 })],
+));
+
+const authorizationSignature = await wallet.signTypedData({
+  domain: { name: "USDC", version: "2", chainId, verifyingContract: USDC },
+  types: {
+    ReceiveWithAuthorization: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "validAfter", type: "uint256" },
+      { name: "validBefore", type: "uint256" },
+      { name: "nonce", type: "bytes32" },
+    ],
+  },
+  primaryType: "ReceiveWithAuthorization",
+  message: { from: account, to: vaultAddress, value, validAfter, validBefore, nonce },
+});
+
+const deposit = await command("/v1/deposits", {
+  account,
+  from: account,
+  value: value.toString(),
+  valid_after: validAfter.toString(),
+  valid_before: validBefore.toString(),
+  salt,
+  authorization_signature: authorizationSignature,
+});
+// { operation_id: "0x...", state: "DURABLE", amount: "50000000" }
+```
+
+`DURABLE` means queued, not executed. Follow `operation_id` as in
+[step 7 of the trading walkthrough](/hyperliquid/trading#7-wait-for-the-trade-to-land). The
+authorization window rules are on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
+
+## Withdraw from the vault
+
+Sign an `Exit` on the vault's domain. `to` is where the USDC goes: your own wallet, or any other
+address. The helper returns the request body, so the next section can reuse it:
+
+```ts
+async function signExit(to: string, amount: bigint) {
+  const exit = {
+    account,
+    to: to.toLowerCase() as `0x${string}`,
+    amount,
+    expiry: BigInt(Math.floor(Date.now() / 1000) + 600),
+    salt: BigInt(toHex(crypto.getRandomValues(new Uint8Array(32)))),
+  };
+  const signature = await wallet.signTypedData({
+    domain: { name: "TotalisParlay", version: "1", chainId, verifyingContract: vaultAddress },
+    types: {
+      Exit: [
+        { name: "account", type: "address" },
+        { name: "to", type: "address" },
+        { name: "amount", type: "uint128" },
+        { name: "expiry", type: "uint64" },
+        { name: "salt", type: "uint256" },
+      ],
+    },
+    primaryType: "Exit",
+    message: exit,
+  });
+  return {
+    account,
+    to: exit.to,
+    amount: amount.toString(),
+    expiry: exit.expiry.toString(),
+    salt: exit.salt.toString(),
+    signature,
+  };
+}
+
+// 20 USDC to your own wallet. Pass any address to send it elsewhere.
+const { operation_id } = await command("/v1/withdrawals", await signExit(account, 20_000_000n));
+```
+
+Follow `operation_id` until it is `COMMITTED`. Only your vault's free balance can be withdrawn. USDC
+backing an open ticket stays in the ticket until it settles or you cash out.
+
+## Send wallet USDC to another address
+
+USDC in your wallet leaves through a Totalis withdrawal, so you still pay no gas. It takes three
+calls because the vault may need to top up your wallet first, and the USDC transfer nonce is
+reserved by Totalis before you sign it.
+
+**1. Create the withdrawal.** If your wallet holds less than `amount`, add a `vault_withdrawal`: an
+`Exit` for exactly the shortfall, paid to your own wallet.
+
+```ts
+const destination = "0x...".toLowerCase() as `0x${string}`;
+const amount = 30_000_000n;
+const shortfall = amount > walletUsdc ? amount - walletUsdc : 0n;
+
+let w = await command("/v1/totalis-withdrawals", {
+  account,
+  destination,
+  amount: amount.toString(),
+  ...(shortfall > 0n ? { vault_withdrawal: await signExit(account, shortfall) } : {}),
+});
+```
+
+**2. Wait, then claim the payout.** Poll until `state` is `READY_FOR_PAYOUT_CLAIM`, then claim.
+Claiming takes no body:
+
+```ts
+while (["VAULT_WITHDRAWAL_QUEUED", "AWAITING_WALLET_CREDIT", "UNKNOWN"].includes(w.state)) {
+  await new Promise((r) => setTimeout(r, 1000));
+  w = await get(`/v1/totalis-withdrawals/${w.continuation_id}`);
+}
+
+const res = await fetch(`${BASE}/v1/totalis-withdrawals/${w.continuation_id}/payout-claim`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${KEY}`, "Idempotency-Key": uuidv7() },
+});
+w = await res.json(); // state: AWAITING_PAYOUT_SUBMISSION
+const transfer = w.wallet_transfer; // { chain_id, token, from, to, amount, nonce }
+```
+
+**3. Sign and submit the transfer.** Check that `transfer` matches what you asked for, then sign a
+USDC `TransferWithAuthorization` with the reserved nonce:
+
+```ts
+if (transfer.to !== destination || transfer.amount !== amount.toString()) throw new Error("payout mismatch");
+
+const t = Math.floor(Date.now() / 1000);
+const payoutAfter = BigInt(t - 60);
+const payoutBefore = BigInt(t + 600);
+const payoutSignature = await wallet.signTypedData({
+  domain: { name: "USDC", version: "2", chainId, verifyingContract: transfer.token },
+  types: {
+    TransferWithAuthorization: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "validAfter", type: "uint256" },
+      { name: "validBefore", type: "uint256" },
+      { name: "nonce", type: "bytes32" },
+    ],
+  },
+  primaryType: "TransferWithAuthorization",
+  message: {
+    from: account,
+    to: destination,
+    value: amount,
+    validAfter: payoutAfter,
+    validBefore: payoutBefore,
+    nonce: toHex(BigInt(transfer.nonce), { size: 32 }),
+  },
+});
+
+w = await command(`/v1/totalis-withdrawals/${w.continuation_id}/payout-submission`, {
+  valid_after: payoutAfter.toString(),
+  valid_before: payoutBefore.toString(),
+  authorization_signature: payoutSignature,
+});
+```
+
+Poll [Get Totalis withdrawal](/hyperliquid/api-reference/funds-and-tickets/get-totalis-withdrawal)
+until `state` is `PAYOUT_COMMITTED` (done) or `FAILED`. Every step is safe to retry: resend a call
+with its original `Idempotency-Key`, or read the withdrawal by `continuation_id`.
+
+## Errors to handle
+
+| Response | Cause | Do |
+| --- | --- | --- |
+| `403 FORBIDDEN` | The key lacks a scope from the table above. | Add the scope. |
+| `400 INVALID_REQUEST`, `400 INVALID_SIGNATURE` | A field is out of range, the window is not open, or the signature does not match the submitted fields and your wallet. | Sign exactly the values you submit, with the wallet from `/v1/me`. |
+| `409 STATE_CONFLICT` | The authorization was already used, or the balance no longer covers the amount. | Re-read your balances and sign again with a new `salt`. |
+| `429 SPONSORSHIP_RATE_LIMITED`, `503 SPONSORSHIP_UNAVAILABLE` | Totalis cannot pay the gas right now. | Retry after a backoff with the same `Idempotency-Key`. |
+
+The full envelope and `retry` guidance are on [Conventions](/hyperliquid/conventions#errors).
