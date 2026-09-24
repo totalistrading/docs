@@ -15,8 +15,6 @@ Market reads need no key and no account:
 curl "https://hip4-api.totalis.trade/v1/markets?limit=3"
 ```
 
-Trimmed to the main fields:
-
 ```json
 {
   "items": [
@@ -25,11 +23,8 @@ Trimmed to the main fields:
       "title": "HYPE touches 100 by 20261001-0000",
       "quote_asset": "USDC",
       "state": "ACTIVE",
-      "category": "Crypto",
-      "sides": [
-        { "side": "YES", "coin": "#12090", "asset_id": "100012090" },
-        { "side": "NO", "coin": "#12091", "asset_id": "100012091" }
-      ]
+      "category": "crypto",
+      "sides": [ ... ]
     }
   ],
   "page": {

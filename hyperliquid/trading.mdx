@@ -38,8 +38,8 @@ The examples use TypeScript with [viem](https://viem.sh) for signing and
 
 ## 1. Set up a client
 
-Every command is a `POST` with the same envelope and its own `Idempotency-Key`. Build the request
-once, so a retry resends exactly the same bytes:
+Every command is a `POST` with the same envelope and a fresh `Idempotency-Key`. Keep both in one
+helper:
 
 ```ts
 import { v7 as uuidv7 } from "uuid";
@@ -55,59 +55,28 @@ async function get(path: string) {
   return res.json();
 }
 
-type Request = { path: string; idempotencyKey: string; body?: string };
-
-// Builds a command request once. Keep it until you have a response.
-function request(path: string, command: object, idempotencyKey = uuidv7()): Request {
-  const body = JSON.stringify({
-    schema_version: 1,
-    request_id: uuidv7(),
-    sent_at: new Date().toISOString(),
-    command,
+async function command(path: string, command: object, idempotencyKey = uuidv7()) {
+  const res = await fetch(BASE + path, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${KEY}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify({
+      schema_version: 1,
+      request_id: uuidv7(),
+      sent_at: new Date().toISOString(),
+      command,
+    }),
   });
-  return { path, idempotencyKey, body };
+  if (!res.ok) throw await res.json();
+  return res.status === 204 ? null : res.json();
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// Sends a request, resending the same bytes after a network failure or an AFTER_BACKOFF or
-// BACKOFF error.
-async function send({ path, idempotencyKey, body }: Request, attempts = 3): Promise<any> {
-  for (let attempt = 1; ; attempt++) {
-    let res: Response;
-    let text: string;
-    try {
-      res = await fetch(BASE + path, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${KEY}`,
-          "Idempotency-Key": idempotencyKey,
-          ...(body ? { "Content-Type": "application/json" } : {}),
-        },
-        body,
-      });
-      text = await res.text(); // a dropped connection fails here too, and is retried
-    } catch (networkError) {
-      if (attempt >= attempts) throw networkError;
-      await sleep(1000 * attempt);
-      continue;
-    }
-    const data = text ? JSON.parse(text) : null;
-    if (res.ok) return data;
-    const retry = data?.error?.retry;
-    if (attempt >= attempts || (retry !== "AFTER_BACKOFF" && retry !== "BACKOFF")) throw data;
-    const retryAfter = Number(res.headers.get("Retry-After"));
-    await sleep((retryAfter >= 1 ? retryAfter : attempt) * 1000);
-  }
-}
-
-const command = (path: string, cmd: object, idempotencyKey?: string) =>
-  send(request(path, cmd, idempotencyKey));
 ```
 
-`send` retries a lost or throttled request with the **same** key and bytes, so you get the original
-result instead of a second bet. To retry later still, build the request with `request` yourself,
-store it, and pass the same object to `send` each time. See [Idempotency](/hyperliquid/conventions#idempotency).
+If a request times out, resend it with the **same** `Idempotency-Key` and body. You get the original
+result instead of a second bet. See [Idempotency](/hyperliquid/conventions#idempotency).
 
 ## 2. Read your wallet, the vault, and your balance
 
@@ -163,7 +132,7 @@ async function bestQuote(rfqId: string) {
   const now = Date.parse(server_time) / 1000;
   return quotes
     .filter((q: any) => Number(q.quote.expiry) - now > 5) // leave time to sign and confirm
-    .sort((a: any, b: any) => Number(BigInt(b.quote.payout) - BigInt(a.quote.payout)))[0];
+    .sort((a: any, b: any) => (BigInt(b.quote.payout) > BigInt(a.quote.payout) ? 1 : -1))[0];
 }
 
 let best;
@@ -171,7 +140,6 @@ for (let i = 0; i < 20 && !best; i++) {
   best = await bestQuote(rfq_id);
   if (!best) await new Promise((r) => setTimeout(r, 500));
 }
-if (!best) throw new Error("no usable quote; create a new RFQ");
 ```
 
 Each quote carries the full terms you will sign:
@@ -333,17 +301,10 @@ take one, and sign it.
 // 1. Ask market makers to bid for the ticket. Bids are collected for 30 seconds.
 const cash = await command("/v1/rfqs", { kind: "CASHOUT", ticket_id: ticket.ticket_id });
 
-// 2. Wait for bids and take the highest sell-back bid with time left to sign.
-let bid;
-for (let i = 0; i < 30 && !bid; i++) {
-  const { quotes: bids, server_time } = await get(`/v1/rfqs/${cash.rfq_id}/cashout-book`);
-  const now = Date.parse(server_time) / 1000;
-  bid = bids
-    .filter((b: any) => b.sell_back && Number(b.sell_back.expiry) - now > 5)
-    .sort((a: any, b: any) => Number(BigInt(b.sell_back.price) - BigInt(a.sell_back.price)))[0];
-  if (!bid) await new Promise((r) => setTimeout(r, 1000));
-}
-if (!bid) throw new Error("no cashout bid; try again later");
+// 2. Read the bids and take the highest.
+const { quotes: bids } = await get(`/v1/rfqs/${cash.rfq_id}/cashout-book`);
+const bid = bids.filter((b: any) => b.sell_back)
+  .sort((a: any, b: any) => (BigInt(b.sell_back.price) > BigInt(a.sell_back.price) ? 1 : -1))[0];
 
 // 3. Start a cashout attempt and wait for the maker's signature.
 const cashAttemptId = uuidv7();

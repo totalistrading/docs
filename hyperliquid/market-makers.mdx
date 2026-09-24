@@ -67,8 +67,6 @@ curl https://hip4-api.totalis.trade/v1/maker-vaults/$MAKER_ID \
   -H "Authorization: Bearer $TOTALIS_HL_MAKER_KEY"
 ```
 
-The response wraps the vault in `maker_vault`:
-
 | Field | Meaning |
 | --- | --- |
 | `vault_amount` | USDC in your maker vault. |
@@ -99,9 +97,7 @@ header, then send a hello for the `MAKER` topic:
 ```
 
 The server answers with `session.ready`, a `stream.snapshot` of current state, and then
-`stream.event` frames. With `rfq_details: true`, an `ENTRY_RFQ_OPENED` frame also carries the open RFQ
-in `rfq`. If `rfq` is missing, read it with [Get RFQ](/hyperliquid/api-reference/rfqs-and-quotes/get-rfq).
-A `CASHOUT_RFQ_OPENED` event carries the ticket, owner, legs, and `leg_state` in `event.payload`.
+`stream.event` frames. With `rfq_details: true`, every RFQ event carries the full RFQ:
 
 ```json
 {
@@ -241,72 +237,33 @@ quote, call [Withdraw book quote](/hyperliquid/api-reference/rfqs-and-quotes/wit
 
 ## 6. Confirm fills within 2 seconds
 
-When a taker takes your quote, or a ticket owner takes your cashout bid, the venue opens a
-confirmation request and gives you 2 seconds. An entry request carries the `quote` you published. A
-cashout request carries your `sell_back` or `transfer` bid instead (step 7). Poll for requests
-continuously and sign the terms each one carries:
+When a taker takes your quote, the venue opens a confirmation request and gives you 2 seconds. Poll
+for requests continuously:
 
 ```ts
-import { privateKeyToAccount } from "viem/accounts";
-
-const quoteSigner = privateKeyToAccount(process.env.TOTALIS_QUOTE_SIGNER_KEY as `0x${string}`);
-const bidFields = [
-  { name: "ticketId", type: "bytes32" },
-  { name: "price", type: "uint128" },
-] as const;
-const tail = [
-  { name: "expiry", type: "uint64" },
-  { name: "salt", type: "uint256" },
-  { name: "legState", type: "bytes32" },
-] as const;
-
-async function signConfirmation(c: any) {
-  if (c.quote) {
-    return quoteSigner.signTypedData({ domain, types, primaryType: "Quote", message: toMessage(c.quote) });
-  }
-  const bid = c.sell_back ?? c.transfer;
-  const common = {
-    ticketId: bid.ticket_id,
-    price: BigInt(bid.price),
-    expiry: BigInt(bid.expiry),
-    salt: BigInt(bid.salt),
-    legState: bid.leg_state,
-  };
-  if (c.sell_back) {
-    return quoteSigner.signTypedData({
-      domain,
-      types: { SellBack: [...bidFields, { name: "owner", type: "address" }, ...tail] },
-      primaryType: "SellBack",
-      message: { ...common, owner: bid.owner },
-    });
-  }
-  return quoteSigner.signTypedData({
-    domain,
-    types: {
-      CashoutTransfer: [...bidFields, { name: "seller", type: "address" }, { name: "buyer", type: "address" }, ...tail],
-    },
-    primaryType: "CashoutTransfer",
-    message: { ...common, seller: bid.seller, buyer: bid.buyer },
-  });
-}
-
 const { confirmations } = await get("/v1/maker/confirmations");
 for (const c of confirmations) {
-  const ok = stillWantThisRisk(c); // your own check of prices and vault headroom
-  const body = ok ? { decision: "CONFIRM", maker_signature: await signConfirmation(c) } : { decision: "DECLINE" };
+  const ok = stillWantThisRisk(c.quote); // your own check of prices and vault headroom
+  const body = ok
+    ? {
+        decision: "CONFIRM",
+        maker_signature: await quoteSigner.signTypedData({
+          domain, types, primaryType: "Quote", message: toMessage(c.quote),
+        }),
+      }
+    : { decision: "DECLINE" };
   await command(`/v1/rfqs/${c.rfq_id}/attempts/${c.attempt_id}/confirmation`, body, c.attempt_id);
 }
 ```
 
-- Sign the terms in the request, which are the terms you published. `domain`, `types`, and `toMessage`
-  are from step 5.
-- `quoteSigner` holds your quote signer key. The contract rejects any other signer.
+- Sign the terms in the request, which are the terms you published. `toMessage` is the function from
+  step 5.
+- `quoteSigner` is a viem account for your quote signer key. The contract rejects any other signer.
 - The `Idempotency-Key` must equal `attempt_id`.
 
 | Result `state` | Meaning |
 | --- | --- |
-| `COMMITTED` | Entry: your confirmation was accepted and the fill is queued on-chain. |
-| `CONFIRMED` | Cashout: your signature was accepted. Nothing executes until the ticket owner countersigns, so keep the risk reserved until the bid's `expiry` passes or the fill executes. |
+| `COMMITTED` | Your confirmation was accepted and the fill is queued on-chain. |
 | `DECLINED` | You declined. The taker can take another quote. |
 | `TIMED_OUT` | You missed the 2 second deadline. Nothing was filled. |
 
@@ -335,29 +292,26 @@ carries the ticket's legs and a `leg_state` snapshot. Publish a bid with
 
 `bid_digest` is the EIP-712 digest of
 `SellBack(bytes32 ticketId,uint128 price,address owner,uint64 expiry,uint256 salt,bytes32 legState)`
-on the same domain. Buying the ticket for your own book instead uses a `transfer` bid, whose
-`bid_digest` is the `CashoutTransfer` digest. When the owner takes your bid, the step 6 loop confirms
-it with the matching signature.
+on the same domain. When the owner takes your bid, confirm it exactly as in step 6, signing the
+`SellBack` terms. Buying the ticket for your own book instead uses a `transfer` bid signed as
+`CashoutTransfer`.
 
 ## 8. Monitor positions and performance
 
-| Read | Scope and maker permission | Returns |
+| Read | Scope | Returns |
 | --- | --- | --- |
-| [List maker positions](/hyperliquid/api-reference/maker-reads/list-maker-positions) | `vault:read`, `READ_POSITIONS` | Open and settled tickets against your maker. |
-| [List maker activity](/hyperliquid/api-reference/maker-reads/list-maker-activity) | `vault:read`, `READ_ACTIVITY` | Fills, settlements, and vault movements. |
-| [Get maker performance](/hyperliquid/api-reference/maker-reads/get-maker-performance) | `vault:read`, `READ_PERFORMANCE` | P&L and volume between `from` and `through`. |
+| [List maker positions](/hyperliquid/api-reference/maker-reads/list-maker-positions) | `vault:read` | Open and settled tickets against your maker. |
+| [List maker activity](/hyperliquid/api-reference/maker-reads/list-maker-activity) | `vault:read` | Fills, settlements, and vault movements. |
+| [Get maker performance](/hyperliquid/api-reference/maker-reads/get-maker-performance) | `vault:read` | P&L and volume over a period. |
 | [List maker quotes](/hyperliquid/api-reference/realtime/list-maker-quotes) | `quote:read` | Your live quotes. |
 
-The position, activity, and performance reads require the `X-Totalis-Account-Contract: 1` header
-plus the `chain_id` and `vault` query parameters from
-[Get vault release](/hyperliquid/api-reference/vault/get-vault-release).
+The position and activity reads require the `X-Totalis-Account-Contract: 1` header plus the
+`chain_id` and `vault` query parameters from [Get vault release](/hyperliquid/api-reference/vault/get-vault-release).
 
 ## Withdrawing capital and rotating the signer
 
-Maker withdrawals and quote signer changes are signed by the controller wallet. Call the vault
-contract directly, or send a controller-signed action to
-[Submit maker vault action](/hyperliquid/api-reference/funds-and-tickets/submit-maker-vault-action)
-(scope `vault:write`), which returns the transaction for your wallet to send:
+Maker withdrawals and quote signer changes are made by the controller wallet directly on the vault
+contract, not through the API:
 
 | Action | Contract call | Notes |
 | --- | --- | --- |

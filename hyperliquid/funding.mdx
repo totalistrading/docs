@@ -11,10 +11,9 @@ Your USDC sits in two balances on HyperEVM:
 | **Wallet** | USDC held by your Totalis wallet, the embedded wallet in `/v1/me`. | The USDC token's `balanceOf` |
 | **Vault** | Your balance inside the Totalis vault contract. Stakes are taken from it. Payouts and cashouts are paid into it. | [List balances](/hyperliquid/api-reference/account/list-balances), the entry with `kind: "USER"` |
 
-Totalis pays the gas for every call on this page, so your wallet needs no HYPE. Every movement of
-money also carries a signature from your wallet, listed in the table below.
-[Keys and signatures](/hyperliquid/authentication#keys-and-signatures) explains how to export its
-private key.
+Totalis pays the gas for every call on this page, so your wallet needs no HYPE. Each call also needs
+a signature from your wallet. [Keys and signatures](/hyperliquid/authentication#keys-and-signatures)
+explains how to export its private key.
 
 | To | Call | Key scopes | You sign |
 | --- | --- | --- | --- |
@@ -22,7 +21,7 @@ private key.
 | Send vault USDC to your wallet or any address | [Withdraw](/hyperliquid/api-reference/funds-and-tickets/withdraw) | `funding:withdraw`, `sponsorship:use` | EIP-712 `Exit` on the vault |
 | Send wallet USDC to any address | [Create Totalis withdrawal](/hyperliquid/api-reference/funds-and-tickets/create-totalis-withdrawal), then claim and submit the payout | `funding:withdraw`, `sponsorship:use` | EIP-3009 `TransferWithAuthorization` on USDC |
 
-The examples reuse `get`, `send`, `command`, and `wallet` from
+The examples reuse `get`, `command`, and `wallet` from
 [step 1 of the trading walkthrough](/hyperliquid/trading#1-set-up-a-client).
 
 ## Get USDC into your wallet
@@ -176,9 +175,12 @@ while (["VAULT_WITHDRAWAL_QUEUED", "AWAITING_WALLET_CREDIT", "UNKNOWN"].includes
   await new Promise((r) => setTimeout(r, 1000));
   w = await get(`/v1/totalis-withdrawals/${w.continuation_id}`);
 }
-if (w.state !== "READY_FOR_PAYOUT_CLAIM") throw new Error(`withdrawal ${w.state}`);
 
-w = await send({ path: `/v1/totalis-withdrawals/${w.continuation_id}/payout-claim`, idempotencyKey: uuidv7() });
+const res = await fetch(`${BASE}/v1/totalis-withdrawals/${w.continuation_id}/payout-claim`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${KEY}`, "Idempotency-Key": uuidv7() },
+});
+w = await res.json(); // state: AWAITING_PAYOUT_SUBMISSION
 const transfer = w.wallet_transfer; // { chain_id, token, from, to, amount, nonce }
 ```
 

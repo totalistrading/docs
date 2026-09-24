@@ -36,31 +36,23 @@ Idempotency-Key: 0198a6f6-82a5-7abc-9f2a-4f0fb437493e
 
 | You send | You get |
 | --- | --- |
-| The same key and the same command | The original status and body, without repeating the command. |
-| The same key with a different command | `409 IDEMPOTENCY_KEY_REUSED`. |
+| The same key and the same body | The original status and resource, without repeating the command. |
+| The same key with a different body | `409 IDEMPOTENCY_KEY_REUSED`. |
 
 A key is scoped to your account, the method, and the route. Generate a new one for every distinct
-command. To retry, resend the exact request you built the first time, with the same key and the same
-body. The [trading walkthrough](/hyperliquid/trading#1-set-up-a-client) shows a helper that does this.
+command, and reuse it only when retrying that exact command.
 
 ## Pagination
 
-List endpoints page with an opaque cursor. Pass the cursor from one response back as a query
-parameter to get the next page. The field names depend on the endpoint:
-
-| Endpoints | Query parameter | Next cursor | Last page when |
-| --- | --- | --- | --- |
-| Markets, questions, search, market history, activity, maker positions and activity, maker memberships, controlled makers | `cursor` | `page.next_cursor` | `page.has_more` is `false` |
-| Tickets, operations | `cursor` | `next_cursor` | `next_cursor` is `null` |
-| Open RFQs, maker quotes | `after` | `next_after` | `next_after` is `null` |
-| Maker events | `after` | `current_cursor` | `has_more` is `false` |
+List endpoints return `items` and a `page` object. Pass `page.next_cursor` back as `?cursor=` to get
+the next page, and stop when `has_more` is `false`:
 
 ```bash
 curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo1NDA2LCJhIjoxMjA5LCJrIjoibWFya2V0In0"
 ```
 
-Do not parse or construct cursors. A filtered page can hold fewer than `limit` items, including zero,
-before the last page. Keep paging until the last-page condition holds.
+Cursors are opaque. Do not parse or construct them. A filtered page can hold fewer than `limit`
+items, including zero, while `has_more` is still `true`. Keep paging until it is `false`.
 
 ## Errors
 
@@ -84,17 +76,15 @@ Every error uses one envelope:
 | `message` | Log or display. Wording may change. |
 | `retry` | Decide whether to retry. See the table below. |
 | `request_id` | Quote to support when reporting a problem. |
-| `field_violations` | Find which request fields failed validation. Activity, position, and maker membership reads omit it. |
-
-Activity, position, and maker membership reads, key management, and authorization outages use the
-short `retry` forms `BACKOFF` and `REFRESH`. They mean the same as the long forms.
+| `field_violations` | Find which request fields failed validation. |
 
 | `retry` | What to do |
 | --- | --- |
 | `NEVER` | Do not retry. The same request will fail again. |
-| `AFTER_BACKOFF`, `BACKOFF` | Retry the same request after waiting. Honor `Retry-After` when present. |
-| `AFTER_REFRESH`, `REFRESH` | Re-read the resource (the RFQ, quote book, attempt, or cursor) and send a new request built from fresh state. |
-| `AFTER_DELAY` | Retry later. The connection limit is reached or the server is draining. |
+| `AFTER_BACKOFF` | Retry the same request after waiting. Honor `Retry-After` when present. Key management returns `BACKOFF` with the same meaning. |
+| `AFTER_REFRESH` | Re-read the resource (the RFQ, quote book, or attempt) and send a new request built from fresh state. |
+| `AFTER_DELAY` | Retry the same request later. The dependency is temporarily unavailable. |
+| `UNKNOWN` | The outcome is unknown. Re-read the resource before deciding. Never assume it failed. |
 
 ## Limits and timing
 

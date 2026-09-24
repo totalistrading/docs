@@ -10,7 +10,7 @@ URL, keys, and flows. Three design choices explain almost every difference.
 | Choice | What it means for you |
 | --- | --- |
 | **Totalis cannot move your funds.** On Solana, enabling trading lets Totalis sign for your wallet. On Hyperliquid, the vault contract only executes a trade, cashout, deposit, or withdrawal signed by the wallet that owns the funds. | You sign an EIP-712 or EIP-3009 message for every money movement and send the signature with your API key. See [Keys and signatures](/hyperliquid/authentication#keys-and-signatures). |
-| **Writes finish on-chain, after the response.** A command is accepted once it is durably queued. | Commands that move money return `202` as soon as they are queued, with an `operation_id` or resource to poll, instead of waiting for the on-chain result. Other commands have their own responses, listed on each reference page. |
+| **Writes finish on-chain, after the response.** A command is accepted once it is durably queued. | Commands return `202` with an `operation_id` or a resource to poll, instead of waiting for the result. |
 | **Every command is retry-safe.** | Every command `POST` takes an `Idempotency-Key`. Resending the same key and body returns the original result. See [Idempotency](/hyperliquid/conventions#idempotency). |
 
 ## Side by side
