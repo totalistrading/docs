@@ -305,7 +305,8 @@ for (const c of confirmations) {
 
 | Result `state` | Meaning |
 | --- | --- |
-| `COMMITTED` | Your confirmation was accepted and the fill is queued on-chain. |
+| `COMMITTED` | Entry: your confirmation was accepted and the fill is queued on-chain. |
+| `CONFIRMED` | Cashout: your signature was accepted. Nothing executes until the ticket owner countersigns, so keep the risk reserved until the cashout RFQ closes. |
 | `DECLINED` | You declined. The taker can take another quote. |
 | `TIMED_OUT` | You missed the 2 second deadline. Nothing was filled. |
 

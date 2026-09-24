@@ -68,26 +68,42 @@ function request(path: string, command: object, idempotencyKey = uuidv7()): Requ
   return { path, idempotencyKey, body };
 }
 
-async function send({ path, idempotencyKey, body }: Request) {
-  const res = await fetch(BASE + path, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${KEY}`,
-      "Idempotency-Key": idempotencyKey,
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    body,
-  });
-  if (!res.ok) throw await res.json();
-  return res.status === 204 ? null : res.json();
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Sends a request, resending the same bytes after a network failure or an AFTER_BACKOFF error.
+async function send({ path, idempotencyKey, body }: Request, attempts = 3): Promise<any> {
+  for (let attempt = 1; ; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(BASE + path, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${KEY}`,
+          "Idempotency-Key": idempotencyKey,
+          ...(body ? { "Content-Type": "application/json" } : {}),
+        },
+        body,
+      });
+    } catch (networkError) {
+      if (attempt >= attempts) throw networkError;
+      await sleep(1000 * attempt);
+      continue;
+    }
+    if (res.ok) return res.status === 204 ? null : res.json();
+    const error = await res.json();
+    const retry = error?.error?.retry;
+    if (attempt >= attempts || (retry !== "AFTER_BACKOFF" && retry !== "BACKOFF")) throw error;
+    await sleep(Number(res.headers.get("Retry-After") ?? attempt) * 1000);
+  }
 }
 
 const command = (path: string, cmd: object, idempotencyKey?: string) =>
   send(request(path, cmd, idempotencyKey));
 ```
 
-If a request times out, call `send` again with the **same** `Request`. You get the original result
-instead of a second bet. See [Idempotency](/hyperliquid/conventions#idempotency).
+`send` retries a lost or throttled request with the **same** key and bytes, so you get the original
+result instead of a second bet. To retry later still, build the request with `request` yourself,
+store it, and pass the same object to `send` each time. See [Idempotency](/hyperliquid/conventions#idempotency).
 
 ## 2. Read your wallet, the vault, and your balance
 

@@ -36,7 +36,7 @@ Idempotency-Key: 0198a6f6-82a5-7abc-9f2a-4f0fb437493e
 
 | You send | You get |
 | --- | --- |
-| The same key and the same command | The original status and body, without repeating the command. The response carries `Idempotency-Replayed: true`. |
+| The same key and the same command | The original status and body, without repeating the command. |
 | The same key with a different command | `409 IDEMPOTENCY_KEY_REUSED`. |
 
 A key is scoped to your account, the method, and the route. Generate a new one for every distinct
@@ -50,7 +50,7 @@ parameter to get the next page. The field names depend on the endpoint:
 
 | Endpoints | Query parameter | Next cursor | Last page when |
 | --- | --- | --- | --- |
-| Markets, questions, search, market history, activity, maker positions and activity, maker memberships | `cursor` | `page.next_cursor` | `page.has_more` is `false` |
+| Markets, questions, search, market history, activity, maker positions and activity, maker memberships, controlled makers | `cursor` | `page.next_cursor` | `page.has_more` is `false` |
 | Tickets, operations | `cursor` | `next_cursor` | `next_cursor` is `null` |
 | Open RFQs, maker quotes | `after` | `next_after` | `next_after` is `null` |
 | Maker events | `after` | `current_cursor` | `has_more` is `false` |
