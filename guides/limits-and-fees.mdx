@@ -6,7 +6,7 @@ description: 'Every constraint and fee on Totalis: parlay size, bet range, payou
 
 ## At a glance
 
-- 2 to 5 legs, 1 to 100 USDC per bet, payout odds between 1.0001 and 1000.
+- 1 to 5 legs, 1 to 1000 USDC per bet, payout odds of at least 1.0001.
 - Two fees, both 1%: a taker fee on the bet, and a profit fee on the winner's profit at settlement. A 25 USDC bet at 4.0 odds pays 98.2575 (98.26 rounded) if every leg wins.
 - Odds apply to the net stake after the taker fee, never to the gross bet.
 - Every expiring object carries its own timestamp. Honor it over any default on this page.
@@ -15,9 +15,9 @@ description: 'Every constraint and fee on Totalis: parlay size, bet range, payou
 
 | Constraint | Value | Enforced at |
 | --- | --- | --- |
-| [Legs](/guides/glossary#the-noun-stack) per parlay | 2 to 5 | [Create quote request](/api-reference/quote-service/create) |
-| Bet amount | 1 to 100 USDC | Create quote request |
-| Payout odds | 1.0001 to 1000 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
+| [Legs](/guides/glossary#the-noun-stack) per parlay | 1 to 5 | [Create quote request](/api-reference/quote-service/create) |
+| Bet amount | 1 to 1000 USDC | Create quote request |
+| Payout odds | At least 1.0001 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
 | Leg combinations | No two legs' markets may share an `exclusion_keys` entry | Create quote request |
 
 Correlated legs are rejected. To avoid the rejection, read each market's

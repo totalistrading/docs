@@ -2751,7 +2751,6 @@
           "payout_odds": {
             "type": "number",
             "minimum": 1.0001,
-            "maximum": 1000,
             "description": "Multiplier on the net stake (`user_stake`) that produces the total payout if the parlay wins. When the taker fee is off, `user_stake == bet_amount`."
           },
           "user_cost": {
@@ -2832,9 +2831,9 @@
         "properties": {
           "legs": {
             "type": "array",
-            "minItems": 2,
+            "minItems": 1,
             "maxItems": 5,
-            "description": "Parlay legs (2-5 required). Each leg references a market by ticker on a specific venue.",
+            "description": "Parlay legs, 1 to 5. Each leg references a market by ticker on a specific venue.",
             "items": {
               "type": "object",
               "required": [
@@ -2859,8 +2858,8 @@
           "bet_amount": {
             "type": "number",
             "minimum": 1,
-            "maximum": 100,
-            "description": "USDC. Max 100. Must be a positive finite number."
+            "maximum": 1000,
+            "description": "USDC. Max 1000. Must be a positive finite number."
           },
           "expires_in_seconds": {
             "type": "integer",

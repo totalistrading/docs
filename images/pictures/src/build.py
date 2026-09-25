@@ -35,7 +35,7 @@ def page(name, stage, ticks=None, zoom=1):
 # How parlays work: you, a slip, makers, one position, two ends
 page('lifecycle',
      who(1, 'You') + dl() +
-     panel(box('Slip'), chips(('Yes', 'yes'), ('No', 'no'), ('Yes', 'yes')), cap='2 to 5 legs') + dl() +
+     panel(box('Slip'), chips(('Yes', 'yes'), ('No', 'no'), ('Yes', 'yes')), cap='1 to 5 legs') + dl() +
      panel(people(2, 3, 4, sm=True), box('Best odds', n='4.0x', hi=True), cap='Makers') + dl() +
      box('Position', tall=True, hi=True) + fork(28, 28) +
      stack(box('Settles'), box('Cash out')),

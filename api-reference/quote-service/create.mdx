@@ -1,10 +1,10 @@
 ---
 title: 'Create quote request'
 api: 'POST /v1/quote-requests'
-description: 'Create a new quote request for a multi-leg parlay.'
+description: 'Create a new quote request for a parlay.'
 ---
 
-Create a live [quote request](/guides/glossary#the-noun-stack) for a parlay of 2-5 legs. Every connected market maker receives it immediately and starts quoting.
+Create a live [quote request](/guides/glossary#the-noun-stack) for a parlay of 1-5 legs. Every connected market maker receives it immediately and starts quoting.
 
 ## Authentication
 
@@ -19,7 +19,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authenticatio
 ## Request body
 
 <ParamField body="legs" type="array" required>
-  2-5 parlay legs. See [Limits and fees](/guides/limits-and-fees#parlay-construction).
+  1-5 parlay legs. See [Limits and fees](/guides/limits-and-fees#parlay-construction).
   <Expandable title="Leg object">
     <ParamField body="market_ticker" type="string" required>
       The market ticker on the venue, such as `KXBTC-26JUN01-T72500`.
@@ -34,7 +34,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authenticatio
 </ParamField>
 
 <ParamField body="bet_amount" type="number" required>
-  Bet amount in USDC, from 1 to 100.
+  Bet amount in USDC, from 1 to 1000.
 </ParamField>
 
 <ParamField body="exclude_mm_ids" type="string[]">

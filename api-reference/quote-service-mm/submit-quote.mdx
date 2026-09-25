@@ -37,7 +37,7 @@ X-API-Key: <key>
 </ParamField>
 
 <ParamField body="payout_odds" type="number" required>
-  Payout multiplier on the net stake (`user_stake`), never the gross `bet_amount`; see [Fees](/guides/limits-and-fees#fees). Between 1.0001 and 1000. The server derives `user_cost`, `total_payout`, and `mm_cost` from it.
+  Payout multiplier on the net stake (`user_stake`), never the gross `bet_amount`; see [Fees](/guides/limits-and-fees#fees). At least 1.0001. The server derives `user_cost`, `total_payout`, and `mm_cost` from it.
 </ParamField>
 
 <ParamField body="expires_in_ms" type="integer">
