@@ -43,7 +43,7 @@ every scope. The team sets this up with you at onboarding.
 | `markets:read` | Market reads from a scoped key. `GET /markets` itself is public |
 | `trading:write` | Create and commit quote requests, build a position transaction |
 | `tx:sign` | Submit a signed transaction |
-| `positions:read` | Read quote requests and parlays. Portfolio also needs `balances:read` |
+| `positions:read` | Read quote requests and bets. Portfolio also needs `balances:read` |
 | `balances:read` | Read balances |
 | `funds:withdraw` | Build and submit withdrawals |
 
@@ -66,7 +66,7 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
   <Step title="Browse markets">
     `GET /markets` is public and rate limited per IP. Take `markets[].ticker`, `markets[].venue` and
     the `exclusion_keys` you need to build legal legs. See
-    [Limits and fees](/guides/limits-and-fees#parlay-construction).
+    [Limits and fees](/guides/limits-and-fees#bet-construction).
   </Step>
 
   <Step title="Register a sub-account">
@@ -157,7 +157,7 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
 
   <Step title="Build, sign, submit">
     Ask Totalis to build the transaction, sign its message with the owner key, and submit it with the
-    same `build_id`. The build call names the parlay `ticket_id`. Pass the `rfq_id` from commit.
+    same `build_id`. The build call names the bet `ticket_id`. Pass the `rfq_id` from commit.
 
     <Accordion title="The calls">
     ```bash
@@ -200,9 +200,9 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
 
   <Step title="Settle and read">
     Positions settle server side at market resolution with no signature from you. Proceeds land in
-    the sub-account's vault. Read a sub-account's parlays with `GET /v1/rfqs` and
+    the sub-account's vault. Read a sub-account's bets with `GET /v1/rfqs` and
     `GET /v1/rfqs/{id}` plus `X-Subaccount` (`positions:read`). With the header you see only that
-    sub-account's parlays. Without it you see only the principal's own, never a sub-account's. Push
+    sub-account's bets. Without it you see only the principal's own, never a sub-account's. Push
     updates arrive on the [partner webhooks](/_internal/partners/partner-console).
 
     The balance endpoints `GET /v1/wallet`, `GET /v1/vault` and `GET /v1/portfolio` report the
@@ -308,7 +308,7 @@ A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be 
 | `DELETE /v1/accounts/{id}` | `accounts:provision` | |
 | `POST /v1/quote-requests` | `trading:write` | |
 | `GET /v1/quote-requests/{id}` | `positions:read` | |
-| `GET /v1/rfqs`, `GET /v1/rfqs/{id}` | `positions:read` | `X-Subaccount` to read one sub-account's parlays |
+| `GET /v1/rfqs`, `GET /v1/rfqs/{id}` | `positions:read` | `X-Subaccount` to read one sub-account's bets |
 | `POST /v1/quote-requests/{id}/commit` | `trading:write` | `X-Subaccount` |
 | `POST /v1/positions/build-tx` | `trading:write` | `X-Subaccount` |
 | `POST /v1/vault/build-withdraw-tx` | `funds:withdraw` | `X-Subaccount` |

@@ -1,24 +1,24 @@
 ---
-title: 'How parlays work'
+title: 'How bets work'
 icon: 'arrows-spin'
-description: 'The path a parlay takes from quote request, through market maker pricing and commit, to on-chain settlement, and how to close one early.'
+description: 'The path a bet takes from quote request, through market maker pricing and commit, to on-chain settlement, and how to close one early.'
 ---
 
-A parlay starts as a **quote request**: your legs, priced live by market makers. It becomes a real
+A bet starts as a **quote request**: your legs, priced live by market makers. It becomes a real
 **position** once you commit to a quote, the maker confirms, and it funds on chain, all within seconds. From there it settles automatically when the
 underlying markets resolve, or you close it early.
 
 ## At a glance
 
-- A parlay is one bet on one or more legs, priced live by competing market makers. Limits are on [Limits and fees](/guides/limits-and-fees).
+- A bet is a single (one leg) or a combo (two or more legs), priced live by competing market makers. Limits are on [Limits and fees](/guides/limits-and-fees).
 - Requesting quotes holds nothing. From commit, your bet is held against your balance. It moves on chain once, when the maker confirms.
 - The position then goes live on chain and settles by itself when the last market resolves.
 - You can close a live position early through a cashout auction of about 10 seconds.
 
-<img className="block dark:hidden rounded-2xl" src="/images/pictures/lifecycle-light.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
-<img className="hidden dark:block rounded-2xl" src="/images/pictures/lifecycle-dark.png" alt="How a parlay works: your slip, makers quote, one position, then it settles or you cash out early" />
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/lifecycle-light.png" alt="How a bet works: your slip, makers quote, one position, then it settles or you cash out early" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/lifecycle-dark.png" alt="How a bet works: your slip, makers quote, one position, then it settles or you cash out early" />
 
-## Place a parlay
+## Place a bet
 
 <Steps>
   <Step title="Open a quote request">
@@ -50,7 +50,7 @@ underlying markets resolve, or you close it early.
     <Warning>
     Odds apply to your bet amount minus a 1% taker fee. A 25 USDC bet carries a 24.75 net stake, so
     do not expect the stake to match `bet_amount`. The fee locks with the stake and comes back to you
-    if the parlay is voided.
+    if the bet is voided.
     </Warning>
   </Step>
 
@@ -70,7 +70,7 @@ underlying markets resolve, or you close it early.
 
   <Step title="Commit the best quote">
     Accept a quote to lock the trade. Totalis selects the best still valid quote for the version of
-    the request you saw, and creates the parlay with that quote already accepted.
+    the request you saw, and creates the bet with that quote already accepted.
 
     <Accordion title="The call">
     ```bash
@@ -84,8 +84,8 @@ underlying markets resolve, or you close it early.
     ```
     </Accordion>
 
-    The call waits the few seconds it takes the maker to confirm. It then returns the parlay's real
-    `rfq_id`, the accepted quote, and the payout odds, with the parlay already `confirmed`.
+    The call waits the few seconds it takes the maker to confirm. It then returns the bet's real
+    `rfq_id`, the accepted quote, and the payout odds, with the bet already `confirmed`.
     The response's own `status`, `committed`, is the quote request's.
 
     If the commit fails, no funds moved and no trade happened. When the maker misses the
@@ -94,7 +94,7 @@ underlying markets resolve, or you close it early.
     [Errors](/api-reference/errors).
   </Step>
 
-  <Step title="The parlay funds on-chain">
+  <Step title="The bet funds on-chain">
     The maker confirms, and your stake and the maker's collateral lock together, in one transaction,
     in [on-chain Solana vaults](/guides/vault-architecture). Network fees are sponsored, so you only
     ever need USDC.
@@ -119,14 +119,14 @@ underlying markets resolve, or you close it early.
 
 ## Closing early
 
-You can leave a live parlay before settlement. Totalis runs a short auction among market makers.
+You can leave a live bet before settlement. Totalis runs a short auction among market makers.
 You see the best all-in price live and accept it or not. You are never filled at a price you did
 not see. [Early cashout](/guides/early-cashout) has the steps and the two ways an auction can
 resolve.
 
 ## Status reference
 
-In the API, a parlay is called an **RFQ** (request for quote). Its `status` field, returned by
+In the API, a bet is called an **RFQ** (request for quote). Its `status` field, returned by
 [`GET /v1/rfqs/{id}`](/api-reference/parlays/get), takes these values:
 
 | Status | Meaning | Funds |
@@ -139,7 +139,7 @@ In the API, a parlay is called an **RFQ** (request for quote). Its `status` fiel
 | `cancelled` | Ended before funding, or a leg was voided. | released or never moved |
 | `expired` | Ended before funding, for example when the maker missed confirmation. | hold released |
 
-The enum also contains `open` and `quoted`. They belong to an older flow. A parlay placed through a
+The enum also contains `open` and `quoted`. They belong to an older flow. A bet placed through a
 quote request is created at `accepted` and never shows them.
 
 Each quote has its own `status`:

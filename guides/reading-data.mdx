@@ -1,7 +1,7 @@
 ---
 title: 'Reading your data'
 icon: 'chart-line'
-description: 'Pull account state on demand: portfolio, parlay history, settlement outcomes, P&L, and balances, for backfill and reconciliation.'
+description: 'Pull account state on demand: portfolio, bet history, settlement outcomes, P&L, and balances, for backfill and reconciliation.'
 ---
 
 Read endpoints return your current state on demand. Use them to backfill, reconcile, and display.
@@ -18,20 +18,20 @@ and needs no key.
 | Balance, stats, and status counts in one call | [`GET /v1/portfolio`](/api-reference/funds/portfolio) | `positions:read` + `balances:read` |
 | Vault balance and active positions | [`GET /v1/vault`](/api-reference/funds/get-vault) | `balances:read` |
 | Wallet address, all balances, locked funds | [`GET /v1/wallet`](/api-reference/user/get-wallet) | `balances:read` |
-| Your parlays, paginated, filterable by status | [`GET /v1/rfqs`](/api-reference/parlays/list) | `positions:read` |
-| One parlay's detail and settlement outcome | [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) | `positions:read` |
+| Your bets, paginated, filterable by status | [`GET /v1/rfqs`](/api-reference/parlays/list) | `positions:read` |
+| One bet's detail and settlement outcome | [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) | `positions:read` |
 | Realized P&L timeseries | [`GET /v1/pnl`](/api-reference/funds/pnl) | `positions:read` |
 | Your profile | [`GET /v1/me`](/api-reference/user/get-profile) | `account:read` |
 | Live market data | [`GET /markets`](/api-reference/markets/list) | none, public |
 
-## Filtering parlays
+## Filtering bets
 
 [`GET /v1/rfqs`](/api-reference/parlays/list) takes two query parameters:
 
 | Parameter | Behavior |
 | --- | --- |
 | `status` | Comma joined, for example `?status=executed,settled`. See the [status reference](/guides/lifecycle#status-reference). |
-| `include=quotes` | Attaches each parlay's `quotes` array. Without it, `quotes` is `null`, meaning not requested. With it, an empty array `[]` means no quotes were submitted. |
+| `include=quotes` | Attaches each bet's `quotes` array. Without it, `quotes` is `null`, meaning not requested. With it, an empty array `[]` means no quotes were submitted. |
 
 ## P&L windows
 
@@ -63,7 +63,7 @@ trades it can afford.
 
 ## Settlement outcomes
 
-[`GET /v1/rfqs/{id}`](/api-reference/parlays/get) is the source of truth for how a parlay resolved.
+[`GET /v1/rfqs/{id}`](/api-reference/parlays/get) is the source of truth for how a bet resolved.
 Once it is terminal, the response carries the full settlement detail:
 
 | Field | Contents |
@@ -73,17 +73,17 @@ Once it is terminal, the response carries the full settlement detail:
 | payout | The amount paid to the winning side. |
 | `settle_tx`, `cancel_tx`, `buyback_tx` | On-chain transaction signatures. |
 
-A parlay id you do not own returns `404`.
+A bet id you do not own returns `404`.
 
 ## Reconciling
 
 <Steps>
-  <Step title="Enumerate terminal parlays">
+  <Step title="Enumerate terminal bets">
     Page through [`GET /v1/rfqs?status=settled`](/api-reference/parlays/list), following
     `meta.cursor` until `has_more` is false.
   </Step>
   <Step title="Fetch detail for anything new">
-    For each parlay you have not recorded, fetch
+    For each bet you have not recorded, fetch
     [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) for the settlement detail and transaction
     signatures.
   </Step>

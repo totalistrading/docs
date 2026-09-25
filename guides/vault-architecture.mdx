@@ -6,7 +6,7 @@ description: 'How Totalis holds collateral: non-custodial on-chain Solana vaults
 
 Totalis is **non-custodial**: your funds sit in an on-chain Solana vault that the protocol's program
 controls, not in a Totalis held account. You enable trading once by delegating signing permission.
-After that, you place, settle, and close parlays without signing each transaction by hand.
+After that, you place, settle, and close bets without signing each transaction by hand.
 
 ## At a glance
 
@@ -20,7 +20,7 @@ After that, you place, settle, and close parlays without signing each transactio
 
 ## Your vault
 
-Your vault is persistent and reused across every parlay. It tracks three balances:
+Your vault is persistent and reused across every bet. It tracks three balances:
 
 | Balance | Meaning |
 | --- | --- |
@@ -29,7 +29,7 @@ Your vault is persistent and reused across every parlay. It tracks three balance
 | Free | `gross - locked`. Available to trade or withdraw. |
 
 Read them any time from [`GET /v1/vault`](/api-reference/funds/get-vault). To fund the vault, send
-USDC to your wallet (see [Funding](/guides/funding)). Placing a parlay moves your stake into the
+USDC to your wallet (see [Funding](/guides/funding)). Placing a bet moves your stake into the
 vault and locks it in one atomic step.
 
 ## Delegated signing

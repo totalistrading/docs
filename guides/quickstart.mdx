@@ -12,8 +12,8 @@ Market data needs no key and no account:
 curl "https://api.totalis.trade/markets?limit=3"
 ```
 
-Every market in the response carries the `ticker` and `venue` you reference when you build a parlay
-leg (one outcome inside a parlay). [List markets](/api-reference/markets/list) has the filters for
+Every market in the response carries the `ticker` and `venue` you reference when you build a
+leg (one outcome inside a bet). [List markets](/api-reference/markets/list) has the filters for
 category, venue, and search.
 
 Everything past this point needs a key.
@@ -78,12 +78,12 @@ curl https://api.totalis.trade/v1/portfolio \
 
 ## 5. Before you can trade
 
-Reads work as soon as your key does. Placing a parlay needs two more things:
+Reads work as soon as your key does. Placing a bet needs two more things:
 
 <Steps>
   <Step title="USDC in your wallet">
     Send native Solana USDC to the address from
-    [`GET /v1/wallet`](/api-reference/user/get-wallet). When you place a parlay, the stake moves
+    [`GET /v1/wallet`](/api-reference/user/get-wallet). When you place a bet, the stake moves
     into your on-chain vault by itself. See [Funding](/guides/funding).
   </Step>
   <Step title="Trading enabled">
@@ -96,7 +96,7 @@ Reads work as soon as your key does. Placing a parlay needs two more things:
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="How parlays work" icon="arrows-spin" href="/guides/lifecycle">
+  <Card title="How bets work" icon="arrows-spin" href="/guides/lifecycle">
     The full path from quote request to settlement.
   </Card>
   <Card title="Limits and fees" icon="scale-balanced" href="/guides/limits-and-fees">

@@ -1,7 +1,7 @@
 ---
 title: 'Market making'
 icon: 'handshake'
-description: 'Stream parlay quote requests, submit payout odds, confirm fills within seconds, bid on early cashouts, and size collateral with portfolio netting.'
+description: 'Stream quote requests, submit payout odds, confirm fills within seconds, bid on early cashouts, and size collateral with portfolio netting.'
 ---
 
 Any account can make markets. You need an API key with the `mm:quote` scope, USDC to back your
@@ -101,10 +101,10 @@ your whole book of open positions. It finds that number exactly by solving an in
 (ILP) over every way your markets can resolve, so positions that cannot all pay out at once share
 collateral.
 
-<img className="block dark:hidden rounded-2xl" src="/images/pictures/collateral-netting-light.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
-<img className="hidden dark:block rounded-2xl" src="/images/pictures/collateral-netting-dark.png" alt="Two parlays that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/collateral-netting-light.png" alt="Two bets that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/collateral-netting-dark.png" alt="Two bets that cannot both win: posted in isolation they lock 20,000, margined as a portfolio they lock 12,000" />
 
-In the picture, two parlays cannot both win. Locked one by one they need 20,000 USDC. As a book they
+In the picture, two bets cannot both win. Locked one by one they need 20,000 USDC. As a book they
 need 12,000, the larger of the two.
 
 | When | What locks |
@@ -133,7 +133,7 @@ solve runs out of time you are locked a safe upper bound, never more than the pl
 `mm_risk`.
 
 In Totalis backtests the saving was 10% to 30% for generalist books, 20% to 40% for books on a single
-league, and over 70% for books of long-tail parlays with four or more legs.
+league, and over 70% for books of long-tail combos with four or more legs.
 
 ## Early cashouts
 
@@ -166,7 +166,7 @@ position. See the [Glossary](/guides/glossary#identifiers).
     A key with the four read scopes and `mm:quote`.
   </Card>
   <Card title="Cashout auctions" icon="gavel" href="/guides/cashout-auctions">
-    Bid on parlay exits and know which outcome you are in.
+    Bid on early exits from bets and know which outcome you are in.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/api-reference/errors">
     Every rejection reason, and which to alert on.

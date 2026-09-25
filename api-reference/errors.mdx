@@ -39,8 +39,8 @@ Every error, on every endpoint, has the same shape:
 | `502` | Partial success, such as `PARTIAL_VAULT_ONLY` on a withdrawal. | Read `error.details` before retrying. See [Funding](/guides/funding#when-it-fails). |
 | `503` | Temporarily unavailable. | Retry with backoff. |
 
-A parlay id you do not own returns `404`, not `403`, so the API never confirms that another
-account's parlay exists. A quote request id you do not own returns `403`.
+A bet id you do not own returns `404`, not `403`, so the API never confirms that another
+account's bet exists. A quote request id you do not own returns `403`.
 
 ## Top level codes
 

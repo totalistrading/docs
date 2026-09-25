@@ -73,10 +73,10 @@ with reason `insufficient_scope`.
 | --- | --- | --- |
 | `account:read` | View account profile and username. | low |
 | `markets:read` | Browse markets and exclusion groups. Market reads are public today, so no public endpoint checks it. | low |
-| `positions:read` | View quote requests, parlays, stats, and P&L. Portfolio also needs `balances:read`. | low |
+| `positions:read` | View quote requests, bets, stats, and P&L. Portfolio also needs `balances:read`. | low |
 | `balances:read` | View wallet and vault balances and delegation status. | low |
 | `funds:deposit` | Move USDC into the vault. | low |
-| `trading:write` | Create, modify, commit, and cancel quote requests. Places parlays. | medium |
+| `trading:write` | Create, modify, commit, and cancel quote requests. Places bets. | medium |
 | `account:write` | Change username and profile settings. | medium |
 | `mm:quote` | Read quote requests and submit or confirm quotes as a market maker. | medium |
 | `funds:withdraw` | Move USDC out of the vault or wallet to any address. | **high** |

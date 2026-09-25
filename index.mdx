@@ -1,12 +1,12 @@
 ---
 title: 'Introduction'
-description: 'APIs for building and settling custom parlays across prediction markets, including Kalshi and Polymarket, on Solana.'
+description: 'APIs for building and settling singles and combos across prediction markets, including Kalshi and Polymarket, on Solana.'
 icon: 'house'
 ---
 
-Totalis turns individual prediction market bets into custom parlays. A **parlay** is one bet that
-pays out only if every outcome in it happens. Pick outcomes on Kalshi or Polymarket and combine
-them into one position. Market makers compete to price it,
+Totalis lets you bet on prediction market outcomes from Kalshi and Polymarket. A **single** is a
+bet on one outcome. A **combo** puts several outcomes into one bet that pays out only if every one
+of them happens. Market makers compete to price each bet,
 and trades settle on Solana. Totalis is not available to U.S. persons.
 
 <CardGroup cols={3}>
@@ -34,7 +34,7 @@ Everything else needs an API key. Start with the [Quickstart](/guides/quickstart
 ## How it works
 
 <Steps>
-  <Step title="Build a parlay">
+  <Step title="Build a bet">
     Pick outcomes from any supported market and set your bet amount.
   </Step>
   <Step title="Get competitive quotes">
@@ -50,7 +50,7 @@ Everything else needs an API key. Start with the [Quickstart](/guides/quickstart
 ## Core concepts
 
 <CardGroup cols={2}>
-  <Card title="How parlays work" icon="arrows-spin" href="/guides/lifecycle">
+  <Card title="How bets work" icon="arrows-spin" href="/guides/lifecycle">
     The path from quote request to settlement, and how to close early.
   </Card>
   <Card title="Limits and fees" icon="scale-balanced" href="/guides/limits-and-fees">

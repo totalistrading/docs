@@ -125,15 +125,15 @@ your drafts was lifted. Use `quote_id`, the accepted quote, for the
 [confirmation call](/api-reference/mm/confirm-quote).
 </Note>
 
-### Parlay events
+### Bet events
 
 Delivered on `rfq:{rfq_id}`. These are the user-facing mirror of the maker's `quote:*` events.
 
 | Event | Description | Data |
 |-------|-------------|------|
-| `rfq:status` | The parlay moved to a new status: `accepted`, `confirmed`, `executed` or `cancelled`. Same moments as the `parlay.status_changed` webhook. | `{ rfq_id, status, updated_at, accepted_quote_id? }` |
-| `rfq:cancelled` | The parlay was cancelled. | `{ rfq_id, reason? }` |
-| `rfq:expired` | The parlay expired before it was funded. | `{ rfq_id }` |
+| `rfq:status` | The bet moved to a new status: `accepted`, `confirmed`, `executed` or `cancelled`. Same moments as the `parlay.status_changed` webhook. | `{ rfq_id, status, updated_at, accepted_quote_id? }` |
+| `rfq:cancelled` | The bet was cancelled. | `{ rfq_id, reason? }` |
+| `rfq:expired` | The bet expired before it was funded. | `{ rfq_id }` |
 
 ### Position events
 

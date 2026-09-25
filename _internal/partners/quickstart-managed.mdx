@@ -1,7 +1,7 @@
 ---
 title: 'Managed integration'
 icon: 'wallet'
-description: 'Programmatic parlay trading with a Totalis-managed wallet and an API key. Live today.'
+description: 'Programmatic trading with a Totalis-managed wallet and an API key. Live today.'
 ---
 
 In the managed model each account gets a Totalis-managed embedded Solana wallet. Its key lives in a
@@ -20,7 +20,7 @@ public API used as a partner, so every public page applies.
 <Steps>
   <Step title="Create the account and a key">
     The end user logs in at [app.totalis.trade](https://app.totalis.trade) and creates an API key
-    under Settings, then API Keys. Use the Trading preset for a bot that places parlays,
+    under Settings, then API Keys. Use the Trading preset for a bot that places bets,
     the full preset if it also withdraws (it adds `funds:withdraw`), or Read-only for display. The key is shown once. See
     [Authentication](/guides/authentication) for the scope catalog.
   </Step>
@@ -32,12 +32,12 @@ public API used as a partner, so every public page applies.
   </Step>
   <Step title="Fund the wallet">
     Send native Solana USDC to the address from [`GET /v1/wallet`](/api-reference/user/get-wallet).
-    Placing a parlay moves the stake into the vault by itself. To pre-fund the vault, call
+    Placing a bet moves the stake into the vault by itself. To pre-fund the vault, call
     `POST /v1/vault/deposit`. See [Funding](/guides/funding).
   </Step>
   <Step title="Quote and commit">
     Open a quote request, watch the stream, commit the best quote. The commit body
-    proves you saw the current price. See [How parlays work](/guides/lifecycle) and
+    proves you saw the current price. See [How bets work](/guides/lifecycle) and
     [Quote requests in depth](/guides/quote-requests).
   </Step>
   <Step title="Settle and withdraw">
@@ -63,8 +63,8 @@ public API used as a partner, so every public page applies.
 | Events | [Webhooks](/guides/webhooks), [WebSocket](/guides/websocket) |
 
 `market_ticker` is venue specific: the Kalshi ticker for Kalshi, the `condition_id` for Polymarket.
-Two markets can share a parlay only if their `exclusion_keys` do not intersect. Both rules are on
-[Limits and fees](/guides/limits-and-fees#parlay-construction).
+Two markets can share a combo only if their `exclusion_keys` do not intersect. Both rules are on
+[Limits and fees](/guides/limits-and-fees#bet-construction).
 
 ## What managed cannot do for a platform
 

@@ -32,7 +32,7 @@ def page(name, stage, ticks=None, zoom=1):
     # zoom fills the frame the way Polymarket's pictures do; the rail is outside the zoomed stage
     pathlib.Path(f'{name}.html').write_text(HEAD + f'<div class="stage"><div class="inner" style="zoom:{zoom}">{stage}</div></div>' + (rail(ticks) if ticks else '') + TAIL, encoding='utf-8'); print('built', name)
 
-# How parlays work: you, a slip, makers, one position, two ends
+# How bets work: you, a slip, makers, one position, two ends
 page('lifecycle',
      who(1, 'You') + dl() +
      panel(box('Slip'), chips(('Yes', 'yes'), ('No', 'no'), ('Yes', 'yes')), cap='1 to 5 legs') + dl() +
@@ -57,7 +57,7 @@ page('limits-and-fees',
 
 # Glossary: three names on one rail
 page('glossary',
-     box('Quote request', wide=True, tall=True) + dl(140) + box('Parlay', wide=True, tall=True, hi=True) + dl(140) + box('Position', wide=True, tall=True),
+     box('Quote request', wide=True, tall=True) + dl(140) + box('Bet', wide=True, tall=True, hi=True) + dl(140) + box('Position', wide=True, tall=True),
      [(0, 'open', True), (40, 'commit', True), (72, 'on chain', True), (100, 'settled', False)], zoom=1.25)
 
 # Early cashout: a position, an auction of three, two ends
@@ -95,9 +95,9 @@ rt = HEAD + '<div class="channels">' + chan('Quote stream', bar(0, 34, True)) + 
      '<div class="marks">' + ''.join(f'<div class="tick on" style="left:{p}%"><span>{t}</span></div>' for p, t in [(0, 'request'), (34, 'commit'), (68, 'settle')]) + '</div>' + TAIL
 pathlib.Path('realtime-and-data.html').write_text(rt, encoding='utf-8'); print('built realtime-and-data')
 
-# Collateral: two parlays that cannot both win
+# Collateral: two bets that cannot both win
 page('collateral-netting',
-     stack(box('Parlay A', n='12,000'), box('Parlay B', n='8,000')) + fork(28, 28, mid=True) +
+     stack(box('Bet A', n='12,000'), box('Bet B', n='8,000')) + fork(28, 28, mid=True) +
      stack(box('One by one', n='20,000', warn=True), box('As a book', n='12,000', hi=True)),
      None, zoom=1.4)
 

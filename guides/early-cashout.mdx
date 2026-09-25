@@ -1,18 +1,18 @@
 ---
 title: 'Early cashout'
 icon: 'hand-holding-dollar'
-description: 'Leave a parlay before it settles: a short auction, one all-in price, and what happens to your position afterwards.'
+description: 'Leave a bet before it settles: a short auction, one all-in price, and what happens to your position afterwards.'
 ---
 
-Once a parlay is live on chain, you can ask market makers to buy you out before it settles. Totalis
+Once a bet is live on chain, you can ask market makers to buy you out before it settles. Totalis
 runs a short auction. You see the best price live and accept it or walk away.
 
 ## At a glance
 
-- Any live parlay can be cashed out early, until 30 seconds before its markets close. The auction runs about 10 seconds.
+- Any live bet can be cashed out early, until 30 seconds before its markets close. The auction runs about 10 seconds.
 - Every market maker sees the auction and can bid one all-in price. You see the best one as it changes.
 - You receive the best live bid, never less than the price you accepted. If the best bid drops below it before you commit, the commit fails and nothing happens.
-- The price can be below your stake if the parlay has gone against you.
+- The price can be below your stake if the bet has gone against you.
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/early-cashout-light.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/early-cashout-dark.png" alt="Your position goes to a ten second auction; the highest all-in bid wins and either closes the position or transfers it" />
@@ -29,7 +29,7 @@ runs a short auction. You see the best price live and accept it or walk away.
     { "position_id": "<position-id>" }
     GET  /v1/cashout-requests/<id>/stream   # SSE: live buyback quote and status
     ```
-    `position_id` is on the parlay object once it is live.
+    `position_id` is on the RFQ object once it is live.
     </Accordion>
   </Step>
   <Step title="Market makers bid">
@@ -68,8 +68,8 @@ When the exit closes the position (see the table below), your stake is released.
 between the price and your stake moves between you and the maker. On the `position.bought_back`
 webhook, `amount` is that difference before the profit fee, and `mm_pays_user` gives its direction.
 
-A parlay that has gone against you exits for less than it cost, but you never pay anything to
-leave. If no maker bids before the auction ends, nothing happens and your parlay stays open.
+A bet that has gone against you exits for less than it cost, but you never pay anything to
+leave. If no maker bids before the auction ends, nothing happens and your bet stays open.
 
 ## What happens to the position
 
@@ -77,8 +77,8 @@ An auction resolves one of two ways. Both pay you the same. They look different 
 
 | Winning bidder | What happens | How it shows |
 | --- | --- | --- |
-| The maker who backs your position | The position closes. | The parlay reads as bought back, with realized P&L on its `cashout` object. |
-| Any other maker | You are out and paid. The position moves to the buyer's account and stays open there. | The parlay leaves your reads. |
+| The maker who backs your position | The position closes. | The bet reads as bought back, with realized P&L on its `cashout` object. |
+| Any other maker | You are out and paid. The position moves to the buyer's account and stays open there. | The bet leaves your reads. |
 
 <Note>
 Do not wait for a bought back status to know a cashout succeeded, because a sale to another

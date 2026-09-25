@@ -1,7 +1,7 @@
 ---
 title: 'Limits and fees'
 icon: 'scale-balanced'
-description: 'Every constraint and fee on Totalis: parlay size, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
+description: 'Every constraint and fee on Totalis: legs per bet, bet range, payout odds, timing windows, rate limits, and how the two fees are calculated.'
 ---
 
 ## At a glance
@@ -11,11 +11,11 @@ description: 'Every constraint and fee on Totalis: parlay size, bet range, payou
 - Odds apply to the net stake after the taker fee, never to the gross bet.
 - Every expiring object carries its own timestamp. Honor it over any default on this page.
 
-## Parlay construction
+## Bet construction
 
 | Constraint | Value | Enforced at |
 | --- | --- | --- |
-| [Legs](/guides/glossary#the-noun-stack) per parlay | 1 to 5 | [Create quote request](/api-reference/quote-service/create) |
+| [Legs](/guides/glossary#the-noun-stack) per bet | 1 to 5 | [Create quote request](/api-reference/quote-service/create) |
 | Bet amount | 1 to 1000 USDC | Create quote request |
 | Payout odds | At least 1.0001 | [Submit quote](/api-reference/quote-service-mm/submit-quote) |
 | Leg combinations | No two legs' markets may share an `exclusion_keys` entry | Create quote request |

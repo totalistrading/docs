@@ -126,7 +126,7 @@
             ]
           },
           {
-            "group": "Parlays",
+            "group": "Bets",
             "pages": [
               "api-reference/parlays/list",
               "api-reference/parlays/get"

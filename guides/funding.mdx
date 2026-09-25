@@ -9,7 +9,7 @@ trade.
 
 ## At a glance
 
-- Send native Solana USDC only. Placing a parlay moves the stake into your vault by itself, so there is no separate deposit step.
+- Send native Solana USDC only. Placing a bet moves the stake into your vault by itself, so there is no separate deposit step.
 - Enable trading once, in the app. The API can only report whether it is on.
 - Network fees are sponsored, so your wallet only needs USDC. The one exception is a small rent charge, taken in USDC, on a first withdrawal to a new address.
 - One withdraw call reaches your wallet and your vault's free balance together.
@@ -57,13 +57,13 @@ To send USDC directly:
 
   <Step title="Confirm it landed">
     Poll [`GET /v1/wallet`](/api-reference/user/get-wallet) until the balance reflects your
-    transfer. Then [enable trading](#enable-trading) once, and you are ready to place parlays.
+    transfer. Then [enable trading](#enable-trading) once, and you are ready to place bets.
   </Step>
 </Steps>
 
 ## Enable trading
 
-Enable trading before you place a parlay or withdraw. This delegates signing: you let Totalis sign
+Enable trading before you place a bet or withdraw. This delegates signing: you let Totalis sign
 transactions on your behalf inside a secure enclave, the protected environment that holds your
 wallet's private key. [Vaults and custody](/guides/vault-architecture) covers what that permission
 does and does not allow.
@@ -86,7 +86,7 @@ trade.
 | Where the money is | What happens |
 | --- | --- |
 | Wallet | USDC you send lands here. |
-| Vault | When you place a parlay, your stake moves from the wallet into the vault and locks, in one step. |
+| Vault | When you place a bet, your stake moves from the wallet into the vault and locks, in one step. |
 
 Trade eligibility is checked against your combined wallet and vault free balance. If the total
 covers your bet amount, the trade goes through.
@@ -118,7 +118,7 @@ One call reaches everything that is not locked in an open position.
 
 | Pool | What it holds | Withdrawable |
 | --- | --- | --- |
-| Wallet | USDC you sent, minus holds for parlays you committed that have not funded yet | Yes |
+| Wallet | USDC you sent, minus holds for bets you committed that have not funded yet | Yes |
 | Vault free balance | Settled winnings and unlocked collateral: `gross - locked` | Yes, moved to your wallet first |
 | Vault locked | Collateral behind your `executed` positions | No, until they settle or you cash out |
 
@@ -133,7 +133,7 @@ response then carries `vault_signature` and `vault_amount` beside the transfer `
 
 ### Rules
 
-- Trading must be enabled. Withdrawing uses the same delegation as placing a parlay. If it has
+- Trading must be enabled. Withdrawing uses the same delegation as placing a bet. If it has
   lapsed the call returns `409`, and re-enabling trading in the app restores it.
 - The key needs the `funds:withdraw` scope, the highest risk scope on a key. See
   [Authentication](/guides/authentication#scopes).

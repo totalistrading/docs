@@ -83,9 +83,9 @@ backend.
 - **Sentence case for every title and heading**, including API reference pages. "Get your API key",
   not "Get Your API Key". "Confirm quote", not "Confirm Quote". Only proper nouns are capitalized.
 - **Single quotes in frontmatter**, consistently.
-- **One term per concept.** A *parlay* is the product. An *RFQ* is the API object that represents
+- **One term per concept.** A *bet* is the product: a *single* has one leg, a *combo* has two or more. An *RFQ* is the API object that represents
   one after commit. A *quote request* is the pre-trade price-discovery object. A *position* is the
-  on-chain, funded parlay. Pick the right term for the layer and do not swap mid-page. See
+  on-chain, funded bet. Pick the right term for the layer and do not swap mid-page. See
   [Glossary](/guides/glossary).
 - **Code is copy-paste-first.** Show a real `curl` with the auth header, real-ish values, and the
   response shape. Prefer a runnable example over a prose description of one.
@@ -122,7 +122,7 @@ backend.
 
 - **Get started** (Introduction, Quickstart, Authentication). A new reader reaches a working call in
   minutes.
-- **Core concepts** (how parlays work, vaults and funding, limits and fees, glossary). The mental
+- **Core concepts** (how bets work, vaults and funding, limits and fees, glossary). The mental
   models.
 - **Guides** (reading your data, webhooks, real time, market making). Task-oriented how-tos.
 - **API reference.** One page per operation, generated from the OpenAPI spec where possible.

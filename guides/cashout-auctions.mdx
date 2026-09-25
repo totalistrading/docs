@@ -1,17 +1,17 @@
 ---
 title: 'Cashout auctions'
 icon: 'gavel'
-description: 'Bid on parlay exits as a market maker: one broadcast auction, one all-in price, two outcomes notified differently.'
+description: 'Bid on early exits from bets as a market maker: one broadcast auction, one all-in price, two outcomes notified differently.'
 ---
 
-Bid on the auction Totalis opens when a user leaves a parlay early. The bettor's side is on
+Bid on the auction Totalis opens when a user leaves a bet early. The bettor's side is on
 [Early cashout](/guides/early-cashout).
 
 ## At a glance
 
-- A user can leave a live parlay early. Totalis opens an auction of about 10 seconds and broadcasts it to every maker on the stream you already consume.
+- A user can leave a live bet early. Totalis opens an auction of about 10 seconds and broadcasts it to every maker on the stream you already consume.
 - You bid one all-in price. The highest live bid wins, and ties go to the earliest bid.
-- If the maker who backs the position wins, the position closes and the parlay shows as bought back.
+- If the maker who backs the position wins, the position closes and the bet shows as bought back.
 - If any other maker wins, the position transfers to them and stays open. The buyer gets no event today.
 
 <Note>
@@ -47,12 +47,12 @@ bettor side.
     Auctions are broadcast, so you see exits on positions you have no relationship with.
   </Step>
   <Step title="Price the exit">
-    Re-value the parlay at current odds, and read `legs[].resolution` carefully.
+    Re-value the bet at current odds, and read `legs[].resolution` carefully.
 
     <Warning>
     `void` beats everything. Any void leg cancels the whole position at settlement and refunds the
     stake, so the position is worth about the stake even if a sibling leg already resolved `lost`.
-    With no void leg, one `lost` leg makes the parlay worthless.
+    With no void leg, one `lost` leg makes the bet worthless.
 
     Nothing stops an auction opening on a position whose legs are already decided. `resolution` is
     your only defense.
@@ -83,7 +83,7 @@ bettor side.
 `price_micro` is a single all-in figure. There is no direction field, no separate fee term, and no
 gross versus net. What you send is what the user sees on screen and walks away with.
 
-It can be below their stake. A losing parlay exits for less than it cost, and the user never pays
+It can be below their stake. A losing bet exits for less than it cost, and the user never pays
 more than their stake to leave.
 
 A bid may outlive the auction. Nothing tells you that your bid lost or lapsed, or that the auction
@@ -105,7 +105,7 @@ There is no per-auction result event on the MM stream.
 | You won and acquired the position | Nothing today. The position appears in your `GET /v1/rfqs` and pays you `total_payout` if every leg wins. |
 | You lost, or the auction expired | Nothing. Your bid lapses. |
 
-A bought-back parlay reports a realized cashout P&L, not a win or loss. The exit is a real
+A bought-back bet reports a realized cashout P&L, not a win or loss. The exit is a real
 settlement, not a refund.
 
 ## Errors

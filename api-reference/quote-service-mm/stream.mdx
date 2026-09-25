@@ -200,9 +200,9 @@ Every field below is always present.
   `venue`, and `resolution`.
 
   `resolution` is one of `unresolved`, `won`, `lost`, `void`. It is your only protection against
-  pricing an already-decided parlay. `void` overrides the others: any void leg cancels the whole
+  pricing an already-decided bet. `void` overrides the others: any void leg cancels the whole
   position at settlement and refunds the stake, so the position is worth roughly `user_stake` even
-  when a sibling leg reads `lost`. With no void leg, one `lost` leg makes the parlay worthless.
+  when a sibling leg reads `lost`. With no void leg, one `lost` leg makes the bet worthless.
 </ResponseField>
 
 <ResponseField name="user_stake" type="number" required>

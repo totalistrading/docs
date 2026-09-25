@@ -42,7 +42,7 @@ X-API-Key: <key>
 
 <ParamField body="price_micro" type="integer" required>
   The all-in amount the user receives, in microUSDC (`1_000_000` = $1.00). Integer, minimum `1`.
-  May be below the user's stake: a losing parlay exits for less than it cost.
+  May be below the user's stake: a losing bet exits for less than it cost.
 
   Two ceilings apply, both in microUSDC. `user_stake` and `total_payout` arrive as decimal USDC on
   the push, so scale them by `1e6` first.

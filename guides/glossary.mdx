@@ -9,16 +9,18 @@ description: 'Every term, field, identifier, and unit convention on Totalis: the
 One trade goes by four names over its life. The name changes at commit, and again when it lands
 on-chain.
 
-<img className="block dark:hidden rounded-2xl" src="/images/pictures/glossary-light.png" alt="Quote request before you commit, parlay from commit, position from executed" />
-<img className="hidden dark:block rounded-2xl" src="/images/pictures/glossary-dark.png" alt="Quote request before you commit, parlay from commit, position from executed" />
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/glossary-light.png" alt="Quote request before you commit, bet from commit, position from executed" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/glossary-dark.png" alt="Quote request before you commit, bet from commit, position from executed" />
 
 | Term | Stage | Definition |
 | --- | --- | --- |
 | **Quote request** | Before commit | The price discovery object. Has its own `id` and `status` (`active`, then `committed`, `cancelled` or `expired`). Once it commits or dies it is gone. It never becomes a queryable record. |
 | **RFQ** | After commit | The API object created at commit, with its own `rfq_id` and status progression. [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) returns it. |
-| **Parlay** | Any | The product name for the RFQ. Same object: say parlay in a UI or conversation, use `rfq` in code. |
+| **Bet** | Any | The product name for the RFQ. Same object: say bet in a UI or conversation, use `rfq` in code. |
+| **Single** | Any | A bet with one leg. |
+| **Combo** | Any | A bet with two or more legs. |
 | **Position** | Once funded | The RFQ's on-chain footprint, present once the trade is funded on chain (`status` `executed`). Carries `position_id` and `position_pda`. |
-| **Leg** | Any | One outcome inside a parlay. Every leg must win for the parlay to pay out. |
+| **Leg** | Any | One outcome inside a bet. Every leg must win for the bet to pay out. |
 
 ## Money fields
 
@@ -29,7 +31,7 @@ All of these are decimal USDC unless the name ends in `_micro`. See [Units](#uni
 | `bet_amount` | | Your gross wager, before any fee. |
 | `taker_fee` | | 1% of `bet_amount`, taken upfront. Computed in integer microUSDC: `floor(bet_amount_micro * 100 / 10000)`. |
 | `user_stake` | `user_cost` before commit | Your net stake: `bet_amount - taker_fee`. Every payout is calculated from it. |
-| `payout_odds` | | The multiplier applied to `user_stake`, never to `bet_amount`. Range on [Limits and fees](/guides/limits-and-fees#parlay-construction). |
+| `payout_odds` | | The multiplier applied to `user_stake`, never to `bet_amount`. Range on [Limits and fees](/guides/limits-and-fees#bet-construction). |
 | `total_payout` | `payout` at settlement | What the winning side receives before the profit fee: `user_stake * payout_odds`. |
 | `mm_risk` | `mm_cost` before commit | The maker's amount at risk, which the maker locks: `total_payout - user_stake`. |
 | `price_micro` | | On a cashout auction, the all-in amount the user receives, in integer microUSDC. |
@@ -92,7 +94,7 @@ available to trade     = usdc_balance + vault_balance - locked_amount
 | `mm_id` | A market maker's account. Equal to that account's `user_id`, so also a Privy DID. Appears in the `mm:quotes:{mm_id}` channel name and the MM stream's `connected` event. |
 | `market_maker_id` | The maker attached to a specific quote object. Same kind of value as `mm_id`, under a different field name by channel. |
 | `counterparty_mm_id` | The maker who already backs a position. On a broadcast cashout auction, usually not the maker whose bid wins. |
-| `rfq_id` | The parlay, after commit. The primary key for looking up trades. |
+| `rfq_id` | The bet, after commit. The primary key for looking up trades. |
 | `quote_id` | One maker's quote on a request. |
 | `position_id` | The 16-byte on-chain position id, hex encoded (32 lowercase chars, no `0x`). Opens a [cashout request](/api-reference/quote-service/cashout-create). Returned by [`GET /v1/mm/positions`](/api-reference/mm/list-positions) so a maker can match a broadcast cashout auction against their book. |
 | `position_pda` | The position's on-chain account address, on WebSocket `position:*` events. An address, not a lookup key. |
@@ -112,18 +114,18 @@ maker.
 | `venue` | The underlying market platform: `kalshi` or `polymarket`. |
 | `market_ticker` | Venue-specific. Kalshi: the market ticker (`KXBTC-25FEB07-T100000`). Polymarket: the `condition_id`, a `0x`-prefixed hex string, not the slug or the question id. |
 | `side` | `yes` or `no`. On Polymarket both sides of a binary share one `condition_id` and differ only by this field. |
-| `exclusion_keys` | An array on every market. Two markets can share a parlay only if their arrays do not intersect. This is how correlated legs are blocked. |
+| `exclusion_keys` | An array on every market. Two markets can share a combo only if their arrays do not intersect. This is how correlated legs are blocked. |
 | `version` | Increments every time you edit a quote request. Editing invalidates every quote priced against the old version. |
 | `request_hash` | A digest of the request at a given `version`. Makers echo it back when quoting, which ties a quote to exactly what was priced. |
 | `book_seq` | A monotonically increasing sequence number on the SSE (Server-Sent Events) stream. When you commit, you send back the `book_seq` of the event that showed you the price, to prove the price was current. |
 | `resolution` | A leg's settled state. `void` overrides everything: one void leg cancels the whole position and refunds the stake, even if another leg already resolved `lost`. |
-| `outcome` | A settled parlay's result, per leg and overall. |
+| `outcome` | A settled bet's result, per leg and overall. |
 
 ## Custody terms
 
 | Term | Definition |
 | --- | --- |
-| **Vault** | Your persistent on-chain Solana account, reused across every parlay. Holds USDC and tracks gross, locked, and free balances. |
+| **Vault** | Your persistent on-chain Solana account, reused across every bet. Holds USDC and tracks gross, locked, and free balances. |
 | **PDA** | Program Derived Address. The Solana account type the protocol's program controls. Your vault, each position, and the config are all PDAs. |
 | **TEE** | Trusted Execution Environment. The secure enclave that holds your Privy embedded wallet's private key. The key never leaves it. |
 | **Delegation** | The one-time permission you grant Totalis to sign inside that enclave on your behalf. Required before you can trade or withdraw. Revocable at any time. |

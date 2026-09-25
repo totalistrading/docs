@@ -1,6 +1,6 @@
 # Totalis Docs
 
-Documentation for the Totalis Parlay RFQ API, built with [Mintlify](https://mintlify.com).
+Documentation for the Totalis RFQ API, built with [Mintlify](https://mintlify.com).
 
 ## Development
 

@@ -1,12 +1,12 @@
 ---
 title: 'List positions'
 api: 'GET /v1/mm/positions'
-description: 'List your active market-maker positions, each with its full parlay legs. Offset paginated, with an optional exposure filter.'
+description: 'List your active market-maker positions, each with all its legs. Offset paginated, with an optional exposure filter.'
 ---
 
-List your active positions as the market maker, newest first, each with its full parlay legs. A position here is a trade where a user committed one of your quotes and you confirmed it.
+List your active positions as the market maker, newest first, each with all its legs. A position here is a trade where a user committed one of your quotes and you confirmed it.
 
-Use it to render your live book, reconcile exposure, or resolve an `rfq_id` you already hold (for example from [Get vault](/api-reference/funds/get-vault)) to its legs. The bettor-scoped RFQ reads are keyed to the user who placed the parlay and return `404` to you; this is the maker-side counterpart.
+Use it to render your live book, reconcile exposure, or resolve an `rfq_id` you already hold (for example from [Get vault](/api-reference/funds/get-vault)) to its legs. The bettor-scoped RFQ reads are keyed to the user who placed the bet and return `404` to you; this is the maker-side counterpart.
 
 Only active positions are returned, including in-flight release states (see `status`). Settled trades are not included.
 
@@ -43,17 +43,17 @@ X-API-Key: <key>
       <Expandable title="position">
         <ResponseField name="position_pda" type="string">On-chain position PDA.</ResponseField>
         <ResponseField name="position_id" type="string">On-chain position id, hex encoded (32 lowercase chars, no `0x`). The early cashout join key: match it against the `position_id` on a broadcast [`cashout_request`](/api-reference/quote-service-mm/stream#cashout_request) to see whether you back that position.</ResponseField>
-        <ResponseField name="rfq_id" type="string">The RFQ (parlay ticket) id. Pass it to [Get position](/api-reference/mm/get-position). Matches the `rfq_id` from [Get vault](/api-reference/funds/get-vault).</ResponseField>
+        <ResponseField name="rfq_id" type="string">The RFQ id. Pass it to [Get position](/api-reference/mm/get-position). Matches the `rfq_id` from [Get vault](/api-reference/funds/get-vault).</ResponseField>
         <ResponseField name="user_id" type="string">The counterparty bettor's Privy DID (`did:privy:...`).</ResponseField>
         <ResponseField name="market_maker_id" type="string">Your market maker Privy DID (`did:privy:...`).</ResponseField>
         <ResponseField name="user_stake" type="number">The bettor's net stake in USDC (`bet_amount - taker_fee`).</ResponseField>
         <ResponseField name="mm_risk" type="number">Your maximum risk (max loss) in USDC.</ResponseField>
         <ResponseField name="mm_collateral_locked" type="number | null">Collateral this position added to your lock when it opened, in USDC: the rise in your book's worst-case loss, from 0 up to `mm_risk`. `null` before it lands. See [Collateral and the ILP](/guides/market-maker#collateral-and-the-ilp).</ResponseField>
-        <ResponseField name="total_payout" type="number">Total pot paid to the winner if the parlay resolves (`user_stake + mm_risk`).</ResponseField>
+        <ResponseField name="total_payout" type="number">Total pot paid to the winner if the bet resolves (`user_stake + mm_risk`).</ResponseField>
         <ResponseField name="status" type="string">`active` for a live position. `expired_pending_mm_release`, `reconciling_mm_release`, `bought_back_pending_db`, and `reconciling_bought_back_db` are in-flight release states; your collateral is still held in them.</ResponseField>
         <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
         <ResponseField name="legs" type="array">
-          The parlay legs, in leg order.
+          The bet's legs, in leg order.
           <Expandable title="leg">
             <ResponseField name="market_title" type="string">Per-market label (e.g. `Lakers`). May be null on legacy rows.</ResponseField>
             <ResponseField name="event_title" type="string">Parent event label (e.g. `NBA Finals Winner`). May be null on legacy rows.</ResponseField>
@@ -66,7 +66,7 @@ X-API-Key: <key>
             <ResponseField name="venue" type="string">Source venue: `kalshi` or `polymarket`.</ResponseField>
             <ResponseField name="event_ticker" type="string">Event-level ticker on the source venue.</ResponseField>
             <ResponseField name="market_ticker" type="string">Market-level ticker on the source venue.</ResponseField>
-            <ResponseField name="exclusivity_group" type="string">Mutual-exclusivity key: legs sharing a value bet into a one-of-N outcome set. `null` when the leg is not in a group. This is a per-leg snapshot. To pre-check whether two markets can combine in a parlay, use the `exclusion_keys` arrays on [`GET /v1/markets/list`](/api-reference/markets/list-flat).</ResponseField>
+            <ResponseField name="exclusivity_group" type="string">Mutual-exclusivity key: legs sharing a value bet into a one-of-N outcome set. `null` when the leg is not in a group. This is a per-leg snapshot. To pre-check whether two markets can combine in a combo, use the `exclusion_keys` arrays on [`GET /v1/markets/list`](/api-reference/markets/list-flat).</ResponseField>
             <ResponseField name="exclusivity_group_kind" type="string">How members of `exclusivity_group` relate: `binary` (strict two-outcome complements) or `partition` (one-of-N). `null` exactly when `exclusivity_group` is null.</ResponseField>
             <ResponseField name="venue_url" type="string">Canonical URL of the leg's market on its source venue. May be null.</ResponseField>
             <ResponseField name="market_resolved" type="boolean">`true` once the venue has a recognized result for this leg's market.</ResponseField>

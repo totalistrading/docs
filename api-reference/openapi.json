@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis RFQ API",
     "version": "2.1.0",
-    "description": "Public REST surface for the Totalis parlay RFQ platform, a decentralized request-for-quote marketplace for parlay bets across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place parlays and quote as a market maker. There is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: three buckets. Authenticated routes share one per-account bucket of 300 req/min (100 without a key). Public market reads (`/markets`, `/v1/markets`) are a separate per-IP bucket of 100 req/min that an API key does not raise. Quote service routes (`/v1/quote-requests`, `/v1/cashout-requests`, `/v1/mm/quote-requests`, `/v1/mm/cashout-requests`) have their own per-IP limit, 300 req/min by default. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
+    "description": "Public REST surface for the Totalis RFQ platform, a decentralized request-for-quote marketplace for singles and combos across Kalshi and Polymarket, with on-chain Solana vault settlement.\n\n**Wire format**: snake_case JSON. All successful responses are wrapped in `{ \"data\": ... }`; list endpoints add `meta` with cursor-based pagination. Errors use a `{ \"error\": { code, message, details? } }` envelope.\n\n**Authentication**: programmatic clients send `X-API-Key`; the web dashboard uses Privy JWTs (`Authorization: Bearer ...`). Any authenticated user can both place bets and quote as a market maker. There is no separate MM role. Admin endpoints are out of scope for this public reference.\n\n**Rate limiting**: three buckets. Authenticated routes share one per-account bucket of 300 req/min (100 without a key). Public market reads (`/markets`, `/v1/markets`) are a separate per-IP bucket of 100 req/min that an API key does not raise. Quote service routes (`/v1/quote-requests`, `/v1/cashout-requests`, `/v1/mm/quote-requests`, `/v1/mm/cashout-requests`) have their own per-IP limit, 300 req/min by default. Responses include `X-RateLimit-*` headers. Request body limit: 256KB.\n\n**Pagination**: list endpoints use opaque cursor pagination. Pass `meta.cursor` from the previous response as `?cursor=...` to fetch the next page; do not parse or construct cursors client-side."
   },
   "servers": [
     {
@@ -1228,8 +1228,8 @@
         "tags": [
           "RFQs"
         ],
-        "summary": "List parlays",
-        "description": "List your parlays (RFQs), newest first, with cursor pagination. Filter by status (`?status=settled`, or comma-separated `?status=open,quoted`); `?include=quotes` embeds each parlay's quotes.",
+        "summary": "List bets",
+        "description": "List your bets (RFQs), newest first, with cursor pagination. Filter by status (`?status=settled`, or comma-separated `?status=open,quoted`); `?include=quotes` embeds each bet's quotes.",
         "security": [
           {
             "PrivyJWT": []
@@ -1311,8 +1311,8 @@
         "tags": [
           "RFQs"
         ],
-        "summary": "Get parlay",
-        "description": "Fetch one of your parlays (RFQs) by id, with its quotes. Once the parlay is terminal the response also carries its settlement detail: per-leg outcomes, final status, payout, and the settle/buyback transaction signature. An id you don't own returns 404.",
+        "summary": "Get bet",
+        "description": "Fetch one of your bets (RFQs) by id, with its quotes. Once the bet is terminal the response also carries its settlement detail: per-leg outcomes, final status, payout, and the settle/buyback transaction signature. An id you don't own returns 404.",
         "security": [
           {
             "PrivyJWT": []
@@ -2119,7 +2119,7 @@
           "user",
           "mm"
         ],
-        "description": "Winner of a settled parlay position."
+        "description": "Winner of a settled position."
       },
       "LegOutcome": {
         "type": "string",
@@ -2324,7 +2324,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Parlay-correlation keys. Two markets **cannot co-exist in the same parlay if (and only if) their `exclusion_keys` arrays intersect**, meaning they share at least one string. Apply a pure set-intersection; there is no rule table to maintain client-side. The keys encode every correlation rule (cross-series exclusion groups, threshold ladders, same-game sports family/kind/participant correlation, Polymarket sub-events). Keys are opaque and namespaced by reason and scope (e.g. `kp:<gameKey>:moneyline|spread`, `grp:<idx>:<eventKey>`, `fam:<gameKey>:<series>`), and are derived solely from the market itself, so a selected leg can snapshot its keys and compare them later. The plain one-leg-per-event rule (same `event_ticker`) is intentionally not encoded here. Always present; an empty array means the market participates in no correlation rule."
+            "description": "Correlation keys. Two markets **cannot co-exist in the same combo if (and only if) their `exclusion_keys` arrays intersect**, meaning they share at least one string. Apply a pure set-intersection; there is no rule table to maintain client-side. The keys encode every correlation rule (cross-series exclusion groups, threshold ladders, same-game sports family/kind/participant correlation, Polymarket sub-events). Keys are opaque and namespaced by reason and scope (e.g. `kp:<gameKey>:moneyline|spread`, `grp:<idx>:<eventKey>`, `fam:<gameKey>:<series>`), and are derived solely from the market itself, so a selected leg can snapshot its keys and compare them later. The plain one-leg-per-event rule (same `event_ticker`) is intentionally not encoded here. Always present; an empty array means the market participates in no correlation rule."
           }
         }
       },
@@ -2545,7 +2545,7 @@
           },
           "is_failed": {
             "type": "boolean",
-            "description": "True when the vault position errored (on-chain execution failed). Derived from position_status === 'error'. Omitted (not false) for non-failed parlays."
+            "description": "True when the vault position errored (on-chain execution failed). Derived from position_status === 'error'. Omitted (not false) for non-failed bets."
           },
           "fee_amount": {
             "type": "number",
@@ -2751,7 +2751,7 @@
           "payout_odds": {
             "type": "number",
             "minimum": 1.0001,
-            "description": "Multiplier on the net stake (`user_stake`) that produces the total payout if the parlay wins. When the taker fee is off, `user_stake == bet_amount`."
+            "description": "Multiplier on the net stake (`user_stake`) that produces the total payout if the bet wins. When the taker fee is off, `user_stake == bet_amount`."
           },
           "user_cost": {
             "type": "number",
@@ -2833,7 +2833,7 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 5,
-            "description": "Parlay legs, 1 to 5. Each leg references a market by ticker on a specific venue.",
+            "description": "Legs, 1 to 5. Each leg references a market by ticker on a specific venue.",
             "items": {
               "type": "object",
               "required": [
@@ -3023,7 +3023,7 @@
           },
           "has_traded": {
             "type": "boolean",
-            "description": "True once any of the caller's parlays has reached `executed` or `settled`. Informational account state; withdrawals are allowed regardless of this value."
+            "description": "True once any of the caller's bets has reached `executed` or `settled`. Informational account state; withdrawals are allowed regardless of this value."
           }
         }
       },
@@ -3267,7 +3267,7 @@
           },
           "total_failed": {
             "type": "integer",
-            "description": "Parlays where the vault position errored on-chain."
+            "description": "Bets where the vault position errored on-chain."
           }
         }
       },

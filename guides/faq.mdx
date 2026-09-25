@@ -1,27 +1,27 @@
 ---
 title: 'FAQ'
 icon: 'circle-question'
-description: 'Common questions about Totalis: what a parlay is, which markets are listed, how settlement and security work, fees, and regulatory status.'
+description: 'Common questions about Totalis: what singles and combos are, which markets are listed, how settlement and security work, fees, and regulatory status.'
 ---
 
 ## What is Totalis?
 
-Totalis is a derivatives layer for prediction markets. You pick outcomes across multiple markets and
-venues, combine them into a single bet called a **parlay**, and market makers compete to give you
-the best payout odds.
+Totalis is a derivatives layer for prediction markets. You bet on one outcome, a **single**, or
+combine outcomes across markets and venues into one bet, a **combo**. Market makers compete to give
+you the best payout odds.
 
 Trades run on Totalis infrastructure: quote requests that market makers price, and non-custodial
 Solana vaults for settlement. Kalshi and Polymarket are supported as underlying venues today, with
 more to come.
 
-## What is a parlay?
+## What are singles and combos?
 
-A parlay puts one or more predictions, called **legs**, into one bet. Every leg has to
-win for the parlay to pay out. One loss loses the whole bet.
+Every bet holds one or more predictions, called **legs**. A bet with one leg is a **single**. A bet
+with two or more legs is a **combo**. Every leg has to win for the bet to pay out. One loss loses
+the whole bet.
 
-With more than one leg, each leg's odds compound into a larger combined payout, so the parlay
-offers a higher reward. Because every leg must hit, it is also higher risk than a bet on any one
-of those outcomes.
+In a combo, each leg's odds compound into a larger combined payout, so a combo offers a higher
+reward. Because every leg must hit, it is also higher risk than a bet on any one of those outcomes.
 
 Leg and bet limits are on [Limits and fees](/guides/limits-and-fees).
 
@@ -46,11 +46,11 @@ Totalis uses prediction market platforms as data and resolution layers, not as e
 It ingests market data (prices, probabilities, metadata) from platforms like Kalshi and Polymarket.
 Those markets are the source of truth for event definitions and final outcomes.
 
-Your parlay does not route to any underlying platform. The position is synthetic: it exists only
+Your bet does not route to any underlying platform. The position is synthetic: it exists only
 inside Totalis, which handles execution, clearing, and settlement, then pays out based on the
 referenced markets' final outcome.
 
-That design lets one parlay combine venues, avoids splitting liquidity across platforms, and allows
+That design lets one combo span venues, avoids splitting liquidity across platforms, and allows
 risk management across the whole portfolio.
 
 ## Can I not just do this on Kalshi?
@@ -59,7 +59,7 @@ Kalshi offers Combos. Totalis works differently:
 
 | | Kalshi Combos | Totalis |
 | --- | --- | --- |
-| What you combine | Kalshi's own contracts, sports first | Sports, crypto, weather, entertainment, and economic events, across venues in one parlay |
+| What you combine | Kalshi's own contracts, sports first | Sports, crypto, weather, entertainment, and economic events, across venues in one combo |
 | How it is priced | Each combination trades as its own market with a dedicated order book, so the catalog is bounded by what the exchange lists | Market makers price any combination of outcomes through a quote request |
 
 ## How secure is it?
@@ -77,14 +77,14 @@ can and cannot do with your funds.
 
 ## What happens if a market gets cancelled on the underlying venue?
 
-If a market is cancelled or delisted before all legs in a parlay have resolved, Totalis detects the
+If a market is cancelled or delisted before all legs in a bet have resolved, Totalis detects the
 invalid leg, cancels the position, and unlocks both your collateral and the market maker's. Nobody
 loses funds to an external market cancellation.
 
 ## How does Totalis make money?
 
 Two fees: a 1% taker fee on your bet amount, taken when the trade is placed and returned if the
-parlay is voided, and a 1% fee on the profit earned by the winning side of each trade.
+bet is voided, and a 1% fee on the profit earned by the winning side of each trade.
 
 The formulas and a worked example are on [Limits and fees](/guides/limits-and-fees#fees).
 

@@ -36,7 +36,7 @@ A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authenticatio
         <ResponseField name="market_maker_id" type="string">The quoting market maker's ID.</ResponseField>
         <ResponseField name="payout_odds" type="number">Payout multiplier applied to `user_cost`.</ResponseField>
         <ResponseField name="user_cost" type="number">Your net stake in USDC: `bet_amount` minus the taker fee. See [Fees](/guides/limits-and-fees#fees).</ResponseField>
-        <ResponseField name="total_payout" type="number">Total payout if the parlay wins.</ResponseField>
+        <ResponseField name="total_payout" type="number">Total payout if the bet wins.</ResponseField>
         <ResponseField name="mm_cost" type="number">USDC the market maker puts at risk.</ResponseField>
         <ResponseField name="valid_until" type="string">ISO 8601 timestamp when this quote expires.</ResponseField>
         <ResponseField name="leg_prices" type="array">Per-leg pricing with `leg_id` and `leg_odds`.</ResponseField>
