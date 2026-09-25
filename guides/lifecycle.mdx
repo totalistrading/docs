@@ -10,7 +10,7 @@ underlying markets resolve, or you close it early.
 
 ## At a glance
 
-- A parlay is 2 to 5 legs on one bet of 1 to 100 USDC, priced live by competing market makers.
+- A parlay is one bet on one or more legs, priced live by competing market makers. Limits are on [Limits and fees](/guides/limits-and-fees).
 - Requesting quotes holds nothing. From commit, your bet is held against your balance. It moves on chain once, when the maker confirms.
 - The position then goes live on chain and settles by itself when the last market resolves.
 - You can close a live position early through a cashout auction of about 10 seconds.
@@ -22,7 +22,7 @@ underlying markets resolve, or you close it early.
 
 <Steps>
   <Step title="Open a quote request">
-    Add 2 to 5 legs and a bet amount. Each leg names a market and a side (`yes` or `no`). The
+    Add your legs and a bet amount. Each leg names a market and a side (`yes` or `no`). The
     `market_ticker` is venue specific:
 
     - **Kalshi**: the market ticker, for example `KXBTC-25FEB07-T100000`.

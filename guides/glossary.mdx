@@ -18,7 +18,7 @@ on-chain.
 | **RFQ** | After commit | The API object created at commit, with its own `rfq_id` and status progression. [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) returns it. |
 | **Parlay** | Any | The product name for the RFQ. Same object: say parlay in a UI or conversation, use `rfq` in code. |
 | **Position** | Once funded | The RFQ's on-chain footprint, present once the trade is funded on chain (`status` `executed`). Carries `position_id` and `position_pda`. |
-| **Leg** | Any | One outcome inside a parlay. A parlay holds 2 to 5 legs. Every leg must win for the parlay to pay out. |
+| **Leg** | Any | One outcome inside a parlay. Every leg must win for the parlay to pay out. |
 
 ## Money fields
 
