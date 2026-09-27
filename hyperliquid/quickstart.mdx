@@ -1,0 +1,162 @@
+---
+title: 'Quickstart'
+icon: 'rocket'
+description: 'Read Hyperliquid HIP-4 markets with no account, get an API key from the Totalis app, and make your first authenticated call with the SDK or curl.'
+---
+
+The Hyperliquid API lives at `https://hip4-api.totalis.trade`. It is a separate API from the
+[Solana API](/guides/quickstart), with its own keys. The TypeScript SDK,
+`@totalistrading/hip4-client`, wraps it. Each step shows the SDK call first and the raw request
+beside it.
+
+## 1. Read markets with no key
+
+Market reads need no key and no account:
+
+<CodeGroup>
+```ts SDK
+import { createClient, unwrap } from "@totalistrading/hip4-client";
+
+const client = createClient("production"); // market reads need no key
+const { items, has_more } = unwrap(await client.GET("/v1/markets", { params: { query: { limit: 3 } } }));
+console.log(items.map((market) => `${market.outcome_id} ${market.title}`), has_more);
+```
+
+```bash curl
+curl "https://hip4-api.totalis.trade/v1/markets?limit=3"
+```
+</CodeGroup>
+
+Trimmed to the main fields:
+
+```json
+{
+  "items": [
+    {
+      "outcome_id": "1209",
+      "title": "HYPE touches 100 by 20261001-0000",
+      "quote_asset": "USDC",
+      "state": "ACTIVE",
+      "category": "Crypto",
+      "sides": [
+        { "side": "YES", "coin": "#12090", "asset_id": "100012090" },
+        { "side": "NO", "coin": "#12091", "asset_id": "100012091" }
+      ]
+    }
+  ],
+  "catalog_generation": "6437",
+  "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjExLCJrIjoibWFya2V0In0",
+  "has_more": true
+}
+```
+
+Each market is one HIP-4 outcome, identified by `outcome_id`, with a YES and a NO side. Read one
+with [Get market](/hyperliquid/api-reference/market-data/get-market).
+[List questions](/hyperliquid/api-reference/market-data/list-questions) groups outcomes under their
+question, and [Search catalog](/hyperliquid/api-reference/market-data/search-catalog) finds markets
+by text. Lists page with `cursor` and `next_cursor`, described on
+[Conventions](/hyperliquid/conventions#pagination).
+
+## 2. Install the SDK
+
+The SDK is private. Access is provided on request: email
+[founders@totalis.trade](mailto:founders@totalis.trade) with the GitHub account that should read
+it. Once access is granted, point the `@totalistrading` scope at GitHub Packages and install:
+
+```ini .npmrc
+@totalistrading:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+```bash
+npm install @totalistrading/hip4-client viem
+```
+
+The package is ESM and runs in Node 22 or later and in browsers. `viem` is only needed to load a
+private key as a signer. Without SDK access, every call in these guides also works as a plain HTTP
+request. See [TypeScript SDK](/hyperliquid/sdk) for what each entry point holds.
+
+## 3. Get an API key
+
+Create a key in the [Totalis app](https://app.totalis.trade/account/api-keys), under Account, then
+API keys, with **Personal account** selected. Name it, pick the permissions (scopes) your
+integration needs, and choose an expiry. The app then asks your Totalis wallet to approve that exact
+request with a signature, and shows the key.
+
+<Warning>
+Copy the key when it is shown. It is displayed exactly once and cannot be retrieved later.
+</Warning>
+
+For a read-only start, `identity:read` and `account:read` are enough. The scope catalog, the
+approval signature, and key rotation are on [Authentication](/hyperliquid/authentication).
+
+```bash
+export TOTALIS_API_KEY="ttk_v1_prd_..."
+```
+
+## 4. Make your first authenticated call
+
+The key is a bearer token. It also selects the account, chain, and vault, so no request names them.
+Confirm it works by reading your identity:
+
+<CodeGroup>
+```ts SDK
+import { createClient, unwrap } from "@totalistrading/hip4-client";
+
+const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
+
+const me = unwrap(await client.GET("/v1/me"));
+console.log(me.owner, me.signer); // both are your Totalis wallet
+
+const { items } = unwrap(await client.GET("/v1/markets", { params: { query: { limit: 3 } } }));
+console.log(items.map((market) => `${market.outcome_id} ${market.title}`));
+```
+
+```bash curl
+curl https://hip4-api.totalis.trade/v1/me \
+  -H "Authorization: Bearer $TOTALIS_API_KEY"
+```
+</CodeGroup>
+
+Trimmed to the main fields:
+
+```json
+{
+  "participant_id": "0198a6f6-82a5-7abc-9f2a-4f0fb4374941",
+  "status": "ACTIVE",
+  "wallets": [
+    {
+      "chain_id": "999",
+      "address": "0x1111111111111111111111111111111111111111",
+      "wallet_kind": "PRIVY_EMBEDDED_EOA",
+      "financial_signing_state": "QUALIFIED",
+      "status": "LINKED"
+    }
+  ],
+  "owner": "0x1111111111111111111111111111111111111111",
+  "signer": "0x1111111111111111111111111111111111111111"
+}
+```
+
+`owner` and `signer` are both your Totalis wallet, the embedded wallet the app created for you.
+`signer` is the wallet that signs your trades. A failed call returns the standard
+[error envelope](/hyperliquid/errors). `UNAUTHENTICATED` means the key is missing, expired, or
+revoked, and `FORBIDDEN` means it lacks the scope the route needs. Every operation in the API
+reference lists its scopes.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/hyperliquid/authentication">
+    Keys, scopes, the approval signature, and the exported wallet key a bot signs with.
+  </Card>
+  <Card title="Trading" icon="route" href="/hyperliquid/trading">
+    Place a single or a parlay, follow it on-chain, and cash out.
+  </Card>
+  <Card title="Market makers" icon="chart-candlestick" href="/hyperliquid/market-makers">
+    Stream RFQs, publish quotes, and confirm fills within the deadline.
+  </Card>
+  <Card title="Conventions" icon="brackets-curly" href="/hyperliquid/conventions">
+    Values, idempotency, pagination, limits, and timing.
+  </Card>
+</CardGroup>

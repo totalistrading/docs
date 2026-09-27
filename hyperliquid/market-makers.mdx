@@ -1,0 +1,315 @@
+---
+title: 'Market makers'
+icon: 'chart-candlestick'
+description: 'Set up a maker, run a quoting bot on the SDK, confirm fills within the deadline, bid on cashouts, and manage your maker vault.'
+---
+
+As a market maker you price RFQs for singles and parlays on Hyperliquid HIP-4 outcomes. You publish
+unsigned quotes. When a taker selects yours, you get a confirmation request and a short deadline to
+sign it. The vault contract then pays the taker's stake into your maker vault and escrows the payout
+you owe if the ticket wins.
+
+```mermaid
+sequenceDiagram
+  participant Bot as Your bot
+  participant API as Totalis API
+  participant Taker
+  participant Vault as Vault contract
+  API-->>Bot: ENTRY_RFQ_OPENED (legs, stake)
+  Bot->>API: Publish book quote (unsigned)
+  Taker->>API: Accept quote (taker signature)
+  API-->>Bot: CONFIRMATION_REQUESTED
+  Bot->>API: CONFIRM + Quote signature (before the deadline)
+  API->>Vault: accept(quote, maker signature, taker signature)
+  API-->>Bot: EXECUTION_REPORT, MAKER_VAULT_UPDATED
+```
+
+## Roles and keys
+
+| Term | What it is |
+| --- | --- |
+| **Maker** | Your market-making identity on the vault contract, identified by `maker_id`. |
+| **Controller** (`owner`) | The Totalis account wallet that created the maker. It approves maker keys and is the only wallet that can withdraw maker funds or change the quote signer. |
+| **Quote signer** (`signer`) | A key your bot holds. It signs every quote and bid your bot confirms. It holds no funds and cannot withdraw, and the controller can replace it at any time. |
+| **Maker vault** | Your maker's USDC inside the vault contract. It backs every quote you confirm. |
+| **Maker key** | A `ttk_` key bound to your maker. It authenticates your bot's calls. |
+
+Keep the quote signer separate from the controller. If the bot host is compromised, the attacker can
+sign quotes but cannot withdraw your capital.
+
+## 1. Set up your maker in the app
+
+1. Generate a fresh key pair for your bot's quote signer and note its address.
+2. Sign in at [app.totalis.trade/mm](https://app.totalis.trade/mm) and choose **Start market making**.
+3. Enter the quote signer address as **Bot quote signer address** and choose **Create maker account**.
+   Your account wallet sends the HyperEVM transaction that opens your maker vault, so it needs HYPE
+   for gas. The app then finishes setup.
+4. Fund the vault from the maker dashboard. Only funded capital backs quotes.
+
+[Get maker registration](/hyperliquid/api-reference/maker-access/get-maker-registration) shows your
+maker's `status`. It must be `ACTIVE` before quotes are accepted.
+
+## 2. Create a maker key
+
+In the app, go to [Account, then API keys](https://app.totalis.trade/account/api-keys), choose
+**Maker account** under **Manage keys for**, and create a key with the market maker bot scopes:
+`rfq:read`, `quote:read`, `quote:write`, and `replay:read`. Add `vault:read` for capital and position
+reads. The controller approves the key with a signature, in the app or by signing the copied message
+and pasting the signature back. See [Authentication](/hyperliquid/authentication#create-a-key).
+
+The key is shown once. Store it next to the quote signer key in your bot's secret store.
+
+## 3. Read the vault fees
+
+Every quote carries the vault's current `fee_bps` and `taker_fee_bps`, and a quote with other values
+reverts on-chain. The API does not publish them. Read them from the vault's lens contract, whose
+address is in [Get vault release](/hyperliquid/api-reference/vault/get-vault-release):
+
+```ts
+import { createPublicClient, http, parseAbi } from "viem";
+
+const release = await (await fetch("https://hip4-api.totalis.trade/v1/vault")).json();
+const lens = parseAbi([
+  "struct Config { address usdc; address feeSink; uint16 feeBps; uint16 takerFeeBps; uint16 maxFeeBps; uint16 maxTakerFeeBps; uint128 minStake; uint128 minStakeFloor; uint128 maxMinStake; uint128 maxTicketPayout; uint8 maxLegs; uint32 maxQuoteLife; uint32 maxSellBackLife; uint32 maxTransferLife; uint32 maxExitLife; uint16 k; uint32 reduceInterval; uint32 withdrawDelay; uint32 attestMaxAge; uint32 rotateDelay; uint32 readGasDefault; bool paused; address owner; address guardian; address attestor; uint128 treasuryBalance; uint64 makerCount; uint128 lanesTotal; uint16 maxRaiseBps; }",
+  "function config(address vault) view returns (address, Config)",
+]);
+const rpc = createPublicClient({ transport: http("https://rpc.hyperliquid.xyz/evm") });
+const [, config] = await rpc.readContract({
+  address: release.lens_address, abi: lens, functionName: "config", args: [release.vault_address],
+});
+const fees = { fee_bps: config.feeBps, taker_fee_bps: config.takerFeeBps };
+console.log(fees, config.minStake, config.maxTicketPayout);
+```
+
+Re-read them when you start and periodically. The same call returns the stake, payout, and
+lifetime limits listed on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
+
+## 4. Run the bot
+
+```ts
+import { createMaker, type MakerConfirmationRequest } from "@totalistrading/hip4-client/maker";
+import { privateKeyToAccount } from "viem/accounts";
+
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!, // the maker's ttk_ key
+  makerId: process.env.TOTALIS_MAKER_ID!,
+  signer: privateKeyToAccount(process.env.QUOTE_SIGNER_KEY as `0x${string}`),
+  fees: { fee_bps: 100, taker_fee_bps: 20 }, // the vault's current fees
+});
+
+maker.stream.on("status", (status) => console.log(`stream ${status}`));
+
+// Price every open entry RFQ. Returning the promise lets the SDK offer the RFQ again if publishing fails.
+maker.onRfq(async (rfq) => {
+  if (rfq.kind !== "ENTRY" || rfq.state !== "OPEN") return;
+  const payout = (BigInt(rfq.stake_amount) * 18n) / 10n; // placeholder: price from your own market data
+  const { quoteDigest } = await maker.quote(rfq, { payout });
+  console.log(`quoted ${rfq.rfq_id} ${quoteDigest}`);
+}, (error) => console.error("rfq handling failed", error));
+
+// A taker selected one of your quotes: answer before its deadline.
+maker.onConfirmation((request) => {
+  return stillWilling(request) ? "CONFIRM" : "DECLINE";
+}, (error, request) => console.error(`confirmation ${request?.attempt_id} failed`, error));
+
+process.once("SIGINT", () => maker.close());
+
+// Your own last check before signing: prices still hold and the vault can cover the fill.
+function stillWilling(request: MakerConfirmationRequest): boolean {
+  return request.quote !== undefined;
+}
+```
+
+<Note>
+The Totalis stream carries RFQs and lifecycle events, not prices. Price each leg from your own
+Hyperliquid market data, such as Hyperliquid's public
+[info API and WebSocket](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api).
+</Note>
+
+### Receiving RFQs
+
+`onRfq` calls your handler once for every open RFQ: from `ENTRY_RFQ_OPENED` (the SDK asks the stream
+to attach the RFQ), from `CASHOUT_RFQ_OPENED`, from the snapshot on connect, and from a paged read of
+[List open RFQs](/hyperliquid/api-reference/rfqs-and-quotes/list-open-rfqs) after a reconnect that
+replayed instead of snapshotting. If the handler throws, the RFQ can be delivered again.
+
+### Publishing a quote
+
+`maker.quote(rfq, { payout })` builds the quote from the RFQ, computes its EIP-712 digest, and
+publishes it to the RFQ's book with
+[Publish book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-book-quote). Publishing
+needs no signature. It replaces your previous quote on that RFQ.
+
+| Field | Set by | Rule |
+| --- | --- | --- |
+| `legs`, `stake`, `taker` | The RFQ | Copied exactly. Legs in ascending `outcome_id` order. |
+| `payout` | You | What you pay if every leg wins. |
+| `fee_bps`, `taker_fee_bps` | `fees` | Must equal the vault's current fees. |
+| `expiry` | `lifetimeSeconds` (default 20) | Unix seconds. See [Limits and timing](/hyperliquid/conventions#limits-and-timing). |
+| `salt` | Random | A random uint256 that makes every digest unique. |
+
+`maker.withdraw(rfqId, quoteDigest)` pulls a quote with
+[Withdraw book quote](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-book-quote). It returns
+`WITHDRAWN`, `REPLACED` when a newer quote already superseded it, or `COMMITTED` when a taker already
+has it.
+
+### Confirming a fill
+
+When a taker selects your quote, the venue sends `CONFIRMATION_REQUESTED` on your stream with the
+exact terms and a `deadline`, the maker confirmation deadline on
+[Limits and timing](/hyperliquid/conventions#limits-and-timing). `onConfirmation` calls your handler
+once per attempt, from the event, from the snapshot's `confirmations`, and from one recovery read of
+[List maker confirmation requests](/hyperliquid/api-reference/rfqs-and-quotes/list-maker-confirmation-requests)
+on each reconnect. Return `"CONFIRM"` or `"DECLINE"`.
+
+On `CONFIRM` the SDK checks the terms against their digest, checks that this maker published them
+and they have not expired, signs them with the quote signer, and sends
+[Confirm attempt](/hyperliquid/api-reference/rfqs-and-quotes/confirm-attempt). Terms it did not
+publish are never signed. Each attempt is decided and signed once, and a lost answer is resent byte
+for byte.
+
+| Result `state` | Meaning |
+| --- | --- |
+| `COMMITTED` | Entry: your confirmation was accepted and the fill is queued on-chain. |
+| `CONFIRMED` | Cashout: your signature was accepted. Nothing executes until the ticket owner countersigns, so keep the risk reserved until the bid's `expiry` passes or the fill executes. |
+| `DECLINED` | You declined. Nothing was filled. |
+| `TIMED_OUT` | You missed the deadline. Nothing was filled. |
+
+Keep the handler fast: re-check prices and headroom, then answer. Do pricing work in `onRfq`, never
+in the confirmation path.
+
+## 5. Bid on cashouts
+
+`CASHOUT_RFQ_OPENED` means a ticket owner wants to sell a ticket before it resolves. The RFQ carries
+the ticket's `legs`, `owner`, the maker that wrote it, and a `leg_state` snapshot. Publish a bid with
+`maker.bid`:
+
+```ts
+maker.onRfq(async (rfq) => {
+  if (rfq.kind !== "CASHOUT") return;
+  const price = 18_000_000n; // placeholder: value the ticket's legs at rfq.leg_state
+  const { bidDigest } = await maker.bid(rfq, { price });
+  console.log(`bid ${bidDigest} for ticket ${rfq.ticket_id}`);
+});
+```
+
+If your maker wrote the ticket, `bid` publishes a `sell_back` bid: the vault buys the ticket back
+from your maker vault. Otherwise it publishes a `transfer` bid: your quote signer buys the ticket and
+pays the owner, so it must hold enough USDC in the vault. Bids default to a 45 second life. When the
+owner takes your bid, `onConfirmation` handles it like a quote, signing `SellBack` or
+`CashoutTransfer`. See [Publish cashout book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-cashout-book-quote).
+
+## 6. Resume after a restart
+
+Persist the stream cursor as you apply events, and pass it back when you start. The SDK replays
+missed events from [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) until
+`has_more` is `false`, then subscribes from its `next_cursor`. A cursor older than the replay window
+returns `CURSOR_RESET`, and the SDK takes a fresh snapshot instead. Resuming needs `replay:read`.
+
+```ts
+import { createMaker, type PublishedStore } from "@totalistrading/hip4-client/maker";
+import type { RealtimeCursor } from "@totalistrading/hip4-client/realtime";
+import { privateKeyToAccount } from "viem/accounts";
+
+declare const saved: RealtimeCursor | undefined; // loaded from your storage
+declare function save(cursor: RealtimeCursor): void;
+declare const published: PublishedStore; // backed by your database
+
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!,
+  makerId: process.env.TOTALIS_MAKER_ID!,
+  signer: privateKeyToAccount(process.env.QUOTE_SIGNER_KEY as `0x${string}`),
+  fees: { fee_bps: 100, taker_fee_bps: 20 },
+  published,
+  stream: saved === undefined ? {} : { cursor: saved },
+});
+maker.stream.on("event", () => save(maker.stream.cursor!));
+```
+
+`published` is where the maker records the digests it publishes, the only terms its quote signer will
+sign. The default keeps them in memory. Back it with durable storage (`record`, `forget`, and
+`expiry` by digest) so a restarted or separate confirming process can answer quotes published
+before.
+
+## 7. Monitor capital and positions
+
+```ts
+import { items, unwrap } from "@totalistrading/hip4-client";
+import { createMakerClient } from "@totalistrading/hip4-client/maker";
+
+const makerId = process.env.TOTALIS_MAKER_ID!;
+const client = createMakerClient("production", { accessToken: process.env.TOTALIS_MAKER_KEY });
+
+const capital = unwrap(await client.GET("/v1/makers/{maker_id}/capital", { params: { path: { maker_id: makerId } } }));
+const free = capital.free_collateral; // an amount fact: a value, or UNAVAILABLE with a reason
+console.log(capital.owner, capital.signer, free.status === "UNAVAILABLE" ? free.reason : free.value);
+
+for await (const position of items(
+  (query) => client.GET("/v1/makers/{maker_id}/positions", {
+    params: { path: { maker_id: makerId }, query: { ...query, limit: 100 } },
+  }).then(unwrap),
+  (page) => page.items,
+)) {
+  console.log(position.ticket_id, position.status);
+}
+```
+
+| Read | Returns |
+| --- | --- |
+| [Get maker capital](/hyperliquid/api-reference/maker-reads/get-maker-capital) | `owner`, `signer`, and the vault lanes: `vault_gross`, `stake_escrow`, `payable_owed`, `gross_open`, `requirement`, and `free_collateral`, the headroom that backs new fills |
+| [List maker positions](/hyperliquid/api-reference/maker-reads/list-maker-positions) | Open and settled tickets against your maker |
+| [List maker activity](/hyperliquid/api-reference/maker-reads/list-maker-activity) | Fills, settlements, and vault movements |
+| [Get maker performance](/hyperliquid/api-reference/maker-reads/get-maker-performance) | P&L and volume over a window |
+| [List maker operations](/hyperliquid/api-reference/account/list-maker-operations) | Your maker's on-chain operations |
+
+Each needs `vault:read`. A fill is rejected when your vault cannot cover it, so watch
+`MAKER_VAULT_UPDATED` events and re-read capital to keep headroom current.
+
+## 8. Move maker funds
+
+Maker vault transactions are sent by the controller, directly to the vault contract. Totalis does not
+relay, sponsor, or record them. The controller pays the gas in HYPE, and the effects arrive as
+`MAKER_VAULT_UPDATED` events and in your capital read. Your controller is your Totalis account wallet;
+to send from code, export its key as described in
+[Export your wallet key](/hyperliquid/authentication#export-your-wallet-key).
+
+| Action | Vault call | Notes |
+| --- | --- | --- |
+| Add funds | `depositMaker(makerId, amount)` | [Get maker vault funding transaction](/hyperliquid/api-reference/account/get-maker-vault-funding-transaction) returns the exact call. Approve USDC to the vault first. |
+| Withdraw | `requestMakerWithdraw(makerId, amount, to)`, then `executeMakerWithdraw(makerId)` | Execution waits out the maker withdrawal delay on [Limits and timing](/hyperliquid/conventions#limits-and-timing). `cancelMakerWithdraw(makerId)` cancels a pending request. |
+| Replace the quote signer | `setQuoteSigner(makerId, signer)` | Takes effect at once. Setting the zero address stops all fills. |
+
+To release collateral held against correlated open tickets, request a
+[collateral reduction](/hyperliquid/api-reference/funds-and-tickets/create-collateral-reduction) with
+a key that has `vault:write`.
+
+## Without the SDK
+
+| Step | Raw API |
+| --- | --- |
+| Receive RFQs and confirmation requests | [`GET /v1/stream`](/hyperliquid/realtime) with topic `MAKER` and `rfq_details: true` |
+| Recover open RFQs after a reconnect | [List open RFQs](/hyperliquid/api-reference/rfqs-and-quotes/list-open-rfqs) |
+| Publish a quote | [Publish book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-book-quote) with `quote` and `quote_digest = hashTypedData(quoteTypedData(release, quote))` |
+| Recover pending confirmations after a reconnect | [List maker confirmation requests](/hyperliquid/api-reference/rfqs-and-quotes/list-maker-confirmation-requests). Use it only after a reconnect: requests are pushed as `CONFIRMATION_REQUESTED`. |
+| Answer a confirmation | [Confirm attempt](/hyperliquid/api-reference/rfqs-and-quotes/confirm-attempt) with `decision` and, for `CONFIRM`, `maker_signature` over the request's `quote`, `sell_back`, or `transfer`. The `Idempotency-Key` must equal `attempt_id`. |
+| Resume from a cursor over HTTP | [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) |
+
+## Errors to handle
+
+The full list, with each code's status and retry rule, is on [Errors](/hyperliquid/errors).
+
+| Code | Cause | Do |
+| --- | --- | --- |
+| `FORBIDDEN` | The key lacks a scope. | Check the key's scopes. |
+| `NOT_FOUND` | The path names a maker other than the key's. | Use your own `maker_id`. |
+| `INVALID_SIGNATURE` | The signature is not from your current quote signer, or not over the selected terms. | Sign with the `signer` in your capital read. |
+| `RFQ_NOT_OPEN`, `QUOTE_EXPIRED` | The RFQ or quote ran out of time. | Drop it. |
+| `QUOTE_SIGNER_CHANGED` | The quote signer changed after you published. | Restart the bot with the new quote signer, then publish again. |
+| `QUOTE_EXPOSURE_LIMIT` | Your open quote exposure is at its limit. | Withdraw quotes, or wait, then retry. |
+| `RATE_LIMITED` | Over quota. | Honor `Retry-After`. The SDK already does. |
+| `FINANCIAL_ACTIONS_DISABLED` | Trading is paused. | Stop quoting until it clears. |
+
+If a confirmation response is lost, resend it with the same `attempt_id`. Until you know the outcome,
+treat the quote as filled risk.

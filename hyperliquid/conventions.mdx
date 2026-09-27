@@ -1,0 +1,164 @@
+---
+title: 'Conventions'
+icon: 'brackets-curly'
+description: 'Base URLs, how a key selects the account, value encoding, commands and idempotency, synchronous and queued responses, pagination, limits, timing, and rate limits.'
+---
+
+## Base URLs
+
+| Environment | Base URL | Chain |
+| --- | --- | --- |
+| Production | `https://hip4-api.totalis.trade` | HyperEVM mainnet (chain ID `999`) |
+| Staging | `https://hip4-api-staging.totalis.trade` | HyperEVM testnet (chain ID `998`) |
+
+A key works only in the environment it was created for.
+
+## The key selects the account
+
+Your API key implies the account, the chain, and the vault of every request. No header or query
+parameter selects them, and there is no account switch.
+
+| Key | Reads its own state under | Example |
+| --- | --- | --- |
+| Personal key | `/v1/me/...` | `GET /v1/me/positions` |
+| Maker key | `/v1/makers/{maker_id}/...`, with its own `maker_id` | `GET /v1/makers/7/positions` |
+
+A maker key that names another `maker_id` gets `404`. Every account exposes the same two addresses
+under the same names: `owner`, the wallet that controls it and issues its keys, and `signer`, the
+wallet that signs its trades. See [Authentication](/hyperliquid/authentication#keys-and-accounts).
+
+## Values
+
+| Kind | Encoding | Example |
+| --- | --- | --- |
+| Amount | Base-10 string in native USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
+| Large identifier | Decimal string. Outcome, question, chain, block, and sequence values may exceed JavaScript's safe integer range. | `"1209"` |
+| Address | Lowercase `0x` plus 40 hex characters. Input may be checksummed. | `"0xedf7131c57e0ac4eade509e1bf56a9ab7af43745"` |
+| Digest, signature, hash | Lowercase `0x` hex of fixed length. | `"0x5e5e...5e5e"` |
+| Timestamp | RFC 3339 UTC. Signed messages use the integer unix seconds their type defines. | `"2026-09-26T20:00:50Z"` |
+| Enum | Uppercase snake case. Handle unknown values on reads. Unknown values on commands are rejected. | `"ACTIVE"` |
+| Side | `0` for YES, `1` for NO. | `{ "outcome_id": 1209, "side": 0 }` |
+
+An omitted optional field and an explicit `null` are not interchangeable unless the field says so.
+
+## Commands and idempotency
+
+Every command `POST` carries the same envelope and an `Idempotency-Key` header holding a lowercase
+UUIDv7:
+
+```http
+POST /v1/rfqs HTTP/1.1
+Authorization: Bearer ttk_v1_prd_...
+Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771
+Content-Type: application/json
+
+{
+  "schema_version": 1,
+  "request_id": "01a0df4e-5dc9-7a10-9b2e-3c4d5e6f7a81",
+  "sent_at": "2026-09-26T20:00:50.120Z",
+  "command": { "taker_address": "0x1111111111111111111111111111111111111111", "stake_amount": "25000000", "legs": [{ "outcome_id": 1209, "side": 0 }] }
+}
+```
+
+| You send | You get |
+| --- | --- |
+| The same key and the same body | The original status and body, without repeating the command, and `Idempotency-Replayed: true`. |
+| The same key with a different body | `409 IDEMPOTENCY_KEY_REUSED`. |
+
+A key is scoped to your account, the method, and the route. Generate a new one for every distinct
+command. To retry, resend the exact request you built the first time: same key, same bytes. On the
+attempt routes (begin, abandon, and confirm), the key must equal the `attempt_id` in the path.
+
+The SDK builds each command once and resends it byte for byte after a network failure or a
+`BACKOFF` error. `uuidv7()` and `envelope(command)` from `@totalistrading/hip4-client` build the
+parts yourself.
+
+## Synchronous results and queued work
+
+| Command | Response |
+| --- | --- |
+| Accept a quote, begin a cashout attempt, confirm an attempt | `200` with the final result. The venue holds the request until the maker answers or the confirmation deadline passes. |
+| Deposit, withdraw, settle, claim, sell back, transfer | `202` once the work is durably queued, with `operation_id` and `state: "DURABLE"`. That is not chain success. |
+| Create an RFQ, publish a quote or bid | `201` with the created resource's ID. |
+
+Changes are pushed on the [realtime stream](/hyperliquid/realtime): operation progress arrives as
+`EXECUTION_REPORT`, book changes as `BOOK_QUOTES_CHANGED`, maker confirmation requests as
+`CONFIRMATION_REQUESTED`. The matching `GET` routes are for recovery after a reconnect or a lost
+response, not for polling.
+
+## Pagination
+
+Every list takes the same two query parameters and returns the same two top-level fields:
+
+| | Field | Rule |
+| --- | --- | --- |
+| Query | `limit` | 1 to 200, default 50. [Get market history](/hyperliquid/api-reference/market-data/get-market-history) allows up to 1,440. |
+| Query | `cursor` | Omit for the first page. Then send the previous `next_cursor` unchanged. |
+| Response | `next_cursor` | Opaque. `null` exactly when `has_more` is `false`. |
+| Response | `has_more` | `true` while another page exists. |
+
+The collection keeps its own name (`items`, `rfqs`, `operations`, `events`), and list context sits
+beside the cursor, for example `catalog_generation` on market lists.
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJhIjoxMjExLCJrIjoibWFya2V0In0"
+```
+
+Do not parse or construct cursors. A page can hold fewer than `limit` items, even none, while
+`has_more` is `true`, so keep paging until it is `false`. The SDK's `items` and `pages` do this. The
+one exception is [List maker events](/hyperliquid/api-reference/realtime/list-maker-events), whose
+`cursor` and `next_cursor` are realtime stream cursors.
+
+## Errors
+
+Every error uses one envelope with a stable `code` and a `retry` value of `NEVER`, `BACKOFF`, or
+`REFRESH`. The envelope, the retry rules, and every code are on [Errors](/hyperliquid/errors).
+
+## Limits and timing
+
+Every other Hyperliquid page links here rather than restating these values. The vault limits are
+read from the vault contract, where they can change. Read them live with the lens `config` call on
+[Market makers](/hyperliquid/market-makers#3-read-the-vault-fees).
+
+| Limit | Value |
+| --- | --- |
+| Legs per RFQ | 1 to 50, in strictly ascending `outcome_id` order, no outcome twice |
+| Minimum stake | Net stake (stake minus the taker fee) of at least the vault's `minStake`, currently 1 USDC |
+| Maximum ticket payout | 100,000 USDC |
+| Fees | `fee_bps` and `taker_fee_bps` as set on the vault, currently 100 and 20. Every quote must carry the current values. |
+| Entry RFQ open for quotes | 20 seconds after creation |
+| Cashout RFQ open for bids | 30 seconds after creation |
+| Quote `expiry` | In the future and at most 30 seconds after publication. The book leaves out quotes within 2 seconds of expiry. |
+| Maker confirmation deadline | 2 seconds after the taker accepts. The accept response arrives within 1 second after it. |
+| Cashout bid `expiry` | 20 to 55 seconds after publication, so the owner has time to countersign |
+| Withdrawal (`Exit`) `expiry` | At most 3,600 seconds out, less the 5 second margin |
+| USDC authorization window (deposit, payout) | At most 900 seconds from `valid_after` to `valid_before` |
+| Maker vault withdrawal delay | 86,400 seconds between `requestMakerWithdraw` and `executeMakerWithdraw` |
+| Realtime replay window | 24 hours |
+| Realtime snapshot | At most 100 items per class. The rest is in the HTTP list named in `continuations`. |
+| API key lifetime | 1 to 90 days, or Forever |
+| Live API keys | 20 per account, counting keys in a rotation overlap |
+| Key approval message | Valid for 5 minutes, usable once |
+| Request body | 64 KiB |
+
+### Rate limits
+
+A request over its quota returns `429 RATE_LIMITED` with a `Retry-After` header holding the seconds to
+wait. Wait at least that long before resending. The SDK does this for you.
+
+| Route | Per account, per minute |
+| --- | --- |
+| Create RFQ | 30 |
+| Begin attempt, begin cashout attempt | 30, shared |
+| Abandon attempt | 60 |
+| Publish book quote, publish cashout book quote | 120, shared |
+| Withdraw book quote | 120 |
+| Confirm attempt | 120 |
+| List maker confirmation requests | 150 |
+| List book quotes, list cashout book | 600, shared |
+| Get attempt, get cashout attempt | 600, shared |
+| Position, capital, and performance reads | 120, shared |
+| Activity reads | 120 |
+
+Each route also has a total limit across all callers, so `RATE_LIMITED` can arrive below these
+figures under heavy load.

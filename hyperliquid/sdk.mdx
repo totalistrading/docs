@@ -1,0 +1,162 @@
+---
+title: 'TypeScript SDK'
+icon: 'code'
+description: 'The @totalistrading/hip4-client SDK: typed clients, taker and maker flows, signers, retries, pagination, and the realtime stream.'
+---
+
+`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.2.0. It is
+the same client the Totalis app runs. It gives you typed clients for every route, the taker and
+maker flows end to end, the EIP-712 and EIP-3009 messages each flow signs, a request layer that
+resends safely, pagination, and the realtime stream. It never stores a key: every signature goes to
+the signer you pass in.
+
+## Access and install
+
+The SDK is private. Access is provided on request: email
+[founders@totalis.trade](mailto:founders@totalis.trade) with the GitHub account that should read
+it. Once access is granted, authenticate to GitHub Packages with a token that can read packages:
+
+```ini .npmrc
+@totalistrading:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+```bash
+npm install @totalistrading/hip4-client viem
+```
+
+One ESM package runs in Node 22 or later and in browsers. It has no wallet dependency. `viem` (or
+ethers) is only needed to turn a private key into a signer.
+
+## Entry points
+
+| Import | Holds |
+| --- | --- |
+| `@totalistrading/hip4-client` | `createTotalis` (taker flows), `createClient` (typed client for every personal route), `ApiError`, `NetworkError`, `pages` and `items`, `toTotalisSigner`, `TotalisStream`, `uuidv7`, `envelope` |
+| `@totalistrading/hip4-client/maker` | `createMaker` (maker flows) and `createMakerClient` (typed client for maker routes) |
+| `@totalistrading/hip4-client/realtime` | `TotalisStream` and the generated stream frame types |
+| `@totalistrading/hip4-client/typed-data` | Builders and hashing for every signed message, from the API's own JSON shapes |
+| `@totalistrading/hip4-client/signer` | `toTotalisSigner` for viem accounts and wallet clients, EIP-1193 providers, and ethers signers |
+| `@totalistrading/hip4-client/errors` | The generated error registry, `ApiError`, and `NetworkError` |
+| `@totalistrading/hip4-client/api-keys` | Key issuance and rotation for apps with a signed-in user session |
+
+## Clients
+
+| Function | For | Credential | Signer |
+| --- | --- | --- | --- |
+| `createClient(environment, options)` | Any personal or public route, typed | Optional personal key | None |
+| `createTotalis(options)` | `placeBet`, `cashOut`, `deposit`, `withdraw`, `resumeWithdrawal`, `waitForOperation`, `watchBook` | Personal key | Your Totalis wallet (`signer` in `GET /v1/me`) |
+| `createMakerClient(environment, options)` | Any maker route, typed | Maker key | None |
+| `createMaker(options)` | `onRfq`, `quote`, `bid`, `withdraw`, `onConfirmation`, `confirm` | Maker key | The maker's quote signer |
+
+`environment` is `"production"` (`https://hip4-api.totalis.trade`) or `"staging"`
+(`https://hip4-api-staging.totalis.trade`). Pass `baseUrl` to point at another origin. Money is
+always integer USDC base units, as a `bigint` or a decimal string: `25_000_000n` is 25 USDC.
+
+`createTotalis` and `createMaker` also expose `client`, the typed client over the same key, for
+reads the flows do not cover, and `stream`, the account or maker stream the flows follow. Call
+`close()` when you are done.
+
+## Signers
+
+Every flow that signs takes a `signer`. Pass any of these and the SDK adapts it:
+
+| Signer | Example |
+| --- | --- |
+| viem local account | `privateKeyToAccount(process.env.TOTALIS_WALLET_KEY)` |
+| viem wallet client | `createWalletClient({ account, transport })` |
+| EIP-1193 provider | `window.ethereum`, or an embedded wallet's provider |
+| ethers v6 signer | `new Wallet(privateKey)` |
+
+The SDK signs only what the flow you called needs, and checks the terms first. `placeBet` signs only
+quotes for exactly your taker, stake, and legs. `cashOut` signs only bids for your ticket and owner.
+`withdraw` signs a payout only for your destination and amount. A maker's quote signer signs only
+terms that maker published and that have not expired.
+
+## Retries and errors
+
+Every command is built once, with its envelope and `Idempotency-Key`, and resent byte for byte after
+a network failure or a `BACKOFF` error, waiting for `Retry-After` or a jittered backoff. That is five
+sends by default. Set `retry: { attempts }` to change it, or `retry: false` to send once. The
+venue replays a command it already accepted, so a resend never doubles a bet or a deposit.
+
+`unwrap(result)` returns a typed client's data or throws `ApiError` with the registered `code`,
+`retry`, `status`, `requestId`, `fieldViolations`, and `retryAfterMs`. What each `retry` value means
+is on [Errors](/hyperliquid/errors).
+
+```ts
+import { ApiError, createTotalis, NetworkError } from "@totalistrading/hip4-client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const totalis = createTotalis({
+  environment: "production",
+  accessToken: process.env.TOTALIS_API_KEY!,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+});
+
+try {
+  await totalis.deposit({ amount: 10_000_000n });
+} catch (error) {
+  if (error instanceof NetworkError || (error instanceof ApiError && error.retry === "BACKOFF")) {
+    await error.resend?.(); // same bytes, same Idempotency-Key: never a second deposit
+  } else if (error instanceof ApiError && error.retry === "REFRESH") {
+    // re-read the state the command depends on, then decide on a new command
+  } else if (error instanceof ApiError) {
+    console.error(error.code, error.status, error.requestId, error.fieldViolations); // NEVER: stop
+  } else {
+    throw error;
+  }
+}
+```
+
+`NetworkError` means the outcome is unknown: the request may or may not have reached the venue. For
+a flow's command, it and a `BACKOFF` error that outlasted the resends carry `resend()`, which sends
+the identical request again and returns the venue's result. Never sign a second command instead.
+
+## Pagination
+
+`items` and `pages` walk any list: the first request omits `cursor`, each later one sends the
+previous `next_cursor` unchanged, and they stop when `has_more` is `false`.
+
+```ts
+import { createClient, items, unwrap } from "@totalistrading/hip4-client";
+
+const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
+
+for await (const position of items(
+  (query) => client.GET("/v1/me/positions", { params: { query: { ...query, limit: 100 } } }).then(unwrap),
+  (page) => page.items,
+)) {
+  console.log(position.ticket_id, position.status);
+}
+```
+
+## Realtime
+
+The flows follow their operations, books, and confirmations on the realtime stream, and read over
+HTTP only after a reconnect or when an event says something changed. Nothing polls. To use the
+stream directly, see [Realtime](/hyperliquid/realtime).
+
+## Typed data
+
+`@totalistrading/hip4-client/typed-data` builds every signed message from the API's JSON shapes, so
+you never hand-write an EIP-712 type:
+
+| Builder | Signs |
+| --- | --- |
+| `quoteTypedData(release, quote)` | A maker `Quote`. `hashTypedData` of it is the `quote_digest`. |
+| `takerAcceptTypedData(release, quote)` | A taker's `TakerAccept` of a quote |
+| `sellBackTypedData(release, bid)` | A `SellBack` cash-out |
+| `cashoutTransferTypedData(release, bid)` | A `CashoutTransfer` cash-out |
+| `exitTypedData(release, exit)` | A vault withdrawal (`Exit`) |
+| `receiveWithAuthorizationTypedData(release, authorization)` | A deposit's USDC `ReceiveWithAuthorization` |
+| `transferWithAuthorizationTypedData(transfer, window)` | A withdrawal payout's USDC `TransferWithAuthorization` |
+
+`release` is the response of [Get vault release](/hyperliquid/api-reference/vault/get-vault-release),
+which carries the chain ID and vault address of the EIP-712 domain. The builders are tested against
+the vault's EIP-712 test vectors and the USDC domain separators.
+
+## Versions
+
+The SDK follows semantic versioning. Its changelog ships in the package as `CHANGELOG.md`. This
+documentation describes 0.2.0.
