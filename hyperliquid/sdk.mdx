@@ -4,7 +4,7 @@ icon: 'code'
 description: 'The @totalistrading/hip4-client SDK: typed clients, taker and maker flows, signers, retries, pagination, and the realtime stream.'
 ---
 
-`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.2.0. It is
+`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.3.0. It is
 the same client the Totalis app runs. It gives you typed clients for every route, the taker and
 maker flows end to end, the EIP-712 and EIP-3009 messages each flow signs, a request layer that
 resends safely, pagination, and the realtime stream. It never stores a key: every signature goes to
@@ -33,7 +33,7 @@ ethers) is only needed to turn a private key into a signer.
 | Import | Holds |
 | --- | --- |
 | `@totalistrading/hip4-client` | `createTotalis` (taker flows), `createClient` (typed client for every personal route), `ApiError`, `NetworkError`, `pages` and `items`, `toTotalisSigner`, `TotalisStream`, `uuidv7`, `envelope` |
-| `@totalistrading/hip4-client/maker` | `createMaker` (maker flows) and `createMakerClient` (typed client for maker routes) |
+| `@totalistrading/hip4-client/maker` | `createMaker` (maker flows), `createMakerClient` (typed client for maker routes), and `controllerTransactions` and `openMakerVaultTransaction` (vault transactions for the controller wallet) |
 | `@totalistrading/hip4-client/realtime` | `TotalisStream` and the generated stream frame types |
 | `@totalistrading/hip4-client/typed-data` | Builders and hashing for every signed message, from the API's own JSON shapes |
 | `@totalistrading/hip4-client/signer` | `toTotalisSigner` for viem accounts and wallet clients, EIP-1193 providers, and ethers signers |
@@ -45,9 +45,9 @@ ethers) is only needed to turn a private key into a signer.
 | Function | For | Credential | Signer |
 | --- | --- | --- | --- |
 | `createClient(environment, options)` | Any personal or public route, typed | Optional personal key | None |
-| `createTotalis(options)` | `placeBet`, `cashOut`, `deposit`, `withdraw`, `resumeWithdrawal`, `waitForOperation`, `watchBook` | Personal key | Your Totalis wallet (`signer` in `GET /v1/me`) |
+| `createTotalis(options)` | `placeBet`, `cashOut`, `settleTicket`, `claimTicket`, `deposit`, `withdraw`, `resumeWithdrawal`, `withdrawFromVault`, `waitForOperation`, `watchBook` | Personal key | Your Totalis wallet (`signer` in `GET /v1/me`) |
 | `createMakerClient(environment, options)` | Any maker route, typed | Maker key | None |
-| `createMaker(options)` | `onRfq`, `quote`, `bid`, `withdraw`, `onConfirmation`, `confirm` | Maker key | The maker's quote signer |
+| `createMaker(options)` | `onRfq`, `quote`, `bid`, `withdraw`, `onConfirmation`, `confirm`, `controller`, `reduceCollateral` | Maker key | The maker's quote signer |
 
 `environment` is `"production"` (`https://hip4-api.totalis.trade`) or `"staging"`
 (`https://hip4-api-staging.totalis.trade`). Pass `baseUrl` to point at another origin. Money is
@@ -150,13 +150,16 @@ you never hand-write an EIP-712 type:
 | `cashoutTransferTypedData(release, bid)` | A `CashoutTransfer` cash-out |
 | `exitTypedData(release, exit)` | A vault withdrawal (`Exit`) |
 | `receiveWithAuthorizationTypedData(release, authorization)` | A deposit's USDC `ReceiveWithAuthorization` |
-| `transferWithAuthorizationTypedData(transfer, window)` | A withdrawal payout's USDC `TransferWithAuthorization` |
+| `transferWithAuthorizationTypedData(release, transfer, window)` | A withdrawal payout's USDC `TransferWithAuthorization` |
+| `usdcDomain(release)` | The USDC EIP-712 domain the two authorizations above sign under |
 
 `release` is the response of [Get vault release](/hyperliquid/api-reference/vault/get-vault-release),
-which carries the chain ID and vault address of the EIP-712 domain. The builders are tested against
+which carries the chain ID and vault address of the vault's EIP-712 domain, and in `usdc` the USDC
+token and its EIP-712 domain. The builders are tested against
 the vault's EIP-712 test vectors and the USDC domain separators.
 
 ## Versions
 
 The SDK follows semantic versioning. Its changelog ships in the package as `CHANGELOG.md`. This
-documentation describes 0.2.0.
+documentation describes 0.3.0, which needs the API's `fee_bps`, `taker_fee_bps`, and `usdc` fields
+on `GET /v1/vault`.

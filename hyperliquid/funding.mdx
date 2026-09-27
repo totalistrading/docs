@@ -19,6 +19,7 @@ examples use the `totalis` client from [Trading](/hyperliquid/trading#1-create-a
 | --- | --- | --- | --- |
 | Move wallet USDC into the vault | `deposit` | `funding:deposit`, `sponsorship:use` | USDC `ReceiveWithAuthorization` |
 | Send USDC to any address | `withdraw` | `funding:withdraw`, `sponsorship:use`, `account:read`, `account:stream` | Vault `Exit` for any shortfall, then USDC `TransferWithAuthorization` |
+| Send vault USDC to any address in one step | `withdrawFromVault` | `funding:withdraw`, `sponsorship:use` | Vault `Exit` |
 
 ## Read your balance
 
@@ -64,7 +65,8 @@ Totalis balance only. HyperCore balances are not part of it. Read them from Hype
 ## Get USDC into your wallet
 
 Send native USDC on HyperEVM (chain ID `999`) to your wallet address. The token is
-`0xb88339cb7199b77e23db6e890353e22632ba630f`. To fund from another chain, deposit in the
+`0xb88339cb7199b77e23db6e890353e22632ba630f`, the `usdc.address` in
+[Get vault release](/hyperliquid/api-reference/vault/get-vault-release). To fund from another chain, deposit in the
 [Totalis app](https://totalis-hip4.vercel.app), which bridges it for you.
 
 You do not have to move it into the vault yourself. `placeBet` tops up a vault shortfall from your
@@ -148,13 +150,24 @@ amount.
     returns `wallet_transfer`, the exact transfer to sign.
   </Step>
   <Step title="Sign and submit it">
-    Sign it with `transferWithAuthorizationTypedData(wallet_transfer, { valid_after, valid_before })`
+    Sign it with `transferWithAuthorizationTypedData(release, wallet_transfer, { valid_after, valid_before })`
     and send `valid_after`, `valid_before`, and `authorization_signature` to
     [Record Totalis payout submission](/hyperliquid/api-reference/funds-and-tickets/record-totalis-payout-submission).
     Follow events until `PAYOUT_COMMITTED`.
   </Step>
 </Steps>
 
-To withdraw straight from the vault to any address in one step, sign an `Exit` to that address and
-send it to [Withdraw](/hyperliquid/api-reference/funds-and-tickets/withdraw). The SDK has no flow for
-this route. Build the message with `exitTypedData`.
+### Withdraw straight from the vault
+
+To send vault USDC to any address in one step, without the wallet-first flow, use
+`withdrawFromVault`. It signs a vault `Exit` for exactly that amount and destination and submits it
+to [Withdraw](/hyperliquid/api-reference/funds-and-tickets/withdraw). It needs `funding:withdraw`
+and `sponsorship:use`.
+
+```ts
+const exit = await totalis.withdrawFromVault({
+  amount: 10_000_000n,
+  to: "0x2222222222222222222222222222222222222222", // default: your own wallet
+});
+await totalis.waitForOperation(exit.operation_id);
+```

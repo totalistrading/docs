@@ -259,18 +259,18 @@ or `status: "UNAVAILABLE"` with a `reason`.
 ## 5. Settlement and payout
 
 You do not have to do anything. Totalis settles tickets once their legs resolve and claims any payout
-to the ticket owner automatically. To make it happen sooner, call
-[Settle ticket](/hyperliquid/api-reference/funds-and-tickets/settle-ticket) and then
-[Claim ticket](/hyperliquid/api-reference/funds-and-tickets/claim-ticket) with an empty `command`.
-Both need `ticket:settle` and `sponsorship:use`, and neither needs a signature:
+to the ticket owner automatically. To make it happen sooner, settle and then claim it yourself. Both
+need `ticket:settle` and `sponsorship:use`, and neither needs a signature:
 
-```bash
-curl https://hip4-api.totalis.trade/v1/tickets/$TICKET_ID/settlements \
-  -H "Authorization: Bearer $TOTALIS_API_KEY" \
-  -H "Idempotency-Key: 01998683-7a32-7a67-8c2e-7b1f4d9a3e58" \
-  -H "Content-Type: application/json" \
-  -d '{ "schema_version": 1, "request_id": "01998683-7a32-7a68-9d3f-8c2a5e0b4f69", "sent_at": "2026-09-26T14:30:00Z", "command": {} }'
+```ts
+const settled = await totalis.settleTicket(ticketId);
+await totalis.waitForOperation(settled.operation_id);
+const claimed = await totalis.claimTicket(ticketId); // once the position is SETTLED_UNCLAIMED
+await totalis.waitForOperation(claimed.operation_id);
 ```
+
+They call [Settle ticket](/hyperliquid/api-reference/funds-and-tickets/settle-ticket) and
+[Claim ticket](/hyperliquid/api-reference/funds-and-tickets/claim-ticket) with an empty `command`.
 
 ## 6. Cash out early
 
@@ -301,7 +301,8 @@ full list, with each code's status and retry rule, is on [Errors](/hyperliquid/e
 | Code | Cause | Do |
 | --- | --- | --- |
 | `FORBIDDEN` | The key lacks a scope, often `ticket:accept`, `sponsorship:use`, or `funding:deposit`. | Create a key with the [taker bot scopes](/hyperliquid/authentication#recommended-scope-sets). |
-| `INVALID_SIGNATURE` | The signature is not from the RFQ's taker. | Sign with the wallet whose address is `signer` in `GET /v1/me`. |
+| `WRONG_AUTHORITY` | The signature is not from the RFQ's taker. | Sign with the wallet whose address is `signer` in `GET /v1/me`. |
+| `INVALID_SIGNATURE` | The signature does not verify for the quote's terms. | Sign the quote exactly as the book returned it. |
 | `QUOTE_EXPIRED`, `QUOTE_WITHDRAWN`, `QUOTE_SUPERSEDED`, `RFQ_NOT_OPEN` | The quote or RFQ changed before your accept. | Place the bet again. |
 | `QUOTE_CAPACITY_EXCEEDED` | The maker can no longer back the quote. | Place the bet again. |
 | `RFQ_INTENT_LIMIT` | Too many open RFQs on the account. | Wait for open RFQs to close, then retry. |

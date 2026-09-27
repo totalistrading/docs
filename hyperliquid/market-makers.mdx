@@ -59,32 +59,7 @@ and pasting the signature back. See [Authentication](/hyperliquid/authentication
 
 The key is shown once. Store it next to the quote signer key in your bot's secret store.
 
-## 3. Read the vault fees
-
-Every quote carries the vault's current `fee_bps` and `taker_fee_bps`, and a quote with other values
-reverts on-chain. The API does not publish them. Read them from the vault's lens contract, whose
-address is in [Get vault release](/hyperliquid/api-reference/vault/get-vault-release):
-
-```ts
-import { createPublicClient, http, parseAbi } from "viem";
-
-const release = await (await fetch("https://hip4-api.totalis.trade/v1/vault")).json();
-const lens = parseAbi([
-  "struct Config { address usdc; address feeSink; uint16 feeBps; uint16 takerFeeBps; uint16 maxFeeBps; uint16 maxTakerFeeBps; uint128 minStake; uint128 minStakeFloor; uint128 maxMinStake; uint128 maxTicketPayout; uint8 maxLegs; uint32 maxQuoteLife; uint32 maxSellBackLife; uint32 maxTransferLife; uint32 maxExitLife; uint16 k; uint32 reduceInterval; uint32 withdrawDelay; uint32 attestMaxAge; uint32 rotateDelay; uint32 readGasDefault; bool paused; address owner; address guardian; address attestor; uint128 treasuryBalance; uint64 makerCount; uint128 lanesTotal; uint16 maxRaiseBps; }",
-  "function config(address vault) view returns (address, Config)",
-]);
-const rpc = createPublicClient({ transport: http("https://rpc.hyperliquid.xyz/evm") });
-const [, config] = await rpc.readContract({
-  address: release.lens_address, abi: lens, functionName: "config", args: [release.vault_address],
-});
-const fees = { fee_bps: config.feeBps, taker_fee_bps: config.takerFeeBps };
-console.log(fees, config.minStake, config.maxTicketPayout);
-```
-
-Re-read them when you start and periodically. The same call returns the stake, payout, and
-lifetime limits listed on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
-
-## 4. Run the bot
+## 3. Run the bot
 
 ```ts
 import { createMaker, type MakerConfirmationRequest } from "@totalistrading/hip4-client/maker";
@@ -95,7 +70,6 @@ const maker = createMaker({
   apiKey: process.env.TOTALIS_MAKER_KEY!, // the maker's ttk_ key
   makerId: process.env.TOTALIS_MAKER_ID!,
   signer: privateKeyToAccount(process.env.QUOTE_SIGNER_KEY as `0x${string}`),
-  fees: { fee_bps: 100, taker_fee_bps: 20 }, // the vault's current fees
 });
 
 maker.stream.on("status", (status) => console.log(`stream ${status}`));
@@ -145,7 +119,7 @@ needs no signature. It replaces your previous quote on that RFQ.
 | --- | --- | --- |
 | `legs`, `stake`, `taker` | The RFQ | Copied exactly. Legs in ascending `outcome_id` order. |
 | `payout` | You | What you pay if every leg wins. |
-| `fee_bps`, `taker_fee_bps` | `fees` | Must equal the vault's current fees. |
+| `fee_bps`, `taker_fee_bps` | The vault | Read from [Get vault release](/hyperliquid/api-reference/vault/get-vault-release) for every quote, so a fee change applies at once. A quote with other values reverts on-chain. |
 | `expiry` | `lifetimeSeconds` (default 20) | Unix seconds. See [Limits and timing](/hyperliquid/conventions#limits-and-timing). |
 | `salt` | Random | A random uint256 that makes every digest unique. |
 
@@ -179,7 +153,7 @@ for byte.
 Keep the handler fast: re-check prices and headroom, then answer. Do pricing work in `onRfq`, never
 in the confirmation path.
 
-## 5. Bid on cashouts
+## 4. Bid on cashouts
 
 `CASHOUT_RFQ_OPENED` means a ticket owner wants to sell a ticket before it resolves. The RFQ carries
 the ticket's `legs`, `owner`, the maker that wrote it, and a `leg_state` snapshot. Publish a bid with
@@ -200,7 +174,7 @@ pays the owner, so it must hold enough USDC in the vault. Bids default to a 45 s
 owner takes your bid, `onConfirmation` handles it like a quote, signing `SellBack` or
 `CashoutTransfer`. See [Publish cashout book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-cashout-book-quote).
 
-## 6. Resume after a restart
+## 5. Resume after a restart
 
 Persist the stream cursor as you apply events, and pass it back when you start. The SDK replays
 missed events from [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) until
@@ -221,7 +195,6 @@ const maker = createMaker({
   apiKey: process.env.TOTALIS_MAKER_KEY!,
   makerId: process.env.TOTALIS_MAKER_ID!,
   signer: privateKeyToAccount(process.env.QUOTE_SIGNER_KEY as `0x${string}`),
-  fees: { fee_bps: 100, taker_fee_bps: 20 },
   published,
   stream: saved === undefined ? {} : { cursor: saved },
 });
@@ -233,7 +206,7 @@ sign. The default keeps them in memory. Back it with durable storage (`record`, 
 `expiry` by digest) so a restarted or separate confirming process can answer quotes published
 before.
 
-## 7. Monitor capital and positions
+## 6. Monitor capital and positions
 
 ```ts
 import { items, unwrap } from "@totalistrading/hip4-client";
@@ -267,23 +240,81 @@ for await (const position of items(
 Each needs `vault:read`. A fill is rejected when your vault cannot cover it, so watch
 `MAKER_VAULT_UPDATED` events and re-read capital to keep headroom current.
 
-## 8. Move maker funds
+## 7. Move maker funds
 
-Maker vault transactions are sent by the controller, directly to the vault contract. Totalis does not
-relay, sponsor, or record them. The controller pays the gas in HYPE, and the effects arrive as
-`MAKER_VAULT_UPDATED` events and in your capital read. Your controller is your Totalis account wallet;
-to send from code, export its key as described in
-[Export your wallet key](/hyperliquid/authentication#export-your-wallet-key).
+Maker vault transactions are sent by the controller wallet, directly to the vault contract. Totalis
+does not relay, sponsor, or record them. `maker.controller()` builds each one from the vault's ABI as
+`{ chain_id, to, data, value }` for your wallet to sign and send. The SDK never sends a transaction.
+Your controller is your Totalis account wallet: to send from code, export its key as described in
+[Export your wallet key](/hyperliquid/authentication#export-your-wallet-key). It pays the gas in HYPE.
 
-| Action | Vault call | Notes |
+```ts
+import { createMaker } from "@totalistrading/hip4-client/maker";
+import { createWalletClient, defineChain, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!,
+  makerId: process.env.TOTALIS_MAKER_ID!,
+  signer: privateKeyToAccount(process.env.QUOTE_SIGNER_KEY as `0x${string}`),
+});
+
+// The controller is your Totalis account wallet: its exported key sends these, and pays the gas in HYPE.
+const hyperEvm = defineChain({
+  id: 999, name: "HyperEVM", nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.hyperliquid.xyz/evm"] } },
+});
+const controller = createWalletClient({
+  account: privateKeyToAccount(process.env.CONTROLLER_KEY as `0x${string}`),
+  chain: hyperEvm,
+  transport: http(),
+});
+const send = ({ to, data }: { to: `0x${string}`; data: `0x${string}` }) => controller.sendTransaction({ to, data });
+
+const tx = await maker.controller(); // each builder returns { chain_id, to, data, value }
+await send(tx.approveUsdc(1_000_000_000n)); // 1,000 USDC
+await send(tx.deposit(1_000_000_000n));     // depositMaker
+await send(tx.requestWithdraw(250_000_000n, controller.account.address)); // starts the withdrawal delay
+```
+
+| Builder | Vault call | Notes |
 | --- | --- | --- |
-| Add funds | `depositMaker(makerId, amount)` | [Get maker vault funding transaction](/hyperliquid/api-reference/account/get-maker-vault-funding-transaction) returns the exact call. Approve USDC to the vault first. |
-| Withdraw | `requestMakerWithdraw(makerId, amount, to)`, then `executeMakerWithdraw(makerId)` | Execution waits out the maker withdrawal delay on [Limits and timing](/hyperliquid/conventions#limits-and-timing). `cancelMakerWithdraw(makerId)` cancels a pending request. |
-| Replace the quote signer | `setQuoteSigner(makerId, signer)` | Takes effect at once. Setting the zero address stops all fills. |
+| `approveUsdc(amount)` | USDC `approve(vault, amount)` | Sent by the wallet that funds the deposit, before `deposit`. |
+| `deposit(amount)` | `depositMaker` | Pulls the approved USDC into your maker vault. |
+| `requestWithdraw(amount, to)` | `requestMakerWithdraw` | Starts the maker withdrawal delay on [Limits and timing](/hyperliquid/conventions#limits-and-timing). |
+| `executeWithdraw()` | `executeMakerWithdraw` | Pays out the pending request once the delay has passed. |
+| `cancelWithdraw()` | `cancelMakerWithdraw` | Cancels a pending request. |
+| `setQuoteSigner(signer)` | `setQuoteSigner` | Takes effect at once. The zero address stops all fills. |
+| `resetDiscount()` | `resetDiscount` | Sets your collateral discount back to zero, which raises your requirement. |
 
-To release collateral held against correlated open tickets, request a
-[collateral reduction](/hyperliquid/api-reference/funds-and-tickets/create-collateral-reduction) with
-a key that has `vault:write`.
+The effects arrive as `MAKER_VAULT_UPDATED` events and in your capital read.
+
+### Reduce collateral
+
+`maker.reduceCollateral` asks for a
+[collateral reduction](/hyperliquid/api-reference/funds-and-tickets/create-collateral-reduction),
+which releases collateral held against correlated open tickets, and follows the job on the stream.
+When the attestation is ready, your gas wallet signs it as a raw transaction and the SDK submits it.
+It needs a key with `vault:write`.
+
+```ts
+// Any wallet with HYPE can pay for the attestation; it carries no authority.
+const gasWallet = createWalletClient({
+  account: privateKeyToAccount(process.env.GAS_WALLET_KEY as `0x${string}`),
+  chain: hyperEvm,
+  transport: http(),
+});
+
+const { job, submitted } = await maker.reduceCollateral({
+  signTransaction: async ({ to, data }) =>
+    gasWallet.signTransaction(await gasWallet.prepareTransactionRequest({ to, data, type: "eip1559" })),
+});
+console.log(job.state, submitted?.operation_id); // NO_IMPROVEMENT or FAILED, or DURABLE with the attestation submitted
+```
+
+A job stays `QUEUED` until its `next_eligible_at`. Without `signTransaction`, the call resolves with
+the job and its `transaction` for you to send yourself.
 
 ## Without the SDK
 
@@ -304,7 +335,8 @@ The full list, with each code's status and retry rule, is on [Errors](/hyperliqu
 | --- | --- | --- |
 | `FORBIDDEN` | The key lacks a scope. | Check the key's scopes. |
 | `NOT_FOUND` | The path names a maker other than the key's. | Use your own `maker_id`. |
-| `INVALID_SIGNATURE` | The signature is not from your current quote signer, or not over the selected terms. | Sign with the `signer` in your capital read. |
+| `WRONG_AUTHORITY` | The signature is not from your current quote signer. | Sign with the `signer` in your capital read. |
+| `INVALID_SIGNATURE` | The signature does not verify for the selected terms. | Sign the exact terms in the confirmation request. |
 | `RFQ_NOT_OPEN`, `QUOTE_EXPIRED` | The RFQ or quote ran out of time. | Drop it. |
 | `QUOTE_SIGNER_CHANGED` | The quote signer changed after you published. | Restart the bot with the new quote signer, then publish again. |
 | `QUOTE_EXPOSURE_LIMIT` | Your open quote exposure is at its limit. | Withdraw quotes, or wait, then retry. |

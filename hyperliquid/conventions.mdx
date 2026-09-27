@@ -117,15 +117,15 @@ Every error uses one envelope with a stable `code` and a `retry` value of `NEVER
 ## Limits and timing
 
 Every other Hyperliquid page links here rather than restating these values. The vault limits are
-read from the vault contract, where they can change. Read them live with the lens `config` call on
-[Market makers](/hyperliquid/market-makers#3-read-the-vault-fees).
+set on the vault contract, where they can change. The current fees are published by
+[Get vault release](/hyperliquid/api-reference/vault/get-vault-release).
 
 | Limit | Value |
 | --- | --- |
 | Legs per RFQ | 1 to 50, in strictly ascending `outcome_id` order, no outcome twice |
 | Minimum stake | Net stake (stake minus the taker fee) of at least the vault's `minStake`, currently 1 USDC |
 | Maximum ticket payout | 100,000 USDC |
-| Fees | `fee_bps` and `taker_fee_bps` as set on the vault, currently 100 and 20. Every quote must carry the current values. |
+| Fees | `fee_bps` (on winning profit, at claim) and `taker_fee_bps` (on the stake, at accept), currently 100 and 20, as `GET /v1/vault` returns them. Every quote must carry the current values. |
 | Entry RFQ open for quotes | 20 seconds after creation |
 | Cashout RFQ open for bids | 30 seconds after creation |
 | Quote `expiry` | In the future and at most 30 seconds after publication. The book leaves out quotes within 2 seconds of expiry. |

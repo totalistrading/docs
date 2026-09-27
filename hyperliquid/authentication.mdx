@@ -186,5 +186,5 @@ funds and cannot withdraw. See [Market makers](/hyperliquid/market-makers#roles-
 Authentication failures use the standard envelope. The codes, and whether to retry, are on
 [Errors](/hyperliquid/errors): `UNAUTHENTICATED` for a missing, expired, or revoked key, `FORBIDDEN`
 for a missing scope, `NOT_FOUND` for a resource that does not exist or belongs to another account
-(the two are indistinguishable by design), and `INVALID_SIGNATURE` when the signature in the body is
-not from the required wallet.
+(the two are indistinguishable by design), `WRONG_AUTHORITY` when the signature in the body is
+not from the required wallet, and `INVALID_SIGNATURE` when it does not verify for the signed terms.
