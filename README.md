@@ -18,6 +18,17 @@ mint dev
 
 View your local preview at `http://localhost:3000`.
 
+## Hyperliquid API reference
+
+The Hyperliquid tab is generated. Regenerate both files from a hip4-backend checkout on current `main`:
+
+```
+python3 ../hip4-backend/tools/public_openapi.py --output hyperliquid/openapi.json
+python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonschema/error.schema.json
+```
+
+`scripts/hyperliquid_errors.py --check` fails when `hyperliquid/errors.mdx` no longer matches the registry and the spec.
+
 ## Publishing changes
 
 Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
