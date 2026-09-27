@@ -40,7 +40,7 @@ sign quotes but cannot withdraw your capital.
 ## 1. Set up your maker in the app
 
 1. Generate a fresh key pair for your bot's quote signer and note its address.
-2. Sign in at [app.totalis.trade/mm](https://app.totalis.trade/mm) and choose **Start market making**.
+2. Sign in at [totalis-hip4.vercel.app/mm](https://totalis-hip4.vercel.app/mm) and choose **Start market making**.
 3. Enter the quote signer address as **Bot quote signer address** and choose **Create maker account**.
    Your account wallet sends the HyperEVM transaction that opens your maker vault, so it needs HYPE
    for gas. The app then finishes setup.
@@ -51,7 +51,7 @@ maker's `status`. It must be `ACTIVE` before quotes are accepted.
 
 ## 2. Create a maker key
 
-In the app, go to [Account, then API keys](https://app.totalis.trade/account/api-keys), choose
+In the app, go to [Account, then API keys](https://totalis-hip4.vercel.app/account/api-keys), choose
 **Maker account** under **Manage keys for**, and create a key with the market maker bot scopes:
 `rfq:read`, `quote:read`, `quote:write`, and `replay:read`. Add `vault:read` for capital and position
 reads. The controller approves the key with a signature, in the app or by signing the copied message

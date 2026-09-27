@@ -35,7 +35,7 @@ and a maker key cannot read personal state. Keys start with `ttk_v1_prd_` in pro
 
 ## Create a key
 
-Keys are issued in the [Totalis app](https://app.totalis.trade/account/api-keys), because issuing
+Keys are issued in the [Totalis app](https://totalis-hip4.vercel.app/account/api-keys), because issuing
 one takes the owner's signature and a signed-in app session. An API key can never create, rotate,
 or revoke keys.
 
@@ -154,7 +154,7 @@ put that signature in the request body. The SDK builds and signs each message fo
 ## Export your wallet key
 
 A bot that trades for your personal account signs with your Totalis wallet. Export its private key
-in the [Totalis app](https://app.totalis.trade/account) under Account, then Private key, then
+in the [Totalis app](https://totalis-hip4.vercel.app/account) under Account, then Private key, then
 **Reveal private key**, and keep it in your secret manager next to the API key. Pass it to the SDK
 as a signer, and check it is the account's `signer` before trading:
 
