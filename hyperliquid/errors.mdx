@@ -71,9 +71,7 @@ returns for each status.
 | `INVALID_QUERY` | 400 | - | `NEVER` | A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it. |
 | `INVALID_CURSOR` | 400 | - | `NEVER` | The cursor is malformed or was issued for a different query. |
 | `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header. |
-| `ORIGIN_REQUIRED` | 400 | - | `NEVER` | A browser route needs exactly one `Origin` header. |
 | `SUBPROTOCOL_REQUIRED` | 400 | 1008 | `NEVER` | The stream request did not negotiate a supported subprotocol or extension. |
-| `UNSUPPORTED_BROWSE_CONTRACT` | 400 | - | `NEVER` | `X-Totalis-Browse-Contract` names an unsupported version. |
 | `UNAUTHENTICATED` | 401 | - | `NEVER` | The credential is missing, invalid, expired or revoked. |
 | `FORBIDDEN` | 403 | - | `NEVER` | The credential is valid but lacks the scope, permission or role this operation needs. |
 | `NOT_FOUND` | 404 | - | `NEVER` | The resource does not exist or is not visible to this credential. |
@@ -99,6 +97,7 @@ returns for each status.
 | `CORE_VAULT_RESERVATION` | 409 | - | `REFRESH` | The vault reservation for this Core funding changed. |
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
+| `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirmation. |
 | `HYPERCORE_WALLET_UNQUALIFIED` | 422 | - | `REFRESH` | The linked HyperCore wallet does not qualify for this action. |
 | `HYPERCORE_ACCOUNT_NOT_MAIN` | 422 | - | `NEVER` | The HyperCore account is a sub-account or vault, not a main account. |
 | `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |

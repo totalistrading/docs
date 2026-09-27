@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/stake`.",
-    "version": "104.0.0-no-maker-action-kinds"
+    "version": "105.0.0-vault-fees-and-usdc"
   },
   "servers": [
     {
@@ -464,7 +464,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.\n- `UNSUPPORTED_BROWSE_CONTRACT` (retry `NEVER`): `X-Totalis-Browse-Contract` names an unsupported version.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.",
             "content": {
               "application/json": {
                 "schema": {
@@ -481,8 +481,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_QUERY",
-                                "INVALID_CURSOR",
-                                "UNSUPPORTED_BROWSE_CONTRACT"
+                                "INVALID_CURSOR"
                               ]
                             },
                             "retry": {
@@ -4212,7 +4211,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4229,8 +4228,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -5775,7 +5773,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5792,8 +5790,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -5964,7 +5961,7 @@
             }
           },
           "422": {
-            "description": "- `INVALID_SIGNATURE` (retry `NEVER`): The signature does not verify for the signed terms.",
+            "description": "- `INVALID_SIGNATURE` (retry `NEVER`): The signature does not verify for the signed terms.\n- `WRONG_AUTHORITY` (retry `REFRESH`): The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirmation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5980,13 +5977,15 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_SIGNATURE"
+                                "INVALID_SIGNATURE",
+                                "WRONG_AUTHORITY"
                               ]
                             },
                             "retry": {
                               "description": "The retry rule the registry fixes for the returned code.",
                               "enum": [
-                                "NEVER"
+                                "NEVER",
+                                "REFRESH"
                               ]
                             }
                           }
@@ -6156,7 +6155,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6173,8 +6172,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -6654,7 +6652,7 @@
             }
           },
           "422": {
-            "description": "- `INVALID_SIGNATURE` (retry `NEVER`): The signature does not verify for the signed terms.",
+            "description": "- `INVALID_SIGNATURE` (retry `NEVER`): The signature does not verify for the signed terms.\n- `WRONG_AUTHORITY` (retry `REFRESH`): The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirmation.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6670,13 +6668,15 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_SIGNATURE"
+                                "INVALID_SIGNATURE",
+                                "WRONG_AUTHORITY"
                               ]
                             },
                             "retry": {
                               "description": "The retry rule the registry fixes for the returned code.",
                               "enum": [
-                                "NEVER"
+                                "NEVER",
+                                "REFRESH"
                               ]
                             }
                           }
@@ -7368,7 +7368,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7385,8 +7385,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -7899,7 +7898,7 @@
             "description": "RFQ delivery stopped or exact command replayed"
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7916,8 +7915,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -8169,7 +8167,7 @@
         "tags": [
           "Account"
         ],
-        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. The credential selects the deployment; requires current subject authorization.\n\nRequires a personal key with `account:read`.",
+        "description": "Positions (tickets) held by the caller's account, reconciled against committed vault state. The credential selects the account and deployment. Access is checked against the credential's current permissions on every request.\n\nRequires a personal key with `account:read`.",
         "security": [
           {
             "apiKey": [
@@ -8541,7 +8539,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8557,8 +8555,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -8809,7 +8806,7 @@
         "tags": [
           "Account"
         ],
-        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. The credential selects the deployment; requires current subject authorization.\n\nRequires a personal key with `account:read`.",
+        "description": "One position of the caller's account by ticket ID, reconciled against committed vault state. The credential selects the account and deployment. Access is checked against the credential's current permissions on every request.\n\nRequires a personal key with `account:read`.",
         "security": [
           {
             "apiKey": [
@@ -9019,7 +9016,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9035,8 +9032,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -9493,7 +9489,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9509,8 +9505,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -9974,7 +9969,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9990,8 +9985,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -13102,7 +13096,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13119,8 +13113,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -13704,7 +13697,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13721,8 +13714,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -14043,7 +14035,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14060,8 +14052,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "INVALID_REQUEST",
-                                "INVALID_IDEMPOTENCY_KEY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_IDEMPOTENCY_KEY"
                               ]
                             },
                             "retry": {
@@ -16528,7 +16519,18 @@
                   "lens_address": "0xa1c6ec4b3598ff03f3e98e6f71274c152a288bf4",
                   "source_revision": "05d9ceb7d577a18013683ed677eedf5d7b4d9728",
                   "audit_status": "PRE_AUDIT",
-                  "financial_actions_enabled": true
+                  "financial_actions_enabled": true,
+                  "fee_bps": 100,
+                  "taker_fee_bps": 20,
+                  "usdc": {
+                    "address": "0xb88339cb7199b77e23db6e890353e22632ba630f",
+                    "eip712_domain": {
+                      "name": "USDC",
+                      "version": "2",
+                      "chain_id": "999",
+                      "verifying_contract": "0xb88339cb7199b77e23db6e890353e22632ba630f"
+                    }
+                  }
                 }
               }
             }
@@ -16744,41 +16746,6 @@
                   ],
                   "owner": "0x1111111111111111111111111111111111111111",
                   "signer": "0x1111111111111111111111111111111111111111"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "ORIGIN_REQUIRED"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
                 }
               }
             }
@@ -17951,7 +17918,7 @@
       "get": {
         "operationId": "stream",
         "summary": "Open realtime stream",
-        "description": "WebSocket upgrade for authenticated, principal-scoped committed updates. Browser clients request totalis.realtime.v1 plus auth.<base64url-access-token>; non-browser clients may use the bearer header. See protocol/asyncapi/realtime.json; HTTP resource reads and maker snapshot/replay are recovery paths. API keys stream the one account they are bound to. A dashboard session streams its personal account, or names a maker it belongs to with maker_id; all four financial read permissions are required. Membership revision or controller epoch changes close the connection. RFQ detail subscriptions remain transport-credential only.\n\nRequires one of:\n\n- a personal key with `account:stream`\n- a maker key with `rfq:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`\n- a personal key with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | personal key | `rfq:read` |\n| Account | personal key | `account:stream` |\n| RFQ | maker key | `rfq:read` |\n| Quote | maker key | `quote:read` |\n| Account | maker key | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
+        "description": "WebSocket upgrade for authenticated, principal-scoped committed updates. Browser clients request the `totalis.realtime.v1` subprotocol plus `auth.<base64url-access-token>`; non-browser clients may send the `Authorization: Bearer` header instead. After the upgrade, send a hello frame; the stream then delivers a snapshot or replay followed by live events, as described in the realtime stream reference. HTTP resource reads and maker snapshot/replay are recovery paths. API keys stream the one account they are bound to. A dashboard session streams its personal account, or names a maker it belongs to with maker_id; all four financial read permissions are required. Membership revision or controller epoch changes close the connection. RFQ detail subscriptions remain transport-credential only.\n\nRequires one of:\n\n- a personal key with `account:stream`\n- a maker key with `rfq:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`\n- a personal key with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | personal key | `rfq:read` |\n| Account | personal key | `account:stream` |\n| RFQ | maker key | `rfq:read` |\n| Quote | maker key | `quote:read` |\n| Account | maker key | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
         "tags": [
           "Realtime"
         ],
@@ -17982,7 +17949,7 @@
             "description": "Switching protocols"
           },
           "400": {
-            "description": "- `SUBPROTOCOL_REQUIRED` (retry `NEVER`): The stream request did not negotiate a supported subprotocol or extension.\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `SUBPROTOCOL_REQUIRED` (retry `NEVER`): The stream request did not negotiate a supported subprotocol or extension.\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17999,8 +17966,7 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "SUBPROTOCOL_REQUIRED",
-                                "INVALID_REQUEST",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_REQUEST"
                               ]
                             },
                             "retry": {
@@ -18923,7 +18889,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. The credential selects the deployment; requires current subject authorization.\n\nRequires a maker key with `vault:read` and the maker permission `READ_POSITIONS`.",
+        "description": "Positions (tickets) this maker wrote, reconciled against committed vault state. The credential selects the deployment. Access is checked against the credential's current permissions on every request.\n\nRequires a maker key with `vault:read` and the maker permission `READ_POSITIONS`.",
         "security": [
           {
             "apiKey": [
@@ -19175,7 +19141,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19191,8 +19157,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -19443,7 +19408,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. The credential selects the deployment; requires current subject authorization.\n\nRequires a maker key with `vault:read` and the maker permission `READ_POSITIONS`.",
+        "description": "One position this maker wrote, by ticket ID, reconciled against committed vault state. The credential selects the deployment. Access is checked against the credential's current permissions on every request.\n\nRequires a maker key with `vault:read` and the maker permission `READ_POSITIONS`.",
         "security": [
           {
             "apiKey": [
@@ -19653,7 +19618,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19669,8 +19634,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -19886,7 +19850,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Contract 1 reconciled read implemented by TT-1652, gated by ACCOUNT_FINANCIAL_READS_ENABLED and schema 136. The credential selects the deployment; requires current subject authorization.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "This maker's vault capital, reservations and action availability, reconciled against committed vault state. The credential selects the deployment. Access is checked against the credential's current permissions on every request.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
         "security": [
           {
             "apiKey": [
@@ -20225,7 +20189,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20241,8 +20205,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -20638,7 +20601,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20654,8 +20617,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -21058,7 +21020,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21074,8 +21036,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -21291,7 +21252,7 @@
         "tags": [
           "Maker reads"
         ],
-        "description": "Enabled by ACCOUNT_PERFORMANCE_ENABLED with installed activity projection and a qualified release. Complete periods aggregate immutable economic-close evidence; incomplete periods return unavailable metrics. Gas remains unavailable without complete receipt/payer attribution. The credential selects the deployment; requires current per-subject authorization. Never infers a House maker from /me.\n\nRequires a maker key with `vault:read` and the maker permission `READ_PERFORMANCE`.",
+        "description": "Performance of this maker per period. Complete periods aggregate the tickets that closed economically in them; incomplete periods return unavailable metrics. Gas stays unavailable until the payer of every transaction receipt is attributed. The credential selects the deployment, and access is checked against its current permissions on every request. The maker is always the one named in the path, never inferred from the caller's account.\n\nRequires a maker key with `vault:read` and the maker permission `READ_PERFORMANCE`.",
         "security": [
           {
             "apiKey": [
@@ -21562,7 +21523,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21578,8 +21539,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "INVALID_QUERY",
-                                "ORIGIN_REQUIRED"
+                                "INVALID_QUERY"
                               ]
                             },
                             "retry": {
@@ -21858,41 +21818,6 @@
               }
             }
           },
-          "400": {
-            "description": "- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "ORIGIN_REQUIRED"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
           "401": {
             "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
             "content": {
@@ -22150,7 +22075,7 @@
             }
           },
           "400": {
-            "description": "- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.\n- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.",
             "content": {
               "application/json": {
                 "schema": {
@@ -22166,7 +22091,6 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "ORIGIN_REQUIRED",
                                 "INVALID_QUERY",
                                 "INVALID_CURSOR"
                               ]
@@ -22416,7 +22340,7 @@
             }
           },
           "400": {
-            "description": "- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.\n- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.",
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.",
             "content": {
               "application/json": {
                 "schema": {
@@ -22432,7 +22356,6 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "ORIGIN_REQUIRED",
                                 "INVALID_QUERY",
                                 "INVALID_CURSOR"
                               ]
@@ -22884,7 +22807,7 @@
         "name": "asset",
         "in": "query",
         "required": false,
-        "description": "Return only activities with an effect in this asset_id, e.g. eip155:999/erc20:<token address>.",
+        "description": "Return only activities with an effect in this asset_id, e.g. `eip155:999/erc20:<token address>`.",
         "schema": {
           "type": "string",
           "minLength": 1,
@@ -23979,7 +23902,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Qualified asset identifier, e.g. eip155:999/erc20:<token address> for USDC on HyperEVM, or ratio:bps for ratios."
+            "description": "Qualified asset identifier, e.g. `eip155:999/erc20:<token address>` for USDC on HyperEVM, or `ratio:bps` for ratios."
           },
           "symbol": {
             "type": "string",
@@ -24502,7 +24425,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256,
-            "description": "Source identifier that metric source_ids and coverage entries reference, e.g. vault:<address> or wallet:<address>."
+            "description": "Source identifier that metric source_ids and coverage entries reference, e.g. `vault:<address>` or `wallet:<address>`."
           },
           "sequence": {
             "oneOf": [
@@ -26112,21 +26035,6 @@
                 },
                 "description": "ENTRY only: 1 to 50 legs in strictly increasing outcome_id order."
               },
-              "builder_code": {
-                "type": "string",
-                "description": "Optional integrator attribution code. Requires builder_authorization_expiry and builder_signature from the integrator's registered signer. Revocation rejects new RFQs without vetoing an already-created RFQ.",
-                "pattern": "^tot_rfq_(local|testnet|staging|production)_[0-9a-f]{32}$"
-              },
-              "builder_authorization_expiry": {
-                "type": "string",
-                "description": "Unix-second expiry, at most five minutes ahead, included in the Totalis RFQ builder authorization personal-sign message.",
-                "pattern": "^[1-9][0-9]{9,19}$"
-              },
-              "builder_signature": {
-                "type": "string",
-                "description": "Registered integrator signer personal-sign signature. Message lines are: Authorize Totalis RFQ builder attribution.; Environment: <APP_ENV>; Participant: <participant UUID>; Idempotency key: <UUID>; Request digest: 0x<SHA-256>; Expiry: <builder_authorization_expiry>. The request digest is SHA-256 of minified JSON with ordered keys intent_id and intent_generation when supplied, followed by taker_address, stake_amount, legs, builder_code, origin.",
-                "pattern": "^0x[0-9a-f]{130}$"
-              },
               "intent_id": {
                 "$ref": "#/components/schemas/Uuid",
                 "description": "Automatic-RFQ intent (UUIDv7) this RFQ belongs to. Send it with intent_generation, or omit both."
@@ -26179,21 +26087,6 @@
                     {
                       "required": [
                         "legs"
-                      ]
-                    },
-                    {
-                      "required": [
-                        "builder_code"
-                      ]
-                    },
-                    {
-                      "required": [
-                        "builder_authorization_expiry"
-                      ]
-                    },
-                    {
-                      "required": [
-                        "builder_signature"
                       ]
                     }
                   ]
@@ -29232,7 +29125,7 @@
             "type": "string",
             "minLength": 5,
             "maxLength": 96,
-            "description": "Stable order key in the form oid:<Hyperliquid order ID>."
+            "description": "Stable order key in the form `oid:<Hyperliquid order ID>`."
           },
           "oid": {
             "type": "integer",
@@ -33502,7 +33395,7 @@
                 "type": "null"
               }
             ],
-            "description": "Ascending PRICE_BUCKET boundaries; the three buckets cover < P1, [P1, P2) and >= P2."
+            "description": "Ascending PRICE_BUCKET boundaries; the three buckets cover `< P1`, `[P1, P2)` and `>= P2`."
           },
           "native_question_id": {
             "oneOf": [
@@ -33821,7 +33714,10 @@
           "lens_address",
           "source_revision",
           "audit_status",
-          "financial_actions_enabled"
+          "financial_actions_enabled",
+          "fee_bps",
+          "taker_fee_bps",
+          "usdc"
         ],
         "properties": {
           "chain_id": {
@@ -33851,6 +33747,68 @@
           "financial_actions_enabled": {
             "type": "boolean",
             "description": "Whether the venue accepts balance-affecting commands against this release; when false they fail with FINANCIAL_ACTIONS_DISABLED."
+          },
+          "fee_bps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "The vault's current profit fee in basis points, charged at claim on the winning profit (payout minus net stake). Every quote must carry exactly this fee_bps to be accepted. Null until the venue has recorded the vault's settings."
+          },
+          "taker_fee_bps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "The vault's current entry fee in basis points, taken from the stake at accept. Every quote must carry exactly this taker_fee_bps to be accepted. Null until the venue has recorded the vault's settings."
+          },
+          "usdc": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "address",
+              "eip712_domain"
+            ],
+            "description": "The canonical USDC token the vault holds, and the domain its EIP-3009 authorizations (deposit funding and withdrawal payouts) are signed under.",
+            "properties": {
+              "address": {
+                "$ref": "#/components/schemas/LowercaseNonZeroAddress",
+                "description": "USDC token contract on this chain; approve the vault on it before a maker deposit."
+              },
+              "eip712_domain": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "version",
+                  "chain_id",
+                  "verifying_contract"
+                ],
+                "description": "EIP-712 domain for USDC ReceiveWithAuthorization and TransferWithAuthorization signatures.",
+                "properties": {
+                  "name": {
+                    "const": "USDC",
+                    "description": "Domain name of the USDC token; always USDC."
+                  },
+                  "version": {
+                    "const": "2",
+                    "description": "Domain version of the USDC token; always 2."
+                  },
+                  "chain_id": {
+                    "$ref": "#/components/schemas/UInt64String",
+                    "description": "Domain chain ID as a decimal string; equals the release chain_id."
+                  },
+                  "verifying_contract": {
+                    "$ref": "#/components/schemas/LowercaseNonZeroAddress",
+                    "description": "Domain verifying contract; equals usdc.address."
+                  }
+                }
+              }
+            }
           }
         }
       },
