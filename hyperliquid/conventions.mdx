@@ -67,7 +67,7 @@ Content-Type: application/json
 
 A key is scoped to your account, the method, and the route. Generate a new one for every distinct
 command. To retry, resend the exact request you built the first time: same key, same bytes. On the
-attempt routes (begin, abandon, and confirm), the key must equal the `attempt_id` in the path.
+attempt routes (accept and confirm), the key must equal the `attempt_id` in the path.
 
 The SDK builds each command once and resends it byte for byte after a network failure or a
 `BACKOFF` error. `uuidv7()` and `envelope(command)` from `@totalistrading/hip4-client` build the
@@ -77,12 +77,12 @@ parts yourself.
 
 | Command | Response |
 | --- | --- |
-| Accept a quote, begin a cashout attempt, confirm an attempt | `200` with the final result. The venue holds the request until the maker answers or the confirmation deadline passes. |
-| Deposit, withdraw, settle, claim, sell back, transfer | `202` once the work is durably queued, with `operation_id` and `state: "DURABLE"`. That is not chain success. |
+| Accept a quote or bid, confirm an attempt | `200` with the final result. The venue holds the request until the maker answers or the confirmation deadline passes. |
+| Deposit, withdraw, settle, claim, transfer | `202` once the work is durably queued, with `operation_id` and `state: "DURABLE"`. That is not chain success. |
 | Create an RFQ, publish a quote or bid | `201` with the created resource's ID. |
 
 Changes are pushed on the [realtime stream](/hyperliquid/realtime): operation progress arrives as
-`EXECUTION_REPORT`, book changes as `BOOK_QUOTES_CHANGED`, maker confirmation requests as
+`EXECUTION_REPORT`, quotes and bids as `BOOK_QUOTE_PUBLISHED`, maker confirmation requests as
 `CONFIRMATION_REQUESTED`. The matching `GET` routes are for recovery after a reconnect or a lost
 response, not for polling.
 
@@ -130,7 +130,7 @@ set on the vault contract, where they can change. The current fees are published
 | Cashout RFQ open for bids | 30 seconds after creation |
 | Quote `expiry` | In the future and at most 30 seconds after publication. The book leaves out quotes within 2 seconds of expiry. |
 | Maker confirmation deadline | 2 seconds after the taker accepts. The accept response arrives within 1 second after it. |
-| Cashout bid `expiry` | 20 to 55 seconds after publication, so the owner has time to countersign |
+| Cashout bid `expiry` | 25 to 60 seconds after publication, so the bid can still execute after the maker confirms. The book leaves out bids within 22 seconds of expiry. |
 | Withdrawal (`Exit`) `expiry` | At most 3,600 seconds out, less the 5 second margin |
 | USDC authorization window (deposit, payout) | At most 900 seconds from `valid_after` to `valid_before` |
 | Maker vault withdrawal delay | 86,400 seconds between `requestMakerWithdraw` and `executeMakerWithdraw` |
@@ -149,14 +149,12 @@ wait. Wait at least that long before resending. The SDK does this for you.
 | Route | Per account, per minute |
 | --- | --- |
 | Create RFQ | 30 |
-| Begin attempt, begin cashout attempt | 30, shared |
-| Abandon attempt | 60 |
-| Publish book quote, publish cashout book quote | 120, shared |
-| Withdraw book quote | 120 |
+| Accept quote | 30 |
+| Publish quote | 120 |
+| Withdraw quote | 120 |
 | Confirm attempt | 120 |
-| List maker confirmation requests | 150 |
-| List book quotes, list cashout book | 600, shared |
-| Get attempt, get cashout attempt | 600, shared |
+| List book | 600 |
+| Get attempt | 600 |
 | Position, capital, and performance reads | 120, shared |
 | Activity reads | 120 |
 

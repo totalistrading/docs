@@ -100,8 +100,8 @@ requires.
 | `account:read` | Yes | | Read your balances, positions, activity, operations, and withdrawals. |
 | `account:stream` | Yes | | Receive your account events on the realtime stream. |
 | `rfq:read` | Yes | Yes | Read open RFQs and receive RFQ events. |
-| `rfq:write` | Yes | | Create and cancel your RFQs, and abandon your attempts. |
-| `quote:read` | Yes | Yes | Personal: read the quote book and attempts on your RFQs. Maker: read confirmation requests and receive quote events. |
+| `rfq:write` | Yes | | Create and cancel your RFQs. |
+| `quote:read` | Yes | Yes | Personal: receive the offers on your RFQs and read their book and attempts. Maker: receive quote events and read confirmation requests. |
 | `quote:write` | | Yes | Publish, withdraw, and confirm quotes and cash-out bids. |
 | `replay:read` | Yes | Yes | Resume the stream from a cursor and replay retained events. Grants no feed on its own. |
 | `ticket:accept` | Yes | | Accept a quote. |
@@ -111,8 +111,6 @@ requires.
 | `funding:deposit` | Yes | | Deposit wallet USDC into the vault, including the automatic top-up when you accept a quote. |
 | `funding:withdraw` | Yes | | Withdraw to any address. |
 | `sponsorship:use` | Yes | | Let Totalis pay the gas. Required whenever Totalis pays: accept, cashout, settle, claim, transfer, deposit, and withdraw. |
-| `maker:access:read` | Yes | | Read the makers your account owns or belongs to. |
-| `operations:submit` | Yes | Yes | Attach your own signed transaction to an operation you started. |
 | `vault:read` | | Yes | Read your maker's capital, positions, activity, performance, and operations. |
 | `vault:write` | | Yes | Request a collateral reduction. |
 
@@ -125,7 +123,7 @@ maker.
 | Integration | Scopes |
 | --- | --- |
 | Read-only dashboard | `identity:read`, `account:read`, `account:stream` |
-| Taker bot (`placeBet`, `cashOut`) | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker bot (`placeBet`, `cashOut`, `claimTicket`) | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:cashout`, `ticket:settle`, `sponsorship:use`, `funding:deposit` |
 | Taker bot that also withdraws | The taker bot scopes plus `funding:withdraw` |
 | Market maker bot | `rfq:read`, `quote:read`, `quote:write`, `replay:read` |
 | Market maker dashboard | `vault:read` |

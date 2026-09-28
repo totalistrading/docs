@@ -18,7 +18,7 @@ sequenceDiagram
   You->>API: POST /v1/rfqs (legs, stake)
   API-->>MM: ENTRY_RFQ_OPENED
   MM->>API: Publish quotes (payout, expiry)
-  API-->>You: BOOK_QUOTES_CHANGED
+  API-->>You: BOOK_QUOTE_PUBLISHED (the quote)
   You->>API: POST attempt (quote_digest, TakerAccept signature)
   API-->>MM: CONFIRMATION_REQUESTED
   MM->>API: Confirm with the maker signature
@@ -66,7 +66,7 @@ if (bet.state === "COMMITTED") {
   const operation = await totalis.waitForOperation(bet.operationId!);
   console.log(operation.state, operation.transaction_hash); // COMMITTED: the ticket exists
 } else {
-  console.log(`not filled: ${bet.state}`); // DECLINED, TIMED_OUT, WITHDRAWN or ABANDONED
+  console.log(`not filled: ${bet.state}`); // DECLINED, TIMED_OUT, WITHDRAWN or NOT_ADMITTED
 }
 totalis.close();
 ```
@@ -76,8 +76,9 @@ totalis.close();
 | `state` | Meaning | Do next |
 | --- | --- | --- |
 | `COMMITTED` | The maker confirmed and the trade is queued on-chain. `operationId` is set. | Follow it with `waitForOperation` (step 3). |
+| `CONFIRMED` | The maker confirmed and the trade waits for a HyperCore funding payment. Only an accept funded from HyperCore returns it. | Follow the attempt on the stream until it is `COMMITTED` or `WITHDRAWN`. |
 | `DECLINED`, `TIMED_OUT`, `WITHDRAWN` | The maker did not confirm. Nothing was traded. | Call `placeBet` again for a new RFQ. |
-| `ABANDONED` | Every response to the accept was lost, and the SDK retired the attempt so it cannot execute later. Nothing was traded. | Call `placeBet` again. |
+| `NOT_ADMITTED` | Every response to the accept was lost, and the venue never received it. The SDK cancelled the RFQ so it cannot arrive later. Nothing was traded. | Call `placeBet` again. |
 
 It also returns `rfqId`, `attemptId`, `quote`, and `quoteDigest`. The quote digest is the ticket ID
 of the position you get.
@@ -86,14 +87,14 @@ of the position you get.
 
 | Step | The SDK | Raw API |
 | --- | --- | --- |
-| 1 | Waits until the account stream is live, so no book change is missed | [`GET /v1/stream`](/hyperliquid/realtime), topic `ACCOUNT` |
+| 1 | Waits until the account stream is live, so no quote is missed | [`GET /v1/stream`](/hyperliquid/realtime), topic `ACCOUNT` |
 | 2 | Creates the RFQ with your wallet as taker and the legs sorted by `outcome_id` | [Create RFQ](/hyperliquid/api-reference/rfqs-and-quotes/create-rfq) |
-| 3 | Reads the book when `BOOK_QUOTES_CHANGED` arrives for the RFQ, and once after each reconnect | [List book quotes](/hyperliquid/api-reference/rfqs-and-quotes/list-book-quotes) |
+| 3 | Keeps the book from the stream: the snapshot's `book_quotes`, then `BOOK_QUOTE_PUBLISHED` and `BOOK_QUOTE_REMOVED`. Reads the book over HTTP only after a snapshot that truncated `book_quotes`. | [List book](/hyperliquid/api-reference/recovery/list-book) (recovery) |
 | 4 | Offers only quotes for exactly your taker, stake, and legs to `choose`. The default takes the highest payout with at least 5 seconds left. | None |
 | 5 | Signs `TakerAccept` over the chosen quote with your signer | None |
 | 6 | If the vault balance is short, signs a USDC authorization for exactly the shortfall and attaches it as `funding` | [Get balances](/hyperliquid/api-reference/account/get-balances) |
-| 7 | Sends one accept and returns its final result | [Begin attempt](/hyperliquid/api-reference/rfqs-and-quotes/begin-attempt) |
-| 8 | If every response to the accept is lost, reads the attempt, and abandons it if the venue never received it | [Get attempt](/hyperliquid/api-reference/rfqs-and-quotes/get-attempt), [Abandon attempt](/hyperliquid/api-reference/rfqs-and-quotes/abandon-attempt) |
+| 7 | Sends one accept and returns its final result | [Accept quote](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote) |
+| 8 | If every response to the accept is lost, reads the attempt. If the venue never received it, cancels the RFQ and reads once more. | [Get attempt](/hyperliquid/api-reference/recovery/get-attempt) (recovery), [Cancel RFQ](/hyperliquid/api-reference/rfqs-and-quotes/cancel-rfq) |
 | 9 | Cancels the RFQ if no acceptable quote arrives within `quoteTimeoutMs` (default 20 seconds) | [Cancel RFQ](/hyperliquid/api-reference/rfqs-and-quotes/cancel-rfq) |
 
 ### Choose your own quote
@@ -120,6 +121,7 @@ Each quote carries the full terms you sign:
 ```json
 {
   "quote_digest": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+  "kind": "ENTRY",
   "quote": {
     "maker_id": "7",
     "legs": [{ "outcome_id": 1209, "side": 0 }],
@@ -150,7 +152,8 @@ Each call below is what `placeBet` sends. Commands carry the [envelope and
 <Steps>
   <Step title="Open the account stream">
     Connect to `wss://hip4-api.totalis.trade/v1/stream` and subscribe to `ACCOUNT`, as shown on
-    [Realtime](/hyperliquid/realtime). Wait for the snapshot before creating the RFQ.
+    [Realtime](/hyperliquid/realtime). Wait for the snapshot before creating the RFQ. Its
+    `book_quotes` holds the live quotes on your open RFQs.
   </Step>
   <Step title="Create the RFQ">
     ```bash
@@ -173,9 +176,12 @@ Each call below is what `placeBet` sends. Commands carry the [envelope and
     The response is `201` with `rfq_id`. `taker_address` is your `signer` from `GET /v1/me`. Legs are
     in strictly ascending `outcome_id` order with no outcome twice.
   </Step>
-  <Step title="Read the book when it changes">
-    On each `BOOK_QUOTES_CHANGED` event for your `rfq_id`, and once after every reconnect, read
-    `GET /v1/rfqs/{rfq_id}/book-quotes`. The event is a signal, not a quote. Do not poll.
+  <Step title="Keep the book from the stream">
+    Each `BOOK_QUOTE_PUBLISHED` event for your `rfq_id` carries one complete quote, and each
+    `BOOK_QUOTE_REMOVED` names the `quote_digest` that left. Expiry sends no event, so drop a quote
+    yourself once it is within 2 seconds of its `expiry` on the venue clock. Read
+    [List book](/hyperliquid/api-reference/recovery/list-book) only after a snapshot that truncated
+    `book_quotes`. Do not poll.
   </Step>
   <Step title="Sign the quote">
     Sign the quote's exact terms as `TakerAccept` with the SDK's typed-data builder:
@@ -187,7 +193,7 @@ Each call below is what `placeBet` sends. Commands carry the [envelope and
 
     const wallet = toTotalisSigner(privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`));
 
-    // `release` is GET /v1/vault; `entry` is one item of GET /v1/rfqs/{rfq_id}/book-quotes.
+    // `release` is GET /v1/vault; `entry` is the payload of a BOOK_QUOTE_PUBLISHED event.
     const taker_signature = await wallet.signTypedData(takerAcceptTypedData(release, entry.quote));
     const attemptId = uuidv7(); // also the Idempotency-Key
     ```
@@ -209,10 +215,11 @@ Each call below is what `placeBet` sends. Commands carry the [envelope and
     The response is held until the maker answers or the confirmation deadline passes, and is always
     final: `COMMITTED` with `operation_id`, or `DECLINED`, `TIMED_OUT`, or `WITHDRAWN`. To fund a
     vault shortfall in the same call, add `funding` (see
-    [Begin attempt](/hyperliquid/api-reference/rfqs-and-quotes/begin-attempt)). If the response is
-    lost, resend the identical request, which replays the result. Use
-    `GET /v1/rfqs/{rfq_id}/attempts/{attempt_id}` only to recover, never to wait. Do not start a
-    second attempt for the same quote.
+    [Accept quote](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote)). If the response is
+    lost, resend the identical request, which replays the result. If you cannot resend it, read
+    [Get attempt](/hyperliquid/api-reference/recovery/get-attempt). A `404` means the venue has not
+    received it: cancel the RFQ, then read again, and a `404` after the cancel is final. Never read
+    the attempt to wait, and do not start a second attempt for the same quote.
   </Step>
 </Steps>
 
@@ -274,24 +281,28 @@ They call [Settle ticket](/hyperliquid/api-reference/funds-and-tickets/settle-ti
 
 ## 6. Cash out early
 
-An `OPEN` ticket can be sold back before it resolves. The flow mirrors placing a bet: ask makers for
-bids, take one, the maker confirms, and you countersign as the owner.
+An `OPEN` ticket can be sold back before it resolves. The flow is the same as placing a bet, on the
+same two routes: create a cash-out RFQ, take a bid from the book, and accept it. You sign the bid as
+the ticket's owner before the accept, so the maker's confirmation executes it.
 
 ```ts
 const cashout = await totalis.cashOut({ ticketId });
-if (cashout.state === "SUBMITTED") await totalis.waitForOperation(cashout.operationId!);
+if (cashout.state === "COMMITTED") await totalis.waitForOperation(cashout.operationId!);
 ```
 
-`cashOut` resolves with `state: "SUBMITTED"` and the sell-back's `operationId`, or with the attempt
-state (`DECLINED`, `TIMED_OUT`, `WITHDRAWN`) when the maker did not confirm. Pass `choose` to pick
-the bid yourself. The default takes the highest price with enough life left to execute.
+`cashOut` resolves like `placeBet`: `COMMITTED` with the `operationId` of the queued sell-back or
+transfer, or `DECLINED`, `TIMED_OUT`, `WITHDRAWN`, or `NOT_ADMITTED` when nothing was sold. Pass
+`choose` to pick the bid yourself. The default, `bestBid()`, takes the highest price with at least 25
+seconds left, since execution needs time after the maker confirms.
 
 | Step | Raw API |
 | --- | --- |
-| Create a cashout RFQ: `{ "kind": "CASHOUT", "ticket_id": "0x..." }` | [Create RFQ](/hyperliquid/api-reference/rfqs-and-quotes/create-rfq) |
-| Read bids when `BOOK_QUOTES_CHANGED` arrives | [List cashout book](/hyperliquid/api-reference/rfqs-and-quotes/list-cashout-book) |
-| Take one bid. The response is final: `CONFIRMED` carries the confirmed `bid` and `maker_signature`. | [Begin cashout attempt](/hyperliquid/api-reference/rfqs-and-quotes/begin-cashout-attempt) |
-| Sign `SellBack` (`sellBackTypedData`) as the owner and submit both signatures. A `transfer` bid signs `CashoutTransfer` and goes to Transfer ticket. | [Sell back ticket](/hyperliquid/api-reference/funds-and-tickets/sell-back-ticket), [Transfer ticket](/hyperliquid/api-reference/funds-and-tickets/transfer-ticket) |
+| Create a cash-out RFQ: `{ "kind": "CASHOUT", "ticket_id": "0x..." }` | [Create RFQ](/hyperliquid/api-reference/rfqs-and-quotes/create-rfq) |
+| Keep the bids from the stream, as for quotes: each is a `BOOK_QUOTE_PUBLISHED` with `kind: "CASHOUT"` and a `sell_back` or `transfer` | [Realtime](/hyperliquid/realtime) |
+| Sign the bid as the owner: `SellBack` (`sellBackTypedData`) for a `sell_back` bid, `CashoutTransfer` (`cashoutTransferTypedData`) for a `transfer` bid | None |
+| Accept it with that signature as `taker_signature`. The response is final. | [Accept quote](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote) |
+
+The accept for a cash-out needs `ticket:cashout` and takes no `funding`.
 
 ## Errors to handle
 

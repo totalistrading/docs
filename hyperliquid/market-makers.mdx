@@ -46,8 +46,8 @@ sign quotes but cannot withdraw your capital.
    for gas. The app then finishes setup.
 4. Fund the vault from the maker dashboard. Only funded capital backs quotes.
 
-[Get maker registration](/hyperliquid/api-reference/maker-access/get-maker-registration) shows your
-maker's `status`. It must be `ACTIVE` before quotes are accepted.
+The maker dashboard in the app shows your maker's status. It must be active before quotes are
+accepted.
 
 ## 2. Create a maker key
 
@@ -104,16 +104,17 @@ Hyperliquid market data, such as Hyperliquid's public
 ### Receiving RFQs
 
 `onRfq` calls your handler once for every open RFQ: from `ENTRY_RFQ_OPENED` (the SDK asks the stream
-to attach the RFQ), from `CASHOUT_RFQ_OPENED`, from the snapshot on connect, and from a paged read of
-[List open RFQs](/hyperliquid/api-reference/rfqs-and-quotes/list-open-rfqs) after a reconnect that
-replayed instead of snapshotting. If the handler throws, the RFQ can be delivered again.
+to attach the RFQ), from `CASHOUT_RFQ_OPENED`, and from the snapshot's `open_rfqs` on connect. After a
+reconnect that replayed instead of snapshotting, or a snapshot that truncated `open_rfqs`, it pages
+[List open RFQs](/hyperliquid/api-reference/recovery/list-open-rfqs) for you. If the handler throws,
+the RFQ can be delivered again.
 
 ### Publishing a quote
 
 `maker.quote(rfq, { payout })` builds the quote from the RFQ, computes its EIP-712 digest, and
 publishes it to the RFQ's book with
-[Publish book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-book-quote). Publishing
-needs no signature. It replaces your previous quote on that RFQ.
+[Publish quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote). Publishing needs no
+signature. It replaces your previous quote on that RFQ.
 
 | Field | Set by | Rule |
 | --- | --- | --- |
@@ -124,7 +125,7 @@ needs no signature. It replaces your previous quote on that RFQ.
 | `salt` | Random | A random uint256 that makes every digest unique. |
 
 `maker.withdraw(rfqId, quoteDigest)` pulls a quote with
-[Withdraw book quote](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-book-quote). It returns
+[Withdraw quote](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-quote). It returns
 `WITHDRAWN`, `REPLACED` when a newer quote already superseded it, or `COMMITTED` when a taker already
 has it.
 
@@ -133,9 +134,11 @@ has it.
 When a taker selects your quote, the venue sends `CONFIRMATION_REQUESTED` on your stream with the
 exact terms and a `deadline`, the maker confirmation deadline on
 [Limits and timing](/hyperliquid/conventions#limits-and-timing). `onConfirmation` calls your handler
-once per attempt, from the event, from the snapshot's `confirmations`, and from one recovery read of
-[List maker confirmation requests](/hyperliquid/api-reference/rfqs-and-quotes/list-maker-confirmation-requests)
-on each reconnect. Return `"CONFIRM"` or `"DECLINE"`.
+once per attempt, from the event (live, or replayed after a reconnect) and from the snapshot's
+`confirmations`. When the snapshot holds more than it can carry, the SDK pages the rest from
+[List pending confirmations](/hyperliquid/api-reference/recovery/list-pending-confirmations). Return
+`"CONFIRM"` or `"DECLINE"`. If reading that list fails, `onError` receives the error without a
+request.
 
 On `CONFIRM` the SDK checks the terms against their digest, checks that this maker published them
 and they have not expired, signs them with the quote signer, and sends
@@ -145,8 +148,8 @@ for byte.
 
 | Result `state` | Meaning |
 | --- | --- |
-| `COMMITTED` | Entry: your confirmation was accepted and the fill is queued on-chain. |
-| `CONFIRMED` | Cashout: your signature was accepted. Nothing executes until the ticket owner countersigns, so keep the risk reserved until the bid's `expiry` passes or the fill executes. |
+| `COMMITTED` | Your confirmation was accepted and the fill, sell-back, or transfer is queued on-chain. |
+| `CONFIRMED` | An entry the taker funds from HyperCore: your confirmation was accepted and the fill waits for that payment. It becomes `COMMITTED`, or `WITHDRAWN` if the payment never lands. Keep the risk reserved until then. |
 | `DECLINED` | You declined. Nothing was filled. |
 | `TIMED_OUT` | You missed the deadline. Nothing was filled. |
 
@@ -163,16 +166,17 @@ the ticket's `legs`, `owner`, the maker that wrote it, and a `leg_state` snapsho
 maker.onRfq(async (rfq) => {
   if (rfq.kind !== "CASHOUT") return;
   const price = 18_000_000n; // placeholder: value the ticket's legs at rfq.leg_state
-  const { bidDigest } = await maker.bid(rfq, { price });
-  console.log(`bid ${bidDigest} for ticket ${rfq.ticket_id}`);
+  const { quoteDigest } = await maker.bid(rfq, { price });
+  console.log(`bid ${quoteDigest} for ticket ${rfq.ticket_id}`);
 });
 ```
 
 If your maker wrote the ticket, `bid` publishes a `sell_back` bid: the vault buys the ticket back
 from your maker vault. Otherwise it publishes a `transfer` bid: your quote signer buys the ticket and
-pays the owner, so it must hold enough USDC in the vault. Bids default to a 45 second life. When the
-owner takes your bid, `onConfirmation` handles it like a quote, signing `SellBack` or
-`CashoutTransfer`. See [Publish cashout book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-cashout-book-quote).
+pays the owner, so it must hold enough USDC in the vault. Bids publish on the same route as quotes,
+[Publish quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote), and default to a 45
+second life. The owner signs your bid before accepting it, so your confirmation executes it.
+`onConfirmation` handles it like a quote, signing `SellBack` or `CashoutTransfer`.
 
 ## 5. Resume after a restart
 
@@ -295,35 +299,35 @@ The effects arrive as `MAKER_VAULT_UPDATED` events and in your capital read.
 `maker.reduceCollateral` asks for a
 [collateral reduction](/hyperliquid/api-reference/funds-and-tickets/create-collateral-reduction),
 which releases collateral held against correlated open tickets, and follows the job on the stream.
-When the attestation is ready, your gas wallet signs it as a raw transaction and the SDK submits it.
-It needs a key with `vault:write`.
+When the attestation is ready, it resolves with the job and its `transaction`, a zero-value vault
+call that any wallet with HYPE can send. It needs a key with `vault:write`.
 
 ```ts
-// Any wallet with HYPE can pay for the attestation; it carries no authority.
+// Any wallet with HYPE can send the attestation; it carries no authority.
 const gasWallet = createWalletClient({
   account: privateKeyToAccount(process.env.GAS_WALLET_KEY as `0x${string}`),
   chain: hyperEvm,
   transport: http(),
 });
 
-const { job, submitted } = await maker.reduceCollateral({
-  signTransaction: async ({ to, data }) =>
-    gasWallet.signTransaction(await gasWallet.prepareTransactionRequest({ to, data, type: "eip1559" })),
-});
-console.log(job.state, submitted?.operation_id); // NO_IMPROVEMENT or FAILED, or DURABLE with the attestation submitted
+const { job } = await maker.reduceCollateral();
+if (job.transaction) await gasWallet.sendTransaction({ to: job.transaction.to, data: job.transaction.data });
+console.log(job.state); // NO_IMPROVEMENT or FAILED, or DURABLE with the attestation to send
 ```
 
-A job stays `QUEUED` until its `next_eligible_at`. Without `signTransaction`, the call resolves with
-the job and its `transaction` for you to send yourself.
+A job stays `QUEUED` until its `next_eligible_at`. `transaction` is set only while the job is
+`DURABLE` and its attestation has not expired.
 
 ## Without the SDK
 
 | Step | Raw API |
 | --- | --- |
 | Receive RFQs and confirmation requests | [`GET /v1/stream`](/hyperliquid/realtime) with topic `MAKER` and `rfq_details: true` |
-| Recover open RFQs after a reconnect | [List open RFQs](/hyperliquid/api-reference/rfqs-and-quotes/list-open-rfqs) |
-| Publish a quote | [Publish book quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-book-quote) with `quote` and `quote_digest = hashTypedData(quoteTypedData(release, quote))` |
-| Recover pending confirmations after a reconnect | [List maker confirmation requests](/hyperliquid/api-reference/rfqs-and-quotes/list-maker-confirmation-requests). Use it only after a reconnect: requests are pushed as `CONFIRMATION_REQUESTED`. |
+| Recover open RFQs past a truncated snapshot or after a replayed reconnect | [List open RFQs](/hyperliquid/api-reference/recovery/list-open-rfqs) |
+| Publish a quote | [Publish quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote) with `quote` and `quote_digest = hashTypedData(quoteTypedData(release, quote))` |
+| Publish a bid | [Publish quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote) with `sell_back` (your maker wrote the ticket) or `transfer`, and `quote_digest` over it (`sellBackTypedData` or `cashoutTransferTypedData`) |
+| Withdraw a quote or bid | [Withdraw quote](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-quote) |
+| Recover pending confirmations past a truncated snapshot | [List pending confirmations](/hyperliquid/api-reference/recovery/list-pending-confirmations), only when the snapshot names it in `continuations`. Requests are pushed as `CONFIRMATION_REQUESTED`. |
 | Answer a confirmation | [Confirm attempt](/hyperliquid/api-reference/rfqs-and-quotes/confirm-attempt) with `decision` and, for `CONFIRM`, `maker_signature` over the request's `quote`, `sell_back`, or `transfer`. The `Idempotency-Key` must equal `attempt_id`. |
 | Resume from a cursor over HTTP | [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) |
 

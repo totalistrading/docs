@@ -80,9 +80,11 @@ while subscribed and caught up, so treat anything you built from the stream as s
     when the stream is otherwise idle.
   </Step>
   <Step title="Apply the snapshot">
-    Without a resume cursor, a `stream.snapshot` frame follows with your current live state (for a maker: open
-    RFQs, quotes, confirmation requests, operations) and its cursor. Replace your local state with it.
-    A class truncated for size is named in `continuations` with the HTTP list that holds the rest.
+    Without a resume cursor, a `stream.snapshot` frame follows with your current live state and its
+    cursor. An account snapshot holds your RFQs, the live offers on them (`book_quotes`), and your
+    operations. A maker snapshot holds open RFQs (`open_rfqs`), your quotes, pending confirmation
+    requests (`confirmations`), and operations. Replace your local state with it. A class truncated
+    for size is named in `continuations` with the HTTP list that holds the rest.
     Balances, positions, and maker capital are not in the snapshot. Read them over HTTP on connect.
   </Step>
   <Step title="Apply events">
@@ -120,14 +122,15 @@ Many events are doorbells: they say which resource changed, and you re-read it o
 
 | Event | Do |
 | --- | --- |
-| `BOOK_QUOTES_CHANGED` | Re-read the book of `payload.rfq_id`. The event is a signal, not a quote. |
+| `BOOK_QUOTE_PUBLISHED` | An offer joined the book of your RFQ. The payload is the complete quote or bid: accept it by its `quote_digest`. |
+| `BOOK_QUOTE_REMOVED` | An offer left the book of your RFQ. Drop `payload.quote_digest`. Expiry sends no event, so also drop offers that expire. |
 | `EXECUTION_REPORT`, `WITHDRAWAL_REPORT` | Operation progress: `operation_id`, `state`, `transaction_hash`. |
 | `BALANCE_CHANGED`, `WALLET_BALANCE_CHANGED` | Re-read [Get balances](/hyperliquid/api-reference/account/get-balances). |
 | `TOTALIS_WITHDRAWAL_CONTINUATION_UPDATED` | Re-read the withdrawal. See [Funding](/hyperliquid/funding#withdraw-to-any-address). |
 | `TICKET_ACCEPTED`, `TICKET_OWNER_CHANGED`, `TICKET_SETTLED`, `TICKET_CLOSED`, `TICKET_UPDATED` | Re-read the position. |
 | `ENTRY_RFQ_OPENED`, `CASHOUT_RFQ_OPENED` | Price the RFQ. See [Market makers](/hyperliquid/market-makers#receiving-rfqs). |
 | `RFQ_SELECTION_DURABLE`, `RFQ_CANCELLED`, `RFQ_CLOSED` | The RFQ was taken, cancelled, or closed. Stop quoting it. |
-| `CONFIRMATION_REQUESTED` | A taker selected your quote or bid. Answer before its `deadline`. |
+| `CONFIRMATION_REQUESTED` | A taker selected your quote or bid. Answer before its `deadline`. The taker has already signed. |
 | `ENTRY_QUOTE_DISPLAYED`, `CASHOUT_BID_DISPLAYED`, `ENTRY_QUOTE_REMOVED_FROM_DISPLAY`, `CASHOUT_BID_REMOVED_FROM_DISPLAY` | A quote or bid entered or left the book. |
 | `MAKER_VAULT_UPDATED` | Re-read [Get maker capital](/hyperliquid/api-reference/maker-reads/get-maker-capital). |
 | `COLLATERAL_REDUCTION_UPDATED` | Re-read the collateral reduction job. |
