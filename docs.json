@@ -216,10 +216,129 @@
           },
           {
             "tab": "API reference",
-            "openapi": {
-              "source": "/hyperliquid/openapi.json",
-              "directory": "hyperliquid/api-reference"
-            }
+            "openapi": "/hyperliquid/openapi.json",
+            "groups": [
+              {
+                "group": "Trading API",
+                "pages": [
+                  "hyperliquid/trading-api",
+                  {
+                    "group": "Taker",
+                    "expanded": true,
+                    "pages": [
+                      "GET /v1/vault",
+                      "POST /v1/deposits",
+                      "GET /v1/stream",
+                      "POST /v1/rfqs",
+                      "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
+                      "POST /v1/rfqs/{rfq_id}/cancel",
+                      "POST /v1/tickets/{ticket_id}/claims",
+                      {
+                        "group": "Withdraw",
+                        "pages": [
+                          "POST /v1/totalis-withdrawals",
+                          "GET /v1/totalis-withdrawals/{continuation_id}",
+                          "POST /v1/totalis-withdrawals/{continuation_id}/payout-claim",
+                          "POST /v1/totalis-withdrawals/{continuation_id}/payout-submission"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "group": "Maker",
+                    "expanded": true,
+                    "pages": [
+                      "GET /v1/makers/{maker_id}/capital",
+                      "GET /v1/stream",
+                      "POST /v1/rfqs/{rfq_id}/book-quotes",
+                      "DELETE /v1/rfqs/{rfq_id}/book-quotes/{quote_digest}",
+                      "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}/confirmation"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "Reference",
+                "pages": [
+                  {
+                    "group": "Market data",
+                    "pages": [
+                      "GET /v1/search",
+                      "GET /v1/markets",
+                      "GET /v1/markets/{outcome_id}/metadata",
+                      "GET /v1/markets/{outcome_id}",
+                      "GET /v1/questions",
+                      "GET /v1/questions/{question_id}",
+                      "GET /v1/markets/{outcome_id}/history",
+                      "GET /v1/markets/{outcome_id}/recurring-round",
+                      "GET /v1/questions/{question_id}/recurring-round",
+                      "GET /v1/market-stats"
+                    ]
+                  },
+                  {
+                    "group": "Account",
+                    "pages": [
+                      "GET /v1/me/positions",
+                      "GET /v1/me/positions/{ticket_id}",
+                      "GET /v1/me/activity",
+                      "GET /v1/me/activity/{activity_id}",
+                      "GET /v1/me/balances",
+                      "GET /v1/me"
+                    ]
+                  },
+                  {
+                    "group": "Operations",
+                    "pages": [
+                      "GET /v1/me/operations",
+                      "GET /v1/operations/{operation_id}",
+                      "GET /v1/makers/{maker_id}/operations",
+                      "GET /v1/makers/{maker_id}/operations/{operation_id}"
+                    ]
+                  },
+                  {
+                    "group": "Funds and tickets",
+                    "pages": [
+                      "POST /v1/withdrawals",
+                      "POST /v1/tickets/{ticket_id}/transfers",
+                      "POST /v1/tickets/{ticket_id}/settlements"
+                    ]
+                  },
+                  {
+                    "group": "Maker",
+                    "pages": [
+                      "GET /v1/makers/{maker_id}/funding-transaction",
+                      "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
+                      "POST /v1/makers/{maker_id}/collateral-reductions",
+                      "GET /v1/makers/{maker_id}/offers",
+                      "GET /v1/makers/{maker_id}/positions",
+                      "GET /v1/makers/{maker_id}/positions/{ticket_id}",
+                      "GET /v1/makers/{maker_id}/activity",
+                      "GET /v1/makers/{maker_id}/activity/{activity_id}",
+                      "GET /v1/makers/{maker_id}/performance"
+                    ]
+                  },
+                  {
+                    "group": "HyperCore",
+                    "pages": [
+                      "GET /v1/hypercore/portfolio",
+                      "GET /v1/hypercore/history"
+                    ]
+                  },
+                  {
+                    "group": "Recovery (the SDK does this for you)",
+                    "pages": [
+                      "GET /v1/rfqs/{rfq_id}/book-quotes",
+                      "GET /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
+                      "GET /v1/rfqs",
+                      "GET /v1/rfqs/{rfq_id}",
+                      "GET /v1/makers/{maker_id}/confirmations",
+                      "GET /v1/makers/{maker_id}/snapshot",
+                      "GET /v1/makers/{maker_id}/events"
+                    ]
+                  }
+                ]
+              }
+            ]
           }
         ]
       }

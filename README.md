@@ -20,14 +20,19 @@ View your local preview at `http://localhost:3000`.
 
 ## Hyperliquid API reference
 
-The Hyperliquid tab is generated. Regenerate both files from a hip4-backend checkout on current `main`:
+The Hyperliquid API reference is generated. Regenerate it from a hip4-backend checkout on current `main`:
 
 ```
-python3 ../hip4-backend/tools/public_openapi.py --output hyperliquid/openapi.json
+python3 scripts/hyperliquid_openapi.py --backend ../hip4-backend
 python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonschema/error.schema.json
 ```
 
-`scripts/hyperliquid_errors.py --check` fails when `hyperliquid/errors.mdx` no longer matches the registry and the spec.
+`scripts/hyperliquid_openapi.py` writes `hyperliquid/openapi.json` and the Hyperliquid API reference tab in
+`docs.json`. It leaves out the routes in its `HIDDEN` list (app-only maker access and onboarding, and the
+self-funded transaction routes), puts the taker and maker trading flow first, and files every other route
+under a collapsed Reference group. Edit the lists at the top of the script, not the generated files.
+
+`--check` on either script fails when the committed files are stale.
 
 ## Publishing changes
 
