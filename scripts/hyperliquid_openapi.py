@@ -4,8 +4,8 @@
 The source is hip4-backend's public spec (tools/public_openapi.py). This script:
 
 - drops the routes the public docs do not show (HIDDEN): app-only maker access and onboarding
-  reads, and the self-funded transaction routes, which only accounts that pay their own gas use.
-  The API keeps them;
+  reads, and the taker self-funded transaction route, since Totalis sponsors taker gas. The API
+  keeps them. The maker self-funded route stays: makers pay their own gas and relay through it;
 - gives every operation a stable URL, /hyperliquid/api-reference/<tag>/<summary>, and puts the
   SDK equivalent on the pages of the trading flow (x-mint);
 - writes the API reference tab: the taker and maker trading flow first, everything else in
@@ -40,9 +40,8 @@ HIDDEN = {
     "GET /v1/me/controlled-makers",
     "GET /v1/me/makers",
     "GET /v1/maker-onboarding/registrations/{maker_id}",
-    # Only for accounts that pay their own gas, which are not available yet.
+    # Takers do not pay their own gas: Totalis sponsors it.
     "POST /v1/operations/{operation_id}/self-funded-transaction",
-    "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
 }
 
 # The Totalis withdrawal, kept as one group so it can shrink to one call without touching the rest.
@@ -94,6 +93,7 @@ PLACED = {
     "GET /v1/makers/{maker_id}/funding-transaction": "Maker",
     "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}": "Maker",
     "POST /v1/makers/{maker_id}/collateral-reductions": "Maker",
+    "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction": "Maker",
     "GET /v1/makers/{maker_id}/offers": "Maker",
     "GET /v1/makers/{maker_id}/snapshot": RECOVERY,
     "GET /v1/makers/{maker_id}/events": RECOVERY,
@@ -144,6 +144,10 @@ SDK = {
         f"`maker.bid(rfq, {{ price }})` a bid on a cash-out RFQ. See {MAKING}."
     ),
     "DELETE /v1/rfqs/{rfq_id}/book-quotes/{quote_digest}": f"`maker.withdraw(rfqId, quoteDigest)`. See {MAKING}.",
+    "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction": (
+        "`maker.reduceCollateral({ signTransaction })` signs the collateral reduction's attestation with "
+        f"your gas wallet and relays it here. See {MAKING}."
+    ),
     "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}/confirmation": (
         "`maker.onConfirmation(handler)` answers every confirmation request with your handler's "
         f"`\"CONFIRM\"` or `\"DECLINE\"`. `maker.confirm(request)` answers one. See {MAKING}."

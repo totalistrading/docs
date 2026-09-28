@@ -14029,6 +14029,373 @@
         }
       }
     },
+    "/v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/MakerId"
+        },
+        {
+          "name": "operation_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Bytes32"
+          },
+          "description": "Operation ID returned by the admission call whose exact transaction was signed.",
+          "example": "0x5c1e2f3a4b6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f607"
+        }
+      ],
+      "post": {
+        "operationId": "submitMakerSelfFundedTransaction",
+        "summary": "Submit maker self-funded transaction",
+        "description": "Validates and relays an MM-funded EIP-1559 transaction for the exact previously admitted operation of this maker. The portable contract calls are permissionless; their embedded controller or funder signature remains financial authority. Totalis never receives the gas payer's private key or allocates its nonce.\n\nRequires a maker key with `operations:submit`.",
+        "tags": [
+          "Funds and tickets"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "operations:submit"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelfFundedTransaction"
+              },
+              "example": {
+                "signed_transaction": "0x02f8d48203e7078405f5e1008405f5e1008307a12094a1b2c3d4e5f60718293a4b5c6d7e8f901234567880b86422879f2b222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222c080a08e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8ea03c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "MM-funded transaction accepted for broadcast",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfFundedAccepted"
+                },
+                "example": {
+                  "operation_id": "0xa5d2f8c4e1b7a3d9f6c2e8b4a1d7f3c9e5b2a8d4f1c7e3b9a6d2f8c5e1b4a7d0",
+                  "state": "IN_FLIGHT",
+                  "transaction_hash": "0x7b3e9f1d5a2c8e4b6f1a9d3c7e5b2f8a4d1c6e9b3f7a5d2c8e4b1f6a9d3c7e50"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_REQUEST",
+                                "INVALID_IDEMPOTENCY_KEY"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDEMPOTENCY_KEY_REUSED",
+                                "STATE_CONFLICT"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER",
+                                "REFRESH"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "- `INVALID_SIGNATURE` (retry `NEVER`): The signature does not verify for the signed terms.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_SIGNATURE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "RATE_LIMITED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this release.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "AUTHORIZATION_UNAVAILABLE",
+                                "DEPENDENCY_STALE",
+                                "FINANCIAL_ACTIONS_DISABLED",
+                                "CONTRACT_SIGNATURE_OVERLOADED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/funds-and-tickets/submit-maker-self-funded-transaction",
+          "content": "<Tip>\n**SDK:** `maker.reduceCollateral({ signTransaction })` signs the collateral reduction's attestation with your gas wallet and relays it here. See [Market makers](/hyperliquid/market-makers).\n</Tip>\n"
+        }
+      }
+    },
     "/v1/vault": {
       "get": {
         "operationId": "getVaultRelease",
@@ -30484,6 +30851,44 @@
               }
             ],
             "description": "Account or maker whose data the read returns."
+          }
+        }
+      },
+      "SelfFundedAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "state",
+          "transaction_hash"
+        ],
+        "properties": {
+          "operation_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "Operation the transaction was attached to."
+          },
+          "state": {
+            "$ref": "#/components/schemas/OperationState",
+            "description": "Operation state after the transaction was attached."
+          },
+          "transaction_hash": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "Hash of the attached signed transaction."
+          }
+        }
+      },
+      "SelfFundedTransaction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "signed_transaction"
+        ],
+        "properties": {
+          "signed_transaction": {
+            "type": "string",
+            "pattern": "^0x02[0-9a-f]+$",
+            "maxLength": 262146,
+            "description": "Raw signed EIP-1559 (type 2) transaction as lowercase hex. It must target the vault on the environment chain with zero value and the operation's exact calldata."
           }
         }
       },

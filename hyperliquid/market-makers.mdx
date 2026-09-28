@@ -299,24 +299,28 @@ The effects arrive as `MAKER_VAULT_UPDATED` events and in your capital read.
 `maker.reduceCollateral` asks for a
 [collateral reduction](/hyperliquid/api-reference/funds-and-tickets/create-collateral-reduction),
 which releases collateral held against correlated open tickets, and follows the job on the stream.
-When the attestation is ready, it resolves with the job and its `transaction`, a zero-value vault
-call that any wallet with HYPE can send. It needs a key with `vault:write`.
+When the attestation is ready, your gas wallet signs it as a raw transaction and the SDK relays it
+with [Submit maker self-funded transaction](/hyperliquid/api-reference/funds-and-tickets/submit-maker-self-funded-transaction).
+Your maker pays the gas in HYPE. It needs a key with `vault:write` and `operations:submit`.
 
 ```ts
-// Any wallet with HYPE can send the attestation; it carries no authority.
+// Any wallet with HYPE can pay for the attestation; it carries no authority.
 const gasWallet = createWalletClient({
   account: privateKeyToAccount(process.env.GAS_WALLET_KEY as `0x${string}`),
   chain: hyperEvm,
   transport: http(),
 });
 
-const { job } = await maker.reduceCollateral();
-if (job.transaction) await gasWallet.sendTransaction({ to: job.transaction.to, data: job.transaction.data });
-console.log(job.state); // NO_IMPROVEMENT or FAILED, or DURABLE with the attestation to send
+const { job, submitted } = await maker.reduceCollateral({
+  signTransaction: async ({ to, data }) =>
+    gasWallet.signTransaction(await gasWallet.prepareTransactionRequest({ to, data, type: "eip1559" })),
+});
+console.log(job.state, submitted?.operation_id); // NO_IMPROVEMENT or FAILED, or DURABLE with the attestation relayed
 ```
 
-A job stays `QUEUED` until its `next_eligible_at`. `transaction` is set only while the job is
-`DURABLE` and its attestation has not expired.
+A job stays `QUEUED` until its `next_eligible_at`. Without `signTransaction`, the call resolves with
+the job and its `transaction`. The vault call is permissionless, so you may also broadcast it
+yourself.
 
 ## Without the SDK
 
@@ -329,6 +333,7 @@ A job stays `QUEUED` until its `next_eligible_at`. `transaction` is set only whi
 | Withdraw a quote or bid | [Withdraw quote](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-quote) |
 | Recover pending confirmations past a truncated snapshot | [List pending confirmations](/hyperliquid/api-reference/recovery/list-pending-confirmations), only when the snapshot names it in `continuations`. Requests are pushed as `CONFIRMATION_REQUESTED`. |
 | Answer a confirmation | [Confirm attempt](/hyperliquid/api-reference/rfqs-and-quotes/confirm-attempt) with `decision` and, for `CONFIRM`, `maker_signature` over the request's `quote`, `sell_back`, or `transfer`. The `Idempotency-Key` must equal `attempt_id`. |
+| Relay a collateral reduction's attestation | [Submit maker self-funded transaction](/hyperliquid/api-reference/funds-and-tickets/submit-maker-self-funded-transaction) with the `signed_transaction` your gas wallet signed over the job's `transaction`. Needs `operations:submit`. |
 | Resume from a cursor over HTTP | [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) |
 
 ## Errors to handle

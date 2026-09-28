@@ -112,6 +112,7 @@ requires.
 | `funding:withdraw` | Yes | | Withdraw to any address. |
 | `sponsorship:use` | Yes | | Let Totalis pay the gas. Required whenever Totalis pays: accept, cashout, settle, claim, transfer, deposit, and withdraw. |
 | `vault:read` | | Yes | Read your maker's capital, positions, activity, performance, and operations. |
+| `operations:submit` | | Yes | Relay your own signed transaction for an operation your maker started, such as a collateral reduction's attestation. |
 | `vault:write` | | Yes | Request a collateral reduction. |
 
 A maker key holds every maker read (capital, positions, activity, performance) for as long as the

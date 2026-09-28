@@ -309,6 +309,7 @@
                       "GET /v1/makers/{maker_id}/funding-transaction",
                       "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
                       "POST /v1/makers/{maker_id}/collateral-reductions",
+                      "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
                       "GET /v1/makers/{maker_id}/offers",
                       "GET /v1/makers/{maker_id}/positions",
                       "GET /v1/makers/{maker_id}/positions/{ticket_id}",
