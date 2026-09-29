@@ -44,23 +44,13 @@ HIDDEN = {
     "POST /v1/operations/{operation_id}/self-funded-transaction",
 }
 
-# The Totalis withdrawal, kept as one group so it can shrink to one call without touching the rest.
-WITHDRAW = [
-    "POST /v1/totalis-withdrawals",
-    "GET /v1/totalis-withdrawals/{continuation_id}",
-    "POST /v1/totalis-withdrawals/{continuation_id}/payout-claim",
-    "POST /v1/totalis-withdrawals/{continuation_id}/payout-submission",
-]
-
 TAKER = [
     "GET /v1/vault",
-    "POST /v1/deposits",
     "GET /v1/stream",
     "POST /v1/rfqs",
     "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
     "POST /v1/rfqs/{rfq_id}/cancel",
-    "POST /v1/tickets/{ticket_id}/claims",
-    {"group": "Withdraw", "pages": WITHDRAW},
+    "POST /v1/withdrawals",
 ]
 
 MAKER = [
@@ -101,7 +91,6 @@ PLACED = {
 
 TRADING = "[Trading](/hyperliquid/trading)"
 MAKING = "[Market makers](/hyperliquid/market-makers)"
-FUNDING = "[Funding](/hyperliquid/funding)"
 WITHDRAWING = "[Funding](/hyperliquid/funding#withdraw-to-any-address)"
 RECOVERING = (
     "A recovery read. The SDK makes it for you after a reconnect, a truncated snapshot, or a lost "
@@ -111,10 +100,6 @@ RECOVERING = (
 # The SDK equivalent shown on each page of the trading flow.
 SDK = {
     "GET /v1/vault": f"Every SDK flow reads this for you and caches it as `totalis.release()`. See {TRADING}.",
-    "POST /v1/deposits": (
-        f"`totalis.deposit({{ amount }})`. `placeBet` can also fund a vault shortfall in its accept, "
-        f"so a separate deposit is optional. See {FUNDING}."
-    ),
     "GET /v1/stream": (
         "`createTotalis` and `createMaker` open it for you as `totalis.stream` and `maker.stream`. "
         "For direct use, `TotalisStream` from `@totalistrading/hip4-client/realtime`. "
@@ -131,9 +116,6 @@ SDK = {
     "POST /v1/rfqs/{rfq_id}/cancel": (
         "`placeBet` and `cashOut` cancel their RFQ when no acceptable offer arrives within "
         f"`quoteTimeoutMs`, and while recovering a lost accept. See {TRADING}."
-    ),
-    "POST /v1/tickets/{ticket_id}/claims": (
-        f"`totalis.claimTicket(ticketId)`. Totalis also claims settled tickets on its own. See {TRADING}."
     ),
     "GET /v1/makers/{maker_id}/capital": (
         "Read it with the typed client: `maker.client.GET(\"/v1/makers/{maker_id}/capital\", ...)`. "
@@ -152,8 +134,10 @@ SDK = {
         "`maker.onConfirmation(handler)` answers every confirmation request with your handler's "
         f"`\"CONFIRM\"` or `\"DECLINE\"`. `maker.confirm(request)` answers one. See {MAKING}."
     ),
-    **{key: f"`totalis.withdraw({{ destination, amount }})` runs all four withdrawal calls, and "
-       f"`totalis.resumeWithdrawal` continues one after a restart. See {WITHDRAWING}." for key in WITHDRAW},
+    "POST /v1/withdrawals": (
+        "`totalis.withdraw({ destination, amount })` signs any vault shortfall and the payout, sends this "
+        f"once and resolves when the payout commits. `totalis.waitForWithdrawal(id)` follows one after a restart. See {WITHDRAWING}."
+    ),
 }
 
 

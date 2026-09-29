@@ -227,21 +227,11 @@
                     "expanded": true,
                     "pages": [
                       "GET /v1/vault",
-                      "POST /v1/deposits",
                       "GET /v1/stream",
                       "POST /v1/rfqs",
                       "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
                       "POST /v1/rfqs/{rfq_id}/cancel",
-                      "POST /v1/tickets/{ticket_id}/claims",
-                      {
-                        "group": "Withdraw",
-                        "pages": [
-                          "POST /v1/totalis-withdrawals",
-                          "GET /v1/totalis-withdrawals/{continuation_id}",
-                          "POST /v1/totalis-withdrawals/{continuation_id}/payout-claim",
-                          "POST /v1/totalis-withdrawals/{continuation_id}/payout-submission"
-                        ]
-                      }
+                      "POST /v1/withdrawals"
                     ]
                   },
                   {
@@ -263,16 +253,9 @@
                   {
                     "group": "Market data",
                     "pages": [
-                      "GET /v1/search",
                       "GET /v1/markets",
-                      "GET /v1/markets/{outcome_id}/metadata",
                       "GET /v1/markets/{outcome_id}",
-                      "GET /v1/questions",
-                      "GET /v1/questions/{question_id}",
-                      "GET /v1/markets/{outcome_id}/history",
-                      "GET /v1/markets/{outcome_id}/recurring-round",
-                      "GET /v1/questions/{question_id}/recurring-round",
-                      "GET /v1/market-stats"
+                      "GET /v1/markets/{outcome_id}/history"
                     ]
                   },
                   {
@@ -281,7 +264,6 @@
                       "GET /v1/me/positions",
                       "GET /v1/me/positions/{ticket_id}",
                       "GET /v1/me/activity",
-                      "GET /v1/me/activity/{activity_id}",
                       "GET /v1/me/balances",
                       "GET /v1/me"
                     ]
@@ -290,39 +272,15 @@
                     "group": "Operations",
                     "pages": [
                       "GET /v1/me/operations",
-                      "GET /v1/operations/{operation_id}",
-                      "GET /v1/makers/{maker_id}/operations",
-                      "GET /v1/makers/{maker_id}/operations/{operation_id}"
-                    ]
-                  },
-                  {
-                    "group": "Funds and tickets",
-                    "pages": [
-                      "POST /v1/withdrawals",
-                      "POST /v1/tickets/{ticket_id}/transfers",
-                      "POST /v1/tickets/{ticket_id}/settlements"
+                      "GET /v1/operations/{operation_id}"
                     ]
                   },
                   {
                     "group": "Maker",
                     "pages": [
-                      "GET /v1/makers/{maker_id}/funding-transaction",
-                      "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
                       "POST /v1/makers/{maker_id}/collateral-reductions",
-                      "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
-                      "GET /v1/makers/{maker_id}/offers",
-                      "GET /v1/makers/{maker_id}/positions",
-                      "GET /v1/makers/{maker_id}/positions/{ticket_id}",
-                      "GET /v1/makers/{maker_id}/activity",
-                      "GET /v1/makers/{maker_id}/activity/{activity_id}",
-                      "GET /v1/makers/{maker_id}/performance"
-                    ]
-                  },
-                  {
-                    "group": "HyperCore",
-                    "pages": [
-                      "GET /v1/hypercore/portfolio",
-                      "GET /v1/hypercore/history"
+                      "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
+                      "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction"
                     ]
                   },
                   {
@@ -332,9 +290,8 @@
                       "GET /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
                       "GET /v1/rfqs",
                       "GET /v1/rfqs/{rfq_id}",
-                      "GET /v1/makers/{maker_id}/confirmations",
-                      "GET /v1/makers/{maker_id}/snapshot",
-                      "GET /v1/makers/{maker_id}/events"
+                      "GET /v1/withdrawals/{withdrawal_id}",
+                      "GET /v1/makers/{maker_id}/confirmations"
                     ]
                   }
                 ]
