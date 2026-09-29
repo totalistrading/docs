@@ -106,7 +106,7 @@ and returns one quote, or `undefined` to wait for the book to change:
 const bet = await totalis.placeBet({
   legs: [{ outcome_id: 1209, side: 0 }],
   stake: 25_000_000n,
-  funding: "none", // never sign a deposit: the vault balance must cover the stake
+  funding: "none", // never fund from the wallet: the vault balance must cover the stake
   quoteTimeoutMs: 10_000,
   // Take the highest payout that pays at least 3x and has 5 seconds left.
   choose: (quotes, serverNowMs) => quotes
@@ -235,7 +235,7 @@ stream (`EXECUTION_REPORT`) until it is terminal:
 | `REVERTED`, `EXPIRED_UNEXECUTED` | The trade did not happen and no stake was taken. Place a new bet. |
 
 Without the SDK, apply `EXECUTION_REPORT` events for the `operation_id`, and read
-[Get operation](/hyperliquid/api-reference/account/get-operation) after a reconnect.
+[Get operation](/hyperliquid/api-reference/recovery/get-operation) after a reconnect.
 
 ## 4. Read your position
 
@@ -256,7 +256,7 @@ console.log(position.status, payout.status === "UNAVAILABLE" ? payout.reason : p
 | --- | --- |
 | `OPEN` | At least one leg is unresolved. You can cash out. |
 | `AWAITING_SETTLEMENT` | Every leg resolved, or a leg lost, and settlement has not landed yet. |
-| `SETTLED_UNCLAIMED` | Settled. `settlement_kind` is `WIN`, `PARTIAL`, `LOSS`, or `EARLY_LOST`, and any payout is waiting to be claimed. |
+| `SETTLED_UNCLAIMED` | Settled. `settlement_kind` is `WIN`, `PARTIAL`, `LOSS`, or `EARLY_LOST`, and Totalis has not claimed any payout yet. |
 | `CLOSED` | Paid out (`close_reason: CLAIM`) or cashed out (`close_reason: SELL_BACK`). |
 
 [List account positions](/hyperliquid/api-reference/account/list-account-positions) returns all of
@@ -265,19 +265,10 @@ or `status: "UNAVAILABLE"` with a `reason`.
 
 ## 5. Settlement and payout
 
-You do not have to do anything. Totalis settles tickets once their legs resolve and claims any payout
-to the ticket owner automatically. To make it happen sooner, settle and then claim it yourself. Both
-need `ticket:settle` and `sponsorship:use`, and neither needs a signature:
-
-```ts
-const settled = await totalis.settleTicket(ticketId);
-await totalis.waitForOperation(settled.operation_id);
-const claimed = await totalis.claimTicket(ticketId); // once the position is SETTLED_UNCLAIMED
-await totalis.waitForOperation(claimed.operation_id);
-```
-
-They call [Settle ticket](/hyperliquid/api-reference/funds-and-tickets/settle-ticket) and
-[Claim ticket](/hyperliquid/api-reference/funds-and-tickets/claim-ticket) with an empty `command`.
+You do nothing. Totalis settles every decided ticket and claims any payout into the owner's vault
+balance automatically. There is no call to make, no scope to hold, and nothing to sign. The stream
+reports each step as `TICKET_SETTLED` and then `TICKET_CLOSED`: re-read the position to see
+`settlement_kind` and `close_reason`.
 
 ## 6. Cash out early
 

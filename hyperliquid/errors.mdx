@@ -82,8 +82,6 @@ returns for each status.
 | `STALE_CURSOR` | 409 | - | `REFRESH` | The cursor belongs to an older catalog or browse generation; restart from the first page. |
 | `CURSOR_EXPIRED` | 409 | - | `REFRESH` | The account-read snapshot behind this cursor expired or its scope changed; restart from the first page. |
 | `CURSOR_RESET` | 409 | 1008 | `REFRESH` | The realtime cursor is no longer replayable; take a fresh snapshot. |
-| `STALE_CATALOG` | 409 | - | `REFRESH` | The requested catalog generation is not the current one; re-read the catalog. |
-| `RECURRING_DEFINITION_CONFLICT` | 409 | - | `NEVER` | The recorded recurring definition disagrees with a later catalog and is withheld. |
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
@@ -98,8 +96,6 @@ returns for each status.
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
 | `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirmation. |
-| `HYPERCORE_WALLET_UNQUALIFIED` | 422 | - | `REFRESH` | The linked HyperCore wallet does not qualify for this action. |
-| `HYPERCORE_ACCOUNT_NOT_MAIN` | 422 | - | `NEVER` | The HyperCore account is a sub-account or vault, not a main account. |
 | `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |
 | `CONNECTION_LIMIT` | 429 | - | `BACKOFF` | The stream connection limit is reached. |
 | `RFQ_INTENT_LIMIT` | 429 | - | `BACKOFF` | The account has too many open RFQs. |
@@ -109,7 +105,6 @@ returns for each status.
 | `SOURCE_UNAVAILABLE` | 503 | 1013 | `BACKOFF` | The account-read or stream source is unavailable. |
 | `CONTRACT_UNAVAILABLE` | 503 | - | `BACKOFF` | This producer is disabled in this environment. |
 | `MARKET_DATA_UNAVAILABLE` | 503 | - | `BACKOFF` | No complete market catalog is available. |
-| `BROWSE_UNAVAILABLE` | 503 | - | `BACKOFF` | The published browse view is unavailable. |
 | `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this release. |
 | `CORE_FUNDING_UNAVAILABLE` | 503 | - | `BACKOFF` | Core funding cannot be admitted now. |
 | `SPONSORSHIP_UNAVAILABLE` | 503 | - | `BACKOFF` | Venue gas sponsorship is unavailable. |

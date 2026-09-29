@@ -23,14 +23,16 @@ them.
 | | Personal key | Maker key |
 | --- | --- | --- |
 | Acts for | Your Totalis account | One maker (`maker_id`) |
-| Paths | `/v1/me/...`, plus the RFQ, ticket, deposit, and withdrawal routes | `/v1/makers/{maker_id}/...` for your own `maker_id`, plus the quote routes |
+| Paths | `/v1/me/...`, plus the RFQ, accept, and withdrawal routes | `/v1/me/...` for your maker's positions, activity, and operations, `/v1/makers/{maker_id}/...` for your own `maker_id`, plus the quote routes |
 | Issued by | Your Totalis wallet | The maker's controller |
 | `owner` | Your Totalis wallet | The controller |
 | `signer` | Your Totalis wallet | The quote signer |
-| Read `owner` and `signer` from | [Get identity](/hyperliquid/api-reference/identity/get-identity) | [Get maker capital](/hyperliquid/api-reference/maker-reads/get-maker-capital) |
+| Read `owner` and `signer` from | [Get identity](/hyperliquid/api-reference/identity/get-identity) | [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) |
 
-A maker key naming another maker's `maker_id` gets `404`. A personal key cannot read maker state,
-and a maker key cannot read personal state. Keys start with `ttk_v1_prd_` in production and
+A maker key naming another maker's `maker_id` gets `404`. On `/v1/me/...` and
+`/v1/operations/{operation_id}` the key reads its own account: a personal key its tickets, a maker key
+the tickets its maker wrote. A personal key cannot read maker state, and a maker key cannot read
+personal state. Keys start with `ttk_v1_prd_` in production and
 `ttk_v1_stg_` in staging, and a key only works in its own environment.
 
 ## Create a key
@@ -106,16 +108,14 @@ requires.
 | `replay:read` | Yes | Yes | Resume the stream from a cursor and replay retained events. Grants no feed on its own. |
 | `ticket:accept` | Yes | | Accept a quote. |
 | `ticket:cashout` | Yes | | Cash out a ticket you own. |
-| `ticket:settle` | Yes | | Settle or claim a ticket you own. |
-| `ticket:transfer` | Yes | | Transfer a ticket you own. |
-| `funding:deposit` | Yes | | Deposit wallet USDC into the vault, including the automatic top-up when you accept a quote. |
+| `funding:deposit` | Yes | | Fund the vault shortfall of an accept from your wallet. |
 | `funding:withdraw` | Yes | | Withdraw to any address. |
-| `sponsorship:use` | Yes | | Let Totalis pay the gas. Required whenever Totalis pays: accept, cashout, settle, claim, transfer, deposit, and withdraw. |
-| `vault:read` | | Yes | Read your maker's capital, positions, activity, performance, and operations. |
-| `operations:submit` | | Yes | Relay your own signed transaction for an operation your maker started, such as a collateral reduction's attestation. |
+| `sponsorship:use` | Yes | | Let Totalis pay the gas. Required whenever Totalis pays: accept, cashout, and withdraw. |
+| `vault:read` | | Yes | Read your maker's capital, positions, activity, and operations, and its collateral reductions. |
+| `operations:submit` | | Yes | Relay your maker's own signed transaction for an operation it started, such as a collateral reduction's attestation. |
 | `vault:write` | | Yes | Request a collateral reduction. |
 
-A maker key holds every maker read (capital, positions, activity, performance) for as long as the
+A maker key holds every maker read (capital, positions, activity, operations) for as long as the
 controller that approved it stays the controller. A controller change invalidates every key of that
 maker.
 
@@ -124,18 +124,20 @@ maker.
 | Integration | Scopes |
 | --- | --- |
 | Read-only dashboard | `identity:read`, `account:read`, `account:stream` |
-| Taker bot (`placeBet`, `cashOut`, `claimTicket`) | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:cashout`, `ticket:settle`, `sponsorship:use`, `funding:deposit` |
+| Taker bot (`placeBet`, `cashOut`) | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:cashout`, `sponsorship:use`, `funding:deposit` |
 | Taker bot that also withdraws | The taker bot scopes plus `funding:withdraw` |
 | Market maker bot | `rfq:read`, `quote:read`, `quote:write`, `replay:read` |
 | Market maker dashboard | `vault:read` |
+| Maker collateral reductions | `vault:read`, `vault:write`, `operations:submit` |
 
-`funding:deposit` in the taker set lets `placeBet` top up a vault shortfall from your wallet. Leave
-it out if the bot should only spend what is already in the vault.
+`funding:deposit` in the taker set lets `placeBet` fund a vault shortfall from your wallet in the
+accept. Leave it out if the bot should only spend what is already in the vault. Settling and claiming
+need no scope: Totalis settles and claims every decided ticket for you.
 
 ## Keys and signatures
 
 A key decides which routes you can call. It cannot move funds by itself. Tickets live in the Totalis
-vault contract on HyperEVM, and the contract only executes a trade, cashout, deposit, or withdrawal
+vault contract on HyperEVM, and the contract only executes a trade, cashout, funding, or withdrawal
 that carries a signature from the wallet that owns the funds. You call the route with your key and
 put that signature in the request body. The SDK builds and signs each message for you.
 
@@ -145,10 +147,10 @@ put that signature in the request body. The SDK builds and signs each message fo
 | Confirm a quote you published | The maker's quote signer | EIP-712 `Quote` |
 | Confirm a cash-out bid you published | The maker's quote signer | EIP-712 `SellBack` or `CashoutTransfer` |
 | Sell back or transfer a ticket | The ticket owner | EIP-712 `SellBack` or `CashoutTransfer` |
-| Withdraw from the vault | Your `signer` | EIP-712 `Exit` |
-| Deposit into the vault | Your `signer` | EIP-3009 `ReceiveWithAuthorization` on USDC |
-| Send wallet USDC to another address | Your `signer` | EIP-3009 `TransferWithAuthorization` on USDC |
-| Settle or claim a ticket | Nobody | None. The key alone is enough. |
+| Fund an accept's vault shortfall from your wallet | Your `signer` | EIP-3009 `ReceiveWithAuthorization` on USDC |
+| Withdraw: move a vault shortfall to your wallet | Your `signer` | EIP-712 `Exit` |
+| Withdraw: pay USDC to the destination | Your `signer` | EIP-3009 `TransferWithAuthorization` on USDC |
+| Settle and claim a ticket | Nobody | None. Totalis does it for you. |
 
 ## Export your wallet key
 
@@ -170,7 +172,7 @@ if (signer !== (await wallet.address())) throw new Error("the exported key is no
 
 <Warning>
 **Known limitation: the exported wallet key also controls withdrawals.** There is one wallet per
-account, and the key that signs your trades is the same key that signs deposits and withdrawals.
+account, and the key that signs your trades is the same key that signs withdrawals.
 Anyone who obtains it can withdraw everything the account holds, with or without your API key. If
 the host running your bot is compromised, treat the account as drained: revoke the API key and move
 the remaining funds out from the app. Keep only the balance the bot needs to trade. Trading keys,

@@ -51,10 +51,10 @@ Trimmed to the main fields:
 ```
 
 Each market is one HIP-4 outcome, identified by `outcome_id`, with a YES and a NO side. Read one
-with [Get market](/hyperliquid/api-reference/market-data/get-market).
-[List questions](/hyperliquid/api-reference/market-data/list-questions) groups outcomes under their
-question, and [Search catalog](/hyperliquid/api-reference/market-data/search-catalog) finds markets
-by text. Lists page with `cursor` and `next_cursor`, described on
+with [Get market](/hyperliquid/api-reference/market-data/get-market), which also carries its
+question, its product metadata, its current recurring round, and its 24h volume and open interest.
+[Get market history](/hyperliquid/api-reference/market-data/get-market-history) returns its price
+history. Lists page with `cursor` and `next_cursor`, described on
 [Conventions](/hyperliquid/conventions#pagination).
 
 ## 2. Install the SDK

@@ -1,7 +1,7 @@
 ---
 title: 'Funding'
 icon: 'wallet'
-description: 'Read your Totalis balance, deposit USDC into the vault, and withdraw to any address with an API key, with Totalis paying the gas.'
+description: 'Read your Totalis balance, fund bets from your wallet, and withdraw to any address in one signed request, with Totalis paying the gas.'
 ---
 
 Your Totalis balance on HyperEVM has two parts:
@@ -11,15 +11,14 @@ Your Totalis balance on HyperEVM has two parts:
 | **Wallet** (`WALLET_USDC`) | USDC held by your Totalis wallet, the embedded wallet in `GET /v1/me`. |
 | **Vault** (`VAULT_FREE`) | Your unreserved USDC inside the Totalis vault contract. Stakes are taken from it, and payouts and cashouts are paid into it. |
 
-Totalis pays the gas for deposits and withdrawals, so your wallet needs no HYPE. Every movement of
-money also carries a signature from your wallet, which the SDK makes with the signer you pass. The
-examples use the `totalis` client from [Trading](/hyperliquid/trading#1-create-a-client).
+Totalis pays the gas for funding a bet and for withdrawals, so your wallet needs no HYPE. Every
+movement of money also carries a signature from your wallet, which the SDK makes with the signer
+you pass. The examples use the `totalis` client from [Trading](/hyperliquid/trading#1-create-a-client).
 
 | To | SDK | Key scopes | You sign |
 | --- | --- | --- | --- |
-| Move wallet USDC into the vault | `deposit` | `funding:deposit`, `sponsorship:use` | USDC `ReceiveWithAuthorization` |
-| Send USDC to any address | `withdraw` | `funding:withdraw`, `sponsorship:use`, `account:read`, `account:stream` | Vault `Exit` for any shortfall, then USDC `TransferWithAuthorization` |
-| Send vault USDC to any address in one step | `withdrawFromVault` | `funding:withdraw`, `sponsorship:use` | Vault `Exit` |
+| Fund a bet from your wallet | `placeBet` (by default) | `funding:deposit` and `sponsorship:use`, with the taker bot scopes | USDC `ReceiveWithAuthorization` for the vault shortfall |
+| Send USDC to any address | `withdraw` | `funding:withdraw`, `sponsorship:use`, `account:read`, `account:stream` | Vault `Exit` for any wallet shortfall, and USDC `TransferWithAuthorization` for the payout |
 
 ## Read your balance
 
@@ -59,8 +58,7 @@ console.log(totalisBalance?.amount, totalisBalance?.components); // WALLET_USDC 
 
 `amount` is what you can spend: wallet USDC plus vault USDC, minus wallet USDC already reserved by
 pending work, never below zero. It is `null` unless `state` is `CURRENT`. The response holds the
-Totalis balance only. HyperCore balances are not part of it. Read them from Hyperliquid, or with
-[Get HyperCore portfolio](/hyperliquid/api-reference/hypercore/get-hypercore-portfolio).
+Totalis balance only. HyperCore balances are not part of it: read them from Hyperliquid.
 
 ## Get USDC into your wallet
 
@@ -69,105 +67,111 @@ Send native USDC on HyperEVM (chain ID `999`) to your wallet address. The token 
 [Get vault release](/hyperliquid/api-reference/vault/get-vault-release). To fund from another chain, deposit in the
 [Totalis app](https://totalis-hip4.vercel.app), which bridges it for you.
 
-You do not have to move it into the vault yourself. `placeBet` tops up a vault shortfall from your
-wallet in the same accept, unless you pass `funding: "none"`.
+## Fund a bet
 
-## Deposit into the vault
+There is no separate deposit. When you accept a quote and your vault balance is short of the stake,
+`placeBet` signs a USDC `ReceiveWithAuthorization` for exactly the shortfall and attaches it to the
+accept as `funding`. The vault draws it from your wallet in the same trade.
 
-```ts
-const deposit = await totalis.deposit({ amount: 10_000_000n }); // 10 USDC, wallet to vault
-await totalis.waitForOperation(deposit.operation_id);
-```
+| `funding` option | What `placeBet` does |
+| --- | --- |
+| `"wallet"` (default) | Signs an authorization for any vault shortfall. Nothing is signed when the vault covers the stake. |
+| `"none"` | Never funds. The vault balance must cover the stake. |
 
-`deposit` signs a USDC `ReceiveWithAuthorization` that pays the vault and submits it to
-[Deposit](/hyperliquid/api-reference/funds-and-tickets/deposit). The `202` response, with
-`state: "DURABLE"`, means the deposit is queued, not that it landed. `waitForOperation` resolves
-when the operation is terminal: `COMMITTED`, `REVERTED`, or `EXPIRED_UNEXECUTED`.
+The accept needs `funding:deposit` only when it carries a funding authorization. Leave the scope
+off a key that should only spend what is already in the vault.
 
 Without the SDK, build the authorization with `receiveWithAuthorizationTypedData(release, authorization)`
 from `@totalistrading/hip4-client/typed-data`, sign it with your wallet, and send the authorization
-fields plus `authorization_signature` as the command. The builder derives the USDC nonce from your
-`salt`, your address, and the vault, exactly as the vault checks it. The authorization window rules
-are on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
+fields plus `authorization_signature`, `quote_digest`, and `taker_signature` as `funding` in
+[Accept quote](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote). The builder derives the
+USDC nonce from your `salt`, your address, and the vault, exactly as the vault checks it. The
+authorization window rules are on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
 
 ## Withdraw to any address
 
 ```ts
 const done = await totalis.withdraw({
   destination: "0x2222222222222222222222222222222222222222",
-  amount: 15_000_000n,
-  onStarted: (continuationId) => console.log("save", continuationId), // persist before it continues
+  amount: 15_000_000n, // 15 USDC
+  onStarted: (withdrawalId) => console.log("save", withdrawalId), // persist it to follow after a restart
 });
 console.log(done.state, done.payout_transaction_hash); // PAYOUT_COMMITTED
 totalis.close();
 ```
 
-A withdrawal pays out from your wallet. If the wallet does not hold enough, `withdraw` first signs a
-vault `Exit` for exactly the shortfall, back to your own wallet. When the wallet is credited, it
-claims the payout, signs a USDC `TransferWithAuthorization` for exactly your destination and amount,
-and resolves once the transfer is final. Each step is woken by the stream.
+A withdrawal pays out from your wallet, and it is one signed request. `withdraw` reads your balance
+and signs both parts up front:
 
-`onStarted` receives the withdrawal's `continuation_id` before anything else happens. Persist it. If
-your process restarts, continue the same withdrawal instead of starting a second one:
+| Part | When | You sign |
+| --- | --- | --- |
+| `vault_withdrawal` | Only when the wallet cannot cover `amount`: moves exactly the shortfall from the vault to your own wallet | Vault `Exit` |
+| `payout_authorization` | Always: pays exactly `amount` from your wallet to `destination` | USDC `TransferWithAuthorization` |
 
-```ts
-await totalis.resumeWithdrawal({
-  continuationId: "01998683-7a31-7e5a-a3c1-6f2b8d4e9a17",
-  destination: "0x2222222222222222222222222222222222222222",
-  amount: 15_000_000n,
-});
-```
-
-The SDK signs the payout only if the withdrawal the venue returns still has your destination and
-amount.
+It sends both in one [Withdraw to an external address](/hyperliquid/api-reference/funds/withdraw-to-an-external-address)
+request. Totalis relays the vault leg, relays the payout once the vault leg commits, and pays the
+gas for both. `withdraw` resolves at `PAYOUT_COMMITTED` from `WITHDRAWAL_UPDATED` events on your
+account stream, and throws at `FAILED`. It reads
+[Get withdrawal](/hyperliquid/api-reference/recovery/get-withdrawal) only after a reconnect.
 
 | `state` | Meaning |
 | --- | --- |
-| `VAULT_WITHDRAWAL_QUEUED`, `AWAITING_WALLET_CREDIT`, `UNKNOWN` | The vault shortfall is moving to your wallet. |
-| `READY_FOR_PAYOUT_CLAIM` | Your wallet holds the amount. The payout can be claimed. |
-| `AWAITING_PAYOUT_SUBMISSION` | The payout is claimed. `wallet_transfer` holds the exact transfer to sign. |
-| `PAYOUT_SUBMITTED` | Totalis is relaying the signed transfer. |
-| `PAYOUT_COMMITTED` | Done. `payout_transaction_hash` is set. |
-| `FAILED` | The withdrawal stopped. Read your balance and start a new one. |
+| `VAULT_WITHDRAWAL_QUEUED` | The vault shortfall is moving to your wallet. The payout waits for it. |
+| `PAYOUT_SUBMITTED` | The payout is queued or relayed. |
+| `PAYOUT_COMMITTED` | Done. `destination` received `amount`, and `payout_transaction_hash` is set. |
+| `FAILED` | The withdrawal stopped and nothing left your Totalis balance. A vault leg that committed stays in your wallet. Read your balance and start a new one. |
+
+`onStarted` receives the `withdrawal_id` once the venue admits the withdrawal. If your process
+restarts, follow the same withdrawal instead of starting a second one:
+
+```ts
+const done = await totalis.waitForWithdrawal("01998683-7a31-7e5a-a3c1-6f2b8d4e9a17");
+```
+
+### Keep a signed withdrawal across a restart
+
+`withdraw` signs and sends in one call. To store the signed request before it leaves your process,
+split it: `signWithdrawal` returns `{ idempotencyKey, body }`, and `sendWithdrawal` sends it and
+follows it like `withdraw`. Sending the same `{ idempotencyKey, body }` again, after a lost response
+or a restart, returns the same withdrawal, never a second one.
+
+```ts
+const signed = await totalis.signWithdrawal({
+  destination: "0x2222222222222222222222222222222222222222",
+  amount: 15_000_000n,
+});
+await store.save(signed); // your storage: the key and the exact body
+const done = await totalis.sendWithdrawal(signed, { onStarted: (withdrawalId) => store.saveId(withdrawalId) });
+```
+
+The payout's USDC nonce derives from the request's `Idempotency-Key`, so the signature is bound to
+that one request and cannot start a second withdrawal. The SDK signs a payout only for the
+destination and amount you asked for.
 
 ### Without the SDK
 
 <Steps>
-  <Step title="Start the withdrawal">
-    [Create Totalis withdrawal](/hyperliquid/api-reference/funds-and-tickets/create-totalis-withdrawal)
-    with `account`, `destination`, and `amount`. If your wallet cannot cover `amount`, add
-    `vault_withdrawal`: an `Exit` from the vault to your own wallet for exactly the shortfall, signed
-    with `exitTypedData`. A shortfall that no longer matches returns `STATE_CONFLICT`: re-read your
-    balance and sign again.
+  <Step title="Read your balance">
+    [Get balances](/hyperliquid/api-reference/account/get-balances). The shortfall is `amount` minus
+    your spendable wallet USDC (`WALLET_USDC` minus `pending.wallet_reserved`, never below zero).
   </Step>
-  <Step title="Wait for the wallet credit">
-    Follow `TOTALIS_WITHDRAWAL_CONTINUATION_UPDATED` events until the state is
-    `READY_FOR_PAYOUT_CLAIM`. After a reconnect, read
-    [Get Totalis withdrawal](/hyperliquid/api-reference/funds-and-tickets/get-totalis-withdrawal).
+  <Step title="Sign the parts">
+    If there is a shortfall, sign an `Exit` from the vault to your own wallet for exactly that
+    amount with `exitTypedData`. Then generate the request's `Idempotency-Key`, compute the payout
+    nonce with `payoutNonce(release, account, idempotencyKey)`, and sign the payout with
+    `transferWithAuthorizationTypedData(release, { from, to, value, valid_after, valid_before, nonce })`.
+    The window rules are on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
   </Step>
-  <Step title="Claim the payout">
-    [Claim Totalis withdrawal payout](/hyperliquid/api-reference/funds-and-tickets/claim-totalis-withdrawal-payout)
-    returns `wallet_transfer`, the exact transfer to sign.
+  <Step title="Send it">
+    [Withdraw to an external address](/hyperliquid/api-reference/funds/withdraw-to-an-external-address)
+    with `account`, `destination`, `amount`, `vault_withdrawal` (only with a shortfall), and
+    `payout_authorization` (`valid_after`, `valid_before`, `authorization_signature`). The `202`
+    response is the withdrawal, admitted but not paid. A shortfall that no longer matches returns
+    `STATE_CONFLICT`: re-read your balance and sign again under a new key.
   </Step>
-  <Step title="Sign and submit it">
-    Sign it with `transferWithAuthorizationTypedData(release, wallet_transfer, { valid_after, valid_before })`
-    and send `valid_after`, `valid_before`, and `authorization_signature` to
-    [Record Totalis payout submission](/hyperliquid/api-reference/funds-and-tickets/record-totalis-payout-submission).
-    Follow events until `PAYOUT_COMMITTED`.
+  <Step title="Follow it">
+    Apply `WITHDRAWAL_UPDATED` events for your `withdrawal_id`. Each carries the whole withdrawal.
+    Stop at `PAYOUT_COMMITTED` or `FAILED`. After a reconnect, read
+    [Get withdrawal](/hyperliquid/api-reference/recovery/get-withdrawal) once.
   </Step>
 </Steps>
-
-### Withdraw straight from the vault
-
-To send vault USDC to any address in one step, without the wallet-first flow, use
-`withdrawFromVault`. It signs a vault `Exit` for exactly that amount and destination and submits it
-to [Withdraw](/hyperliquid/api-reference/funds-and-tickets/withdraw). It needs `funding:withdraw`
-and `sponsorship:use`.
-
-```ts
-const exit = await totalis.withdrawFromVault({
-  amount: 10_000_000n,
-  to: "0x2222222222222222222222222222222222222222", // default: your own wallet
-});
-await totalis.waitForOperation(exit.operation_id);
-```

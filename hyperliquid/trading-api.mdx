@@ -15,18 +15,19 @@ the retries and the recovery reads. Every route takes your API key as
 | --- | --- | --- |
 | 1. Get an API key | In the [Totalis app](https://totalis-hip4.vercel.app/account/api-keys), with the [taker bot scopes](/hyperliquid/authentication#recommended-scope-sets) | None |
 | 2. Read the vault | [`GET /v1/vault`](/hyperliquid/api-reference/vault/get-vault-release) | Read by every flow, as `totalis.release()` |
-| 3. Deposit | [`POST /v1/deposits`](/hyperliquid/api-reference/funds-and-tickets/deposit) | `totalis.deposit({ amount })`. Optional: `placeBet` funds a vault shortfall in its accept. |
-| 4. Open the stream | [`GET /v1/stream`](/hyperliquid/api-reference/realtime/open-realtime-stream), topic `ACCOUNT` | `totalis.stream`, opened on first use |
-| 5. Request quotes | [`POST /v1/rfqs`](/hyperliquid/api-reference/rfqs-and-quotes/create-rfq) | `totalis.placeBet({ legs, stake })` |
-| 6. Accept a quote | [`POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}`](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote) | `placeBet` |
-| 7. Cancel an RFQ you will not take | [`POST /v1/rfqs/{rfq_id}/cancel`](/hyperliquid/api-reference/rfqs-and-quotes/cancel-rfq) | `placeBet` and `cashOut`, when no acceptable offer arrives in time |
-| 8. Cash out early | Steps 5 and 6 with a cash-out RFQ: `{ "kind": "CASHOUT", "ticket_id": "0x..." }` | `totalis.cashOut({ ticketId })` |
-| 9. Claim winnings | [`POST /v1/tickets/{ticket_id}/claims`](/hyperliquid/api-reference/funds-and-tickets/claim-ticket) | `totalis.claimTicket(ticketId)`. Optional: Totalis claims settled tickets on its own. |
-| 10. Withdraw | See [Withdraw](#withdraw) | `totalis.withdraw({ destination, amount })` |
+| 3. Open the stream | [`GET /v1/stream`](/hyperliquid/api-reference/realtime/open-realtime-stream), topic `ACCOUNT` | `totalis.stream`, opened on first use |
+| 4. Request quotes | [`POST /v1/rfqs`](/hyperliquid/api-reference/rfqs-and-quotes/create-rfq) | `totalis.placeBet({ legs, stake })` |
+| 5. Accept a quote | [`POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}`](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote). A vault shortfall is funded from your wallet in the same call. | `placeBet` |
+| 6. Cancel an RFQ you will not take | [`POST /v1/rfqs/{rfq_id}/cancel`](/hyperliquid/api-reference/rfqs-and-quotes/cancel-rfq) | `placeBet` and `cashOut`, when no acceptable offer arrives in time |
+| 7. Cash out early | Steps 4 and 5 with a cash-out RFQ: `{ "kind": "CASHOUT", "ticket_id": "0x..." }` | `totalis.cashOut({ ticketId })` |
+| 8. Withdraw to any address | [`POST /v1/withdrawals`](/hyperliquid/api-reference/funds/withdraw-to-an-external-address), one signed request | `totalis.withdraw({ destination, amount })` |
 
-The quotes for an RFQ arrive on the stream, not from a route: the snapshot's `book_quotes`, then
-`BOOK_QUOTE_PUBLISHED` and `BOOK_QUOTE_REMOVED` events. The accept returns the final result, so
-there is nothing to poll. [Trading](/hyperliquid/trading) walks through each step.
+There is no deposit step and no claim step. The accept funds any vault shortfall from your wallet,
+and Totalis settles and claims every decided ticket into your vault balance. The quotes for an RFQ
+arrive on the stream, not from a route: the snapshot's `book_quotes`, then `BOOK_QUOTE_PUBLISHED`
+and `BOOK_QUOTE_REMOVED` events. The accept returns the final result, and a withdrawal reports each
+change as `WITHDRAWAL_UPDATED`, so there is nothing to poll. [Trading](/hyperliquid/trading) and
+[Funding](/hyperliquid/funding) walk through each step.
 
 ```ts
 import { createTotalis } from "@totalistrading/hip4-client";
@@ -38,31 +39,21 @@ const totalis = createTotalis({
   signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
 });
 
-const bet = await totalis.placeBet({ legs: [{ outcome_id: 1209, side: 0 }], stake: 25_000_000n }); // steps 2 to 7
+const bet = await totalis.placeBet({ legs: [{ outcome_id: 1209, side: 0 }], stake: 25_000_000n }); // steps 2 to 6
 if (bet.state === "COMMITTED") await totalis.waitForOperation(bet.operationId!); // the ticket is on-chain
 
-const cashout = await totalis.cashOut({ ticketId: bet.quoteDigest }); // step 8, while the ticket is open
+const cashout = await totalis.cashOut({ ticketId: bet.quoteDigest }); // step 7, while the ticket is open
+
+await totalis.withdraw({ destination: "0x2222222222222222222222222222222222222222", amount: 10_000_000n }); // step 8
 ```
-
-### Withdraw
-
-Withdrawing to an external address takes four calls today. `totalis.withdraw` makes all of them.
-[Funding](/hyperliquid/funding#withdraw-to-any-address) has the details.
-
-| Call | Route |
-| --- | --- |
-| Start the withdrawal | [`POST /v1/totalis-withdrawals`](/hyperliquid/api-reference/funds-and-tickets/create-totalis-withdrawal) |
-| Read it after a reconnect | [`GET /v1/totalis-withdrawals/{continuation_id}`](/hyperliquid/api-reference/funds-and-tickets/get-totalis-withdrawal) |
-| Claim the payout | [`POST /v1/totalis-withdrawals/{continuation_id}/payout-claim`](/hyperliquid/api-reference/funds-and-tickets/claim-totalis-withdrawal-payout) |
-| Submit the signed payout | [`POST /v1/totalis-withdrawals/{continuation_id}/payout-submission`](/hyperliquid/api-reference/funds-and-tickets/record-totalis-payout-submission) |
 
 ## Maker
 
 | Step | Route | SDK |
 | --- | --- | --- |
 | 1. Set up the maker and a maker key | In the [Totalis app](https://totalis-hip4.vercel.app/mm). See [Market makers](/hyperliquid/market-makers#1-set-up-your-maker-in-the-app). | None |
-| 2. Read your capital | [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/maker-reads/get-maker-capital) | `maker.client.GET("/v1/makers/{maker_id}/capital", ...)` |
-| 3. Open the stream | [`GET /v1/stream`](/hyperliquid/api-reference/realtime/open-realtime-stream), topic `MAKER`: a snapshot of open RFQs, quotes, and confirmation requests, then events | `maker.onRfq(handler)` delivers each open RFQ once |
+| 2. Read your capital | [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/maker/get-maker-capital) | `maker.client.GET("/v1/makers/{maker_id}/capital", ...)` |
+| 3. Open the stream | [`GET /v1/stream`](/hyperliquid/api-reference/realtime/open-realtime-stream), topic `MAKER`: a snapshot of open RFQs, confirmation requests, and operations, then events. It is also how you resume: pass your last cursor. | `maker.onRfq(handler)` delivers each open RFQ once |
 | 4. Publish a quote or a bid | [`POST /v1/rfqs/{rfq_id}/book-quotes`](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote) | `maker.quote(rfq, { payout })` on an entry RFQ, `maker.bid(rfq, { price })` on a cash-out RFQ |
 | 5. Withdraw it | [`DELETE /v1/rfqs/{rfq_id}/book-quotes/{quote_digest}`](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-quote) | `maker.withdraw(rfqId, quoteDigest)` |
 | 6. Confirm a fill | [`POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}/confirmation`](/hyperliquid/api-reference/rfqs-and-quotes/confirm-attempt), on each `CONFIRMATION_REQUESTED` | `maker.onConfirmation(handler)` |
@@ -96,10 +87,8 @@ The API reference keeps every other route under **Reference**. None of it is nee
 
 | Group | Holds | When you need it |
 | --- | --- | --- |
-| Market data | Markets, questions, search, history, stats | To find `outcome_id`s. No key needed. |
-| Account | Identity, balances, positions, activity | To show a portfolio. |
-| Operations | Your on-chain operations | `waitForOperation` reads them for you. |
-| Funds and tickets | Direct vault withdrawal, ticket transfer, settlement | Rarely. Totalis settles tickets on its own. |
-| Maker | Positions, activity, performance, offers, collateral reduction, and the relay for transactions your maker pays gas for | For a maker dashboard, and to release collateral. |
-| HyperCore | Your HyperCore portfolio and history | To show HyperCore balances. |
-| Recovery | RFQ, book, attempt, and confirmation reads | The SDK does this for you after a reconnect, a truncated snapshot, or a lost response. |
+| Market data | Market list, market detail (with its question, metadata, recurring round, and 24h stats), and price history | To find `outcome_id`s. No key needed. |
+| Account | Identity, balances, positions, activity. A maker key reads its maker's positions and activity here too. | To show a portfolio or a maker dashboard. |
+| Operations | Your account's on-chain operations, personal or maker | `waitForOperation` reads them for you. |
+| Maker | Collateral reduction, and the relay for transactions your maker pays gas for | To release collateral. |
+| Recovery | RFQ, book, attempt, withdrawal, operation, and confirmation reads | The SDK does this for you after a reconnect, a truncated snapshot, or a lost response. |

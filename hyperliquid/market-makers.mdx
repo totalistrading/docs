@@ -180,10 +180,11 @@ second life. The owner signs your bid before accepting it, so your confirmation 
 
 ## 5. Resume after a restart
 
-Persist the stream cursor as you apply events, and pass it back when you start. The SDK replays
-missed events from [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) until
-`has_more` is `false`, then subscribes from its `next_cursor`. A cursor older than the replay window
-returns `CURSOR_RESET`, and the SDK takes a fresh snapshot instead. Resuming needs `replay:read`.
+Persist the stream cursor as you apply events, and pass it back when you start. The stream is the
+only replay: the SDK sends the cursor in its hello, and the venue replays the retained events after
+it. A cursor older than the [replay window](/hyperliquid/conventions#limits-and-timing) resets the
+stream to a fresh snapshot instead. Either way `onRfq` and `onConfirmation` see every open RFQ and
+pending request. Resuming needs `replay:read`.
 
 ```ts
 import { createMaker, type PublishedStore } from "@totalistrading/hip4-client/maker";
@@ -223,10 +224,9 @@ const capital = unwrap(await client.GET("/v1/makers/{maker_id}/capital", { param
 const free = capital.free_collateral; // an amount fact: a value, or UNAVAILABLE with a reason
 console.log(capital.owner, capital.signer, free.status === "UNAVAILABLE" ? free.reason : free.value);
 
+// A maker key reads the tickets its maker wrote under /v1/me.
 for await (const position of items(
-  (query) => client.GET("/v1/makers/{maker_id}/positions", {
-    params: { path: { maker_id: makerId }, query: { ...query, limit: 100 } },
-  }).then(unwrap),
+  (query) => client.GET("/v1/me/positions", { params: { query: { ...query, limit: 100 } } }).then(unwrap),
   (page) => page.items,
 )) {
   console.log(position.ticket_id, position.status);
@@ -235,13 +235,13 @@ for await (const position of items(
 
 | Read | Returns |
 | --- | --- |
-| [Get maker capital](/hyperliquid/api-reference/maker-reads/get-maker-capital) | `owner`, `signer`, and the vault lanes: `vault_gross`, `stake_escrow`, `payable_owed`, `gross_open`, `requirement`, and `free_collateral`, the headroom that backs new fills |
-| [List maker positions](/hyperliquid/api-reference/maker-reads/list-maker-positions) | Open and settled tickets against your maker |
-| [List maker activity](/hyperliquid/api-reference/maker-reads/list-maker-activity) | Fills, settlements, and vault movements |
-| [Get maker performance](/hyperliquid/api-reference/maker-reads/get-maker-performance) | P&L and volume over a window |
-| [List maker operations](/hyperliquid/api-reference/account/list-maker-operations) | Your maker's on-chain operations |
+| [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) | `owner`, `signer`, and the vault lanes: `vault_gross`, `stake_escrow`, `payable_owed`, `gross_open`, `requirement`, and `free_collateral`, the headroom that backs new fills |
+| [List account positions](/hyperliquid/api-reference/account/list-account-positions) | The tickets your maker wrote, open and settled |
+| [List account activity](/hyperliquid/api-reference/account/list-account-activity) | Your maker's fills, settlements, and vault movements |
+| [List operations](/hyperliquid/api-reference/recovery/list-operations) and [Get operation](/hyperliquid/api-reference/recovery/get-operation) | Your maker's on-chain operations |
 
-Each needs `vault:read`. A fill is rejected when your vault cannot cover it, so watch
+Each needs `vault:read`. With a maker key, the `/v1/me/...` and `/v1/operations/{operation_id}` reads
+return your maker's state, never a personal account's. A fill is rejected when your vault cannot cover it, so watch
 `MAKER_VAULT_UPDATED` events and re-read capital to keep headroom current.
 
 ## 7. Move maker funds
@@ -297,10 +297,10 @@ The effects arrive as `MAKER_VAULT_UPDATED` events and in your capital read.
 ### Reduce collateral
 
 `maker.reduceCollateral` asks for a
-[collateral reduction](/hyperliquid/api-reference/funds-and-tickets/create-collateral-reduction),
+[collateral reduction](/hyperliquid/api-reference/maker/create-collateral-reduction),
 which releases collateral held against correlated open tickets, and follows the job on the stream.
 When the attestation is ready, your gas wallet signs it as a raw transaction and the SDK relays it
-with [Submit maker self-funded transaction](/hyperliquid/api-reference/funds-and-tickets/submit-maker-self-funded-transaction).
+with [Submit maker self-funded transaction](/hyperliquid/api-reference/maker/submit-maker-self-funded-transaction).
 Your maker pays the gas in HYPE. It needs a key with `vault:write` and `operations:submit`.
 
 ```ts
@@ -333,8 +333,8 @@ yourself.
 | Withdraw a quote or bid | [Withdraw quote](/hyperliquid/api-reference/rfqs-and-quotes/withdraw-quote) |
 | Recover pending confirmations past a truncated snapshot | [List pending confirmations](/hyperliquid/api-reference/recovery/list-pending-confirmations), only when the snapshot names it in `continuations`. Requests are pushed as `CONFIRMATION_REQUESTED`. |
 | Answer a confirmation | [Confirm attempt](/hyperliquid/api-reference/rfqs-and-quotes/confirm-attempt) with `decision` and, for `CONFIRM`, `maker_signature` over the request's `quote`, `sell_back`, or `transfer`. The `Idempotency-Key` must equal `attempt_id`. |
-| Relay a collateral reduction's attestation | [Submit maker self-funded transaction](/hyperliquid/api-reference/funds-and-tickets/submit-maker-self-funded-transaction) with the `signed_transaction` your gas wallet signed over the job's `transaction`. Needs `operations:submit`. |
-| Resume from a cursor over HTTP | [List maker events](/hyperliquid/api-reference/realtime/list-maker-events) |
+| Relay a collateral reduction's attestation | [Submit maker self-funded transaction](/hyperliquid/api-reference/maker/submit-maker-self-funded-transaction) with the `signed_transaction` your gas wallet signed over the job's `transaction`. Needs `operations:submit`. |
+| Resume after a restart | [`GET /v1/stream`](/hyperliquid/realtime#resume-after-a-disconnect) with your last applied `cursor` in the `MAKER` subscription. There is no HTTP event log. |
 
 ## Errors to handle
 

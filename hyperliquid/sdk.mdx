@@ -4,7 +4,7 @@ icon: 'code'
 description: 'The @totalistrading/hip4-client SDK: typed clients, taker and maker flows, signers, retries, pagination, and the realtime stream.'
 ---
 
-`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.5.0. It is
+`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.9.0. It is
 the same client the Totalis app runs. It gives you typed clients for every route, the taker and
 maker flows end to end, the EIP-712 and EIP-3009 messages each flow signs, a request layer that
 resends safely, pagination, and the realtime stream. It never stores a key: every signature goes to
@@ -45,7 +45,7 @@ ethers) is only needed to turn a private key into a signer.
 | Function | For | Credential | Signer |
 | --- | --- | --- | --- |
 | `createClient(environment, options)` | Any personal or public route, typed | Optional personal key | None |
-| `createTotalis(options)` | `placeBet`, `cashOut`, `settleTicket`, `claimTicket`, `deposit`, `withdraw`, `resumeWithdrawal`, `withdrawFromVault`, `waitForOperation`, `watchBook` | Personal key | Your Totalis wallet (`signer` in `GET /v1/me`) |
+| `createTotalis(options)` | `placeBet`, `cashOut`, `withdraw`, `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, `waitForOperation`, `watchBook` | Personal key | Your Totalis wallet (`signer` in `GET /v1/me`) |
 | `createMakerClient(environment, options)` | Any maker route, typed | Maker key | None |
 | `createMaker(options)` | `onRfq`, `quote`, `bid`, `withdraw`, `onConfirmation`, `confirm`, `controller`, `reduceCollateral` | Maker key | The maker's quote signer |
 
@@ -78,7 +78,7 @@ terms that maker published and that have not expired.
 Every command is built once, with its envelope and `Idempotency-Key`, and resent byte for byte after
 a network failure or a `BACKOFF` error, waiting for `Retry-After` or a jittered backoff. That is five
 sends by default. Set `retry: { attempts }` to change it, or `retry: false` to send once. The
-venue replays a command it already accepted, so a resend never doubles a bet or a deposit.
+venue replays a command it already accepted, so a resend never doubles a bet or a withdrawal.
 
 `unwrap(result)` returns a typed client's data or throws `ApiError` with the registered `code`,
 `retry`, `status`, `requestId`, `fieldViolations`, and `retryAfterMs`. What each `retry` value means
@@ -95,10 +95,10 @@ const totalis = createTotalis({
 });
 
 try {
-  await totalis.deposit({ amount: 10_000_000n });
+  await totalis.placeBet({ legs: [{ outcome_id: 1209, side: 0 }], stake: 25_000_000n });
 } catch (error) {
   if (error instanceof NetworkError || (error instanceof ApiError && error.retry === "BACKOFF")) {
-    await error.resend?.(); // same bytes, same Idempotency-Key: never a second deposit
+    await error.resend?.(); // same bytes, same Idempotency-Key: never a second accept
   } else if (error instanceof ApiError && error.retry === "REFRESH") {
     // re-read the state the command depends on, then decide on a new command
   } else if (error instanceof ApiError) {
@@ -133,9 +133,9 @@ for await (const position of items(
 
 ## Realtime
 
-The flows follow their operations, books, and confirmations on the realtime stream. The book of
+The flows follow their operations, books, withdrawals, and confirmations on the realtime stream. The book of
 each RFQ arrives as `BOOK_QUOTE_PUBLISHED` and `BOOK_QUOTE_REMOVED` events, and maker confirmation
-requests as `CONFIRMATION_REQUESTED`. The flows read over HTTP only to recover: after a reconnect,
+requests as `CONFIRMATION_REQUESTED`, and each withdrawal change as `WITHDRAWAL_UPDATED`. The flows read over HTTP only to recover: after a reconnect,
 past a truncated snapshot, or after a lost response. Nothing polls. `stream.serverNow()` is the
 venue clock the choosers compare expiries with. To use the
 stream directly, see [Realtime](/hyperliquid/realtime).
@@ -152,8 +152,8 @@ you never hand-write an EIP-712 type:
 | `sellBackTypedData(release, bid)` | A `SellBack` cash-out |
 | `cashoutTransferTypedData(release, bid)` | A `CashoutTransfer` cash-out |
 | `exitTypedData(release, exit)` | A vault withdrawal (`Exit`) |
-| `receiveWithAuthorizationTypedData(release, authorization)` | A deposit's USDC `ReceiveWithAuthorization` |
-| `transferWithAuthorizationTypedData(release, transfer, window)` | A withdrawal payout's USDC `TransferWithAuthorization` |
+| `receiveWithAuthorizationTypedData(release, authorization)` | The USDC `ReceiveWithAuthorization` that funds an accept's vault shortfall |
+| `transferWithAuthorizationTypedData(release, payout)` | A withdrawal payout's USDC `TransferWithAuthorization`. Its `nonce` is `payoutNonce(release, account, idempotencyKey)`. |
 | `usdcDomain(release)` | The USDC EIP-712 domain the two authorizations above sign under |
 
 `release` is the response of [Get vault release](/hyperliquid/api-reference/vault/get-vault-release),
@@ -164,10 +164,14 @@ the vault's EIP-712 test vectors and the USDC domain separators.
 ## Versions
 
 The SDK follows semantic versioning. Its changelog ships in the package as `CHANGELOG.md`. This
-documentation describes 0.5.0. Upgrade from 0.3 or earlier: 0.4.0 is breaking.
+documentation describes 0.9.0. Every release from 0.6.0 to 0.9.0 is breaking, and 0.4.0 is too.
 
-| Version | Change |
-| --- | --- |
-| 0.5.0 | `onConfirmation` also handles confirmation requests past the 100 a maker snapshot carries. Its `onError` request parameter is optional. |
-| 0.4.0 | The book comes from the stream. `placeBet` and `cashOut` share one accept, and `cashOut` resolves `COMMITTED` with `operationId`. A lost accept the venue never received resolves `NOT_ADMITTED` (was `ABANDONED`). `maker.bid` returns `quoteDigest` (was `bidDigest`). `watchCashoutBook` is gone: `watchBook` renders quotes and bids. |
-| 0.3.0 | `withdrawFromVault`, `settleTicket`, `claimTicket`, and `maker.controller()`. Fees and USDC come from `GET /v1/vault`. |
+| Version | Needs contract | Change |
+| --- | --- | --- |
+| 0.9.0 (breaking) | 112 | `deposit`, `withdrawFromVault`, `settleTicket`, `claimTicket`, and `transferTypedData` are removed: `placeBet` funds a vault shortfall in its accept, `withdraw` moves any vault shortfall on its way out, and Totalis settles and claims every decided ticket itself. `withdraw`, `signWithdrawal`, and `sendWithdrawal` send `POST /v1/withdrawals` (was `/v1/totalis-withdrawals`) and follow `WITHDRAWAL_UPDATED` (was `TOTALIS_WITHDRAWAL_CONTINUATION_UPDATED`). The type is `Withdrawal` with `withdrawal_id` (was `TotalisWithdrawal` with `continuation_id`). The `ticket:settle` and `ticket:transfer` scopes and personal `operations:submit` are gone. |
+| 0.8.0 (breaking) | 111 | A maker key reads its own positions, activity, and operations under `/v1/me/...` and `/v1/operations/{operation_id}`. The maker stream is the only maker replay: it resumes from a persisted `cursor`. The `replay` stream option, the maker events, snapshot, and offers reads, and the HyperCore history read are gone. The maker snapshot has no `quotes` class. |
+| 0.7.0 (breaking) | 110 | Market data is list, detail, and history. `GET /v1/markets/{outcome_id}` also carries `metadata`, `recurring_round`, and `stats`. The market metadata and questions reads are gone. |
+| 0.6.0 (breaking) | 109 | A withdrawal to any address is one signed request that follows the stream: no payout claim or submission. `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, and `payoutNonce` are added. `resumeWithdrawal` is removed: use `waitForWithdrawal`. |
+| 0.5.0 | 107 | `onConfirmation` also handles confirmation requests past the 100 a maker snapshot carries. Its `onError` request parameter is optional. |
+| 0.4.0 (breaking) | 106 | The book comes from the stream. `placeBet` and `cashOut` share one accept, and `cashOut` resolves `COMMITTED` with `operationId`. A lost accept the venue never received resolves `NOT_ADMITTED` (was `ABANDONED`). `maker.bid` returns `quoteDigest` (was `bidDigest`). `watchCashoutBook` is gone: `watchBook` renders quotes and bids. |
+| 0.3.0 | 105 | `withdrawFromVault`, `settleTicket`, `claimTicket` (all removed in 0.9.0), and `maker.controller()`. Fees and USDC come from `GET /v1/vault`. |
