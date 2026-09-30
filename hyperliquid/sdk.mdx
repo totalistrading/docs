@@ -4,7 +4,7 @@ icon: 'code'
 description: 'The @totalistrading/hip4-client SDK: typed clients, taker and maker flows, signers, retries, pagination, and the realtime stream.'
 ---
 
-`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.12.0. It is
+`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.13.0. It is
 the same client the Totalis app runs. It gives you typed clients for every route, the taker and
 maker flows end to end, the EIP-712 and EIP-3009 messages each flow signs, a request layer that
 resends safely, pagination, and the realtime stream. It never stores a key: every signature goes to
@@ -165,10 +165,11 @@ the vault's EIP-712 test vectors and the USDC domain separators.
 ## Versions
 
 The SDK follows semantic versioning. Its changelog ships in the package as `CHANGELOG.md`. This
-documentation describes 0.12.0. Every release from 0.6.0 to 0.12.0 is breaking, and 0.4.0 is too.
+documentation describes 0.13.0. Every release from 0.6.0 to 0.13.0 is breaking, and 0.4.0 is too.
 
 | Version | Needs contract | Change |
 | --- | --- | --- |
+| 0.13.0 (breaking) | 117 | `GET /v1/vault` no longer returns `financial_actions_enabled`. The venue still refuses balance-affecting commands while trading is paused, with `FINANCIAL_ACTIONS_DISABLED`: read that error rather than the release. |
 | 0.12.0 (breaking) | 116 | A command body is the command itself: `createRfq`, `publishBookQuote`, the accept, the confirmation, and `createWithdrawal` send no `schema_version`, `request_id`, or `sent_at` wrapper, and the body types are `CreateRfqCommand`, `BookQuoteCommand`, `ConfirmationAcceptanceCommand`, `MakerConfirmationCommand`, and `WithdrawalCommand`. The venue fills the addresses the key implies: no `taker_address` on an RFQ, no `account`, `from`, `quote_digest`, or `taker_signature` in a wallet funding, and no `account` on a withdrawal or `account` and `to` on its `vault_withdrawal`. The signed messages are unchanged. `signWithdrawal` returns `{ idempotencyKey, account, body }`. `error.requestId` is the response's `X-Request-ID`. A stream event is `{ stream, event_id, event_type, occurred_at, payload }`, with no `schema_version`, `resource_kind`, or `resource_id`. `ENTRY_RFQ_OPENED` carries the whole RFQ, and the `rfqDetails` stream option is gone. The RFQ-opened payloads carry no `state` or `terminal_reason`. Book offers carry no `chain_id` or `vault_address`, `session.ready` no `max_frame_bytes`, and the publication checkpoint no chain or vault: read them from `GET /v1/vault`. The quote and bid display events are gone. `GET /v1/me` returns `{ account_id, status, wallet }`. The attempt routes' `Idempotency-Key` header is optional. |
 | 0.11.0 (breaking) | 115 | Every account and maker read amount is an atomic USDC string, or `null` when unavailable, and one `context: { as_of, status }` per response replaces each amount's envelope. `contract_version` and `scope` are gone. An activity lists `transaction_hashes` (was `evidence`), and each effect is `{ bucket, delta, classification }`. `GET /v1/me/balances` returns the one balance at the top level (was `balances[0]`), without `product` or `unit`, and its `checkpoint` has no `chain_id`. A position has no `initial_exposure` (it is `signed_payout - net_stake`) or `claim_evidence_ids`, and maker capital no `allocated_wallet_cash`. |
 | 0.10.0 (breaking) | 114 | `Market.deadline` is gone. `dates` also carries `scheduled_event_at`, `observation_ends_at`, and `market_class`, and is `null` only for a market with neither reviewed timing nor a market class. `quote_asset`, the catalog provenance and taxonomy fields, and each side's `asset_id` are gone from markets. Market detail `metadata` is `{ content: { title, rules }, parent, sides }`, and `stats` is `{ volume_24h, open_interest }`. History carries `side`, `scale`, and `volume_scale` once, each bar is `{ minute, open, high, low, close, volume, trade_count }`, and `include_gaps` defaults to `false`. |

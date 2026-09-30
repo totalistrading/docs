@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/stake`.",
-    "version": "116.0.0-trim-commands-stream"
+    "version": "117.0.0-release-flag"
   },
   "servers": [
     {
@@ -6657,7 +6657,6 @@
                   "vault_address": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745",
                   "source_revision": "05d9ceb7d577a18013683ed677eedf5d7b4d9728",
                   "audit_status": "PRE_AUDIT",
-                  "financial_actions_enabled": true,
                   "fee_bps": 100,
                   "taker_fee_bps": 20,
                   "usdc": {
@@ -13111,7 +13110,6 @@
           "vault_address",
           "source_revision",
           "audit_status",
-          "financial_actions_enabled",
           "fee_bps",
           "taker_fee_bps",
           "usdc"
@@ -13136,10 +13134,6 @@
               "AUDITED"
             ],
             "description": "PRE_AUDIT until the release's contracts complete an external audit, then AUDITED."
-          },
-          "financial_actions_enabled": {
-            "type": "boolean",
-            "description": "Whether the venue accepts balance-affecting commands against this release; when false they fail with FINANCIAL_ACTIONS_DISABLED."
           },
           "fee_bps": {
             "type": [
