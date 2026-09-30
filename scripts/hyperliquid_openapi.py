@@ -151,6 +151,96 @@ def placed() -> dict[str, tuple[str, str, str]]:
     return {route: (group, title, section) for group, (_, pages) in PAGES.items() for route, title, section in pages}
 
 
+# Readable names for the variants of a real union, shown as the option labels on a page.
+VARIANT_TITLES = {
+    "EntryRfq": "Entry RFQ",
+    "CashoutRfq": "Cash-out RFQ",
+    "ResultUnresolved": "Unresolved",
+    "ResultNumeric": "Numeric result",
+    "ResultNonnumeric": "Named result",
+    "ResultUnavailable": "Unavailable",
+    "ReferenceAvailable": "Available",
+    "ReferenceUnavailable": "Unavailable",
+    "EligibilityEnabled": "Enabled",
+    "EligibilityDisabled": "Disabled",
+}
+COMPOSITIONS = ("oneOf", "anyOf", "allOf")
+
+
+def condition(branch: dict) -> str:
+    """The discriminator a validation branch applies to, as prose, or "" if it has none."""
+    for key in ("status", "kind", "series_type", "close_reason"):
+        rule = (branch.get("properties") or {}).get(key)
+        if isinstance(rule, dict) and "const" in rule:
+            return f"`{key}` is `{rule['const']}`"
+        if isinstance(rule, dict) and rule.get("enum"):
+            return f"`{key}` is " + " or ".join(f"`{value}`" for value in rule["enum"] if value is not None)
+    return ""
+
+
+def plain(text: str) -> str:
+    return text.replace("`", "").replace(" only when ", " when ").lower()
+
+
+def note(prop: dict, text: str) -> None:
+    if text and plain(text) not in plain(prop.get("description", "")):
+        prop["description"] = (prop.get("description", "").rstrip() + " " + text).strip()
+
+
+def simplify(node):
+    """Docs view of a schema: fold validation-only branches into field descriptions.
+
+    The published contract stays strict for clients that validate (hip4-mm does). Here each
+    status- or kind-conditional branch, if/then rule and `false` property becomes a note on the
+    field it constrains, so a page shows one object per real variant instead of every rule as an
+    option. Unions of named schemas are real variants and stay.
+    """
+    if isinstance(node, list):
+        return [simplify(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    node = {key: simplify(value) for key, value in node.items()}
+    props = node.get("properties") if isinstance(node.get("properties"), dict) else None
+    branches = []
+    for key in COMPOSITIONS:
+        members = node.get(key)
+        if not isinstance(members, list):
+            continue
+        inline = [member for member in members if isinstance(member, dict) and "$ref" not in member]
+        branches += inline
+        kept = [member for member in members if member not in inline]
+        if kept:
+            node[key] = kept
+        else:
+            node.pop(key)
+    if isinstance(node.get("then"), dict):
+        branches.append({**node["then"], "properties": {**(node.get("if") or {}).get("properties", {}), **node["then"].get("properties", {})}})
+    for key in ("if", "then", "else", "not"):
+        node.pop(key, None)
+    if props is not None:
+        for branch in branches:
+            when = condition(branch)
+            for name in branch.get("required", []):
+                if name in props and name not in node.get("required", []) and when:
+                    note(props[name], f"Present when {when}.")
+            for name, rule in (branch.get("properties") or {}).items():
+                if name in props and isinstance(rule, dict) and rule.get("description") and name not in ("status", "kind"):
+                    note(props[name], rule["description"])
+        node["properties"] = {name: value for name, value in props.items() if value is not False}
+        if "required" in node:
+            node["required"] = [name for name in node["required"] if name in node["properties"]]
+    return node
+
+
+def readable(spec: dict) -> dict:
+    """Simplify every schema for reading and title the variants of real unions."""
+    spec = simplify(spec)
+    for name, title in VARIANT_TITLES.items():
+        if name in spec.get("components", {}).get("schemas", {}):
+            spec["components"]["schemas"][name]["title"] = title
+    return spec
+
+
 def publish(spec: dict) -> dict:
     """File each operation under its resource, title it, and set its URL."""
     pages = placed()
@@ -208,7 +298,7 @@ def main() -> int:
     else:
         spec = json.loads((args.spec or SPEC).read_text())
 
-    spec_text = dump(publish(spec))
+    spec_text = dump(readable(publish(spec)))
     docs_text = dump(with_tab(json.loads(DOCS.read_text())))
     if args.check:
         stale = [p.relative_to(ROOT) for p, text in ((SPEC, spec_text), (DOCS, docs_text)) if p.read_text() != text]
