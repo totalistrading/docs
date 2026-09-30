@@ -21,10 +21,10 @@ The taker flow: request quotes, accept one to open a position, and cash a positi
 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | `POST /v1/quotes/{quote_id}/accept` |
 | [Cancel RFQ](/hyperliquid/api-reference/rfqs/cancel-rfq) | `POST /v1/rfqs/{rfq_id}/cancel` |
 | [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | `POST /v1/positions/{position_id}/cashout` |
-| [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) · recovery | `GET /v1/rfqs` |
-| [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq) · recovery | `GET /v1/rfqs/{rfq_id}` |
-| [List quotes](/hyperliquid/api-reference/quotes/list-quotes) · recovery | `GET /v1/rfqs/{rfq_id}/quotes` |
-| [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) · recovery | `GET /v1/quotes/{quote_id}/acceptance` |
+| [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) (recovery) | `GET /v1/rfqs` |
+| [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq) (recovery) | `GET /v1/rfqs/{rfq_id}` |
+| [List quotes](/hyperliquid/api-reference/quotes/list-quotes) (recovery) | `GET /v1/rfqs/{rfq_id}/quotes` |
+| [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) (recovery) | `GET /v1/quotes/{quote_id}/acceptance` |
 
 ## Market maker
 
@@ -39,7 +39,7 @@ The maker flow: quote RFQs, cancel quotes, confirm accepted quotes, and manage c
 | [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `POST /v1/makers/{maker_id}/collateral-reductions` |
 | [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction) | `GET /v1/makers/{maker_id}/collateral-reductions/{job_id}` |
 | [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) | `POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction` |
-| [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) · recovery | `GET /v1/makers/{maker_id}/acceptances` |
+| [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) (recovery) | `GET /v1/makers/{maker_id}/acceptances` |
 
 ## Markets
 
@@ -67,7 +67,7 @@ A withdrawal of Totalis USDC to an external address, in one signed request.
 | Endpoint | Route |
 | --- | --- |
 | [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | `POST /v1/withdrawals` |
-| [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) · recovery | `GET /v1/withdrawals/{withdrawal_id}` |
+| [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) (recovery) | `GET /v1/withdrawals/{withdrawal_id}` |
 
 ## Account
 
@@ -78,8 +78,8 @@ The identity, balances, activity and operations of the account a key acts for.
 | [Get identity](/hyperliquid/api-reference/account/get-identity) | `GET /v1/me` |
 | [Get balances](/hyperliquid/api-reference/account/get-balances) | `GET /v1/me/balances` |
 | [List activity](/hyperliquid/api-reference/account/list-activity) | `GET /v1/me/activity` |
-| [List operations](/hyperliquid/api-reference/account/list-operations) · recovery | `GET /v1/me/operations` |
-| [Get operation](/hyperliquid/api-reference/account/get-operation) · recovery | `GET /v1/operations/{operation_id}` |
+| [List operations](/hyperliquid/api-reference/account/list-operations) (recovery) | `GET /v1/me/operations` |
+| [Get operation](/hyperliquid/api-reference/account/get-operation) (recovery) | `GET /v1/operations/{operation_id}` |
 
 ## Streams
 
