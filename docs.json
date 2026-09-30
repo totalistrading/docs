@@ -205,7 +205,7 @@
                 ]
               },
               {
-                "group": "Reference",
+                "group": "Resources",
                 "pages": [
                   "hyperliquid/errors",
                   "hyperliquid/sdk"
