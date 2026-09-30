@@ -35,13 +35,13 @@ Trimmed to the main fields:
     {
       "outcome_id": "1209",
       "title": "HYPE touches 100 by 20261001-0000",
-      "quote_asset": "USDC",
       "state": "ACTIVE",
       "category": "Crypto",
       "sides": [
-        { "side": "YES", "coin": "#12090", "asset_id": "100012090" },
-        { "side": "NO", "coin": "#12091", "asset_id": "100012091" }
-      ]
+        { "side": "YES", "coin": "#12090" },
+        { "side": "NO", "coin": "#12091" }
+      ],
+      "dates": { "observation_ends_at": "1790812800", "market_class": "PRICE_TOUCH" }
     }
   ],
   "catalog_generation": "6437",
@@ -106,7 +106,7 @@ import { createClient, unwrap } from "@totalistrading/hip4-client";
 const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
 
 const me = unwrap(await client.GET("/v1/me"));
-console.log(me.owner, me.signer); // both are your Totalis wallet
+console.log(me.wallet); // your Totalis wallet
 
 const { items } = unwrap(await client.GET("/v1/markets", { params: { query: { limit: 3 } } }));
 console.log(items.map((market) => `${market.outcome_id} ${market.title}`));
@@ -118,28 +118,16 @@ curl https://hip4-api.totalis.trade/v1/me \
 ```
 </CodeGroup>
 
-Trimmed to the main fields:
-
 ```json
 {
-  "participant_id": "0198a6f6-82a5-7abc-9f2a-4f0fb4374941",
+  "account_id": "0198a6f6-82a5-7abc-9f2a-4f0fb4374941",
   "status": "ACTIVE",
-  "wallets": [
-    {
-      "chain_id": "999",
-      "address": "0x1111111111111111111111111111111111111111",
-      "wallet_kind": "PRIVY_EMBEDDED_EOA",
-      "financial_signing_state": "QUALIFIED",
-      "status": "LINKED"
-    }
-  ],
-  "owner": "0x1111111111111111111111111111111111111111",
-  "signer": "0x1111111111111111111111111111111111111111"
+  "wallet": "0x1111111111111111111111111111111111111111"
 }
 ```
 
-`owner` and `signer` are both your Totalis wallet, the embedded wallet the app created for you.
-`signer` is the wallet that signs your trades. A failed call returns the standard
+`wallet` is your Totalis wallet, the embedded wallet the app created for you. It issues your keys
+and signs your trades. A failed call returns the standard
 [error envelope](/hyperliquid/errors). `UNAUTHENTICATED` means the key is missing, expired, or
 revoked, and `FORBIDDEN` means it lacks the scope the route needs. Every operation in the API
 reference lists its scopes.

@@ -76,7 +76,7 @@ maker.stream.on("status", (status) => console.log(`stream ${status}`));
 
 // Price every open entry RFQ. Returning the promise lets the SDK offer the RFQ again if publishing fails.
 maker.onRfq(async (rfq) => {
-  if (rfq.kind !== "ENTRY" || rfq.state !== "OPEN") return;
+  if (rfq.kind !== "ENTRY") return;
   const payout = (BigInt(rfq.stake_amount) * 18n) / 10n; // placeholder: price from your own market data
   const { quoteDigest } = await maker.quote(rfq, { payout });
   console.log(`quoted ${rfq.rfq_id} ${quoteDigest}`);
@@ -103,9 +103,12 @@ Hyperliquid market data, such as Hyperliquid's public
 
 ### Receiving RFQs
 
-`onRfq` calls your handler once for every open RFQ: from `ENTRY_RFQ_OPENED` (the SDK asks the stream
-to attach the RFQ), from `CASHOUT_RFQ_OPENED`, and from the snapshot's `open_rfqs` on connect. After a
-reconnect that replayed instead of snapshotting, or a snapshot that truncated `open_rfqs`, it pages
+`onRfq` calls your handler once for every open RFQ, as
+[Get RFQ](/hyperliquid/api-reference/recovery/get-rfq) returns it with `state: "OPEN"`: from
+`ENTRY_RFQ_OPENED` and `CASHOUT_RFQ_OPENED`, and from the snapshot's `open_rfqs` on connect. Each
+opening event carries the whole RFQ, so a live one needs no read. A replayed opening is skipped once
+its collection has ended, and otherwise re-read and delivered only while the RFQ is still open. After
+a reconnect that replayed instead of snapshotting, or a snapshot that truncated `open_rfqs`, it pages
 [List open RFQs](/hyperliquid/api-reference/recovery/list-open-rfqs) for you. If the handler throws,
 the RFQ can be delivered again.
 
@@ -221,8 +224,8 @@ const makerId = process.env.TOTALIS_MAKER_ID!;
 const client = createMakerClient("production", { accessToken: process.env.TOTALIS_MAKER_KEY });
 
 const capital = unwrap(await client.GET("/v1/makers/{maker_id}/capital", { params: { path: { maker_id: makerId } } }));
-const free = capital.free_collateral; // an amount fact: a value, or UNAVAILABLE with a reason
-console.log(capital.owner, capital.signer, free.status === "UNAVAILABLE" ? free.reason : free.value);
+// Each amount is atomic USDC, or null when unavailable. context.status covers the whole read.
+console.log(capital.context.status, capital.owner, capital.signer, capital.free_collateral);
 
 // A maker key reads the tickets its maker wrote under /v1/me.
 for await (const position of items(
@@ -235,12 +238,14 @@ for await (const position of items(
 
 | Read | Returns |
 | --- | --- |
-| [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) | `owner`, `signer`, and the vault lanes: `vault_gross`, `stake_escrow`, `payable_owed`, `gross_open`, `requirement`, and `free_collateral`, the headroom that backs new fills |
+| [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) | `owner`, `signer`, and the vault lanes: `vault_gross`, `stake_escrow`, `payable_owed`, `gross_open`, `requirement`, and `free_collateral`, the headroom that backs new fills. `release_digest` names the deployment the read is bound to. |
 | [List account positions](/hyperliquid/api-reference/account/list-account-positions) | The tickets your maker wrote, open and settled |
 | [List account activity](/hyperliquid/api-reference/account/list-account-activity) | Your maker's fills, settlements, and vault movements |
 | [List operations](/hyperliquid/api-reference/recovery/list-operations) and [Get operation](/hyperliquid/api-reference/recovery/get-operation) | Your maker's on-chain operations |
 
-Each needs `vault:read`. With a maker key, the `/v1/me/...` and `/v1/operations/{operation_id}` reads
+Each needs `vault:read`. Every amount in these reads is an atomic USDC string, or `null` when it
+cannot be established, and each response carries one `context` with `as_of` and a `status` of
+`CURRENT`, `STALE`, or `UNAVAILABLE`. A `STALE` read's amounts may lag. With a maker key, the `/v1/me/...` and `/v1/operations/{operation_id}` reads
 return your maker's state, never a personal account's. A fill is rejected when your vault cannot cover it, so watch
 `MAKER_VAULT_UPDATED` events and re-read capital to keep headroom current.
 
@@ -326,7 +331,7 @@ yourself.
 
 | Step | Raw API |
 | --- | --- |
-| Receive RFQs and confirmation requests | [`GET /v1/stream`](/hyperliquid/realtime) with topic `MAKER` and `rfq_details: true` |
+| Receive RFQs and confirmation requests | [`GET /v1/stream`](/hyperliquid/realtime) with topic `MAKER`. `ENTRY_RFQ_OPENED` and `CASHOUT_RFQ_OPENED` carry the whole RFQ. |
 | Recover open RFQs past a truncated snapshot or after a replayed reconnect | [List open RFQs](/hyperliquid/api-reference/recovery/list-open-rfqs) |
 | Publish a quote | [Publish quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote) with `quote` and `quote_digest = hashTypedData(quoteTypedData(release, quote))` |
 | Publish a bid | [Publish quote](/hyperliquid/api-reference/rfqs-and-quotes/publish-quote) with `sell_back` (your maker wrote the ticket) or `transfer`, and `quote_digest` over it (`sellBackTypedData` or `cashoutTransferTypedData`) |

@@ -59,8 +59,7 @@ while subscribed and caught up, so treat anything you built from the stream as s
     }
     ```
 
-    A maker adds `"rfq_details": true` to receive each entry RFQ alongside its `ENTRY_RFQ_OPENED`
-    event. Add `"publication_freshness": true` for faster heartbeats and publication checkpoints.
+    Add `"publication_freshness": true` for faster heartbeats and publication checkpoints.
   </Step>
   <Step title="Read the ready frame">
     ```json
@@ -69,7 +68,6 @@ while subscribed and caught up, so treat anything you built from the stream as s
       "connection_id": "01a0df4e-5c12-7e3b-8c4d-5e6f7a8b9c0d",
       "server_time": "2026-09-26T20:00:05Z",
       "heartbeat_interval_ms": 15000,
-      "max_frame_bytes": 262144,
       "topic": "ACCOUNT",
       "resume": "SNAPSHOT",
       "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184243" }
@@ -94,12 +92,9 @@ while subscribed and caught up, so treat anything you built from the stream as s
     {
       "type": "stream.event",
       "event": {
-        "schema_version": 1,
         "stream": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184244" },
         "event_id": "0199a1c9-2c33-7e5f-9a42-7d9eafbc0005",
         "event_type": "EXECUTION_REPORT",
-        "resource_kind": "OPERATION",
-        "resource_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
         "occurred_at": "2026-09-26T20:00:06.114Z",
         "payload": {
           "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
@@ -111,7 +106,8 @@ while subscribed and caught up, so treat anything you built from the stream as s
     }
     ```
 
-    Delivery is at least once. Skip an event whose `event_id` you have seen or whose `sequence` is not
+    Every event has the same five fields: `stream` (its cursor), `event_id`, `event_type`,
+    `occurred_at`, and `payload`, whose shape `event_type` selects. Delivery is at least once. Skip an event whose `event_id` you have seen or whose `sequence` is not
     above your cursor. Persist `event.stream` as your cursor only after you have applied the event.
   </Step>
 </Steps>
@@ -128,10 +124,9 @@ Many events are doorbells: they say which resource changed, and you re-read it o
 | `BALANCE_CHANGED`, `WALLET_BALANCE_CHANGED` | Re-read [Get balances](/hyperliquid/api-reference/account/get-balances). |
 | `WITHDRAWAL_UPDATED` | A withdrawal was admitted or changed state. The payload is the whole withdrawal, so no re-read is needed. See [Funding](/hyperliquid/funding#withdraw-to-any-address). |
 | `TICKET_ACCEPTED`, `TICKET_OWNER_CHANGED`, `TICKET_SETTLED`, `TICKET_CLOSED`, `TICKET_UPDATED` | Re-read the position. |
-| `ENTRY_RFQ_OPENED`, `CASHOUT_RFQ_OPENED` | Price the RFQ. See [Market makers](/hyperliquid/market-makers#receiving-rfqs). |
+| `ENTRY_RFQ_OPENED`, `CASHOUT_RFQ_OPENED` | Price the RFQ. The payload is the whole open RFQ, without `state`: the event type says it is open. See [Market makers](/hyperliquid/market-makers#receiving-rfqs). |
 | `RFQ_SELECTION_DURABLE`, `RFQ_CANCELLED`, `RFQ_CLOSED` | The RFQ was taken, cancelled, or closed. Stop quoting it. |
 | `CONFIRMATION_REQUESTED` | A taker selected your quote or bid. Answer before its `deadline`. The taker has already signed. |
-| `ENTRY_QUOTE_DISPLAYED`, `CASHOUT_BID_DISPLAYED`, `ENTRY_QUOTE_REMOVED_FROM_DISPLAY`, `CASHOUT_BID_REMOVED_FROM_DISPLAY` | A quote or bid entered or left the book. |
 | `MAKER_VAULT_UPDATED` | Re-read [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital). |
 | `COLLATERAL_REDUCTION_UPDATED` | Re-read the collateral reduction job. |
 

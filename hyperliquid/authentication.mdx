@@ -25,9 +25,9 @@ them.
 | Acts for | Your Totalis account | One maker (`maker_id`) |
 | Paths | `/v1/me/...`, plus the RFQ, accept, and withdrawal routes | `/v1/me/...` for your maker's positions, activity, and operations, `/v1/makers/{maker_id}/...` for your own `maker_id`, plus the quote routes |
 | Issued by | Your Totalis wallet | The maker's controller |
-| `owner` | Your Totalis wallet | The controller |
-| `signer` | Your Totalis wallet | The quote signer |
-| Read `owner` and `signer` from | [Get identity](/hyperliquid/api-reference/identity/get-identity) | [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) |
+| Signs trades | Your Totalis wallet | The quote signer |
+| Addresses | `wallet`, your Totalis wallet, which is both | `owner`, the controller, and `signer`, the quote signer |
+| Read the addresses from | [Get identity](/hyperliquid/api-reference/identity/get-identity) | [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) |
 
 A maker key naming another maker's `maker_id` gets `404`. On `/v1/me/...` and
 `/v1/operations/{operation_id}` the key reads its own account: a personal key its tickets, a maker key
@@ -143,13 +143,13 @@ put that signature in the request body. The SDK builds and signs each message fo
 
 | Action | Signed by | Message |
 | --- | --- | --- |
-| Accept a quote | Your `signer` | EIP-712 `TakerAccept` |
+| Accept a quote | Your Totalis wallet | EIP-712 `TakerAccept` |
 | Confirm a quote you published | The maker's quote signer | EIP-712 `Quote` |
 | Confirm a cash-out bid you published | The maker's quote signer | EIP-712 `SellBack` or `CashoutTransfer` |
 | Sell back or transfer a ticket | The ticket owner | EIP-712 `SellBack` or `CashoutTransfer` |
-| Fund an accept's vault shortfall from your wallet | Your `signer` | EIP-3009 `ReceiveWithAuthorization` on USDC |
-| Withdraw: move a vault shortfall to your wallet | Your `signer` | EIP-712 `Exit` |
-| Withdraw: pay USDC to the destination | Your `signer` | EIP-3009 `TransferWithAuthorization` on USDC |
+| Fund an accept's vault shortfall from your wallet | Your Totalis wallet | EIP-3009 `ReceiveWithAuthorization` on USDC |
+| Withdraw: move a vault shortfall to your wallet | Your Totalis wallet | EIP-712 `Exit` |
+| Withdraw: pay USDC to the destination | Your Totalis wallet | EIP-3009 `TransferWithAuthorization` on USDC |
 | Settle and claim a ticket | Nobody | None. Totalis does it for you. |
 
 ## Export your wallet key
@@ -157,7 +157,7 @@ put that signature in the request body. The SDK builds and signs each message fo
 A bot that trades for your personal account signs with your Totalis wallet. Export its private key
 in the [Totalis app](https://totalis-hip4.vercel.app/account) under Account, then Private key, then
 **Reveal private key**, and keep it in your secret manager next to the API key. Pass it to the SDK
-as a signer, and check it is the account's `signer` before trading:
+as a signer, and check it is the account's `wallet` before trading:
 
 ```ts
 import { createClient, toTotalisSigner, unwrap } from "@totalistrading/hip4-client";
@@ -166,8 +166,8 @@ import { privateKeyToAccount } from "viem/accounts";
 const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
 const wallet = toTotalisSigner(privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`));
 
-const { signer } = unwrap(await client.GET("/v1/me"));
-if (signer !== (await wallet.address())) throw new Error("the exported key is not this account's wallet");
+const me = unwrap(await client.GET("/v1/me"));
+if (me.wallet !== (await wallet.address())) throw new Error("the exported key is not this account's wallet");
 ```
 
 <Warning>

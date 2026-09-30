@@ -23,9 +23,10 @@ parameter selects them, and there is no account switch.
 | Personal key | `/v1/me/...` and `/v1/operations/{operation_id}` | `GET /v1/me/positions` |
 | Maker key | `/v1/me/...` and `/v1/operations/{operation_id}` for its positions, activity, and operations. `/v1/makers/{maker_id}/...`, with its own `maker_id`, for capital, collateral reductions, and confirmations. | `GET /v1/me/positions`, `GET /v1/makers/7/capital` |
 
-A maker key that names another `maker_id` gets `404`. Every account exposes the same two addresses
-under the same names: `owner`, the wallet that controls it and issues its keys, and `signer`, the
-wallet that signs its trades. See [Authentication](/hyperliquid/authentication#keys-and-accounts).
+A maker key that names another `maker_id` gets `404`. A personal account has one wallet, `wallet` in
+`GET /v1/me`: it issues the account's keys and signs its trades. A maker has two, both in its capital
+read: `owner`, the controller that issues its keys, and `signer`, the quote signer that signs its
+quotes. See [Authentication](/hyperliquid/authentication#keys-and-accounts).
 
 ## Values
 
@@ -43,8 +44,8 @@ An omitted optional field and an explicit `null` are not interchangeable unless 
 
 ## Commands and idempotency
 
-Every command `POST` carries the same envelope and an `Idempotency-Key` header holding a lowercase
-UUIDv7:
+The body of a command `POST` is the command itself. Each carries an `Idempotency-Key` header holding
+a lowercase UUIDv7:
 
 ```http
 POST /v1/rfqs HTTP/1.1
@@ -52,13 +53,12 @@ Authorization: Bearer ttk_v1_prd_...
 Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771
 Content-Type: application/json
 
-{
-  "schema_version": 1,
-  "request_id": "01a0df4e-5dc9-7a10-9b2e-3c4d5e6f7a81",
-  "sent_at": "2026-09-26T20:00:50.120Z",
-  "command": { "taker_address": "0x1111111111111111111111111111111111111111", "stake_amount": "25000000", "legs": [{ "outcome_id": 1209, "side": 0 }] }
-}
+{ "stake_amount": "25000000", "legs": [{ "outcome_id": 1209, "side": 0 }] }
 ```
+
+A command never names an address your key already implies. The venue fills the RFQ's taker, and the
+wallet that funds an accept or pays out a withdrawal, from your account's wallet. The messages you
+sign still name that wallet.
 
 | You send | You get |
 | --- | --- |
@@ -67,11 +67,11 @@ Content-Type: application/json
 
 A key is scoped to your account, the method, and the route. Generate a new one for every distinct
 command. To retry, resend the exact request you built the first time: same key, same bytes. On the
-attempt routes (accept and confirm), the key must equal the `attempt_id` in the path.
+attempt routes (accept and confirm), the `attempt_id` in the path is the key. The header is optional
+there, and if you send it, it must equal `attempt_id`.
 
 The SDK builds each command once and resends it byte for byte after a network failure or a
-`BACKOFF` error. `uuidv7()` and `envelope(command)` from `@totalistrading/hip4-client` build the
-parts yourself.
+`BACKOFF` error. `uuidv7()` from `@totalistrading/hip4-client` generates a key.
 
 ## Synchronous results and queued work
 

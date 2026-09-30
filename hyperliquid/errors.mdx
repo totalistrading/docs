@@ -14,7 +14,7 @@ Every HTTP error, on every route, uses one envelope:
     "retry": "NEVER",
     "request_id": "0198f0a2-5c1e-7b3a-9f10-2d4c6e8a0b12",
     "field_violations": [
-      { "field": "/legs/0/stake", "code": "INVALID" }
+      { "field": "/stake_amount", "code": "INVALID" }
     ]
   }
 }
@@ -25,8 +25,8 @@ Every HTTP error, on every route, uses one envelope:
 | `code` | Branch in code. Codes are stable. |
 | `message` | Log or display. The wording may change without notice, so never branch on it. |
 | `retry` | Decide what to do next. See the table below. |
-| `request_id` | Quote to support when reporting a problem. |
-| `field_violations` | Find the invalid inputs. Always present. Each names a JSON pointer into the body (`/legs/0/stake`), or into the query parameters for a request without a body (`/limit`), with a `code` of `REQUIRED`, `INVALID`, or `UNEXPECTED`. |
+| `request_id` | Quote to support when reporting a problem. It is this request's own ID, the same UUIDv7 as the `X-Request-ID` response header. |
+| `field_violations` | Find the invalid inputs. Always present. Each names a JSON pointer into the body (`/stake_amount`), or into the query parameters for a request without a body (`/limit`), with a `code` of `REQUIRED`, `INVALID`, or `UNEXPECTED`. |
 
 ## Retry
 

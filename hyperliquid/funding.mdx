@@ -8,7 +8,7 @@ Your Totalis balance on HyperEVM has two parts:
 
 | Part | What it is |
 | --- | --- |
-| **Wallet** (`WALLET_USDC`) | USDC held by your Totalis wallet, the embedded wallet in `GET /v1/me`. |
+| **Wallet** (`WALLET_USDC`) | USDC held by your Totalis wallet, `wallet` in `GET /v1/me`. |
 | **Vault** (`VAULT_FREE`) | Your unreserved USDC inside the Totalis vault contract. Stakes are taken from it, and payouts and cashouts are paid into it. |
 
 Totalis pays the gas for funding a bet and for withdrawals, so your wallet needs no HYPE. Every
@@ -22,37 +22,31 @@ you pass. The examples use the `totalis` client from [Trading](/hyperliquid/trad
 
 ## Read your balance
 
-[Get balances](/hyperliquid/api-reference/account/get-balances) returns one balance, `TOTALIS`:
+[Get balances](/hyperliquid/api-reference/account/get-balances) returns your Totalis balance:
 
 ```ts
 import { unwrap } from "@totalistrading/hip4-client";
 
-const { balances: [totalisBalance] } = unwrap(await totalis.client.GET("/v1/me/balances"));
-console.log(totalisBalance?.amount, totalisBalance?.components); // WALLET_USDC and VAULT_FREE
+const balance = unwrap(await totalis.client.GET("/v1/me/balances"));
+console.log(balance.amount, balance.components); // WALLET_USDC and VAULT_FREE
 ```
 
 ```json
 {
-  "balances": [
-    {
-      "product": "TOTALIS",
-      "amount": "37500000",
-      "unit": "USDC_BASE_UNITS",
-      "state": "CURRENT",
-      "components": [
-        { "kind": "WALLET_USDC", "amount": "12500000", "state": "CURRENT" },
-        { "kind": "VAULT_FREE", "amount": "30000000", "state": "CURRENT" }
-      ],
-      "pending": {
-        "wallet_reserved": "5000000",
-        "vault_deposits": "0",
-        "vault_withdrawals": "0",
-        "core_exits": "0",
-        "has_unknown_operations": false
-      }
-    }
+  "amount": "37500000",
+  "state": "CURRENT",
+  "components": [
+    { "kind": "WALLET_USDC", "amount": "12500000", "state": "CURRENT" },
+    { "kind": "VAULT_FREE", "amount": "30000000", "state": "CURRENT" }
   ],
-  "checkpoint": { "chain_id": "999", "block_number": "31552210", "projection_state": "CURRENT" }
+  "pending": {
+    "wallet_reserved": "5000000",
+    "vault_deposits": "0",
+    "vault_withdrawals": "0",
+    "core_exits": "0",
+    "has_unknown_operations": false
+  },
+  "checkpoint": { "block_number": "31552210", "projection_state": "CURRENT" }
 }
 ```
 
@@ -82,10 +76,12 @@ The accept needs `funding:deposit` only when it carries a funding authorization.
 off a key that should only spend what is already in the vault.
 
 Without the SDK, build the authorization with `receiveWithAuthorizationTypedData(release, authorization)`
-from `@totalistrading/hip4-client/typed-data`, sign it with your wallet, and send the authorization
-fields plus `authorization_signature`, `quote_digest`, and `taker_signature` as `funding` in
-[Accept quote](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote). The builder derives the
-USDC nonce from your `salt`, your address, and the vault, exactly as the vault checks it. The
+from `@totalistrading/hip4-client/typed-data`, with your wallet as both `account` and `from`, and sign
+it with your wallet. Send `value`, `valid_after`, `valid_before`, `salt`, and
+`authorization_signature` as `funding` in
+[Accept quote](/hyperliquid/api-reference/rfqs-and-quotes/accept-quote). The venue fills in your
+wallet. The builder derives the USDC nonce from your `salt`, your address, and the vault, exactly as
+the vault checks it. The
 authorization window rules are on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
 
 ## Withdraw to any address
@@ -131,8 +127,9 @@ const done = await totalis.waitForWithdrawal("01998683-7a31-7e5a-a3c1-6f2b8d4e9a
 ### Keep a signed withdrawal across a restart
 
 `withdraw` signs and sends in one call. To store the signed request before it leaves your process,
-split it: `signWithdrawal` returns `{ idempotencyKey, body }`, and `sendWithdrawal` sends it and
-follows it like `withdraw`. Sending the same `{ idempotencyKey, body }` again, after a lost response
+split it: `signWithdrawal` returns `{ idempotencyKey, account, body }`, and `sendWithdrawal` sends it
+and follows it like `withdraw`. `account` is your wallet, which the SDK checks the admitted withdrawal
+against. Sending the same signed request again, after a lost response
 or a restart, returns the same withdrawal, never a second one.
 
 ```ts
@@ -140,7 +137,7 @@ const signed = await totalis.signWithdrawal({
   destination: "0x2222222222222222222222222222222222222222",
   amount: 15_000_000n,
 });
-await store.save(signed); // your storage: the key and the exact body
+await store.save(signed); // your storage: the key, your wallet, and the exact body
 const done = await totalis.sendWithdrawal(signed, { onStarted: (withdrawalId) => store.saveId(withdrawalId) });
 ```
 
@@ -157,16 +154,17 @@ destination and amount you asked for.
   </Step>
   <Step title="Sign the parts">
     If there is a shortfall, sign an `Exit` from the vault to your own wallet for exactly that
-    amount with `exitTypedData`. Then generate the request's `Idempotency-Key`, compute the payout
+    amount with `exitTypedData`, with your wallet as both `account` and `to`. Then generate the request's `Idempotency-Key`, compute the payout
     nonce with `payoutNonce(release, account, idempotencyKey)`, and sign the payout with
     `transferWithAuthorizationTypedData(release, { from, to, value, valid_after, valid_before, nonce })`.
     The window rules are on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
   </Step>
   <Step title="Send it">
     [Withdraw to an external address](/hyperliquid/api-reference/funds/withdraw-to-an-external-address)
-    with `account`, `destination`, `amount`, `vault_withdrawal` (only with a shortfall), and
-    `payout_authorization` (`valid_after`, `valid_before`, `authorization_signature`). The `202`
-    response is the withdrawal, admitted but not paid. A shortfall that no longer matches returns
+    with `destination`, `amount`, `vault_withdrawal` (`amount`, `expiry`, `salt`, and `signature`,
+    only with a shortfall), and `payout_authorization` (`valid_after`, `valid_before`,
+    `authorization_signature`). The venue fills in your wallet as the account. The `202` response is
+    the withdrawal, admitted but not paid. A shortfall that no longer matches returns
     `STATE_CONFLICT`: re-read your balance and sign again under a new key.
   </Step>
   <Step title="Follow it">

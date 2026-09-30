@@ -134,9 +134,7 @@ Each quote carries the full terms you sign:
     "salt": "48151623429108"
   },
   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
-  "sequence": 48213,
-  "chain_id": "999",
-  "vault_address": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745"
+  "sequence": 48213
 }
 ```
 
@@ -146,8 +144,8 @@ venue clock (`serverNowMs`), not your own. To render a live book in a UI, use
 
 ### Without the SDK
 
-Each call below is what `placeBet` sends. Commands carry the [envelope and
-`Idempotency-Key`](/hyperliquid/conventions#commands-and-idempotency) described on Conventions.
+Each call below is what `placeBet` sends. The body of each command is the command itself, sent with
+an [`Idempotency-Key`](/hyperliquid/conventions#commands-and-idempotency) header.
 
 <Steps>
   <Step title="Open the account stream">
@@ -162,19 +160,14 @@ Each call below is what `placeBet` sends. Commands carry the [envelope and
       -H "Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771" \
       -H "Content-Type: application/json" \
       -d '{
-        "schema_version": 1,
-        "request_id": "01a0df4e-5dc9-7a10-9b2e-3c4d5e6f7a81",
-        "sent_at": "2026-09-26T20:00:50.120Z",
-        "command": {
-          "taker_address": "0x1111111111111111111111111111111111111111",
-          "stake_amount": "25000000",
-          "legs": [{ "outcome_id": 1209, "side": 0 }]
-        }
+        "stake_amount": "25000000",
+        "legs": [{ "outcome_id": 1209, "side": 0 }]
       }'
     ```
 
-    The response is `201` with `rfq_id`. `taker_address` is your `signer` from `GET /v1/me`. Legs are
-    in strictly ascending `outcome_id` order with no outcome twice.
+    The response is `201` with `rfq_id`. The venue sets the RFQ's taker to your Totalis wallet
+    (`wallet` in `GET /v1/me`), and every quote names it as `taker`. Legs are in strictly ascending
+    `outcome_id` order with no outcome twice.
   </Step>
   <Step title="Keep the book from the stream">
     Each `BOOK_QUOTE_PUBLISHED` event for your `rfq_id` carries one complete quote, and each
@@ -204,13 +197,11 @@ Each call below is what `placeBet` sends. Commands carry the [envelope and
       -H "Authorization: Bearer $TOTALIS_API_KEY" \
       -H "Idempotency-Key: $ATTEMPT_ID" \
       -H "Content-Type: application/json" \
-      -d '{
-        "schema_version": 1,
-        "request_id": "01a0df4e-626e-7c7d-8e9f-a0b1c2d3e4fc",
-        "sent_at": "2026-09-26T20:00:51.310Z",
-        "command": { "quote_digest": "0x5e5e...5e5e", "taker_signature": "0xabab...ab1b" }
-      }'
+      -d '{ "quote_digest": "0x5e5e...5e5e", "taker_signature": "0xabab...ab1b" }'
     ```
+
+    `attempt_id` is the command's idempotency key. The `Idempotency-Key` header is optional here, and
+    if you send it, it must equal `attempt_id`.
 
     The response is held until the maker answers or the confirmation deadline passes, and is always
     final: `COMMITTED` with `operation_id`, or `DECLINED`, `TIMED_OUT`, or `WITHDRAWN`. To fund a
@@ -248,8 +239,7 @@ const ticketId = bet.quoteDigest;
 const { position } = unwrap(await totalis.client.GET("/v1/me/positions/{ticket_id}", {
   params: { path: { ticket_id: ticketId } },
 }));
-const payout = position.signed_payout; // an amount fact: a value, or UNAVAILABLE with a reason
-console.log(position.status, payout.status === "UNAVAILABLE" ? payout.reason : payout.value);
+console.log(position.status, position.signed_payout); // atomic USDC, or null when unavailable
 ```
 
 | `status` | Meaning |
@@ -260,8 +250,9 @@ console.log(position.status, payout.status === "UNAVAILABLE" ? payout.reason : p
 | `CLOSED` | Paid out (`close_reason: CLAIM`) or cashed out (`close_reason: SELL_BACK`). |
 
 [List account positions](/hyperliquid/api-reference/account/list-account-positions) returns all of
-them, a page at a time. Amounts in position reads are amount facts: each carries `value` when known,
-or `status: "UNAVAILABLE"` with a `reason`.
+them, a page at a time. Amounts in position reads are atomic USDC strings, or `null` when they
+cannot be established. Each response carries one `context`: `as_of`, the time of its oldest source,
+and `status`, which is `CURRENT`, `STALE`, or `UNAVAILABLE` for the whole read.
 
 ## 5. Settlement and payout
 
@@ -303,7 +294,7 @@ full list, with each code's status and retry rule, is on [Errors](/hyperliquid/e
 | Code | Cause | Do |
 | --- | --- | --- |
 | `FORBIDDEN` | The key lacks a scope, often `ticket:accept`, `sponsorship:use`, or `funding:deposit`. | Create a key with the [taker bot scopes](/hyperliquid/authentication#recommended-scope-sets). |
-| `WRONG_AUTHORITY` | The signature is not from the RFQ's taker. | Sign with the wallet whose address is `signer` in `GET /v1/me`. |
+| `WRONG_AUTHORITY` | The signature is not from the RFQ's taker. | Sign with the wallet whose address is `wallet` in `GET /v1/me`. |
 | `INVALID_SIGNATURE` | The signature does not verify for the quote's terms. | Sign the quote exactly as the book returned it. |
 | `QUOTE_EXPIRED`, `QUOTE_WITHDRAWN`, `QUOTE_SUPERSEDED`, `RFQ_NOT_OPEN` | The quote or RFQ changed before your accept. | Place the bet again. |
 | `QUOTE_CAPACITY_EXCEEDED` | The maker can no longer back the quote. | Place the bet again. |
