@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "118.0.0-pm-vocabulary"
+    "version": "119.0.0-price-series"
   },
   "servers": [
     {
@@ -392,6 +392,7 @@
                     }
                   },
                   "question": null,
+                  "series_id": "f373fade6a46dc0e",
                   "metadata": {
                     "content": {
                       "title": "HYPE touches 100 by 20261001-0000",
@@ -11705,6 +11706,7 @@
           "catalog_generation",
           "market",
           "question",
+          "series_id",
           "metadata",
           "recurring_round",
           "stats",
@@ -11729,6 +11731,17 @@
               }
             ],
             "description": "Parent question with all of its markets; null for a standalone market."
+          },
+          "series_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SeriesId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Key of the price series this standalone binaryPrice or priceTouch market belongs to, the series_id of the series read; set even while it is the only listed member. Null for every other market."
           },
           "metadata": {
             "$ref": "#/components/schemas/ProductMetadata",
@@ -13743,6 +13756,11 @@
           }
         },
         "description": "Sell-back terms: the underwriting maker buys the position back and it closes. They mirror the signed SellBack struct."
+      },
+      "SeriesId": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{16}$",
+        "description": "Price series key: the first 16 lowercase hex characters of the SHA-256 of v1|network|template|underlying|expiry, where network is mainnet or testnet, template is binaryPrice or priceTouch, underlying is the perp name and expiry is decimal Unix seconds. Thresholds and membership are not part of the key."
       },
       "Side": {
         "type": "string",
