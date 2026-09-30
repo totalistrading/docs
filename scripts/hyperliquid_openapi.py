@@ -48,20 +48,20 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "RFQs & Quotes": (
-        "RFQs and the quotes, accepts and confirms that answer them, in flow order.",
+        "RFQs and the quotes that answer them: what a taker calls, then what a maker calls.",
         [
             ("POST /v1/rfqs", "Create RFQ", "RFQs"),
-            ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
-            ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
             ("POST /v1/quotes/{quote_id}/accept", "Accept quote", "Quotes"),
-            ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("POST /v1/rfqs/{rfq_id}/cancel", "Cancel RFQ", "RFQs"),
             ("POST /v1/positions/{position_id}/cashout", "Cash out position", "Positions"),
+            ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
+            ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
+            ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
+            ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
             ("GET /v1/rfqs", "List RFQs", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}", "Get RFQ", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes", "Quotes"),
             ("GET /v1/quotes/{quote_id}/acceptance", "Get acceptance", "Quotes"),
-            ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
         ],
     ),
     "Positions": (
@@ -84,7 +84,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "Makers": (
-        "A maker's capital and collateral.",
+        "The rest of a maker's setup after Making: capital and collateral.",
         [
             ("GET /v1/makers/{maker_id}/capital", "Get maker capital", "Makers"),
             ("POST /v1/makers/{maker_id}/collateral-reductions", "Create collateral reduction", "Makers"),
@@ -128,6 +128,25 @@ def operations(spec: dict):
                 yield f"{method.upper()} {path}", item[method]
 
 
+# The one group both sides use, split so a taker and a maker each find their calls together.
+SUBGROUPS: dict[str, list[tuple[str, int]]] = {
+    "RFQs & Quotes": [("Taking", 4), ("Making", 4), ("Reads", 4)],
+}
+
+
+def pages_of(group: str, routes: list[str]) -> list:
+    """A group's pages, split into its SUBGROUPS by count, in PAGES order."""
+    if group not in SUBGROUPS:
+        return routes
+    split, start = [], 0
+    for name, count in SUBGROUPS[group]:
+        split.append({"group": name, "pages": routes[start : start + count]})
+        start += count
+    if start != len(routes):
+        raise SystemExit(f"SUBGROUPS for {group} cover {start} of {len(routes)} pages")
+    return split
+
+
 def placed() -> dict[str, tuple[str, str, str]]:
     return {route: (group, title, section) for group, (_, pages) in PAGES.items() for route, title, section in pages}
 
@@ -156,7 +175,7 @@ def tab() -> dict:
         "tab": TAB,
         "openapi": "/hyperliquid/openapi.json",
         "groups": [
-            {"group": group, "pages": LEADS.get(group, []) + [route for route, _, _ in pages]}
+            {"group": group, "pages": LEADS.get(group, []) + pages_of(group, [route for route, _, _ in pages])}
             for group, (_, pages) in PAGES.items()
         ],
     }

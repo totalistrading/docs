@@ -228,18 +228,33 @@
               {
                 "group": "RFQs & Quotes",
                 "pages": [
-                  "POST /v1/rfqs",
-                  "POST /v1/rfqs/{rfq_id}/quotes",
-                  "DELETE /v1/quotes/{quote_id}",
-                  "POST /v1/quotes/{quote_id}/accept",
-                  "POST /v1/quotes/{quote_id}/confirm",
-                  "POST /v1/rfqs/{rfq_id}/cancel",
-                  "POST /v1/positions/{position_id}/cashout",
-                  "GET /v1/rfqs",
-                  "GET /v1/rfqs/{rfq_id}",
-                  "GET /v1/rfqs/{rfq_id}/quotes",
-                  "GET /v1/quotes/{quote_id}/acceptance",
-                  "GET /v1/makers/{maker_id}/acceptances"
+                  {
+                    "group": "Taking",
+                    "pages": [
+                      "POST /v1/rfqs",
+                      "POST /v1/quotes/{quote_id}/accept",
+                      "POST /v1/rfqs/{rfq_id}/cancel",
+                      "POST /v1/positions/{position_id}/cashout"
+                    ]
+                  },
+                  {
+                    "group": "Making",
+                    "pages": [
+                      "POST /v1/rfqs/{rfq_id}/quotes",
+                      "DELETE /v1/quotes/{quote_id}",
+                      "POST /v1/quotes/{quote_id}/confirm",
+                      "GET /v1/makers/{maker_id}/acceptances"
+                    ]
+                  },
+                  {
+                    "group": "Reads",
+                    "pages": [
+                      "GET /v1/rfqs",
+                      "GET /v1/rfqs/{rfq_id}",
+                      "GET /v1/rfqs/{rfq_id}/quotes",
+                      "GET /v1/quotes/{quote_id}/acceptance"
+                    ]
+                  }
                 ]
               },
               {

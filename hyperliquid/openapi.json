@@ -22,7 +22,7 @@
     },
     {
       "name": "RFQs & Quotes",
-      "description": "RFQs and the quotes, accepts and confirms that answer them, in flow order."
+      "description": "RFQs and the quotes that answer them: what a taker calls, then what a maker calls."
     },
     {
       "name": "Positions",
@@ -34,7 +34,7 @@
     },
     {
       "name": "Makers",
-      "description": "A maker's capital and collateral."
+      "description": "The rest of a maker's setup after Making: capital and collateral."
     },
     {
       "name": "Deployment",
