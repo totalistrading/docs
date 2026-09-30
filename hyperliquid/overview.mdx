@@ -1,58 +1,56 @@
 ---
 title: 'Overview'
 icon: 'compass'
-description: 'The Totalis Hyperliquid API: trade singles and parlays on Hyperliquid HIP-4 prediction markets as a taker, or price them as a market maker.'
+description: 'Trade singles and parlays on Hyperliquid HIP-4 prediction markets through Totalis, as a taker or a market maker.'
 ---
 
-The Hyperliquid API lets you trade Hyperliquid HIP-4 prediction markets through Totalis. You pick one
-or more market outcomes, market makers quote a price, and the trade settles on-chain in the Totalis
-vault contract on HyperEVM. It is a separate API from the [Solana API](/guides/quickstart), with its
-own keys.
-
-## Who it is for
-
-| You are | You | Start with |
-| --- | --- | --- |
-| A **taker** | Open positions on one or more outcomes, cash them out early, and withdraw your USDC. | [Open a position](/hyperliquid/open-a-position) |
-| A **maker** | Quote the RFQs takers create, confirm the quotes they accept, and back the positions from your maker vault. | [Make markets](/hyperliquid/make-markets) |
-
-Both read the same public [markets](/hyperliquid/api-reference/markets/list-markets) and follow their
-own state on one [authenticated stream](/hyperliquid/streams).
+Totalis lets you trade Hyperliquid HIP-4 prediction markets, one outcome (a single) or several (a
+parlay), at a price market makers quote. You accept a quote with a wallet signature, and the position
+settles on-chain in the Totalis vault on HyperEVM. This API is separate from the
+[Solana API](/guides/quickstart) and has its own keys.
 
 ## How an RFQ works
 
-| Step | Taker ([Open a position](/hyperliquid/open-a-position)) | Maker ([Make markets](/hyperliquid/make-markets)) |
+| Step | Taker | Maker |
 | --- | --- | --- |
-| 1. Create RFQ | [Creates an RFQ](/hyperliquid/api-reference/rfqs/create-rfq): these legs, this stake. | Receives it as `RFQ_CREATED` on the [maker subscription](/hyperliquid/maker-stream). |
-| 2. Makers quote | Receives each quote as `QUOTE_CREATED`. | [Creates a quote](/hyperliquid/api-reference/quotes/create-quote): the payout it offers. |
-| 3. Taker accepts | [Accepts one quote](/hyperliquid/api-reference/quotes/accept-quote) with a wallet signature. Any USDC the vault is short is funded in the same call. | Receives `QUOTE_ACCEPTED` with a short deadline. |
-| 4. Maker confirms | Waits: the accept response carries the maker's answer. | [Confirms](/hyperliquid/api-reference/quotes/confirm-quote) with its own signature, or declines. |
-| 5. Position opens | Holds the **position** once Totalis executes the trade on-chain. | Backs the position from its maker vault. |
+| 1 | [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq): legs and a stake. | Receives `RFQ_CREATED`. |
+| 2 | Receives `QUOTE_CREATED`. | [Create quote](/hyperliquid/api-reference/quotes/create-quote): the payout. |
+| 3 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) with a signature. | Receives `QUOTE_ACCEPTED`. |
+| 4 | The accept response carries the maker's answer. | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) with a signature, or decline. |
+| 5 | Holds the position. | Backs it from the maker vault. |
 
-Later, the taker can [cash out](/hyperliquid/cash-out) the position before it resolves, or let it
-[settle](/hyperliquid/settlement). Totalis settles and claims every position automatically. There is
-no deposit step and no claim step. Every term above is defined on
-[Glossary](/hyperliquid/glossary).
+Totalis executes, settles and claims every position. There is no deposit step and no claim step.
+Guides: [Trading](/hyperliquid/trading) and [Market making](/hyperliquid/market-making).
 
-## Base URL and auth
+## Base URL
 
-| | Value |
+| Environment | URL | Chain |
+| --- | --- | --- |
+| Production | `https://hip4-api.totalis.trade` | HyperEVM, chain ID `999` |
+| Staging | `https://hip4-api-staging.totalis.trade` | HyperEVM testnet, chain ID `998` |
+
+Send `Authorization: Bearer <key>` ([Authentication](/hyperliquid/authentication)). Market reads need
+no key. Amounts are strings in USDC atomic units: `"25000000"` is 25 USDC.
+
+## Glossary
+
+| Term | Meaning |
 | --- | --- |
-| Production | `https://hip4-api.totalis.trade` (HyperEVM, chain ID `999`) |
-| Staging | `https://hip4-api-staging.totalis.trade` (HyperEVM testnet, chain ID `998`) |
-| Auth | A scoped API key from the Totalis app, sent as `Authorization: Bearer <key>`. Market reads need no key. See [Authentication](/hyperliquid/authentication). |
-| Money | Base-10 strings in USDC atomic units (6 decimals): `"25000000"` is 25 USDC. See [Requests](/hyperliquid/requests). |
-| SDK | `@totalistrading/hip4-client` 0.14.0, TypeScript. Private: access on request. See [TypeScript SDK](/hyperliquid/sdk). |
-
-An API key authenticates your calls. It cannot move funds on its own: every trade, cash-out and
-withdrawal also carries a signature from the wallet that owns the funds, which the vault contract
-checks. See [Signing](/hyperliquid/signing).
-
-<CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/hyperliquid/quickstart">
-    Get a key, make a first read, and open a position.
-  </Card>
-  <Card title="Endpoints" icon="list" href="/hyperliquid/endpoints">
-    All 30 operations, grouped by resource.
-  </Card>
-</CardGroup>
+| Market | One HIP-4 outcome (`outcome_id`) with a `YES` and a `NO` side. |
+| Leg | One outcome and one side: `{ "outcome_id": "1209", "side": "YES" }`. One leg is a single; two or more is a parlay. |
+| Taker | The account that creates an RFQ and accepts a quote. For a cash-out, the position's owner. |
+| Maker | A market maker (`maker_id`) that quotes, confirms and backs positions from its maker vault. |
+| RFQ | Request for quote. `ENTRY` prices new legs for a stake; `CASHOUT` prices an existing position. |
+| Quote | A maker's unsigned offer on one RFQ: `entry` terms (a `payout`), or `sell_back` or `transfer` terms (a `price`). |
+| Acceptance | The record of one accept on one quote, named by the accept's `Idempotency-Key` (`acceptance_id`). A quote has at most one. |
+| Confirm | The maker's answer to an acceptance before its `deadline`: `CONFIRM` with a signature, or `DECLINE`. |
+| Position | A filled trade on-chain: legs, stake, payout, owner and backing maker. An entry position's `position_id` is its `quote_id`. |
+| Stake, payout | What the taker pays, before the entry fee; what the position pays if every leg wins, before the profit fee. |
+| Cash-out | Selling an open position: a `sell_back` to its maker, or a `transfer` to another maker. |
+| Settlement, claim | Grading a resolved position, then paying its winnings into the owner's vault balance. Totalis runs both. |
+| Operation | One on-chain action Totalis relays for you, with a `status` (`operation_id`, `OPERATION_UPDATED`). |
+| Vault | The Totalis contract on HyperEVM that holds USDC and every position (`vault_address`). |
+| Totalis balance | Your wallet's USDC on HyperEVM plus your free vault balance. |
+| Wallet | Your Totalis embedded wallet. It approves your keys and signs your trades. |
+| Deployment | The chain, vault, fees and USDC domain every signature binds to ([Get deployment](/hyperliquid/api-reference/deployment/get-deployment)). |
+| Cursor | Your place in the [WebSocket](/hyperliquid/websocket/connection). Send it back to resume. |

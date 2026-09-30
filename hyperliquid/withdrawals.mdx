@@ -1,24 +1,12 @@
 ---
-title: 'Withdraw'
+title: 'Withdrawals'
 icon: 'arrow-up-from-bracket'
-description: 'Send your Totalis USDC to any address with one signed call to POST /v1/withdrawals. Totalis pays the gas.'
+description: 'Send your Totalis USDC to any HyperEVM address in one signed request. Totalis pays the gas.'
 ---
 
-A withdrawal sends USDC from your Totalis balance to any address on HyperEVM, in one call to
-[Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal). Totalis relays it and pays
-the gas.
+Needs `funding:withdraw` and `sponsorship:use`.
 
-<CodeGroup>
-```ts SDK
-const done = await totalis.withdraw({
-  destination: "0x2222222222222222222222222222222222222222",
-  amount: 15_000_000n, // 15 USDC
-  onStarted: (withdrawalId) => save(withdrawalId), // persist it to follow after a restart
-});
-console.log(done.status, done.payout_transaction_hash); // PAYOUT_COMMITTED
-```
-
-```bash curl
+```bash
 curl https://hip4-api.totalis.trade/v1/withdrawals \
   -H "Authorization: Bearer $TOTALIS_API_KEY" \
   -H "Idempotency-Key: 01998683-79f0-7c21-8d3e-5a6b7c8d9e0f" \
@@ -30,59 +18,6 @@ curl https://hip4-api.totalis.trade/v1/withdrawals \
     "payout_authorization": { "valid_after": "1790433540", "valid_before": "1790435100", "authorization_signature": "0x9e9e...9e1b" }
   }'
 ```
-</CodeGroup>
-
-The `totalis` client is created as on [Open a position](/hyperliquid/open-a-position#the-flow). The key
-needs `funding:withdraw`, `sponsorship:use`, `account:read` and `account:stream`.
-
-## What you sign
-
-Your Totalis balance is USDC in your wallet plus your free vault balance. The payout always leaves from
-your wallet, so a withdrawal has up to two signed parts, both in the one request:
-
-| Part | When | You sign |
-| --- | --- | --- |
-| `vault_withdrawal` | Only when your wallet holds less than `amount`: moves exactly the shortfall from the vault to your wallet | EIP-712 `Exit` |
-| `payout_authorization` | Always: pays exactly `amount` from your wallet to `destination` | USDC `TransferWithAuthorization` |
-
-`withdraw` reads your balance and signs both parts for you. Without the SDK:
-
-<Steps>
-  <Step title="Read your balance">
-    [Get balances](/hyperliquid/api-reference/account/get-balances). The shortfall is `amount` minus your
-    spendable wallet USDC (`WALLET_USDC` minus `pending.wallet_reserved`, never below zero).
-  </Step>
-  <Step title="Sign the parts">
-    With a shortfall, sign an `Exit` for exactly that amount with `exitTypedData`, with your wallet as
-    both `account` and `to`. Generate the request's `Idempotency-Key`, derive the payout nonce with
-    `payoutNonce(deployment, wallet, idempotencyKey)`, and sign the payout with
-    `transferWithAuthorizationTypedData`. See [Signing](/hyperliquid/signing). The time windows are on
-    [Limits](/hyperliquid/limits).
-  </Step>
-  <Step title="Send it">
-    Send `destination`, `amount`, `payout_authorization` and, with a shortfall, `vault_withdrawal`. The
-    venue fills in your wallet. The `202` response is the withdrawal: admitted, not yet paid.
-  </Step>
-  <Step title="Follow it">
-    Apply `WITHDRAWAL_UPDATED` events for your `withdrawal_id` on your
-    [account subscription](/hyperliquid/account-stream). Each carries the whole withdrawal. Stop at
-    `PAYOUT_COMMITTED` or `FAILED`. After a reconnect, read
-    [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) once.
-  </Step>
-</Steps>
-
-The payout's USDC nonce derives from the request's `Idempotency-Key`, so the signature is bound to that
-one request and cannot start a second withdrawal. A resend with the same key and body returns the same
-withdrawal.
-
-## Statuses
-
-| `status` | Meaning |
-| --- | --- |
-| `VAULT_WITHDRAWAL_QUEUED` | The shortfall is moving from the vault to your wallet. The payout waits for it. |
-| `PAYOUT_SUBMITTED` | The payout is queued or relayed. |
-| `PAYOUT_COMMITTED` | Done. `destination` received `amount`, and `payout_transaction_hash` is set. |
-| `FAILED` | Nothing left your Totalis balance. If the vault part committed, that USDC stays in your wallet. Read your balance and start a new withdrawal. |
 
 ```json
 {
@@ -99,35 +34,31 @@ withdrawal.
 }
 ```
 
-## Survive a restart
+## What you sign
 
-`onStarted` receives the `withdrawal_id` once the venue admits the withdrawal. After a restart, follow
-that withdrawal instead of starting a second one:
+The payout always leaves from your wallet.
 
-```ts
-const done = await totalis.waitForWithdrawal("01998683-7a31-7e5a-a3c1-6f2b8d4e9a17");
-```
-
-To store the signed request before it leaves your process, split the call. `signWithdrawal` returns
-`{ idempotencyKey, account, body }`, and `sendWithdrawal` sends it and follows it like `withdraw`.
-Sending the same signed request again returns the same withdrawal.
-
-```ts
-const signed = await totalis.signWithdrawal({
-  destination: "0x2222222222222222222222222222222222222222",
-  amount: 15_000_000n,
-});
-await store.save(signed); // your storage: the key, your wallet and the exact body
-const done = await totalis.sendWithdrawal(signed, { onStarted: (withdrawalId) => store.saveId(withdrawalId) });
-```
-
-## Errors to handle
-
-| Code | Cause | Do |
+| Part | When | Message |
 | --- | --- | --- |
-| `STATE_CONFLICT` | Your wallet balance changed, so the signed shortfall no longer matches. | Read your balance and sign again under a new key. |
-| `IDEMPOTENCY_KEY_REUSED` | The key was used with a different body. | Never reuse a key for a new withdrawal. |
-| `FORBIDDEN` | The key lacks `funding:withdraw` or `sponsorship:use`. | Add the scope. |
-| `FINANCIAL_ACTIONS_DISABLED` | Withdrawals are paused. | Retry after `Retry-After`. |
+| `vault_withdrawal` | Your wallet holds less than `amount`. Moves exactly the shortfall from the vault to your wallet. | `Exit`, with your wallet as `account` and `to` |
+| `payout_authorization` | Always. Pays `amount` from your wallet to `destination`. | USDC `TransferWithAuthorization` |
 
-Every code is on [Errors](/hyperliquid/errors).
+The shortfall is `amount` minus `WALLET_USDC` minus `pending.wallet_reserved` in
+[Get balances](/hyperliquid/api-reference/account/get-balances), never below zero. The payout nonce
+derives from the `Idempotency-Key` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)), so choose the
+key before you sign.
+
+## Statuses
+
+`202` means admitted, not paid. Follow `WITHDRAWAL_UPDATED` on the
+[account channel](/hyperliquid/websocket/account).
+
+| `status` | Meaning |
+| --- | --- |
+| `VAULT_WITHDRAWAL_QUEUED` | The shortfall is moving to your wallet. |
+| `PAYOUT_SUBMITTED` | The payout is queued or relayed. |
+| `PAYOUT_COMMITTED` | Done. `payout_transaction_hash` is set. |
+| `FAILED` | Nothing left your Totalis balance. USDC already moved from the vault stays in your wallet. |
+
+A resend with the same key and body returns the same withdrawal. A `409 STATE_CONFLICT` means your
+balance changed: re-read it and sign again under a new key.

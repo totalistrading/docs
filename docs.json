@@ -192,39 +192,23 @@
                 "group": "Get started",
                 "pages": [
                   "hyperliquid/overview",
-                  "hyperliquid/glossary",
                   "hyperliquid/quickstart",
-                  "hyperliquid/sdk"
+                  "hyperliquid/authentication"
                 ]
               },
               {
                 "group": "Guides",
                 "pages": [
-                  "hyperliquid/open-a-position",
-                  "hyperliquid/cash-out",
-                  "hyperliquid/withdraw",
-                  "hyperliquid/make-markets",
-                  "hyperliquid/settlement"
+                  "hyperliquid/trading",
+                  "hyperliquid/market-making",
+                  "hyperliquid/withdrawals"
                 ]
               },
               {
-                "group": "Streams",
+                "group": "Reference",
                 "pages": [
-                  "hyperliquid/streams",
-                  "hyperliquid/account-stream",
-                  "hyperliquid/maker-stream",
-                  "hyperliquid/market-stream"
-                ]
-              },
-              {
-                "group": "Conventions",
-                "pages": [
-                  "hyperliquid/authentication",
-                  "hyperliquid/requests",
-                  "hyperliquid/pagination",
-                  "hyperliquid/limits",
-                  "hyperliquid/signing",
-                  "hyperliquid/errors"
+                  "hyperliquid/errors",
+                  "hyperliquid/sdk"
                 ]
               }
             ]
