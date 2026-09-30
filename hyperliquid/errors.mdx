@@ -70,13 +70,13 @@ returns for each status.
 | `INVALID_REQUEST` | 400 | - | `NEVER` | The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. |
 | `INVALID_QUERY` | 400 | - | `NEVER` | A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it. |
 | `INVALID_CURSOR` | 400 | - | `NEVER` | The cursor is malformed or was issued for a different query. |
-| `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header. |
+| `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none. |
 | `SUBPROTOCOL_REQUIRED` | 400 | 1008 | `NEVER` | The stream request did not negotiate a supported subprotocol or extension. |
 | `UNAUTHENTICATED` | 401 | - | `NEVER` | The credential is missing, invalid, expired or revoked. |
 | `FORBIDDEN` | 403 | - | `NEVER` | The credential is valid but lacks the scope, permission or role this operation needs. |
 | `NOT_FOUND` | 404 | - | `NEVER` | The resource does not exist or is not visible to this credential. |
 | `IDENTITY_NOT_FOUND` | 404 | - | `NEVER` | The account has no venue identity yet; bind the embedded wallet first. |
-| `QUOTE_NOT_FOUND` | 404 | - | `NEVER` | The quote does not exist for this RFQ. |
+| `QUOTE_NOT_FOUND` | 404 | - | `NEVER` | The quote does not exist. |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | - | `NEVER` | The idempotency key was already used with different input. |
 | `STATE_CONFLICT` | 409 | - | `REFRESH` | The resource changed and no longer admits this request. |
 | `STALE_CURSOR` | 409 | - | `REFRESH` | The cursor belongs to an older catalog or browse generation; restart from the first page. |
@@ -87,15 +87,15 @@ returns for each status.
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
 | `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
 | `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote expired. |
-| `QUOTE_WITHDRAWN` | 409 | - | `REFRESH` | The maker withdrew the quote. |
-| `QUOTE_SUPERSEDED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
+| `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
+| `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
 | `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |
 | `QUOTE_CAPACITY_EXCEEDED` | 409 | - | `REFRESH` | The maker's current capacity does not cover the quote. |
 | `CORE_FUNDING_CONFLICT` | 409 | - | `REFRESH` | Another Core funding is active for this account. |
 | `CORE_VAULT_RESERVATION` | 409 | - | `REFRESH` | The vault reservation for this Core funding changed. |
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
-| `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirmation. |
+| `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirm. |
 | `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |
 | `CONNECTION_LIMIT` | 429 | - | `BACKOFF` | The stream connection limit is reached. |
 | `RFQ_INTENT_LIMIT` | 429 | - | `BACKOFF` | The account has too many open RFQs. |
@@ -105,7 +105,7 @@ returns for each status.
 | `SOURCE_UNAVAILABLE` | 503 | 1013 | `BACKOFF` | The account-read or stream source is unavailable. |
 | `CONTRACT_UNAVAILABLE` | 503 | - | `BACKOFF` | This producer is disabled in this environment. |
 | `MARKET_DATA_UNAVAILABLE` | 503 | - | `BACKOFF` | No complete market catalog is available. |
-| `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this release. |
+| `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this deployment. |
 | `CORE_FUNDING_UNAVAILABLE` | 503 | - | `BACKOFF` | Core funding cannot be admitted now. |
 | `SPONSORSHIP_UNAVAILABLE` | 503 | - | `BACKOFF` | Venue gas sponsorship is unavailable. |
 | `CONTRACT_SIGNATURE_OVERLOADED` | 503 | - | `BACKOFF` | Contract signature verification is at capacity. |
@@ -113,11 +113,11 @@ returns for each status.
 | `COMBO_AUTOMATIC_DISABLED` | 503 | - | `BACKOFF` | Automatic combo quoting is disabled. |
 | `EMBEDDED_WALLET_UNAVAILABLE` | 503 | - | `BACKOFF` | The bound embedded wallet is unavailable. |
 | `CONNECTION_DRAIN` | 503 | 1012 | `BACKOFF` | The stream replica is draining; reconnect and resume from the last applied cursor. |
-| `INVALID_HELLO` | - | 1008 | `NEVER` | The first stream frame is not a valid hello. |
+| `INVALID_SUBSCRIPTION` | - | 1008 | `NEVER` | The first stream frame is not a valid subscribe. |
 | `SUBSCRIPTION_DENIED` | - | 1008 | `NEVER` | The credential may not subscribe to the requested channels or outcomes. |
 | `AUTHORIZATION_REVOKED` | - | 1008 | `NEVER` | The credential that opened the stream lost its authorization. |
 | `SLOW_CONSUMER` | - | 1008 | `BACKOFF` | The client fell behind; reconnect and resume from the last applied cursor. |
 | `RESNAPSHOT_REQUIRED` | - | 1008 | `REFRESH` | The stream cannot continue from this state; reload HTTP state and resubscribe. |
-| `QUOTE_SNAPSHOT_TOO_LARGE` | - | 1013 | `BACKOFF` | The quote snapshot exceeds the frame ceiling. |
+| `SNAPSHOT_TOO_LARGE` | - | 1013 | `BACKOFF` | The snapshot exceeds the frame ceiling. |
 
 {/* error-registry:end */}

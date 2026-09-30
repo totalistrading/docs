@@ -219,81 +219,84 @@
             "openapi": "/hyperliquid/openapi.json",
             "groups": [
               {
-                "group": "Trading API",
+                "group": "API reference",
                 "pages": [
-                  "hyperliquid/trading-api",
-                  {
-                    "group": "Taker",
-                    "expanded": true,
-                    "pages": [
-                      "GET /v1/vault",
-                      "GET /v1/stream",
-                      "POST /v1/rfqs",
-                      "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
-                      "POST /v1/rfqs/{rfq_id}/cancel",
-                      "POST /v1/withdrawals"
-                    ]
-                  },
-                  {
-                    "group": "Maker",
-                    "expanded": true,
-                    "pages": [
-                      "GET /v1/makers/{maker_id}/capital",
-                      "GET /v1/stream",
-                      "POST /v1/rfqs/{rfq_id}/book-quotes",
-                      "DELETE /v1/rfqs/{rfq_id}/book-quotes/{quote_digest}",
-                      "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}/confirmation"
-                    ]
-                  }
+                  "hyperliquid/endpoints"
                 ]
               },
               {
-                "group": "Reference",
+                "group": "Markets",
                 "pages": [
-                  {
-                    "group": "Market data",
-                    "pages": [
-                      "GET /v1/markets",
-                      "GET /v1/markets/{outcome_id}",
-                      "GET /v1/markets/{outcome_id}/history"
-                    ]
-                  },
-                  {
-                    "group": "Account",
-                    "pages": [
-                      "GET /v1/me/positions",
-                      "GET /v1/me/positions/{ticket_id}",
-                      "GET /v1/me/activity",
-                      "GET /v1/me/balances",
-                      "GET /v1/me"
-                    ]
-                  },
-                  {
-                    "group": "Operations",
-                    "pages": [
-                      "GET /v1/me/operations",
-                      "GET /v1/operations/{operation_id}"
-                    ]
-                  },
-                  {
-                    "group": "Maker",
-                    "pages": [
-                      "POST /v1/makers/{maker_id}/collateral-reductions",
-                      "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
-                      "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction"
-                    ]
-                  },
-                  {
-                    "group": "Recovery (the SDK does this for you)",
-                    "pages": [
-                      "GET /v1/rfqs/{rfq_id}/book-quotes",
-                      "GET /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
-                      "GET /v1/rfqs",
-                      "GET /v1/rfqs/{rfq_id}",
-                      "GET /v1/withdrawals/{withdrawal_id}",
-                      "GET /v1/makers/{maker_id}/confirmations"
-                    ]
-                  }
+                  "GET /v1/markets",
+                  "GET /v1/markets/{outcome_id}",
+                  "GET /v1/markets/{outcome_id}/history"
+                ]
+              },
+              {
+                "group": "RFQs",
+                "pages": [
+                  "POST /v1/rfqs",
+                  "GET /v1/rfqs",
+                  "GET /v1/rfqs/{rfq_id}",
+                  "POST /v1/rfqs/{rfq_id}/cancel"
+                ]
+              },
+              {
+                "group": "Quotes",
+                "pages": [
+                  "POST /v1/rfqs/{rfq_id}/quotes",
+                  "GET /v1/rfqs/{rfq_id}/quotes",
+                  "DELETE /v1/quotes/{quote_id}",
+                  "POST /v1/quotes/{quote_id}/accept",
+                  "POST /v1/quotes/{quote_id}/confirm",
+                  "GET /v1/quotes/{quote_id}/acceptance",
+                  "GET /v1/makers/{maker_id}/acceptances"
+                ]
+              },
+              {
+                "group": "Positions",
+                "pages": [
+                  "GET /v1/me/positions",
+                  "GET /v1/me/positions/{position_id}",
+                  "POST /v1/positions/{position_id}/cashout"
+                ]
+              },
+              {
+                "group": "Withdrawals",
+                "pages": [
+                  "POST /v1/withdrawals",
+                  "GET /v1/withdrawals/{withdrawal_id}"
+                ]
+              },
+              {
+                "group": "Account",
+                "pages": [
+                  "GET /v1/me",
+                  "GET /v1/me/balances",
+                  "GET /v1/me/activity",
+                  "GET /v1/me/operations",
+                  "GET /v1/operations/{operation_id}"
+                ]
+              },
+              {
+                "group": "Makers",
+                "pages": [
+                  "GET /v1/makers/{maker_id}/capital",
+                  "POST /v1/makers/{maker_id}/collateral-reductions",
+                  "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
+                  "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction"
+                ]
+              },
+              {
+                "group": "Deployment",
+                "pages": [
+                  "GET /v1/deployment"
+                ]
+              },
+              {
+                "group": "Streams",
+                "pages": [
+                  "GET /v1/stream"
                 ]
               }
             ]

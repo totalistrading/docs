@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Publish the Hyperliquid API reference: hyperliquid/openapi.json and its tab in docs.json.
 
-The source is hip4-backend's public spec (tools/public_openapi.py). This script:
+The source is hip4-backend's public spec (tools/public_openapi.py), which already leaves out the
+app-only routes. This script:
 
-- drops the routes the public docs do not show (HIDDEN): app-only maker access and onboarding
-  reads, and the taker self-funded transaction route, since Totalis sponsors taker gas. The API
-  keeps them. The maker self-funded route stays: makers pay their own gas and relay through it;
-- gives every operation a stable URL, /hyperliquid/api-reference/<tag>/<summary>, and puts the
-  SDK equivalent on the pages of the trading flow (x-mint);
-- writes the API reference tab: the taker and maker trading flow first, everything else in
-  collapsed reference groups. A route no rule places lands in a group named after its tag.
+- files every operation under one resource (PAGES): Markets, RFQs, Quotes, Positions, Withdrawals,
+  Account, Makers, Deployment, Streams. The resource becomes the operation's tag;
+- titles every page with one pattern, verb + resource ("Create RFQ", "Accept quote"), replacing
+  the spec's summary;
+- gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, and puts the SDK
+  equivalent on the pages of the trading flow, or a recovery note on the recovery reads (x-mint);
+- writes the API reference tab: the endpoints overview, then one group per resource.
+
+A route the spec has and PAGES does not place, or the reverse, stops the script.
 
     python3 scripts/hyperliquid_openapi.py --backend ../hip4-backend   # regenerate from a checkout
     python3 scripts/hyperliquid_openapi.py --spec exported.json         # or from an exported spec
@@ -30,113 +33,160 @@ SPEC = ROOT / "hyperliquid/openapi.json"
 DOCS = ROOT / "docs.json"
 PRODUCT = "Hyperliquid"
 TAB = "API reference"
-OVERVIEW = "hyperliquid/trading-api"
+OVERVIEW = "hyperliquid/endpoints"
 METHODS = ("get", "put", "post", "delete", "patch")
 
-# Routes the API serves but the public docs do not show.
-HIDDEN = {
-    # Maker access and onboarding: the Totalis app reads these, an API key cannot use them.
-    "GET /v1/me/maker",
-    "GET /v1/me/controlled-makers",
-    "GET /v1/me/makers",
-    "GET /v1/maker-onboarding/registrations/{maker_id}",
-    # Takers do not pay their own gas: Totalis sponsors it.
-    "POST /v1/operations/{operation_id}/self-funded-transaction",
+# Each resource, its tag description, and its pages in nav order as (route, page title).
+PAGES: dict[str, tuple[str, list[tuple[str, str]]]] = {
+    "Markets": (
+        "HIP-4 markets: the catalog, one market with its sides, and price history. No API key needed.",
+        [
+            ("GET /v1/markets", "List markets"),
+            ("GET /v1/markets/{outcome_id}", "Get market"),
+            ("GET /v1/markets/{outcome_id}/history", "Get market history"),
+        ],
+    ),
+    "RFQs": (
+        "Requests for quote. A taker creates an entry RFQ for new legs and a stake; a cash-out RFQ is "
+        "created on a position.",
+        [
+            ("POST /v1/rfqs", "Create RFQ"),
+            ("GET /v1/rfqs", "List RFQs"),
+            ("GET /v1/rfqs/{rfq_id}", "Get RFQ"),
+            ("POST /v1/rfqs/{rfq_id}/cancel", "Cancel RFQ"),
+        ],
+    ),
+    "Quotes": (
+        "A maker's quote on an RFQ, the taker's accept, the maker's confirm, and the acceptance they "
+        "create.",
+        [
+            ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote"),
+            ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes"),
+            ("DELETE /v1/quotes/{quote_id}", "Cancel quote"),
+            ("POST /v1/quotes/{quote_id}/accept", "Accept quote"),
+            ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote"),
+            ("GET /v1/quotes/{quote_id}/acceptance", "Get acceptance"),
+            ("GET /v1/makers/{maker_id}/acceptances", "List acceptances"),
+        ],
+    ),
+    "Positions": (
+        "Positions the account holds, or a maker wrote, and the cash-out of one.",
+        [
+            ("GET /v1/me/positions", "List positions"),
+            ("GET /v1/me/positions/{position_id}", "Get position"),
+            ("POST /v1/positions/{position_id}/cashout", "Cash out position"),
+        ],
+    ),
+    "Withdrawals": (
+        "A withdrawal of Totalis USDC to an external address, in one signed request.",
+        [
+            ("POST /v1/withdrawals", "Create withdrawal"),
+            ("GET /v1/withdrawals/{withdrawal_id}", "Get withdrawal"),
+        ],
+    ),
+    "Account": (
+        "The identity, balances, activity and operations of the account a key acts for.",
+        [
+            ("GET /v1/me", "Get identity"),
+            ("GET /v1/me/balances", "Get balances"),
+            ("GET /v1/me/activity", "List activity"),
+            ("GET /v1/me/operations", "List operations"),
+            ("GET /v1/operations/{operation_id}", "Get operation"),
+        ],
+    ),
+    "Makers": (
+        "A maker's capital and collateral reductions.",
+        [
+            ("GET /v1/makers/{maker_id}/capital", "Get maker capital"),
+            ("POST /v1/makers/{maker_id}/collateral-reductions", "Create collateral reduction"),
+            ("GET /v1/makers/{maker_id}/collateral-reductions/{job_id}", "Get collateral reduction"),
+            (
+                "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
+                "Submit self-funded transaction",
+            ),
+        ],
+    ),
+    "Deployment": (
+        "The contract deployment every signature is made against: chain, vault, fees and the USDC domain.",
+        [("GET /v1/deployment", "Get deployment")],
+    ),
+    "Streams": (
+        "The authenticated WebSocket for account and maker subscriptions.",
+        [("GET /v1/stream", "Open stream")],
+    ),
 }
 
-TAKER = [
-    "GET /v1/vault",
-    "GET /v1/stream",
-    "POST /v1/rfqs",
-    "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}",
-    "POST /v1/rfqs/{rfq_id}/cancel",
-    "POST /v1/withdrawals",
-]
-
-MAKER = [
-    "GET /v1/makers/{maker_id}/capital",
-    "GET /v1/stream",
-    "POST /v1/rfqs/{rfq_id}/book-quotes",
-    "DELETE /v1/rfqs/{rfq_id}/book-quotes/{quote_digest}",
-    "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}/confirmation",
-]
-
-RECOVERY = "Recovery (the SDK does this for you)"
-
-# Reference groups, in nav order. A route goes to the group its path names in PLACED, else to the
-# group its tag names in BY_TAG, else to a group named after its tag.
-REFERENCE = ["Market data", "Account", "Operations", "Funds and tickets", "Maker", "HyperCore", RECOVERY]
-BY_TAG = {
-    "Market data": "Market data",
-    "Identity": "Account",
-    "Account": "Account",
-    "Funds and tickets": "Funds and tickets",
-    "Maker reads": "Maker",
-    "HyperCore": "HyperCore",
-    "Recovery": RECOVERY,
+# Reads that rebuild state after a reconnect, a truncated snapshot or a lost response.
+RECOVERY = {
+    "GET /v1/rfqs",
+    "GET /v1/rfqs/{rfq_id}",
+    "GET /v1/rfqs/{rfq_id}/quotes",
+    "GET /v1/quotes/{quote_id}/acceptance",
+    "GET /v1/makers/{maker_id}/acceptances",
+    "GET /v1/withdrawals/{withdrawal_id}",
+    "GET /v1/me/operations",
+    "GET /v1/operations/{operation_id}",
 }
-PLACED = {
-    "GET /v1/me/operations": "Operations",
-    "GET /v1/operations/{operation_id}": "Operations",
-    "GET /v1/makers/{maker_id}/operations": "Operations",
-    "GET /v1/makers/{maker_id}/operations/{operation_id}": "Operations",
-    "GET /v1/makers/{maker_id}/funding-transaction": "Maker",
-    "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}": "Maker",
-    "POST /v1/makers/{maker_id}/collateral-reductions": "Maker",
-    "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction": "Maker",
-    "GET /v1/makers/{maker_id}/offers": "Maker",
-    "GET /v1/makers/{maker_id}/snapshot": RECOVERY,
-    "GET /v1/makers/{maker_id}/events": RECOVERY,
-}
-
-TRADING = "[Trading](/hyperliquid/trading)"
-MAKING = "[Market makers](/hyperliquid/market-makers)"
-WITHDRAWING = "[Funding](/hyperliquid/funding#withdraw-to-any-address)"
 RECOVERING = (
-    "A recovery read. The SDK makes it for you after a reconnect, a truncated snapshot, or a lost "
-    "response. The day-to-day flow never needs it."
+    "A recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost "
+    "response. The SDK makes it for you. The day-to-day flow never needs it."
 )
+
+OPENING = "[Open a position](/hyperliquid/open-a-position)"
+CASHING = "[Cash out a position](/hyperliquid/cash-out)"
+MAKING = "[Make markets](/hyperliquid/make-markets)"
+WITHDRAWING = "[Withdraw](/hyperliquid/withdraw)"
 
 # The SDK equivalent shown on each page of the trading flow.
 SDK = {
-    "GET /v1/vault": f"Every SDK flow reads this for you and caches it as `totalis.release()`. See {TRADING}.",
+    "GET /v1/deployment": (
+        "`totalis.deployment()` and `maker.deployment()` read it once and cache it. Every flow signs "
+        "against it. See [Signing](/hyperliquid/signing)."
+    ),
     "GET /v1/stream": (
-        "`createTotalis` and `createMaker` open it for you as `totalis.stream` and `maker.stream`. "
-        "For direct use, `TotalisStream` from `@totalistrading/hip4-client/realtime`. "
-        "See [Realtime](/hyperliquid/realtime)."
+        "`createTotalis` opens an `account` subscription as `totalis.stream`, and `createMaker` a `maker` "
+        "subscription as `maker.stream`. For direct use, `TotalisStream` from "
+        "`@totalistrading/hip4-client/realtime`. See [Connect and resume](/hyperliquid/streams)."
     ),
     "POST /v1/rfqs": (
-        "`totalis.placeBet({ legs, stake })` creates an entry RFQ and `totalis.cashOut({ ticketId })` "
-        f"a cash-out RFQ. Each then takes an offer from the book and accepts it. See {TRADING}."
-    ),
-    "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}": (
-        "`totalis.placeBet` sends this with a quote and `totalis.cashOut` with a bid, and each returns "
-        f"its final result. See {TRADING}."
+        "`totalis.openPosition({ legs, stake })` creates the RFQ, takes a quote from the stream and "
+        f"accepts it. See {OPENING}."
     ),
     "POST /v1/rfqs/{rfq_id}/cancel": (
-        "`placeBet` and `cashOut` cancel their RFQ when no acceptable offer arrives within "
-        f"`quoteTimeoutMs`, and while recovering a lost accept. See {TRADING}."
+        "`openPosition` and `cashOut` cancel their RFQ when no acceptable quote arrives within "
+        f"`quoteTimeoutMs`, and while recovering a lost accept. See {OPENING}."
+    ),
+    "POST /v1/positions/{position_id}/cashout": (
+        "`totalis.cashOut({ positionId })` creates the cash-out RFQ, takes a quote, has the owner sign "
+        f"it and accepts it. See {CASHING}."
+    ),
+    "POST /v1/quotes/{quote_id}/accept": (
+        "`openPosition` and `cashOut` send it once, under an acceptance ID made before the first send, "
+        f"and return the result. See {OPENING}."
+    ),
+    "POST /v1/rfqs/{rfq_id}/quotes": (
+        "`maker.quote(rfq, { payout })` creates a quote on an entry RFQ, and `maker.bid(rfq, { price })` "
+        f"a quote on a cash-out RFQ. See {MAKING}."
+    ),
+    "DELETE /v1/quotes/{quote_id}": f"`maker.cancelQuote(quoteId)`. See {MAKING}.",
+    "POST /v1/quotes/{quote_id}/confirm": (
+        "`maker.onAcceptance(handler)` answers every acceptance with your handler's `\"CONFIRM\"` or "
+        f"`\"DECLINE\"`. `maker.confirm(acceptance)` answers one. See {MAKING}."
     ),
     "GET /v1/makers/{maker_id}/capital": (
         "Read it with the typed client: `maker.client.GET(\"/v1/makers/{maker_id}/capital\", ...)`. "
-        f"Re-read it on `MAKER_VAULT_UPDATED`. See {MAKING}."
+        f"Read it again on `MAKER_CAPITAL_UPDATED`. See {MAKING}."
     ),
-    "POST /v1/rfqs/{rfq_id}/book-quotes": (
-        "`maker.quote(rfq, { payout })` publishes a quote on an entry RFQ, and "
-        f"`maker.bid(rfq, {{ price }})` a bid on a cash-out RFQ. See {MAKING}."
+    "POST /v1/makers/{maker_id}/collateral-reductions": (
+        f"`maker.reduceCollateral({{ signTransaction }})` creates the job and follows it. See {MAKING}."
     ),
-    "DELETE /v1/rfqs/{rfq_id}/book-quotes/{quote_digest}": f"`maker.withdraw(rfqId, quoteDigest)`. See {MAKING}.",
     "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction": (
-        "`maker.reduceCollateral({ signTransaction })` signs the collateral reduction's attestation with "
-        f"your gas wallet and relays it here. See {MAKING}."
-    ),
-    "POST /v1/rfqs/{rfq_id}/attempts/{attempt_id}/confirmation": (
-        "`maker.onConfirmation(handler)` answers every confirmation request with your handler's "
-        f"`\"CONFIRM\"` or `\"DECLINE\"`. `maker.confirm(request)` answers one. See {MAKING}."
+        "`maker.reduceCollateral({ signTransaction })` has your gas wallet sign the attestation and "
+        f"relays it here. See {MAKING}."
     ),
     "POST /v1/withdrawals": (
-        "`totalis.withdraw({ destination, amount })` signs any vault shortfall and the payout, sends this "
-        f"once and resolves when the payout commits. `totalis.waitForWithdrawal(id)` follows one after a restart. See {WITHDRAWING}."
+        "`totalis.withdraw({ destination, amount })` signs both parts, sends this once and resolves when "
+        f"the payout commits. `totalis.waitForWithdrawal(id)` follows one after a restart. See {WITHDRAWING}."
     ),
 }
 
@@ -152,103 +202,47 @@ def operations(spec: dict):
                 yield f"{method.upper()} {path}", item[method]
 
 
-def refs(node) -> set[str]:
-    found: set[str] = set()
-    if isinstance(node, dict):
-        if isinstance(node.get("$ref"), str):
-            found.add(node["$ref"])
-        for value in node.values():
-            found |= refs(value)
-    elif isinstance(node, list):
-        for value in node:
-            found |= refs(value)
-    return found
-
-
-def reachable(spec: dict) -> set[str]:
-    """Every component pointer reachable from outside components."""
-    seen: set[str] = set()
-    todo = refs({key: value for key, value in spec.items() if key != "components"})
-    while todo:
-        ref = todo.pop()
-        if ref in seen or not ref.startswith("#/components/"):
-            continue
-        seen.add(ref)
-        _, _, kind, name = ref.split("/", 3)
-        todo |= refs(spec["components"].get(kind, {}).get(name))
-    return seen
+def placed() -> dict[str, tuple[str, str]]:
+    return {route: (resource, title) for resource, (_, pages) in PAGES.items() for route, title in pages}
 
 
 def publish(spec: dict) -> dict:
-    """Drop the hidden routes and what only they used, then set each page's URL and SDK note."""
-    before = reachable(spec)
-    for key in HIDDEN:
-        method, path = key.split(" ", 1)
-        item = spec["paths"].get(path, {})
-        item.pop(method.lower(), None)
-        if not any(method in item for method in METHODS):
-            spec["paths"].pop(path, None)
-    orphaned = before - reachable(spec)
-    for ref in orphaned:
-        _, _, kind, name = ref.split("/", 3)
-        del spec["components"][kind][name]
-    used = {tag for _, operation in operations(spec) for tag in operation.get("tags", [])}
-    spec["tags"] = [tag for tag in spec.get("tags", []) if tag["name"] in used]
-
+    """File each operation under its resource, title it, and set its URL and SDK or recovery note."""
+    pages = placed()
+    routes = {key for key, _ in operations(spec)}
+    if routes != set(pages):
+        raise SystemExit(
+            f"PAGES does not match the spec. Unplaced: {sorted(routes - set(pages))}. "
+            f"Not in the spec: {sorted(set(pages) - routes)}"
+        )
+    spec["tags"] = [{"name": resource, "description": description} for resource, (description, _) in PAGES.items()]
     for key, operation in operations(spec):
-        mint = {"href": f"/hyperliquid/api-reference/{slug(operation['tags'][0])}/{slug(operation['summary'])}"}
+        resource, title = pages[key]
+        operation["tags"] = [resource]
+        operation["summary"] = title
+        mint = {"href": f"/hyperliquid/api-reference/{slug(resource)}/{slug(title)}"}
         if key in SDK:
             mint["content"] = f"<Tip>\n**SDK:** {SDK[key]}\n</Tip>\n"
-        elif RECOVERY in (PLACED.get(key), BY_TAG.get(operation["tags"][0])):
+        elif key in RECOVERY:
             mint["content"] = f"<Note>\n{RECOVERING}\n</Note>\n"
         operation["x-mint"] = mint
     return spec
 
 
-def flow_keys(pages: list) -> set[str]:
-    keys: set[str] = set()
-    for page in pages:
-        keys |= flow_keys(page["pages"]) if isinstance(page, dict) else {page}
-    return keys
-
-
-def tab(spec: dict) -> dict:
-    """The API reference tab: the trading flow, then every other route in a collapsed group."""
-    keys = [key for key, _ in operations(spec)]
-    flow = flow_keys(TAKER) | flow_keys(MAKER)
-    missing = flow - set(keys)
-    if missing:
-        raise SystemExit(f"the trading flow names routes the spec does not have: {sorted(missing)}")
-    groups: dict[str, list[str]] = {name: [] for name in REFERENCE}
-    for key, operation in operations(spec):
-        if key in flow:
-            continue
-        tag = operation["tags"][0]
-        groups.setdefault(PLACED.get(key) or BY_TAG.get(tag, tag), []).append(key)
+def tab() -> dict:
+    """The API reference tab: the endpoints overview, then one group per resource."""
     return {
         "tab": TAB,
         "openapi": "/hyperliquid/openapi.json",
-        "groups": [
-            {
-                "group": "Trading API",
-                "pages": [
-                    OVERVIEW,
-                    {"group": "Taker", "expanded": True, "pages": TAKER},
-                    {"group": "Maker", "expanded": True, "pages": MAKER},
-                ],
-            },
-            {
-                "group": "Reference",
-                "pages": [{"group": name, "pages": pages} for name, pages in groups.items() if pages],
-            },
-        ],
+        "groups": [{"group": "API reference", "pages": [OVERVIEW]}]
+        + [{"group": resource, "pages": [route for route, _ in pages]} for resource, (_, pages) in PAGES.items()],
     }
 
 
-def with_tab(docs: dict, spec: dict) -> dict:
+def with_tab(docs: dict) -> dict:
     product = next(p for p in docs["navigation"]["products"] if p["product"] == PRODUCT)
     index = next(i for i, t in enumerate(product["tabs"]) if t["tab"] == TAB)
-    product["tabs"][index] = tab(spec)
+    product["tabs"][index] = tab()
     return docs
 
 
@@ -273,7 +267,7 @@ def main() -> int:
         spec = json.loads((args.spec or SPEC).read_text())
 
     spec_text = dump(publish(spec))
-    docs_text = dump(with_tab(json.loads(DOCS.read_text()), spec))
+    docs_text = dump(with_tab(json.loads(DOCS.read_text())))
     if args.check:
         stale = [p.relative_to(ROOT) for p, text in ((SPEC, spec_text), (DOCS, docs_text)) if p.read_text() != text]
         if stale:
