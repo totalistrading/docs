@@ -1,7 +1,7 @@
 ---
 title: 'Endpoints'
 icon: 'list'
-description: 'All 30 operations of the Hyperliquid API, grouped by resource, with who calls each one and the SDK call that makes it.'
+description: 'All 30 operations of the Hyperliquid API, grouped by resource, with who calls each one.'
 ---
 
 The API has 30 public operations on `https://hip4-api.totalis.trade`. Each page below is generated
@@ -13,82 +13,85 @@ on [Glossary](/hyperliquid/glossary).
 | Taker | A personal key. Opens and cashes out positions, withdraws. |
 | Maker | A maker key. Quotes RFQs and confirms acceptances. |
 | Anyone | No key needed. |
-| Recovery | A read for after a reconnect, a truncated snapshot or a lost response. The SDK makes it for you. |
+| Recovery | A read only needed after a reconnect, a truncated snapshot or a lost response. |
 
 ## Markets
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [List markets](/hyperliquid/api-reference/markets/list-markets) | `GET /v1/markets` | Anyone | `client.GET("/v1/markets")` |
-| [Get market](/hyperliquid/api-reference/markets/get-market) | `GET /v1/markets/{outcome_id}` | Anyone | `client.GET("/v1/markets/{outcome_id}")` |
-| [Get market history](/hyperliquid/api-reference/markets/get-market-history) | `GET /v1/markets/{outcome_id}/history` | Anyone | `client.GET("/v1/markets/{outcome_id}/history")` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [List markets](/hyperliquid/api-reference/markets/list-markets) | `GET /v1/markets` | Anyone |
+| [Get market](/hyperliquid/api-reference/markets/get-market) | `GET /v1/markets/{outcome_id}` | Anyone |
+| [Get market history](/hyperliquid/api-reference/markets/get-market-history) | `GET /v1/markets/{outcome_id}/history` | Anyone |
 
 ## RFQs
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) | `POST /v1/rfqs` | Taker | `totalis.openPosition` |
-| [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) | `GET /v1/rfqs` | Maker, recovery | `maker.onRfq` |
-| [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq) | `GET /v1/rfqs/{rfq_id}` | Anyone, recovery | `maker.onRfq` |
-| [Cancel RFQ](/hyperliquid/api-reference/rfqs/cancel-rfq) | `POST /v1/rfqs/{rfq_id}/cancel` | Taker | `openPosition`, `cashOut` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) | `POST /v1/rfqs` | Taker |
+| [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) | `GET /v1/rfqs` | Maker, recovery |
+| [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq) | `GET /v1/rfqs/{rfq_id}` | Anyone, recovery |
+| [Cancel RFQ](/hyperliquid/api-reference/rfqs/cancel-rfq) | `POST /v1/rfqs/{rfq_id}/cancel` | Taker |
 
 ## Quotes
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Create quote](/hyperliquid/api-reference/quotes/create-quote) | `POST /v1/rfqs/{rfq_id}/quotes` | Maker | `maker.quote`, `maker.bid` |
-| [List quotes](/hyperliquid/api-reference/quotes/list-quotes) | `GET /v1/rfqs/{rfq_id}/quotes` | Taker, recovery | `openPosition`, `watchQuotes` |
-| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | `DELETE /v1/quotes/{quote_id}` | Maker | `maker.cancelQuote` |
-| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | `POST /v1/quotes/{quote_id}/accept` | Taker | `openPosition`, `cashOut` |
-| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | `POST /v1/quotes/{quote_id}/confirm` | Maker | `maker.onAcceptance`, `maker.confirm` |
-| [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | `GET /v1/quotes/{quote_id}/acceptance` | Taker, recovery | `openPosition`, `cashOut` |
-| [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `GET /v1/makers/{maker_id}/acceptances` | Maker, recovery | `maker.onAcceptance` |
+In flow order: a maker quotes an RFQ, the taker accepts the quote, and the maker confirms it. The
+whole maker side is on [Make markets](/hyperliquid/make-markets).
+
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote) | `POST /v1/rfqs/{rfq_id}/quotes` | Maker |
+| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | `DELETE /v1/quotes/{quote_id}` | Maker |
+| [List quotes](/hyperliquid/api-reference/quotes/list-quotes) | `GET /v1/rfqs/{rfq_id}/quotes` | Taker, recovery |
+| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | `POST /v1/quotes/{quote_id}/accept` | Taker |
+| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | `POST /v1/quotes/{quote_id}/confirm` | Maker |
+| [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | `GET /v1/quotes/{quote_id}/acceptance` | Taker, recovery |
+| [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `GET /v1/makers/{maker_id}/acceptances` | Maker, recovery |
 
 ## Positions
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [List positions](/hyperliquid/api-reference/positions/list-positions) | `GET /v1/me/positions` | Taker, maker | `client.GET("/v1/me/positions")` |
-| [Get position](/hyperliquid/api-reference/positions/get-position) | `GET /v1/me/positions/{position_id}` | Taker, maker | `client.GET("/v1/me/positions/{position_id}")` |
-| [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | `POST /v1/positions/{position_id}/cashout` | Taker | `totalis.cashOut` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [List positions](/hyperliquid/api-reference/positions/list-positions) | `GET /v1/me/positions` | Taker, maker |
+| [Get position](/hyperliquid/api-reference/positions/get-position) | `GET /v1/me/positions/{position_id}` | Taker, maker |
+| [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | `POST /v1/positions/{position_id}/cashout` | Taker |
 
 ## Withdrawals
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | `POST /v1/withdrawals` | Taker | `totalis.withdraw` |
-| [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) | `GET /v1/withdrawals/{withdrawal_id}` | Taker, recovery | `totalis.waitForWithdrawal` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | `POST /v1/withdrawals` | Taker |
+| [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) | `GET /v1/withdrawals/{withdrawal_id}` | Taker, recovery |
 
 ## Account
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Get identity](/hyperliquid/api-reference/account/get-identity) | `GET /v1/me` | Taker | `client.GET("/v1/me")` |
-| [Get balances](/hyperliquid/api-reference/account/get-balances) | `GET /v1/me/balances` | Taker | `client.GET("/v1/me/balances")` |
-| [List activity](/hyperliquid/api-reference/account/list-activity) | `GET /v1/me/activity` | Taker, maker | `client.GET("/v1/me/activity")` |
-| [List operations](/hyperliquid/api-reference/account/list-operations) | `GET /v1/me/operations` | Taker, maker, recovery | `totalis.waitForOperation` |
-| [Get operation](/hyperliquid/api-reference/account/get-operation) | `GET /v1/operations/{operation_id}` | Taker, maker, recovery | `totalis.waitForOperation` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Get identity](/hyperliquid/api-reference/account/get-identity) | `GET /v1/me` | Taker |
+| [Get balances](/hyperliquid/api-reference/account/get-balances) | `GET /v1/me/balances` | Taker |
+| [List activity](/hyperliquid/api-reference/account/list-activity) | `GET /v1/me/activity` | Taker, maker |
+| [List operations](/hyperliquid/api-reference/account/list-operations) | `GET /v1/me/operations` | Taker, maker, recovery |
+| [Get operation](/hyperliquid/api-reference/account/get-operation) | `GET /v1/operations/{operation_id}` | Taker, maker, recovery |
 
 ## Makers
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) | `GET /v1/makers/{maker_id}/capital` | Maker | `maker.client.GET("/v1/makers/{maker_id}/capital")` |
-| [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `POST /v1/makers/{maker_id}/collateral-reductions` | Maker | `maker.reduceCollateral` |
-| [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction) | `GET /v1/makers/{maker_id}/collateral-reductions/{job_id}` | Maker | `maker.reduceCollateral` |
-| [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) | `POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction` | Maker | `maker.reduceCollateral` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) | `GET /v1/makers/{maker_id}/capital` | Maker |
+| [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `POST /v1/makers/{maker_id}/collateral-reductions` | Maker |
+| [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction) | `GET /v1/makers/{maker_id}/collateral-reductions/{job_id}` | Maker |
+| [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) | `POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction` | Maker |
 
 ## Deployment
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) | `GET /v1/deployment` | Anyone | `totalis.deployment()`, `maker.deployment()` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) | `GET /v1/deployment` | Anyone |
 
 ## Streams
 
-| Endpoint | Route | Caller | SDK |
-| --- | --- | --- | --- |
-| [Open stream](/hyperliquid/api-reference/streams/open-stream) | `GET /v1/stream` (WebSocket) | Taker, maker | `totalis.stream`, `maker.stream`, `TotalisStream` |
+| Endpoint | Route | Caller |
+| --- | --- | --- |
+| [Open stream](/hyperliquid/api-reference/streams/open-stream) | `GET /v1/stream` (WebSocket) | Taker, maker |
 
 What each subscription carries is on [Account subscription](/hyperliquid/account-stream) and
 [Maker subscription](/hyperliquid/maker-stream). The public market data stream is on
