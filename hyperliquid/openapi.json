@@ -7095,7 +7095,7 @@
             }
           }
         },
-        "description": "Anyone: get the contract deployment every signature is made against.\n\nIt carries the signing domain (`chain_id` and `vault_address`), the USDC token and its signing domain, and the fees every quote must carry. Read it once and cache it.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key",
+        "description": "Anyone: get the contract deployment every signature is made against.\n\nIt carries the signing domain (`chain_id` and `vault_address`), the USDC token and its signing domain, and the fees every quote must carry. The signing domains are stable, but the fees can change: read them again before you quote.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key",
         "security": [
           {},
           {
