@@ -1,0 +1,70 @@
+---
+title: 'Glossary'
+icon: 'book-open'
+description: 'One definition for every term the Hyperliquid API uses: market, outcome, side, RFQ, quote, accept, confirm, acceptance, position, cash-out, settlement, withdrawal, deployment and subscription.'
+---
+
+Every Hyperliquid page uses these words with exactly these meanings. Field names are in code.
+
+## The trade
+
+A taker creates an **RFQ**, makers answer with **quotes**, the taker **accepts** one, the maker
+**confirms** it, and the taker holds a **position**. Each word below is one step or one object of
+that flow.
+
+| Term | Meaning | In the API |
+| --- | --- | --- |
+| **Market** | One HIP-4 outcome with its YES and NO sides, as the market list returns it. | [List markets](/hyperliquid/api-reference/markets/list-markets) |
+| **Outcome** | The HIP-4 outcome a market trades, named by a decimal ID. | `outcome_id`, for example `"1209"` |
+| **Side** | `YES` or `NO` of an outcome. | `side` |
+| **Leg** | One outcome and one side. A position with one leg is a single; two or more is a parlay. | `{ "outcome_id": "1209", "side": "YES" }` |
+| **Taker** | The account that creates an RFQ and accepts a quote. For a cash-out, the position's owner. | A personal key |
+| **Maker** | A market maker that quotes RFQs, confirms acceptances and backs positions from its maker vault. | `maker_id`, a maker key |
+| **RFQ** | Request for quote. An entry RFQ asks makers to price new legs for a stake. A cash-out RFQ asks them to price an existing position. | `rfq_id`, `kind: ENTRY` or `CASHOUT` |
+| **Quote** | A maker's executable offer on one RFQ. An entry quote carries `entry` terms (the payout). A cash-out quote carries `sell_back` or `transfer` terms (the price). Nobody signs a quote when it is created. | `quote_id` |
+| **Accept** | The taker's command on one quote. It carries the taker's signature over the quote's terms and creates an acceptance. | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) |
+| **Confirm** | The maker's answer to an acceptance, before its deadline: `CONFIRM` with the maker's signature over the same terms, or `DECLINE`. | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote), `decision` |
+| **Acceptance** | The record of one accept on one quote. A quote has at most one. It is named by the `Idempotency-Key` the taker sent. | `acceptance_id`, [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) |
+| **Position** | What a filled trade leaves on-chain: legs, a stake, a payout, an owner, and the maker that backs it. An entry position's ID is the ID of the quote that opened it. | `position_id` |
+| **Stake** | The USDC the taker pays for a position, before the entry fee. | `stake` |
+| **Payout** | The USDC a position pays if every leg wins, before the profit fee. | `payout` |
+| **Cash-out** | Selling an open position before it resolves: a cash-out RFQ, then a quote, accept and confirm. Prose says "cash out" for the verb; identifiers spell it `cashout`. | [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) |
+| **Sell-back** | A cash-out where the maker that backs the position buys it back, and the position closes. | `sell_back` |
+| **Transfer** | A cash-out where another maker buys the position and becomes its owner. | `transfer` |
+| **Settlement** | Grading a position on-chain once its legs resolve: a win, a partial win, a loss, or an early loss. | `settlement_kind` |
+| **Claim** | Paying a settled position's winnings into its owner's vault balance, net of the profit fee. Totalis does it for you. | `close_reason: CLAIM` |
+| **Withdrawal** | Sending your Totalis USDC to an external address in one signed request. | `withdrawal_id`, [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) |
+
+## The platform
+
+| Term | Meaning | In the API |
+| --- | --- | --- |
+| **Vault** | The Totalis contract on HyperEVM that holds user and maker USDC and every position. | `vault_address` |
+| **Totalis balance** | Your USDC on HyperEVM: what your wallet holds plus your free vault balance. | [Get balances](/hyperliquid/api-reference/account/get-balances) |
+| **Wallet** | Your Totalis wallet, the embedded wallet the app created for you. It issues your keys and signs your trades. | `wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity) |
+| **Funding** | Moving the part of a stake your vault balance is short into the vault, inside the accept. | `funding` |
+| **Operation** | One on-chain action Totalis relays for you (an accept, a sell-back, a withdrawal payout) and its execution status. | `operation_id`, `OPERATION_UPDATED` |
+| **Deployment** | The vault deployment every signature is made against: chain, vault address, fees and the USDC signing domain. | [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) |
+| **Maker capital** | A maker's vault balance, collateral requirement and free collateral. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
+| **Collateral reduction** | A job that lowers a maker's collateral requirement against correlated positions. | [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) |
+| **Subscription** | The one `subscribe` frame you send on the stream: `account` for your own account, or `maker` for a maker. | `{"method":"subscribe","subscription":{...}}` |
+| **Snapshot** | The current state the stream sends when you subscribe without a cursor. | `channel: "snapshot"` |
+| **Cursor** | Your place in the stream. Send it back to resume. | `cursor` |
+
+## Statuses
+
+Every lifecycle field is named `status`.
+
+| Object | Values | Home |
+| --- | --- | --- |
+| RFQ | `OPEN`, `ACCEPTED`, `EXPIRED`, `CANCELLED`, `FAILED` | [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq) |
+| Acceptance | `PENDING_CONFIRM`, `PENDING_FUNDING`, `ACCEPTED`, `FILLED`, `FAILED`, `DECLINED`, `TIMED_OUT`, `CANCELLED` | [Open a position](/hyperliquid/open-a-position#results) |
+| Operation | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN`, `COMMITTED`, `REVERTED`, `EXPIRED_UNEXECUTED` | [Open a position](/hyperliquid/open-a-position#follow-the-fill) |
+| Position | `OPEN`, `AWAITING_SETTLEMENT`, `SETTLED_UNCLAIMED`, `CLOSED` | [Settlement](/hyperliquid/settlement) |
+| Withdrawal | `VAULT_WITHDRAWAL_QUEUED`, `PAYOUT_SUBMITTED`, `PAYOUT_COMMITTED`, `FAILED` | [Withdraw](/hyperliquid/withdraw#statuses) |
+
+## Names the signed messages keep
+
+The vault contract's signed messages predate this vocabulary and keep their names. A position is a
+`ticketId` there, and an entry quote's terms are the `Quote` struct. The mapping is on
+[Signing](/hyperliquid/signing#api-names-and-signed-names).

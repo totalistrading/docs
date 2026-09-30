@@ -1,0 +1,93 @@
+---
+title: 'Requests'
+icon: 'brackets-curly'
+description: 'Base URLs, how a key selects the account, value encoding, idempotency keys, and which commands answer synchronously and which queue work.'
+---
+
+## Base URLs
+
+| Environment | Base URL | Chain |
+| --- | --- | --- |
+| Production | `https://hip4-api.totalis.trade` | HyperEVM mainnet (chain ID `999`) |
+| Staging | `https://hip4-api-staging.totalis.trade` | HyperEVM testnet (chain ID `998`) |
+
+A key works only in the environment it was created for.
+
+## The key selects the account
+
+Your API key implies the account, the chain and the vault of every request. No header or query parameter
+selects them, and there is no account switch.
+
+| Key | Reads its own state under | Example |
+| --- | --- | --- |
+| Personal key | `/v1/me/...` and `/v1/operations/{operation_id}` | `GET /v1/me/positions` |
+| Maker key | `/v1/me/...` and `/v1/operations/{operation_id}` for its positions, activity and operations. `/v1/makers/{maker_id}/...`, with its own `maker_id`, for capital, collateral reductions and acceptances. | `GET /v1/me/positions`, `GET /v1/makers/7/capital` |
+
+A maker key that names another `maker_id` gets `404`. See
+[Authentication](/hyperliquid/authentication#keys-and-accounts).
+
+## Values
+
+| Kind | Encoding | Example |
+| --- | --- | --- |
+| Amount | Base-10 string in USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
+| Large identifier | Decimal string. Outcome, chain, block and sequence values can exceed JavaScript's safe integer range. | `"1209"` |
+| Leg | A decimal `outcome_id` and a `side` of `YES` or `NO`, on RFQs, quotes and positions alike | `{ "outcome_id": "1209", "side": "YES" }` |
+| Address | Lowercase `0x` plus 40 hex characters. Input may be checksummed. | `"0xedf7131c57e0ac4eade509e1bf56a9ab7af43745"` |
+| `quote_id`, `position_id`, hash, signature | Lowercase `0x` hex of fixed length. Treat IDs as opaque. | `"0x5e5e...5e5e"` |
+| `rfq_id`, `acceptance_id`, `withdrawal_id` | UUIDv7 | `"01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a"` |
+| Timestamp | RFC 3339 UTC. Signed terms use unix seconds, as their field says. | `"2026-09-26T20:00:50Z"` |
+| Enum | Uppercase snake case. Handle unknown values on reads. Unknown values on commands are rejected. | `"ACCEPTED"` |
+| Lifecycle field | Always `status` | `"status": "OPEN"` |
+
+An omitted optional field and an explicit `null` are not interchangeable unless the field says so.
+
+## Idempotency
+
+The body of a command is the command itself. Every command `POST` carries an `Idempotency-Key` header
+holding a lowercase UUIDv7:
+
+```http
+POST /v1/rfqs HTTP/1.1
+Authorization: Bearer ttk_v1_prd_...
+Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771
+Content-Type: application/json
+
+{ "stake": "25000000", "legs": [{ "outcome_id": "1209", "side": "YES" }] }
+```
+
+| You send | You get |
+| --- | --- |
+| The same key and the same body | The original status and body, without repeating the command, and `Idempotency-Replayed: true` |
+| The same key with a different body | `409 IDEMPOTENCY_KEY_REUSED` |
+
+A key is scoped to your account, the method and the route. Generate a new one for every distinct command.
+To retry, resend the exact request you built the first time: same key, same bytes. The SDK does this, and
+`uuidv7()` from `@totalistrading/hip4-client` makes a key.
+
+Three routes differ:
+
+| Route | Key rule |
+| --- | --- |
+| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | Required. The key is the `acceptance_id`, and it is scoped to your account across every quote. The same key with another quote returns `IDEMPOTENCY_KEY_REUSED`. |
+| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | None. The quote keys the answer, since it has at most one acceptance. Sending a key returns `INVALID_IDEMPOTENCY_KEY`. |
+| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. `DELETE` is idempotent by itself. |
+
+A command never names an address your key already implies. The venue fills the RFQ's taker, and the
+wallet that funds an accept or pays out a withdrawal, from your account's wallet. The messages you sign
+still name that wallet.
+
+## Synchronous results and queued work
+
+| Command | Response |
+| --- | --- |
+| Accept a quote, confirm a quote | `200` with the final acceptance. The venue holds the request until the maker answers or the deadline passes. |
+| Create an RFQ, cash out a position, create a quote | `201` with the new ID: `rfq_id` or `quote_id` |
+| Cancel an RFQ | `204` |
+| Create a withdrawal | `202` with the admitted withdrawal. That is not payment: follow `WITHDRAWAL_UPDATED`. |
+| Create a collateral reduction, submit a self-funded transaction | `202` with the job or operation |
+
+An accepted trade is queued as an operation. Changes arrive on the stream: operation progress as
+`OPERATION_UPDATED`, quotes as `QUOTE_CREATED`, acceptances to confirm as `QUOTE_ACCEPTED`, withdrawals as
+`WITHDRAWAL_UPDATED`. The matching `GET` routes are for recovery after a reconnect or a lost response, not
+for polling. See [Connect and resume](/hyperliquid/streams).

@@ -1,7 +1,7 @@
 ---
 title: 'Authentication'
 icon: 'key'
-description: 'Scoped ttk_ API keys for the Hyperliquid API: how the app issues them, what each scope grants, and the exported wallet key a bot signs with.'
+description: 'Scoped ttk_ API keys for the Hyperliquid API: how the app issues them, what each scope grants, the recommended scope sets, and the exported wallet key a bot signs with.'
 ---
 
 Every authenticated request carries one scoped API key as a bearer token:
@@ -23,15 +23,15 @@ them.
 | | Personal key | Maker key |
 | --- | --- | --- |
 | Acts for | Your Totalis account | One maker (`maker_id`) |
-| Paths | `/v1/me/...`, plus the RFQ, accept, and withdrawal routes | `/v1/me/...` for your maker's positions, activity, and operations, `/v1/makers/{maker_id}/...` for your own `maker_id`, plus the quote routes |
+| Paths | `/v1/me/...`, plus the RFQ, accept, cash-out and withdrawal routes | `/v1/me/...` for your maker's positions, activity and operations, `/v1/makers/{maker_id}/...` for your own `maker_id`, plus the quote routes |
 | Issued by | Your Totalis wallet | The maker's controller |
 | Signs trades | Your Totalis wallet | The quote signer |
 | Addresses | `wallet`, your Totalis wallet, which is both | `owner`, the controller, and `signer`, the quote signer |
-| Read the addresses from | [Get identity](/hyperliquid/api-reference/identity/get-identity) | [Get maker capital](/hyperliquid/api-reference/maker/get-maker-capital) |
+| Read the addresses from | [Get identity](/hyperliquid/api-reference/account/get-identity) | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 
 A maker key naming another maker's `maker_id` gets `404`. On `/v1/me/...` and
-`/v1/operations/{operation_id}` the key reads its own account: a personal key its tickets, a maker key
-the tickets its maker wrote. A personal key cannot read maker state, and a maker key cannot read
+`/v1/operations/{operation_id}` the key reads its own account: a personal key its positions, a maker key
+the positions its maker wrote. A personal key cannot read maker state, and a maker key cannot read
 personal state. Keys start with `ttk_v1_prd_` in production and
 `ttk_v1_stg_` in staging, and a key only works in its own environment.
 
@@ -88,13 +88,12 @@ leak immediately.
 
 If the page reports that a key was issued but its secret cannot be shown (`SECRET_UNAVAILABLE`), the
 secret is gone for good. Revoke that key and create a new one. The number of live keys per account
-is on [Limits and timing](/hyperliquid/conventions#limits-and-timing).
+is on [Limits](/hyperliquid/limits).
 
 ## Scopes
 
 A key holds only the scopes you select, and only scopes that apply to its account type. Each
-[API reference](/hyperliquid/api-reference/market-data/list-markets) page lists the scopes its route
-requires.
+[API reference](/hyperliquid/endpoints) page lists the scopes its route requires.
 
 | Scope | Personal | Maker | Grants |
 | --- | :---: | :---: | --- |
@@ -103,14 +102,14 @@ requires.
 | `account:stream` | Yes | | Receive your account events on the realtime stream. |
 | `rfq:read` | Yes | Yes | Read open RFQs and receive RFQ events. |
 | `rfq:write` | Yes | | Create and cancel your RFQs. |
-| `quote:read` | Yes | Yes | Personal: receive the offers on your RFQs and read their book and attempts. Maker: receive quote events and read confirmation requests. |
-| `quote:write` | | Yes | Publish, withdraw, and confirm quotes and cash-out bids. |
+| `quote:read` | Yes | Yes | Personal: read the quotes on your RFQs and your acceptances. Maker: receive and read the acceptances of your quotes. |
+| `quote:write` | | Yes | Create, cancel and confirm quotes. |
 | `replay:read` | Yes | Yes | Resume the stream from a cursor and replay retained events. Grants no feed on its own. |
-| `ticket:accept` | Yes | | Accept a quote. |
-| `ticket:cashout` | Yes | | Cash out a ticket you own. |
+| `quote:accept` | Yes | | Accept a quote on your RFQ. |
+| `position:cashout` | Yes | | Accept a cash-out quote on a position you own. |
 | `funding:deposit` | Yes | | Fund the vault shortfall of an accept from your wallet. |
 | `funding:withdraw` | Yes | | Withdraw to any address. |
-| `sponsorship:use` | Yes | | Let Totalis pay the gas. Required whenever Totalis pays: accept, cashout, and withdraw. |
+| `sponsorship:use` | Yes | | Let Totalis pay the gas. Required whenever Totalis pays: accepts, cash-outs and withdrawals. |
 | `vault:read` | | Yes | Read your maker's capital, positions, activity, and operations, and its collateral reductions. |
 | `operations:submit` | | Yes | Relay your maker's own signed transaction for an operation it started, such as a collateral reduction's attestation. |
 | `vault:write` | | Yes | Request a collateral reduction. |
@@ -124,33 +123,34 @@ maker.
 | Integration | Scopes |
 | --- | --- |
 | Read-only dashboard | `identity:read`, `account:read`, `account:stream` |
-| Taker bot (`placeBet`, `cashOut`) | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `ticket:accept`, `ticket:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker bot (`openPosition`, `cashOut`) | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
 | Taker bot that also withdraws | The taker bot scopes plus `funding:withdraw` |
 | Market maker bot | `rfq:read`, `quote:read`, `quote:write`, `replay:read` |
 | Market maker dashboard | `vault:read` |
 | Maker collateral reductions | `vault:read`, `vault:write`, `operations:submit` |
 
-`funding:deposit` in the taker set lets `placeBet` fund a vault shortfall from your wallet in the
+`funding:deposit` in the taker set lets `openPosition` fund a vault shortfall from your wallet in the
 accept. Leave it out if the bot should only spend what is already in the vault. Settling and claiming
-need no scope: Totalis settles and claims every decided ticket for you.
+need no scope: Totalis [settles and claims](/hyperliquid/settlement) every position for you.
 
 ## Keys and signatures
 
-A key decides which routes you can call. It cannot move funds by itself. Tickets live in the Totalis
-vault contract on HyperEVM, and the contract only executes a trade, cashout, funding, or withdrawal
+A key decides which routes you can call. It cannot move funds by itself. Positions live in the Totalis
+vault contract on HyperEVM, and the contract only executes a trade, cash-out, funding or withdrawal
 that carries a signature from the wallet that owns the funds. You call the route with your key and
-put that signature in the request body. The SDK builds and signs each message for you.
+put that signature in the request body. The SDK builds and signs each message for you. Every message
+is on [Signing](/hyperliquid/signing).
 
 | Action | Signed by | Message |
 | --- | --- | --- |
 | Accept a quote | Your Totalis wallet | EIP-712 `TakerAccept` |
-| Confirm a quote you published | The maker's quote signer | EIP-712 `Quote` |
-| Confirm a cash-out bid you published | The maker's quote signer | EIP-712 `SellBack` or `CashoutTransfer` |
-| Sell back or transfer a ticket | The ticket owner | EIP-712 `SellBack` or `CashoutTransfer` |
+| Confirm an entry quote you created | The maker's quote signer | EIP-712 `Quote` |
+| Confirm a cash-out quote you created | The maker's quote signer | EIP-712 `SellBack` or `CashoutTransfer` |
+| Accept a cash-out quote | The position's owner | EIP-712 `SellBack` or `CashoutTransfer` |
 | Fund an accept's vault shortfall from your wallet | Your Totalis wallet | EIP-3009 `ReceiveWithAuthorization` on USDC |
 | Withdraw: move a vault shortfall to your wallet | Your Totalis wallet | EIP-712 `Exit` |
 | Withdraw: pay USDC to the destination | Your Totalis wallet | EIP-3009 `TransferWithAuthorization` on USDC |
-| Settle and claim a ticket | Nobody | None. Totalis does it for you. |
+| Settle and claim a position | Nobody | None. Totalis does it for you. |
 
 ## Export your wallet key
 
@@ -176,11 +176,11 @@ account, and the key that signs your trades is the same key that signs withdrawa
 Anyone who obtains it can withdraw everything the account holds, with or without your API key. If
 the host running your bot is compromised, treat the account as drained: revoke the API key and move
 the remaining funds out from the app. Keep only the balance the bot needs to trade. Trading keys,
-which can place and cash out bets but cannot withdraw, arrive in a future vault release.
+which can open and cash out positions but cannot withdraw, arrive in a future vault deployment.
 </Warning>
 
 A maker bot does not need the controller's key. It signs with a separate quote signer, which holds no
-funds and cannot withdraw. See [Market makers](/hyperliquid/market-makers#roles-and-keys).
+funds and cannot withdraw. See [Make markets](/hyperliquid/make-markets#roles-and-keys).
 
 ## Errors
 

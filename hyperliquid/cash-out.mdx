@@ -1,0 +1,159 @@
+---
+title: 'Cash out a position'
+icon: 'money-bill-transfer'
+description: 'Sell an open position before it resolves: POST /v1/positions/{position_id}/cashout creates a cash-out RFQ, makers quote a price, and you accept one.'
+---
+
+You can sell any `OPEN` position before its legs resolve. The endpoint is
+[Cash out position](/hyperliquid/api-reference/positions/cash-out-position):
+
+```http
+POST /v1/positions/{position_id}/cashout
+```
+
+It creates a **cash-out RFQ** on the position. Makers answer with a price, you accept the quote you
+want with the owner's signature, and the maker confirms it. The price is paid into your vault balance.
+The rest of the flow is the same accept and confirm as [opening a position](/hyperliquid/open-a-position).
+
+<CodeGroup>
+```ts SDK
+const sale = await totalis.cashOut({ positionId });
+if (sale.status === "ACCEPTED") {
+  const done = await totalis.waitForOperation(sale.operationId!);
+  console.log(done.status); // COMMITTED: sold
+}
+```
+
+```bash curl
+curl https://hip4-api.totalis.trade/v1/positions/$POSITION_ID/cashout \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01a0df58-a825-7f0e-9d2c-3b4a59687701" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+</CodeGroup>
+
+The curl response is `201` with the cash-out RFQ's `rfq_id`. The `totalis` client is created as on
+[Open a position](/hyperliquid/open-a-position#the-flow).
+
+## Sell-back or transfer
+
+A cash-out quote is one of two kinds. Either executes the same way for you.
+
+| Quote terms | Who buys | What happens to the position |
+| --- | --- | --- |
+| `sell_back` | The maker that backs the position | It closes, with `close_reason: SELL_BACK`. |
+| `transfer` | Any other maker | It moves to the buyer, who becomes its owner. |
+
+## Before you start
+
+| You need | Why |
+| --- | --- |
+| A position with `status: OPEN` | Only open positions can be cashed out. Read it with [Get position](/hyperliquid/api-reference/positions/get-position). |
+| To own it | The RFQ records your wallet as the owner, and only the owner's signature sells it. |
+| A key with `rfq:write`, `quote:accept`, `position:cashout` and `sponsorship:use` | The first creates the RFQ; the rest accept a cash-out quote. See [Recommended scope sets](/hyperliquid/authentication#recommended-scope-sets). |
+
+Totalis pays the gas. A cash-out takes no funding.
+
+## The flow
+
+| Step | Raw API | SDK |
+| --- | --- | --- |
+| 1. Create the cash-out RFQ | [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | `totalis.cashOut({ positionId })` does steps 1 to 4 |
+| 2. Collect quotes | `QUOTE_CREATED` with `kind: CASHOUT` on your [account subscription](/hyperliquid/account-stream) | `choose` (default `bestBid()`) |
+| 3. Sign as the owner | `SellBack` for a `sell_back` quote, `CashoutTransfer` for a `transfer` quote | `cashOut` |
+| 4. Accept | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote), the same route as an entry | `cashOut` |
+| 5. Follow the sale | `OPERATION_UPDATED`, then `POSITION_CLOSED` or `POSITION_TRANSFERRED` | `totalis.waitForOperation(operationId)` |
+
+### 1. Create the cash-out RFQ
+
+The body is empty, and the `Idempotency-Key` is required. The venue records the position's legs, its
+owner, the maker that backs it, and the position's leg state at a pinned block, so every maker prices
+the same facts. The RFQ is open for quotes for a fixed window (see [Limits](/hyperliquid/limits)).
+It fails with `STATE_CONFLICT` when the position is not `OPEN` or you do not own it, and with
+`DEPENDENCY_STALE` while the chain state it pins is behind.
+
+### 2. Collect quotes
+
+Quotes arrive exactly as entry quotes do: `QUOTE_CREATED` for each quote, `QUOTE_REMOVED` when one
+leaves. A cash-out quote carries a `price` instead of a `payout`:
+
+```json
+{
+  "quote_id": "0x7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d",
+  "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f",
+  "kind": "CASHOUT",
+  "sequence": 48240,
+  "sell_back": {
+    "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
+    "price": "18000000",
+    "owner": "0x1111111111111111111111111111111111111111",
+    "expiry": "1790452905",
+    "salt": "90210331458871",
+    "leg_state": "0x0000000000000000000000000000000000000000000000000000000000000002"
+  }
+}
+```
+
+`price` is the USDC you receive. Pass `choose` to pick the quote yourself, as for an entry. The
+default, `bestBid()`, takes the highest price with at least 25 seconds left, since the sale still has
+to execute after the maker confirms.
+
+### 3. Sign as the owner
+
+You sign the quote's terms before you accept, so the maker's confirm executes the sale with no step
+after it. Sign `sell_back` terms with `sellBackTypedData` and `transfer` terms with
+`cashoutTransferTypedData` (see [Signing](/hyperliquid/signing)). Both put the API's `position_id`
+into the signed `ticketId`.
+
+```ts
+import { cashoutTransferTypedData, sellBackTypedData } from "@totalistrading/hip4-client/typed-data";
+
+const deployment = await totalis.deployment();
+const typedData = quote.sell_back
+  ? sellBackTypedData(deployment, quote.sell_back)
+  : cashoutTransferTypedData(deployment, quote.transfer!);
+const taker_signature = await wallet.signTypedData(typedData);
+```
+
+### 4. Accept
+
+Send the signature as `taker_signature` on [Accept quote](/hyperliquid/api-reference/quotes/accept-quote),
+with a new `Idempotency-Key`. There is no `funding` on a cash-out.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/accept \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: $ACCEPTANCE_ID" \
+  -H "Content-Type: application/json" \
+  -d '{ "taker_signature": "0xcdcd...cd1c" }'
+```
+
+A lost response is recovered exactly as for an entry: see
+[Recover a lost accept](/hyperliquid/open-a-position#recover-a-lost-accept).
+
+## Results
+
+`cashOut` returns `rfqId`, `acceptanceId`, `quoteId`, `positionId`, `status` and `operationId`.
+
+| `status` | Meaning |
+| --- | --- |
+| `ACCEPTED` | The maker confirmed. The sell-back or transfer is queued as `operationId` (`kind` `SELL_BACK` or `CASHOUT_TRANSFER`). There is no follow-up call. |
+| `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing was sold. The position is still yours and still `OPEN`. Cash out again for a new RFQ. |
+| `NOT_ADMITTED` (SDK only) | The venue never received the accept. Nothing was sold. |
+
+When the operation is `COMMITTED`, the stream reports `POSITION_CLOSED` for a sell-back or
+`POSITION_TRANSFERRED` for a transfer, and `VAULT_BALANCE_CHANGED` for the price you received.
+
+## Errors to handle
+
+| Code | Cause | Do |
+| --- | --- | --- |
+| `FORBIDDEN` | The key lacks `position:cashout`, `quote:accept`, `rfq:write` or `sponsorship:use`. | Add the scope. |
+| `STATE_CONFLICT` | The position is not `OPEN`, or you do not own it. | Read the position. |
+| `DEPENDENCY_STALE` | The chain state the RFQ pins is behind. | Resend after `Retry-After`. The SDK does. |
+| `WRONG_AUTHORITY` | The signature is not from the position's owner. | Sign with the owner's wallet. |
+| `QUOTE_EXPIRED`, `QUOTE_CANCELLED`, `QUOTE_REPLACED`, `RFQ_NOT_OPEN` | The quote or RFQ changed before your accept. | Cash out again. |
+| `TimeoutError` (SDK) | No acceptable quote arrived within `quoteTimeoutMs`. The RFQ was cancelled. | Retry, or relax `choose`. |
+
+Every code is on [Errors](/hyperliquid/errors).

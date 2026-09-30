@@ -1,20 +1,20 @@
 ---
 title: 'TypeScript SDK'
 icon: 'code'
-description: 'The @totalistrading/hip4-client SDK: typed clients, taker and maker flows, signers, retries, pagination, and the realtime stream.'
+description: 'The @totalistrading/hip4-client SDK 0.14.0: access and install, entry points, clients, signers, retries, and what changed from 0.13.0.'
 ---
 
-`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.13.0. It is
-the same client the Totalis app runs. It gives you typed clients for every route, the taker and
-maker flows end to end, the EIP-712 and EIP-3009 messages each flow signs, a request layer that
-resends safely, pagination, and the realtime stream. It never stores a key: every signature goes to
-the signer you pass in.
+`@totalistrading/hip4-client` is the TypeScript SDK for the Hyperliquid API, version 0.14.0. It is the
+client the Totalis app runs. It holds typed clients for every route, the taker and maker flows end to
+end, the messages each flow signs, a request layer that resends safely, pagination and the stream. It
+never stores a key: every signature goes to the signer you pass in.
 
 ## Access and install
 
 The SDK is private. Access is provided on request: email
-[founders@totalis.trade](mailto:founders@totalis.trade) with the GitHub account that should read
-it. Once access is granted, authenticate to GitHub Packages with a token that can read packages:
+[founders@totalis.trade](mailto:founders@totalis.trade) with the GitHub account that should read it.
+Once access is granted, point the `@totalistrading` scope at GitHub Packages with a token that can read
+packages, and install:
 
 ```ini .npmrc
 @totalistrading:registry=https://npm.pkg.github.com
@@ -22,44 +22,43 @@ it. Once access is granted, authenticate to GitHub Packages with a token that ca
 ```
 
 ```bash
-npm install @totalistrading/hip4-client viem
+npm install @totalistrading/hip4-client@0.14.0 viem
 ```
 
 One ESM package runs in Node 22 or later and in browsers. It has no wallet dependency. `viem` (or
-ethers) is only needed to turn a private key into a signer.
+ethers) is only needed to turn a private key into a signer. Without SDK access, every guide's raw API
+steps work as plain HTTP.
 
 ## Entry points
 
 | Import | Holds |
 | --- | --- |
-| `@totalistrading/hip4-client` | `createTotalis` (taker flows), `createClient` (typed client for every personal route), `bestQuote` and `bestBid` (the default choosers), `ApiError`, `NetworkError`, `pages` and `items`, `toTotalisSigner`, `TotalisStream`, `uuidv7` |
-| `@totalistrading/hip4-client/maker` | `createMaker` (maker flows), `createMakerClient` (typed client for maker routes), and `controllerTransactions` and `openMakerVaultTransaction` (vault transactions for the controller wallet) |
+| `@totalistrading/hip4-client` | `createTotalis` (taker flows), `createClient` (typed client for every personal and public route), `bestQuote` and `bestBid` (the default choosers), `ApiError`, `NetworkError`, `pages` and `items`, `toTotalisSigner`, `TotalisStream`, `uuidv7` |
+| `@totalistrading/hip4-client/maker` | `createMaker` (maker flows), `createMakerClient` (typed client for maker routes), and the controller's vault transactions |
 | `@totalistrading/hip4-client/realtime` | `TotalisStream` and the generated stream frame types |
-| `@totalistrading/hip4-client/typed-data` | Builders and hashing for every signed message, from the API's own JSON shapes |
-| `@totalistrading/hip4-client/signer` | `toTotalisSigner` for viem accounts and wallet clients, EIP-1193 providers, and ethers signers |
-| `@totalistrading/hip4-client/errors` | The generated error registry, `ApiError`, and `NetworkError` |
+| `@totalistrading/hip4-client/typed-data` | Builders and hashing for every signed message, from the API's own JSON shapes. See [Signing](/hyperliquid/signing). |
+| `@totalistrading/hip4-client/signer` | `toTotalisSigner` for viem accounts and wallet clients, EIP-1193 providers and ethers signers |
+| `@totalistrading/hip4-client/errors` | The generated error registry, `ApiError` and `NetworkError` |
 | `@totalistrading/hip4-client/api-keys` | Key issuance and rotation for apps with a signed-in user session |
 
 ## Clients
 
-| Function | For | Credential | Signer |
+| Function | Calls | Credential | Signer |
 | --- | --- | --- | --- |
 | `createClient(environment, options)` | Any personal or public route, typed | Optional personal key | None |
-| `createTotalis(options)` | `placeBet`, `cashOut`, `withdraw`, `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, `waitForOperation`, `watchBook` | Personal key | Your Totalis wallet (`wallet` in `GET /v1/me`) |
+| `createTotalis(options)` | `openPosition`, `cashOut`, `withdraw`, `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, `waitForOperation`, `watchQuotes`, `deployment` | Personal key | Your Totalis wallet (`wallet` in `GET /v1/me`) |
 | `createMakerClient(environment, options)` | Any maker route, typed | Maker key | None |
-| `createMaker(options)` | `onRfq`, `quote`, `bid`, `withdraw`, `onConfirmation`, `confirm`, `controller`, `reduceCollateral` | Maker key | The maker's quote signer |
+| `createMaker(options)` | `onRfq`, `quote`, `bid`, `cancelQuote`, `onAcceptance`, `confirm`, `deployment`, `controller`, `reduceCollateral` | Maker key | The maker's quote signer |
 
-`environment` is `"production"` (`https://hip4-api.totalis.trade`) or `"staging"`
-(`https://hip4-api-staging.totalis.trade`). Pass `baseUrl` to point at another origin. Money is
-always integer USDC base units, as a `bigint` or a decimal string: `25_000_000n` is 25 USDC.
+`environment` is `"production"` or `"staging"`. Pass `baseUrl` to point at another origin. Money is
+integer USDC atomic units, as a `bigint` or a decimal string: `25_000_000n` is 25 USDC.
 
-`createTotalis` and `createMaker` also expose `client`, the typed client over the same key, for
-reads the flows do not cover, and `stream`, the account or maker stream the flows follow. Call
-`close()` when you are done.
+`createTotalis` and `createMaker` also expose `client`, the typed client over the same key, and
+`stream`, the subscription the flows follow. Call `close()` when you are done.
 
 ## Signers
 
-Every flow that signs takes a `signer`. Pass any of these and the SDK adapts it:
+Every flow that signs takes a `signer`. Pass any of these:
 
 | Signer | Example |
 | --- | --- |
@@ -68,22 +67,21 @@ Every flow that signs takes a `signer`. Pass any of these and the SDK adapts it:
 | EIP-1193 provider | `window.ethereum`, or an embedded wallet's provider |
 | ethers v6 signer | `new Wallet(privateKey)` |
 
-The SDK signs only what the flow you called needs, and checks the terms first. `placeBet` signs only
-quotes for exactly your taker, stake, and legs. `cashOut` signs only bids for your ticket and owner.
-`withdraw` signs a payout only for your destination and amount. A maker's quote signer signs only
-terms that maker published and that have not expired.
+The SDK signs only what the flow you called needs, and checks the terms first. `openPosition` signs
+only quotes for exactly your taker, stake and legs. `cashOut` signs only quotes for your position and
+owner. `withdraw` signs a payout only for your destination and amount. A maker's quote signer signs
+only terms that maker created and that have not expired.
 
 ## Retries and errors
 
-Every command is built once, with its `Idempotency-Key`, and resent byte for byte after
-a network failure or a `BACKOFF` error, waiting for `Retry-After` or a jittered backoff. That is five
-sends by default. Set `retry: { attempts }` to change it, or `retry: false` to send once. The
-venue replays a command it already accepted, so a resend never doubles a bet or a withdrawal.
+Every command is built once, with its `Idempotency-Key`, and resent byte for byte after a network
+failure or a `BACKOFF` error, after `Retry-After` or a jittered backoff. That is five sends by default.
+Set `retry: { attempts }` to change it, or `retry: false` to send once. The venue replays a command it
+already accepted, so a resend never opens a second position or a second withdrawal.
 
 `unwrap(result)` returns a typed client's data or throws `ApiError` with the registered `code`,
-`retry`, `status`, `requestId`, `fieldViolations`, and `retryAfterMs`. `requestId` is the request's
-own ID, the `X-Request-ID` response header. What each `retry` value means is on
-[Errors](/hyperliquid/errors).
+`retry`, `status`, `requestId`, `fieldViolations` and `retryAfterMs`. What each `retry` value means is
+on [Errors](/hyperliquid/errors).
 
 ```ts
 import { ApiError, createTotalis, NetworkError } from "@totalistrading/hip4-client";
@@ -96,7 +94,7 @@ const totalis = createTotalis({
 });
 
 try {
-  await totalis.placeBet({ legs: [{ outcome_id: 1209, side: 0 }], stake: 25_000_000n });
+  await totalis.openPosition({ legs: [{ outcome_id: "1209", side: "YES" }], stake: 25_000_000n });
 } catch (error) {
   if (error instanceof NetworkError || (error instanceof ApiError && error.retry === "BACKOFF")) {
     await error.resend?.(); // same bytes, same Idempotency-Key: never a second accept
@@ -110,73 +108,28 @@ try {
 }
 ```
 
-`NetworkError` means the outcome is unknown: the request may or may not have reached the venue. For
-a flow's command, it and a `BACKOFF` error that outlasted the resends carry `resend()`, which sends
-the identical request again and returns the venue's result. Never sign a second command instead.
+`NetworkError` means the outcome is unknown. For a flow's command, it and a `BACKOFF` error that
+outlasted the resends carry `resend()`, which sends the identical request again and returns the
+venue's result. Never sign a second command instead.
 
-## Pagination
+## Changes in 0.14.0
 
-`items` and `pages` walk any list: the first request omits `cursor`, each later one sends the
-previous `next_cursor` unchanged, and they stop when `has_more` is `false`.
+0.14.0 is breaking and needs contract 118. It moves the SDK to the vocabulary on
+[Glossary](/hyperliquid/glossary). Signed messages, digests and signatures are unchanged.
 
-```ts
-import { createClient, items, unwrap } from "@totalistrading/hip4-client";
-
-const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
-
-for await (const position of items(
-  (query) => client.GET("/v1/me/positions", { params: { query: { ...query, limit: 100 } } }).then(unwrap),
-  (page) => page.items,
-)) {
-  console.log(position.ticket_id, position.status);
-}
-```
-
-## Realtime
-
-The flows follow their operations, books, withdrawals, and confirmations on the realtime stream. The book of
-each RFQ arrives as `BOOK_QUOTE_PUBLISHED` and `BOOK_QUOTE_REMOVED` events, and maker confirmation
-requests as `CONFIRMATION_REQUESTED`, and each withdrawal change as `WITHDRAWAL_UPDATED`. The flows read over HTTP only to recover: after a reconnect,
-past a truncated snapshot, or after a lost response. Nothing polls. `stream.serverNow()` is the
-venue clock the choosers compare expiries with. To use the
-stream directly, see [Realtime](/hyperliquid/realtime).
-
-## Typed data
-
-`@totalistrading/hip4-client/typed-data` builds every signed message from the API's JSON shapes, so
-you never hand-write an EIP-712 type:
-
-| Builder | Signs |
+| 0.13.0 | 0.14.0 |
 | --- | --- |
-| `quoteTypedData(release, quote)` | A maker `Quote`. `hashTypedData` of it is the `quote_digest`. |
-| `takerAcceptTypedData(release, quote)` | A taker's `TakerAccept` of a quote |
-| `sellBackTypedData(release, bid)` | A `SellBack` cash-out |
-| `cashoutTransferTypedData(release, bid)` | A `CashoutTransfer` cash-out |
-| `exitTypedData(release, exit)` | A vault withdrawal (`Exit`) |
-| `receiveWithAuthorizationTypedData(release, authorization)` | The USDC `ReceiveWithAuthorization` that funds an accept's vault shortfall |
-| `transferWithAuthorizationTypedData(release, payout)` | A withdrawal payout's USDC `TransferWithAuthorization`. Its `nonce` is `payoutNonce(release, account, idempotencyKey)`. |
-| `usdcDomain(release)` | The USDC EIP-712 domain the two authorizations above sign under |
+| `placeBet` | `openPosition`. It returns `{ rfqId, acceptanceId, quoteId, positionId, entry, status, operationId, outcome }`. |
+| `cashOut({ ticketId })` | `cashOut({ positionId })`, which calls [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) |
+| `watchBook` | `watchQuotes` |
+| `release()` | `deployment()`, from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) |
+| `maker.withdraw(rfqId, digest)` | `maker.cancelQuote(quoteId)` |
+| `maker.onConfirmation` | `maker.onAcceptance` |
+| `state` | `status`, on every lifecycle field |
+| Legs `{ outcome_id: 1209, side: 0 }` | `{ outcome_id: "1209", side: "YES" }` |
+| `ticket_id`, `quote_digest`, `attempt_id` | `position_id`, `quote_id`, `acceptance_id` |
+| Types `BookQuote`, `Confirmation`, `Release`, `MakerConfirmationRequest` | `Quote`, `Acceptance`, `Deployment`, `MakerAcceptance` |
+| Stream option `topic` | `subscription: { type: "account" }` or `{ type: "maker", maker_id }` |
+| Scopes `ticket:accept`, `ticket:cashout` | `quote:accept`, `position:cashout` |
 
-`release` is the response of [Get vault release](/hyperliquid/api-reference/vault/get-vault-release),
-which carries the chain ID and vault address of the vault's EIP-712 domain, and in `usdc` the USDC
-token and its EIP-712 domain. The builders are tested against
-the vault's EIP-712 test vectors and the USDC domain separators.
-
-## Versions
-
-The SDK follows semantic versioning. Its changelog ships in the package as `CHANGELOG.md`. This
-documentation describes 0.13.0. Every release from 0.6.0 to 0.13.0 is breaking, and 0.4.0 is too.
-
-| Version | Needs contract | Change |
-| --- | --- | --- |
-| 0.13.0 (breaking) | 117 | `GET /v1/vault` no longer returns `financial_actions_enabled`. The venue still refuses balance-affecting commands while trading is paused, with `FINANCIAL_ACTIONS_DISABLED`: read that error rather than the release. |
-| 0.12.0 (breaking) | 116 | A command body is the command itself: `createRfq`, `publishBookQuote`, the accept, the confirmation, and `createWithdrawal` send no `schema_version`, `request_id`, or `sent_at` wrapper, and the body types are `CreateRfqCommand`, `BookQuoteCommand`, `ConfirmationAcceptanceCommand`, `MakerConfirmationCommand`, and `WithdrawalCommand`. The venue fills the addresses the key implies: no `taker_address` on an RFQ, no `account`, `from`, `quote_digest`, or `taker_signature` in a wallet funding, and no `account` on a withdrawal or `account` and `to` on its `vault_withdrawal`. The signed messages are unchanged. `signWithdrawal` returns `{ idempotencyKey, account, body }`. `error.requestId` is the response's `X-Request-ID`. A stream event is `{ stream, event_id, event_type, occurred_at, payload }`, with no `schema_version`, `resource_kind`, or `resource_id`. `ENTRY_RFQ_OPENED` carries the whole RFQ, and the `rfqDetails` stream option is gone. The RFQ-opened payloads carry no `state` or `terminal_reason`. Book offers carry no `chain_id` or `vault_address`, `session.ready` no `max_frame_bytes`, and the publication checkpoint no chain or vault: read them from `GET /v1/vault`. The quote and bid display events are gone. `GET /v1/me` returns `{ account_id, status, wallet }`. The attempt routes' `Idempotency-Key` header is optional. |
-| 0.11.0 (breaking) | 115 | Every account and maker read amount is an atomic USDC string, or `null` when unavailable, and one `context: { as_of, status }` per response replaces each amount's envelope. `contract_version` and `scope` are gone. An activity lists `transaction_hashes` (was `evidence`), and each effect is `{ bucket, delta, classification }`. `GET /v1/me/balances` returns the one balance at the top level (was `balances[0]`), without `product` or `unit`, and its `checkpoint` has no `chain_id`. A position has no `initial_exposure` (it is `signed_payout - net_stake`) or `claim_evidence_ids`, and maker capital no `allocated_wallet_cash`. |
-| 0.10.0 (breaking) | 114 | `Market.deadline` is gone. `dates` also carries `scheduled_event_at`, `observation_ends_at`, and `market_class`, and is `null` only for a market with neither reviewed timing nor a market class. `quote_asset`, the catalog provenance and taxonomy fields, and each side's `asset_id` are gone from markets. Market detail `metadata` is `{ content: { title, rules }, parent, sides }`, and `stats` is `{ volume_24h, open_interest }`. History carries `side`, `scale`, and `volume_scale` once, each bar is `{ minute, open, high, low, close, volume, trade_count }`, and `include_gaps` defaults to `false`. |
-| 0.9.0 (breaking) | 112 | `deposit`, `withdrawFromVault`, `settleTicket`, `claimTicket`, and `transferTypedData` are removed: `placeBet` funds a vault shortfall in its accept, `withdraw` moves any vault shortfall on its way out, and Totalis settles and claims every decided ticket itself. `withdraw`, `signWithdrawal`, and `sendWithdrawal` send `POST /v1/withdrawals` (was `/v1/totalis-withdrawals`) and follow `WITHDRAWAL_UPDATED` (was `TOTALIS_WITHDRAWAL_CONTINUATION_UPDATED`). The type is `Withdrawal` with `withdrawal_id` (was `TotalisWithdrawal` with `continuation_id`). The `ticket:settle` and `ticket:transfer` scopes and personal `operations:submit` are gone. |
-| 0.8.0 (breaking) | 111 | A maker key reads its own positions, activity, and operations under `/v1/me/...` and `/v1/operations/{operation_id}`. The maker stream is the only maker replay: it resumes from a persisted `cursor`. The `replay` stream option, the maker events, snapshot, and offers reads, and the HyperCore history read are gone. The maker snapshot has no `quotes` class. |
-| 0.7.0 (breaking) | 110 | Market data is list, detail, and history. `GET /v1/markets/{outcome_id}` also carries `metadata`, `recurring_round`, and `stats`. The market metadata and questions reads are gone. |
-| 0.6.0 (breaking) | 109 | A withdrawal to any address is one signed request that follows the stream: no payout claim or submission. `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, and `payoutNonce` are added. `resumeWithdrawal` is removed: use `waitForWithdrawal`. |
-| 0.5.0 | 107 | `onConfirmation` also handles confirmation requests past the 100 a maker snapshot carries. Its `onError` request parameter is optional. |
-| 0.4.0 (breaking) | 106 | The book comes from the stream. `placeBet` and `cashOut` share one accept, and `cashOut` resolves `COMMITTED` with `operationId`. A lost accept the venue never received resolves `NOT_ADMITTED` (was `ABANDONED`). `maker.bid` returns `quoteDigest` (was `bidDigest`). `watchCashoutBook` is gone: `watchBook` renders quotes and bids. |
-| 0.3.0 | 105 | `withdrawFromVault`, `settleTicket`, `claimTicket` (all removed in 0.9.0), and `maker.controller()`. Fees and USDC come from `GET /v1/vault`. |
+The complete list ships in the package as `CHANGELOG.md`.

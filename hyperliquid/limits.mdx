@@ -1,0 +1,71 @@
+---
+title: 'Limits and rate limits'
+icon: 'gauge'
+description: 'Every Hyperliquid limit, window, deadline and rate limit in one place: legs, stakes, fees, RFQ and quote timing, the confirm deadline, signing windows, streams and quotas.'
+---
+
+Every other Hyperliquid page links here for these values. Vault limits are set on the vault contract,
+where they can change. The current fees are in
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
+
+## Trading
+
+| Limit | Value |
+| --- | --- |
+| Legs per RFQ | 1 to 50, in strictly ascending `outcome_id` order, no outcome twice |
+| Minimum stake | Net stake (stake minus the entry fee) of at least the vault's `minStake`, currently 1 USDC |
+| Maximum position payout | 100,000 USDC |
+| Fees | `taker_fee_bps` (entry fee, on the stake, at accept) and `fee_bps` (profit fee, on winnings, at claim), currently 20 and 100. Every quote must carry the current values. |
+| Entry RFQ open for quotes | 20 seconds after creation |
+| Cash-out RFQ open for quotes | 30 seconds after creation |
+| Entry quote `expiry` | In the future and at most 30 seconds after creation. Quotes within 2 seconds of expiry are left out of the RFQ's quotes. |
+| Cash-out quote `expiry` | 25 to 60 seconds after creation, so the sale can still execute after the confirm. Quotes within 22 seconds of expiry are left out. |
+| Confirm deadline | 2 seconds after the accept. The accept response arrives at most 1 second after it. |
+| Settlement and claim | Totalis runs both for every eligible position about every 5 minutes. |
+
+## Signing windows
+
+| Signature | Window |
+| --- | --- |
+| Accept funding (USDC `ReceiveWithAuthorization`) | At most 900 seconds from `valid_after` to `valid_before`, and `valid_before` at least 5 seconds ahead |
+| Withdrawal vault part (`Exit`) | `expiry` at least 5 and at most 3,600 seconds ahead, less a 5 second margin |
+| Withdrawal payout (USDC `TransferWithAuthorization`) | At most 4,500 seconds from `valid_after` to `valid_before`, and `valid_before` at least 300 seconds after the `Exit` `expiry` (or after now, with no `Exit`) |
+| Maker vault withdrawal delay | 86,400 seconds between `requestMakerWithdraw` and `executeMakerWithdraw` |
+
+## Streams
+
+| Limit | Value |
+| --- | --- |
+| Replay window | 24 hours. An older cursor resets to a snapshot. |
+| Snapshot | At most 100 items per class. The rest is in the route named in `truncated`. |
+| Heartbeat | 15 seconds, or 1 second with `publication_freshness` |
+| Market data stream | 1 to 256 outcomes per subscription, frames up to 1 MiB |
+
+## Keys and requests
+
+| Limit | Value |
+| --- | --- |
+| API key lifetime | 1 to 90 days, or Forever |
+| Live API keys | 20 per account, counting keys in a rotation overlap |
+| Key approval message | Valid for 5 minutes, usable once |
+| Request body | 64 KiB |
+
+## Rate limits
+
+A request over its quota returns `429 RATE_LIMITED` with a `Retry-After` header holding the seconds to
+wait. Wait at least that long before resending. The SDK does this for you.
+
+| Route | Per account, per minute |
+| --- | --- |
+| [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) and [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | 30, shared |
+| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | 30 |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote) | 120 |
+| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | 120 |
+| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | 120 |
+| [List quotes](/hyperliquid/api-reference/quotes/list-quotes) | 600 |
+| [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | 600 |
+| Position and capital reads | 120, shared |
+| [List activity](/hyperliquid/api-reference/account/list-activity) | 120 |
+
+Each route also has a total limit across all callers, so `RATE_LIMITED` can arrive below these figures
+under heavy load. Too many open RFQs on one account returns `429 RFQ_INTENT_LIMIT`.

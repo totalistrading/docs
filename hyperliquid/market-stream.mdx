@@ -1,0 +1,164 @@
+---
+title: 'Market data stream'
+icon: 'wave-square'
+description: 'The public market data stream, totalis.market.v2: subscribe to up to 256 outcomes, apply the snapshot and deltas, and resnapshot on reset.'
+---
+
+The market data stream pushes live catalog entries and reference prices for the outcomes you select. It
+is public, needs no key, and is separate from the authenticated stream. It serves browsers on an allowed
+origin: a connection without an allowed `Origin` header is refused with `ORIGIN_NOT_ALLOWED`. Server
+integrations read [List markets](/hyperliquid/api-reference/markets/list-markets) and
+[Get market](/hyperliquid/api-reference/markets/get-market), and price from their own Hyperliquid feed.
+
+| | Value |
+| --- | --- |
+| URL | `wss://hip4-api.totalis.trade/v1/market-stream` (staging: `wss://hip4-api-staging.totalis.trade/v1/market-stream`) |
+| Subprotocol | `totalis.market.v2` |
+| Credential | None. An allowed browser `Origin`. |
+| Outcomes per subscription | See [Limits](/hyperliquid/limits) |
+
+## Subscribe frame
+
+Send one frame after the upgrade, naming the outcomes to follow:
+
+```json
+{
+  "method": "subscribe",
+  "subscription": { "type": "market", "outcome_ids": ["1209", "1211"] }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `type` | Always `market`. |
+| `outcome_ids` | Unique outcome IDs as decimal strings. The snapshot and deltas cover only these. |
+
+A malformed frame closes with `INVALID_SUBSCRIPTION`, and an oversized selection with
+`SUBSCRIPTION_DENIED`. To change the selection, open a new connection.
+
+## Response
+
+```json
+{
+  "channel": "subscriptionResponse",
+  "data": {
+    "method": "subscribe",
+    "subscription": { "type": "market", "outcome_ids": ["1209", "1211"] },
+    "server_time": "2026-08-07T20:00:00.118Z",
+    "heartbeat_interval_ms": 15000,
+    "max_frame_bytes": 1048576
+  }
+}
+```
+
+A `snapshot` follows at once.
+
+## Snapshot
+
+The `snapshot` frame is the complete state of your selected outcomes. Replace all local market-stream
+state with it, every time one arrives. The server sends another on the same socket after it repairs a
+brief source outage.
+
+| Field | Meaning |
+| --- | --- |
+| `version` | This state's version. The first delta's `previous_version` equals it. |
+| `catalog` | The catalog entry of each selected outcome: title, state, sides, result, eligibility and deadline. |
+| `references` | The reference price of each side of each selected outcome, with its source and freshness. |
+| `catalog_generation` | The catalog generation. A change resets the stream. |
+| `feed_generation` | The reference-price feed generation. |
+| `producer_id` | The producer that built the state. A change resets the stream. |
+| `complete` | `true` when the state covers every selected outcome. |
+
+```json
+{
+  "channel": "snapshot",
+  "data": {
+    "schema_version": "1",
+    "producer_id": "019fd6f1-d200-7000-8000-000000000001",
+    "catalog_generation": "7",
+    "feed_generation": "12",
+    "complete": true,
+    "version": "44",
+    "catalog": [
+      {
+        "outcome_id": "1209",
+        "native_question_id": "166",
+        "title": "HYPE touches 100 by 20261001-0000",
+        "state": "ACTIVE",
+        "sides": [
+          { "side": "YES", "coin": "#12090", "asset_id": "100012090" },
+          { "side": "NO", "coin": "#12091", "asset_id": "100012091" }
+        ],
+        "version": "44"
+      }
+    ],
+    "references": [
+      {
+        "outcome_id": "1209",
+        "side": "YES",
+        "reference": { "availability": "UNAVAILABLE", "source": "HYPERLIQUID_ALL_MIDS", "reason": "NOT_OBSERVED", "freshness": "UNKNOWN", "received_at": "2026-08-07T20:00:00Z" },
+        "version": "44"
+      }
+    ]
+  }
+}
+```
+
+The catalog entry above is trimmed. The full shape is the market in
+[Get market](/hyperliquid/api-reference/markets/get-market).
+
+## Deltas
+
+Each `delta` frame changes the state since your last snapshot or delta:
+
+| Field | Meaning |
+| --- | --- |
+| `previous_version` | Must equal the `version` of the last snapshot or delta you applied. If it does not, reconnect for a fresh snapshot. |
+| `version` | Higher than `previous_version`, but not always by one. |
+| `catalog_upserts` | Catalog entries added or changed. Replace them whole. |
+| `catalog_removals` | Outcomes removed from the catalog. |
+| `reference_upserts` | Reference prices that changed. Replace them whole. |
+| `reference_removals` | Reference prices removed. |
+
+```json
+{
+  "channel": "delta",
+  "data": {
+    "schema_version": "1",
+    "producer_id": "019fd6f1-d200-7000-8000-000000000001",
+    "catalog_generation": "7",
+    "feed_generation": "12",
+    "previous_version": "44",
+    "version": "52",
+    "catalog_upserts": [],
+    "catalog_removals": [],
+    "reference_upserts": [
+      {
+        "outcome_id": "1209",
+        "side": "YES",
+        "reference": { "availability": "UNAVAILABLE", "source": "HYPERLIQUID_ALL_MIDS", "reason": "NOT_OBSERVED", "freshness": "UNKNOWN", "received_at": "2026-08-07T20:00:05Z" },
+        "version": "52"
+      }
+    ],
+    "reference_removals": []
+  }
+}
+```
+
+Price changes that only move a timestamp are not sent, so a quiet stream does not mean a stale source.
+Read each reference's `freshness`.
+
+## Reset, drain and close
+
+This stream has no cursor and no replay. When it cannot continue from your state (a producer or catalog
+change, an unrepaired source outage, or a full queue), the server sends `{"channel":"reset"}` and closes
+with `RESNAPSHOT_REQUIRED`. Discard your market-stream state, reload the market list over HTTP, and
+reconnect. On `drain`, reconnect after `retry_after_ms`.
+
+| Close reason | Do |
+| --- | --- |
+| `RESNAPSHOT_REQUIRED` | Reload over HTTP and reconnect. |
+| `CONNECTION_DRAIN`, `SLOW_CONSUMER`, `SOURCE_UNAVAILABLE` | Reconnect with backoff. |
+| `INVALID_SUBSCRIPTION`, `SUBSCRIPTION_DENIED` | Fix the subscribe frame. |
+
+The retry value of every code is on [Errors](/hyperliquid/errors).

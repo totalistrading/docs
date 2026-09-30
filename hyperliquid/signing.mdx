@@ -1,0 +1,81 @@
+---
+title: 'Signing'
+icon: 'signature'
+description: 'The EIP-712 and EIP-3009 messages behind every trade, cash-out and withdrawal, the domain from /v1/deployment, and how API names map onto signed field names such as ticketId.'
+---
+
+An API key authenticates a call. The vault contract executes only what the owner of the funds signed.
+Each command that moves money carries one of these signatures in its body. The SDK builds and signs
+every one of them. Sign them yourself only when you do not use the SDK flows.
+
+## Who signs what
+
+| Action | Signed by | Message | Body field | SDK builder |
+| --- | --- | --- | --- | --- |
+| Accept an entry quote | Your wallet | EIP-712 `TakerAccept` | `taker_signature` | `takerAcceptTypedData(deployment, quote.entry)` |
+| Confirm an entry quote | The maker's quote signer | EIP-712 `Quote` | `maker_signature` | `quoteTypedData(deployment, entry)` |
+| Accept or confirm a sell-back quote | The owner, then the maker's quote signer | EIP-712 `SellBack` | `taker_signature`, `maker_signature` | `sellBackTypedData(deployment, quote.sell_back)` |
+| Accept or confirm a transfer quote | The owner, then the buying maker's quote signer | EIP-712 `CashoutTransfer` | `taker_signature`, `maker_signature` | `cashoutTransferTypedData(deployment, quote.transfer)` |
+| Fund an accept from your wallet | Your wallet | EIP-3009 USDC `ReceiveWithAuthorization` | `funding.authorization_signature` | `receiveWithAuthorizationTypedData(deployment, authorization)` |
+| Withdraw: move a shortfall from the vault | Your wallet | EIP-712 `Exit` | `vault_withdrawal.signature` | `exitTypedData(deployment, exit)` |
+| Withdraw: pay the destination | Your wallet | EIP-3009 USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` | `transferWithAuthorizationTypedData(deployment, payout)` |
+| Settle and claim a position | Nobody | None. Totalis does it. | | |
+
+Builders live in `@totalistrading/hip4-client/typed-data`. `hashTypedData` gives a message's digest,
+and `canonicalSignature` the signature form the venue accepts. The vault accepts EOA signatures and
+ERC-1271 contract signatures.
+
+## The domain comes from /v1/deployment
+
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment) holds everything a signature
+binds to. Read it once and sign against it.
+
+```json
+{
+  "chain_id": "999",
+  "vault_address": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745",
+  "source_revision": "05d9ceb7d577a18013683ed677eedf5d7b4d9728",
+  "audit_status": "PRE_AUDIT",
+  "fee_bps": 100,
+  "taker_fee_bps": 20,
+  "usdc": {
+    "address": "0xb88339cb7199b77e23db6e890353e22632ba630f",
+    "eip712_domain": { "name": "USDC", "version": "2", "chain_id": "999", "verifying_contract": "0xb88339cb7199b77e23db6e890353e22632ba630f" }
+  }
+}
+```
+
+| Messages | EIP-712 domain |
+| --- | --- |
+| `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit` | `name: "TotalisParlay"`, `version: "1"`, `chainId: chain_id`, `verifyingContract: vault_address` |
+| USDC `ReceiveWithAuthorization`, `TransferWithAuthorization` | `usdc.eip712_domain` |
+
+Every entry quote must carry the deployment's current `fee_bps` and `taker_fee_bps`.
+
+## API names and signed names
+
+The signed messages predate the API's vocabulary and keep their names. The API maps its fields onto them:
+
+| API | Signed message | Note |
+| --- | --- | --- |
+| `position_id` | `ticketId` (`SellBack`, `CashoutTransfer`) | The same bytes32 value. A position is a ticket on the contract. |
+| `entry` terms (schema `QuoteTerms`) | struct `Quote` and struct `TakerAccept` | The API's `Quote` object is the quote resource, not the struct. |
+| `sell_back` terms | struct `SellBack` | |
+| `transfer` terms | struct `CashoutTransfer` | |
+| `quote_id` | `hashTypedData` of the quote's terms | The digest of `Quote`, `SellBack` or `CashoutTransfer`. For an entry quote it is also the new `position_id`. |
+| Leg `{ "outcome_id": "1209", "side": "YES" }` | `Leg { outcomeId: uint32, side: uint8 }` | `YES` is `0`, `NO` is `1`. |
+| `maker_id`, `fee_bps`, `taker_fee_bps`, `leg_state` | `makerId`, `feeBps`, `takerFeeBps`, `legState` | Case only |
+| `vault_withdrawal` | struct `Exit` | |
+
+The contract's own names stay as they are wherever the API echoes them: the view `tickets(bytes32)`,
+the calls `accept`, `sellBack`, `cashoutTransferTicket`, `settle` and `claim`, and the events
+`TicketOpened`, `TicketTransferred` and `TicketSettled`.
+
+## USDC nonces
+
+| Authorization | Nonce |
+| --- | --- |
+| Accept funding | `keccak256(abi.encode(vault, chainId, from, salt, account))`, with `from` and `account` your wallet. `depositNonce(deployment, authorization)` computes it. Send `salt`, not the nonce. |
+| Withdrawal payout | Derived from the request's `Idempotency-Key`, so the signature is bound to that one request. `payoutNonce(deployment, wallet, idempotencyKey)` computes it. The nonce is not sent. |
+
+Time windows for each signature are on [Limits](/hyperliquid/limits).

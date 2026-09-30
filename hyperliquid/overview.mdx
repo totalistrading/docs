@@ -1,0 +1,58 @@
+---
+title: 'Overview'
+icon: 'compass'
+description: 'The Totalis Hyperliquid API: trade singles and parlays on Hyperliquid HIP-4 prediction markets as a taker, or price them as a market maker.'
+---
+
+The Hyperliquid API lets you trade Hyperliquid HIP-4 prediction markets through Totalis. You pick one
+or more market outcomes, market makers quote a price, and the trade settles on-chain in the Totalis
+vault contract on HyperEVM. It is a separate API from the [Solana API](/guides/quickstart), with its
+own keys.
+
+## Who it is for
+
+| You are | You | Start with |
+| --- | --- | --- |
+| A **taker** | Open positions on one or more outcomes, cash them out early, and withdraw your USDC. | [Open a position](/hyperliquid/open-a-position) |
+| A **maker** | Quote the RFQs takers create, confirm the quotes they accept, and back the positions from your maker vault. | [Make markets](/hyperliquid/make-markets) |
+
+Both read the same public [markets](/hyperliquid/api-reference/markets/list-markets) and follow their
+own state on one [authenticated stream](/hyperliquid/streams).
+
+## How a trade works
+
+| Step | Who | What happens | Route |
+| --- | --- | --- | --- |
+| 1 | Taker | Creates an **RFQ**: these legs, this stake. | [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) |
+| 2 | Makers | Each creates a **quote**: the payout it offers. | [Create quote](/hyperliquid/api-reference/quotes/create-quote) |
+| 3 | Taker | **Accepts** one quote with a wallet signature. Any USDC the vault is short is funded in the same call. | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) |
+| 4 | Maker | **Confirms** the acceptance with its own signature, or declines it. | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) |
+| 5 | Totalis | Executes the trade on-chain. The taker now holds a **position**. | None |
+
+Later, the taker can [cash out](/hyperliquid/cash-out) the position before it resolves, or let it
+[settle](/hyperliquid/settlement). Totalis settles and claims every position automatically. There is
+no deposit step and no claim step. Every term above is defined on
+[Glossary](/hyperliquid/glossary).
+
+## Base URL and auth
+
+| | Value |
+| --- | --- |
+| Production | `https://hip4-api.totalis.trade` (HyperEVM, chain ID `999`) |
+| Staging | `https://hip4-api-staging.totalis.trade` (HyperEVM testnet, chain ID `998`) |
+| Auth | A scoped API key from the Totalis app, sent as `Authorization: Bearer <key>`. Market reads need no key. See [Authentication](/hyperliquid/authentication). |
+| Money | Base-10 strings in USDC atomic units (6 decimals): `"25000000"` is 25 USDC. See [Requests](/hyperliquid/requests). |
+| SDK | `@totalistrading/hip4-client` 0.14.0, TypeScript. Private: access on request. See [TypeScript SDK](/hyperliquid/sdk). |
+
+An API key authenticates your calls. It cannot move funds on its own: every trade, cash-out and
+withdrawal also carries a signature from the wallet that owns the funds, which the vault contract
+checks. See [Signing](/hyperliquid/signing).
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/hyperliquid/quickstart">
+    Get a key, make a first read, and open a position.
+  </Card>
+  <Card title="Endpoints" icon="list" href="/hyperliquid/endpoints">
+    All 30 operations, grouped by resource.
+  </Card>
+</CardGroup>

@@ -183,7 +183,7 @@
       },
       {
         "product": "Hyperliquid",
-        "description": "Singles and parlays on Hyperliquid HIP-4 outcome markets",
+        "description": "Singles and parlays on Hyperliquid HIP-4 prediction markets",
         "tabs": [
           {
             "tab": "Guides",
@@ -191,24 +191,39 @@
               {
                 "group": "Get started",
                 "pages": [
+                  "hyperliquid/overview",
+                  "hyperliquid/glossary",
                   "hyperliquid/quickstart",
-                  "hyperliquid/authentication",
                   "hyperliquid/sdk"
                 ]
               },
               {
                 "group": "Guides",
                 "pages": [
-                  "hyperliquid/trading",
-                  "hyperliquid/funding",
-                  "hyperliquid/market-makers",
-                  "hyperliquid/realtime"
+                  "hyperliquid/open-a-position",
+                  "hyperliquid/cash-out",
+                  "hyperliquid/withdraw",
+                  "hyperliquid/make-markets",
+                  "hyperliquid/settlement"
                 ]
               },
               {
-                "group": "Reference",
+                "group": "Streams",
                 "pages": [
-                  "hyperliquid/conventions",
+                  "hyperliquid/streams",
+                  "hyperliquid/account-stream",
+                  "hyperliquid/maker-stream",
+                  "hyperliquid/market-stream"
+                ]
+              },
+              {
+                "group": "Conventions",
+                "pages": [
+                  "hyperliquid/authentication",
+                  "hyperliquid/requests",
+                  "hyperliquid/pagination",
+                  "hyperliquid/limits",
+                  "hyperliquid/signing",
                   "hyperliquid/errors"
                 ]
               }
