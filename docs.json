@@ -240,6 +240,32 @@
                 ]
               },
               {
+                "group": "Trading",
+                "pages": [
+                  "POST /v1/rfqs",
+                  "POST /v1/quotes/{quote_id}/accept",
+                  "POST /v1/rfqs/{rfq_id}/cancel",
+                  "POST /v1/positions/{position_id}/cashout",
+                  "GET /v1/rfqs",
+                  "GET /v1/rfqs/{rfq_id}",
+                  "GET /v1/rfqs/{rfq_id}/quotes",
+                  "GET /v1/quotes/{quote_id}/acceptance"
+                ]
+              },
+              {
+                "group": "Market maker",
+                "pages": [
+                  "POST /v1/rfqs/{rfq_id}/quotes",
+                  "DELETE /v1/quotes/{quote_id}",
+                  "POST /v1/quotes/{quote_id}/confirm",
+                  "GET /v1/makers/{maker_id}/capital",
+                  "POST /v1/makers/{maker_id}/collateral-reductions",
+                  "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
+                  "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
+                  "GET /v1/makers/{maker_id}/acceptances"
+                ]
+              },
+              {
                 "group": "Markets",
                 "pages": [
                   "GET /v1/markets",
@@ -248,32 +274,10 @@
                 ]
               },
               {
-                "group": "RFQs",
-                "pages": [
-                  "POST /v1/rfqs",
-                  "GET /v1/rfqs",
-                  "GET /v1/rfqs/{rfq_id}",
-                  "POST /v1/rfqs/{rfq_id}/cancel"
-                ]
-              },
-              {
-                "group": "Quotes",
-                "pages": [
-                  "POST /v1/rfqs/{rfq_id}/quotes",
-                  "DELETE /v1/quotes/{quote_id}",
-                  "GET /v1/rfqs/{rfq_id}/quotes",
-                  "POST /v1/quotes/{quote_id}/accept",
-                  "POST /v1/quotes/{quote_id}/confirm",
-                  "GET /v1/quotes/{quote_id}/acceptance",
-                  "GET /v1/makers/{maker_id}/acceptances"
-                ]
-              },
-              {
                 "group": "Positions",
                 "pages": [
                   "GET /v1/me/positions",
-                  "GET /v1/me/positions/{position_id}",
-                  "POST /v1/positions/{position_id}/cashout"
+                  "GET /v1/me/positions/{position_id}"
                 ]
               },
               {
@@ -294,24 +298,15 @@
                 ]
               },
               {
-                "group": "Makers",
+                "group": "Streams",
                 "pages": [
-                  "GET /v1/makers/{maker_id}/capital",
-                  "POST /v1/makers/{maker_id}/collateral-reductions",
-                  "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
-                  "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction"
+                  "GET /v1/stream"
                 ]
               },
               {
                 "group": "Deployment",
                 "pages": [
                   "GET /v1/deployment"
-                ]
-              },
-              {
-                "group": "Streams",
-                "pages": [
-                  "GET /v1/stream"
                 ]
               }
             ]
