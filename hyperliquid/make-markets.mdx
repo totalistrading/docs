@@ -1,7 +1,7 @@
 ---
 title: 'Make markets'
 icon: 'chart-candlestick'
-description: 'Run a maker on the Hyperliquid API: fund your capital, subscribe to RFQs, create and cancel quotes, confirm acceptances before the deadline, and manage collateral.'
+description: 'How makers quote RFQs on the Hyperliquid API: check capital, subscribe, receive RFQ_CREATED, create and cancel quotes, confirm each QUOTE_ACCEPTED before the deadline, and manage collateral.'
 ---
 
 As a maker you price the RFQs takers create. You create unsigned quotes. When a taker accepts one, you
@@ -24,16 +24,46 @@ sequenceDiagram
   API-->>Bot: OPERATION_UPDATED, POSITION_OPENED, MAKER_CAPITAL_UPDATED
 ```
 
-## The flow
+## How makers quote RFQs
 
-| Step | Raw API | SDK |
-| --- | --- | --- |
-| Fund capital | Controller transactions to the vault contract; read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) | `maker.controller()` |
-| Subscribe | [Open stream](/hyperliquid/api-reference/streams/open-stream) with a `maker` subscription | `maker.onRfq(handler)` |
-| Quote | [Create quote](/hyperliquid/api-reference/quotes/create-quote) | `maker.quote(rfq, { payout })`, `maker.bid(rfq, { price })` |
-| Cancel | [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | `maker.cancelQuote(quoteId)` |
-| Confirm | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) on each `QUOTE_ACCEPTED` | `maker.onAcceptance(handler)` |
-| Collateral | [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `maker.reduceCollateral()` |
+<Steps>
+  <Step title="Check your capital">
+    Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). `free_collateral` is the headroom that
+    backs new fills. See [Set up and fund your capital](#set-up-and-fund-your-capital).
+  </Step>
+  <Step title="Subscribe to the maker stream">
+    [Open stream](/hyperliquid/api-reference/streams/open-stream) with your maker key and send a `maker` subscription. See
+    [Subscribe](#subscribe) and [Maker subscription](/hyperliquid/maker-stream).
+  </Step>
+  <Step title="Receive RFQ_CREATED">
+    Each new RFQ arrives whole as [`RFQ_CREATED`](/hyperliquid/maker-stream#events): an entry RFQ with
+    legs and a stake, or a cash-out RFQ on a position. After a snapshot that truncated `open_rfqs`, page
+    [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs).
+  </Step>
+  <Step title="Create a quote">
+    Price it from your own market data and send [Create quote](/hyperliquid/api-reference/quotes/create-quote). The quote is
+    unsigned. See [Quote](#quote).
+  </Step>
+  <Step title="Cancel or replace it">
+    A new quote on the same RFQ replaces your previous one. [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote)
+    takes it off the RFQ. See [Cancel](#cancel).
+  </Step>
+  <Step title="Receive QUOTE_ACCEPTED">
+    When a taker accepts your quote you receive [`QUOTE_ACCEPTED`](/hyperliquid/maker-stream#events)
+    with the exact terms and a `deadline`. After a snapshot that truncated `acceptances`, page
+    [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances).
+  </Step>
+  <Step title="Confirm or decline">
+    Before the deadline, send [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote): `CONFIRM` with your quote
+    signer's signature, or `DECLINE`. On confirm the trade executes. See [Confirm](#confirm).
+  </Step>
+  <Step title="Manage collateral">
+    Read capital again on every `MAKER_CAPITAL_UPDATED`, move funds with
+    [controller transactions](#move-maker-funds), and lower your requirement with
+    [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction). See
+    [Reduce collateral](#reduce-collateral).
+  </Step>
+</Steps>
 
 ## Roles and keys
 

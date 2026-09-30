@@ -19,15 +19,15 @@ own keys.
 Both read the same public [markets](/hyperliquid/api-reference/markets/list-markets) and follow their
 own state on one [authenticated stream](/hyperliquid/streams).
 
-## How a trade works
+## How an RFQ works
 
-| Step | Who | What happens | Route |
-| --- | --- | --- | --- |
-| 1 | Taker | Creates an **RFQ**: these legs, this stake. | [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) |
-| 2 | Makers | Each creates a **quote**: the payout it offers. | [Create quote](/hyperliquid/api-reference/quotes/create-quote) |
-| 3 | Taker | **Accepts** one quote with a wallet signature. Any USDC the vault is short is funded in the same call. | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) |
-| 4 | Maker | **Confirms** the acceptance with its own signature, or declines it. | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) |
-| 5 | Totalis | Executes the trade on-chain. The taker now holds a **position**. | None |
+| Step | Taker ([Open a position](/hyperliquid/open-a-position)) | Maker ([Make markets](/hyperliquid/make-markets)) |
+| --- | --- | --- |
+| 1. Create RFQ | [Creates an RFQ](/hyperliquid/api-reference/rfqs/create-rfq): these legs, this stake. | Receives it as `RFQ_CREATED` on the [maker subscription](/hyperliquid/maker-stream). |
+| 2. Makers quote | Receives each quote as `QUOTE_CREATED`. | [Creates a quote](/hyperliquid/api-reference/quotes/create-quote): the payout it offers. |
+| 3. Taker accepts | [Accepts one quote](/hyperliquid/api-reference/quotes/accept-quote) with a wallet signature. Any USDC the vault is short is funded in the same call. | Receives `QUOTE_ACCEPTED` with a short deadline. |
+| 4. Maker confirms | Waits: the accept response carries the maker's answer. | [Confirms](/hyperliquid/api-reference/quotes/confirm-quote) with its own signature, or declines. |
+| 5. Position opens | Holds the **position** once Totalis executes the trade on-chain. | Backs the position from its maker vault. |
 
 Later, the taker can [cash out](/hyperliquid/cash-out) the position before it resolves, or let it
 [settle](/hyperliquid/settlement). Totalis settles and claims every position automatically. There is
