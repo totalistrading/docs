@@ -28,9 +28,10 @@ python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonsc
 ```
 
 `scripts/hyperliquid_openapi.py` writes `hyperliquid/openapi.json` and the Hyperliquid API reference tab in
-`docs.json`. It leaves out the routes in its `HIDDEN` list (app-only maker access and onboarding, and the taker
-self-funded transaction route), puts the taker and maker trading flow first, and files every other route
-under a collapsed Reference group. Edit the lists at the top of the script, not the generated files.
+`docs.json`. Its `PAGES` table files every operation under one resource (Markets, RFQs, Quotes, Positions,
+Withdrawals, Account, Makers, Deployment, Streams) and titles its page verb + resource. A route the spec has
+and `PAGES` does not place stops the script. Edit the tables at the top of the script, not the generated
+files.
 
 `--check` on either script fails when the committed files are stale.
 
