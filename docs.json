@@ -260,8 +260,8 @@
                 "group": "Quotes",
                 "pages": [
                   "POST /v1/rfqs/{rfq_id}/quotes",
-                  "GET /v1/rfqs/{rfq_id}/quotes",
                   "DELETE /v1/quotes/{quote_id}",
+                  "GET /v1/rfqs/{rfq_id}/quotes",
                   "POST /v1/quotes/{quote_id}/accept",
                   "POST /v1/quotes/{quote_id}/confirm",
                   "GET /v1/quotes/{quote_id}/acceptance",

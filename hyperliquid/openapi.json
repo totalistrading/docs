@@ -26,7 +26,7 @@
     },
     {
       "name": "Quotes",
-      "description": "A maker's quote on an RFQ, the taker's accept, the maker's confirm, and the acceptance they create."
+      "description": "The quote flow in order: a maker creates or cancels a quote on an RFQ, the taker accepts it, the maker confirms it, and the acceptance records the result."
     },
     {
       "name": "Positions",
@@ -58,7 +58,7 @@
       "get": {
         "operationId": "listMarkets",
         "summary": "List markets",
-        "description": "Cursor-paginated active named HIP-4 outcomes grouped by native question. Fallback and settled outcomes are excluded; advisory catalog presence is never financial authority.\n\nNo API key required.",
+        "description": "Anyone: list the active markets, grouped by question, one page at a time.\n\nEach market is one HIP-4 outcome with its YES and NO sides. Fallback and settled outcomes are left out. A listed market is not a promise that an RFQ on it will be quoted or accepted.\n\nNo API key required.",
         "tags": [
           "Markets"
         ],
@@ -331,7 +331,7 @@
       "get": {
         "operationId": "getMarket",
         "summary": "Get market",
-        "description": "One normalized outcome and its canonical sides, with its product metadata at the same catalog generation, its current recurring round and its 24h stats.\n\nNo API key required.",
+        "description": "Anyone: get one market with its YES and NO sides, its product details, its current round and its 24-hour stats.\n\nNo API key required.",
         "tags": [
           "Markets"
         ],
@@ -555,7 +555,7 @@
       "get": {
         "operationId": "getMarketHistory",
         "summary": "Get market history",
-        "description": "At most 24 hours of cursor-bounded sparse one-minute Hyperliquid history, defaulting to the rolling 24 hours ending at server time. Only closed buckets before closed_before are returned; take the current minute from the live market stream. Select qualified book/reference OHLC for a line chart or executed-trade OHLCV for candles; AUTO preserves the trade-first behavior.\n\nNo API key required.",
+        "description": "Anyone: get up to 24 hours of one-minute price history for one side of a market.\n\nThe default window is the last 24 hours. Only minutes that closed before `closed_before` are returned; take the current minute from the live market stream.\n\n- Use `series=REFERENCE_PRICE_OHLC` for a line chart and `series=TRADE_OHLCV` for candles. `AUTO` uses trades when there are any.\n- Page with `cursor` inside the window the first response returns.\n\nNo API key required.",
         "tags": [
           "Markets"
         ],
@@ -796,7 +796,7 @@
       "get": {
         "operationId": "listQuotes",
         "summary": "List quotes",
-        "description": "Live unsigned quotes on an RFQ you own: entry quotes, or sell-back and transfer quotes, by the RFQ's kind. The account stream already pushes each quote as QUOTE_CREATED and its removal as QUOTE_REMOVED, and the account snapshot carries the live quotes, so read this only after a reconnect whose replay was reset or a snapshot that truncated quotes.\n\nRequires a personal key with `quote:read`.",
+        "description": "Recovery: list the live quotes on an RFQ you own.\n\nThe account stream pushes each new quote as `QUOTE_CREATED` and each removal as `QUOTE_REMOVED`, and the account snapshot carries the live quotes. Read this only after a reconnect that reset the stream, or a snapshot that truncated the quotes.\n\nRequires a personal key with `quote:read`.",
         "tags": [
           "Quotes"
         ],
@@ -809,7 +809,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Current authoritative venue result; not chain confirmation",
+            "description": "The live quotes on the RFQ.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1069,13 +1069,13 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/list-quotes",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       },
       "post": {
         "operationId": "createQuote",
         "summary": "Create quote",
-        "description": "Create or replace this maker's unsigned quote on an RFQ: entry terms for an ENTRY RFQ, or sell_back or transfer terms for a CASHOUT RFQ. The terms must match the RFQ's kind. Signatures come later: the taker signs to accept, and the maker signs to confirm.\n\nRequires a maker key with `quote:write`.",
+        "description": "Makers: quote an open RFQ you received as `RFQ_CREATED` on the maker stream.\n\nThe quote is unsigned. The taker sees it as `QUOTE_CREATED` and can accept it until it expires. You sign only later, when you confirm that acceptance with `POST /v1/quotes/{quote_id}/confirm`.\n\n- Send an `Idempotency-Key`.\n- A new quote replaces your previous quote on the same RFQ.\n- Send `entry` terms for an entry RFQ, and `sell_back` or `transfer` terms for a cash-out RFQ.\n- `quote_id` must be the digest of the terms you send.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "Quotes"
         ],
@@ -1088,7 +1088,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Current authoritative venue result; not chain confirmation",
+            "description": "The quote is live on the RFQ, or an exact retry returned it. Nothing is signed or on chain yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1403,7 +1403,9 @@
         ],
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/create-quote",
-          "content": "<Tip>\n**SDK:** `maker.quote(rfq, { payout })` creates a quote on an entry RFQ, and `maker.bid(rfq, { price })` a quote on a cash-out RFQ. See [Make markets](/hyperliquid/make-markets).\n</Tip>\n"
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     },
@@ -1416,7 +1418,7 @@
       "delete": {
         "operationId": "cancelQuote",
         "summary": "Cancel quote",
-        "description": "Idempotently take this maker's quote off its RFQ's book. The quote ID is global, so no RFQ is named. ACCEPTED returns 409: a confirm already accepted the quote and it cannot be cancelled.\n\nRequires a maker key with `quote:write`.",
+        "description": "Makers: take your quote off its RFQ, so no taker can accept it.\n\nSafe to repeat: the response reports the quote's status whether you cancelled it now or earlier. The quote ID is unique on its own, so the path names no RFQ.\n\n- Needs no `Idempotency-Key`.\n- `409` with status `ACCEPTED`: you already confirmed the quote, so it cannot be cancelled.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "Quotes"
         ],
@@ -1429,7 +1431,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Current authoritative venue result; not chain confirmation",
+            "description": "The quote's status after the call: `CANCELLED` or `REPLACED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1707,7 +1709,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/cancel-quote",
-          "content": "<Tip>\n**SDK:** `maker.cancelQuote(quoteId)`. See [Make markets](/hyperliquid/make-markets).\n</Tip>\n"
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     },
@@ -1720,7 +1724,7 @@
       "post": {
         "operationId": "acceptQuote",
         "summary": "Accept quote",
-        "description": "Accept a quote on an RFQ you own and wait for the maker to confirm. For an ENTRY quote, taker_signature is the TakerAccept signature over its entry terms; for a CASHOUT quote it is the owner's SellBack or CashoutTransfer signature over quote_id, and funding is not allowed. The Idempotency-Key is the acceptance_id: one namespace per taker account across every quote, so the same key, quote and body replays the stored acceptance without restarting its deadline, and the same key with another quote or body returns IDEMPOTENCY_KEY_REUSED. A quote has at most one acceptance; a new key for a quote whose RFQ already has a live acceptance returns STATE_CONFLICT. The response is held until the maker answers or the fixed two-second deadline passes, bounded by that deadline plus one second, and is never PENDING_CONFIRM: ACCEPTED with operation_id, PENDING_FUNDING while the HyperCore funding of an ENTRY is pending, or DECLINED, TIMED_OUT or CANCELLED. ACCEPTED means the trade, sell-back or transfer is queued; follow OPERATION_UPDATED on the stream until it is FILLED. After a lost response, read the acceptance at GET /v1/quotes/{quote_id}/acceptance.\n\nRequires a personal key with `quote:accept`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.",
+        "description": "Takers: accept a maker's quote to open a position, or to cash one out.\n\nThe maker then has two seconds to confirm, and the response waits for that answer. `ACCEPTED` means the trade is queued; follow `OPERATION_UPDATED` on the account stream until it fills.\n\n- Send your signature over the quote's terms as `taker_signature`.\n- `Idempotency-Key` is required and becomes the `acceptance_id`. Choose it before the first send and reuse it on every retry.\n- A quote can be accepted once. A new key on an RFQ that already has a live acceptance returns `409 STATE_CONFLICT`.\n- The response status is never `PENDING_CONFIRM`: it is `ACCEPTED`, `PENDING_FUNDING`, `DECLINED`, `TIMED_OUT` or `CANCELLED`.\n- Lost the response? Read `GET /v1/quotes/{quote_id}/acceptance` instead of accepting again.\n\nRequires a personal key with `quote:accept`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.",
         "tags": [
           "Quotes"
         ],
@@ -1733,7 +1737,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance once the maker answered or the deadline passed; not chain confirmation",
+            "description": "The acceptance after the maker answered or the two-second deadline passed, returned within three seconds. `ACCEPTED` means queued, not yet on chain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2080,7 +2084,9 @@
         ],
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/accept-quote",
-          "content": "<Tip>\n**SDK:** `openPosition` and `cashOut` send it once, under an acceptance ID made before the first send, and return the result. See [Open a position](/hyperliquid/open-a-position).\n</Tip>\n"
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -2093,7 +2099,7 @@
       "post": {
         "operationId": "confirmQuote",
         "summary": "Confirm quote",
-        "description": "The quoting maker confirms an acceptance of its quote with its signature over the accepted ENTRY Quote or CASHOUT SellBack or CashoutTransfer terms, or declines it. Confirming admits execution atomically: the entry accept, sell-back or transfer is queued with the taker's signature from the accept, and the acceptance becomes ACCEPTED with operation_id. A Core-funded ENTRY returns PENDING_FUNDING while its HyperCore payment is pending, then ACCEPTED once execution is admitted or CANCELLED when the acceptance ends. The quote identifies the acceptance, since it has at most one, so the route takes no Idempotency-Key: the same decision and signature replay the stored result with Idempotency-Replayed true, and a different answer returns IDEMPOTENCY_KEY_REUSED. A late answer cannot reopen a closed acceptance. Maker backing stays reserved while its signature can execute. Pending acceptances arrive as QUOTE_ACCEPTED on the maker stream and in the maker snapshot's acceptances.\n\nRequires a maker key with `quote:write`.",
+        "description": "Makers: confirm or decline a taker's acceptance of your quote. This is your final step before the trade executes.\n\nAcceptances arrive as `QUOTE_ACCEPTED` on the maker stream and in the maker snapshot's `acceptances`. Confirm with your quote signer's signature over the accepted terms before the acceptance's `deadline`; the trade is then queued and the acceptance becomes `ACCEPTED` with an `operation_id`.\n\n- Send no `Idempotency-Key`: the quote identifies its one acceptance. Resending the same answer replays the result; a different answer returns `409 IDEMPOTENCY_KEY_REUSED`.\n- An answer after the deadline cannot reopen the acceptance.\n- `PENDING_FUNDING`: the taker pays from HyperCore. The acceptance becomes `ACCEPTED`, or `CANCELLED` if the payment fails.\n- Your capital stays reserved for as long as your signature can execute.\n\nRequires a maker key with `quote:write`.",
         "tags": [
           "Quotes"
         ],
@@ -2106,7 +2112,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Current authoritative venue result; not chain confirmation",
+            "description": "The acceptance after your answer. `ACCEPTED` means queued, not yet on chain.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2439,7 +2445,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/confirm-quote",
-          "content": "<Tip>\n**SDK:** `maker.onAcceptance(handler)` answers every acceptance with your handler's `\"CONFIRM\"` or `\"DECLINE\"`. `maker.confirm(acceptance)` answers one. See [Make markets](/hyperliquid/make-markets).\n</Tip>\n"
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     },
@@ -2447,7 +2455,7 @@
       "get": {
         "operationId": "listRfqs",
         "summary": "List RFQs",
-        "description": "Cursor-bounded discovery of currently open RFQs for market makers. The stream delivers new RFQs; page this only when a snapshot truncated open_rfqs.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
+        "description": "Recovery: page through the RFQs that are open right now.\n\nMakers receive every new RFQ as `RFQ_CREATED` on the maker stream, and the maker snapshot carries the open ones in `open_rfqs`. Read this only when a snapshot truncated `open_rfqs`.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
         "tags": [
           "RFQs"
         ],
@@ -2461,7 +2469,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Open RFQs",
+            "description": "One page of open RFQs.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2709,7 +2717,7 @@
         ],
         "x-mint": {
           "href": "/hyperliquid/api-reference/rfqs/list-rfqs",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       },
       "post": {
@@ -2751,7 +2759,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created or replayed",
+            "description": "The RFQ was created, or an exact retry returned it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2990,10 +2998,12 @@
             }
           }
         },
-        "description": "Open an entry RFQ for new legs and a stake; the taker is the caller's embedded wallet. Cash out an existing position with POST /v1/positions/{position_id}/cashout instead.\n\nRequires a personal key with `rfq:write`.",
+        "description": "Takers: ask makers to quote a new position on one or more legs for a stake.\n\nMakers see the RFQ as `RFQ_CREATED` and answer with quotes, which reach you as `QUOTE_CREATED` on the account stream. Accept the one you want with `POST /v1/quotes/{quote_id}/accept`. Your wallet is the taker and will own the position.\n\n- Send an `Idempotency-Key`. A retry with the same key and body returns the same RFQ.\n- To sell a position you already hold, use `POST /v1/positions/{position_id}/cashout` instead.\n\nRequires a personal key with `rfq:write`.",
         "x-mint": {
           "href": "/hyperliquid/api-reference/rfqs/create-rfq",
-          "content": "<Tip>\n**SDK:** `totalis.openPosition({ legs, stake })` creates the RFQ, takes a quote from the stream and accepts it. See [Open a position](/hyperliquid/open-a-position).\n</Tip>\n"
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -3034,7 +3044,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created or replayed",
+            "description": "The cash-out RFQ was created, or an exact retry returned it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3273,10 +3283,12 @@
             }
           }
         },
-        "description": "Open a cash-out RFQ on a position the caller's embedded wallet owns. Makers answer it with sell-back and transfer quotes, which are accepted and confirmed like entry quotes. The RFQ records the position's owner and leg state at a decision block that every quote must price.\n\nRequires a personal key with `rfq:write`.",
+        "description": "Takers: ask makers to price a position you hold, so you can sell it before it resolves.\n\nThis opens a cash-out RFQ. Makers answer with cash-out quotes; you accept one like an entry quote, and the maker confirms it. Makers price the position as it stood at the RFQ's `decision_block`.\n\n- Send an `Idempotency-Key`.\n- Your wallet must own the position.\n\nRequires a personal key with `rfq:write`.",
         "x-mint": {
           "href": "/hyperliquid/api-reference/positions/cash-out-position",
-          "content": "<Tip>\n**SDK:** `totalis.cashOut({ positionId })` creates the cash-out RFQ, takes a quote, has the owner sign it and accepts it. See [Cash out a position](/hyperliquid/cash-out).\n</Tip>\n"
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -3289,7 +3301,7 @@
       "post": {
         "operationId": "cancelRfq",
         "summary": "Cancel RFQ",
-        "description": "Stops venue delivery of an RFQ without an accepted quote; it does not invalidate a canonical maker signature. It also stops any delayed accept, so a following acceptance read is final. Once accepted or past its expiry, it returns RFQ_NOT_CANCELLABLE. An open RFQ returns STATE_CONFLICT and stays open while an acceptance on it is PENDING_FUNDING, or a HyperCore-funded acceptance can still join it (from admission until its quote dies).\n\nRequires a personal key with `rfq:write`.",
+        "description": "Takers: cancel your RFQ, so makers stop seeing it and no new accept can start.\n\nThe cancel also blocks any accept still on its way, so an acceptance read after it is final.\n\n- Send an `Idempotency-Key`.\n- `409 RFQ_NOT_CANCELLABLE`: a quote on the RFQ was already accepted, or the RFQ expired.\n- `409 STATE_CONFLICT`: an acceptance on the RFQ is waiting for its HyperCore payment, so the RFQ stays open.\n- A cancel does not revoke a signature a maker already gave.\n\nRequires a personal key with `rfq:write`.",
         "tags": [
           "RFQs"
         ],
@@ -3307,7 +3319,7 @@
         ],
         "responses": {
           "204": {
-            "description": "RFQ delivery stopped or exact command replayed"
+            "description": "The RFQ is cancelled, or an exact retry replayed the cancel."
           },
           "400": {
             "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
@@ -3572,7 +3584,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/rfqs/cancel-rfq",
-          "content": "<Tip>\n**SDK:** `openPosition` and `cashOut` cancel their RFQ when no acceptable quote arrives within `quoteTimeoutMs`, and while recovering a lost accept. See [Open a position](/hyperliquid/open-a-position).\n</Tip>\n"
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -3585,7 +3599,7 @@
       "get": {
         "operationId": "getAcceptance",
         "summary": "Get acceptance",
-        "description": "Recover the acceptance of a quote after a lost accept response, without sending a financial command. It finds the acceptance whichever key or tab made it. 404 means no accept was admitted yet: POST cancel on the RFQ, which stops any delayed accept, then read again; a 404 after the cancel is final.\n\nRequires a personal key with `quote:read`.",
+        "description": "Recovery: get the acceptance of a quote after you lost the accept response.\n\nIt finds the acceptance whichever key or session made it, and moves no funds.\n\n- `404` means no accept was admitted yet. Cancel the RFQ, which blocks any accept still on its way, then read again. A `404` after the cancel is final.\n\nRequires a personal key with `quote:read`.",
         "tags": [
           "Quotes"
         ],
@@ -3598,7 +3612,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Current authoritative venue result; not chain confirmation",
+            "description": "The acceptance as it stands now.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3839,7 +3853,7 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/get-acceptance",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       }
     },
@@ -3852,13 +3866,13 @@
       "get": {
         "operationId": "getRfq",
         "summary": "Get RFQ",
-        "description": "Canonical state for an open RFQ; authenticated owners can also recover its terminal off-chain state.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
+        "description": "Recovery: get one RFQ as it stands now.\n\nAnyone can read an open RFQ. Its owner can also read it after it ends, to see how it ended.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
         "tags": [
           "RFQs"
         ],
         "responses": {
           "200": {
-            "description": "RFQ state",
+            "description": "The RFQ as it stands now.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4114,7 +4128,7 @@
         ],
         "x-mint": {
           "href": "/hyperliquid/api-reference/rfqs/get-rfq",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       }
     },
@@ -4122,7 +4136,7 @@
       "get": {
         "operationId": "listOperations",
         "summary": "List operations",
-        "description": "Cursor-paginated durable and chain-first operations of the credential's account: a personal credential's participant or a maker key's maker. The stream pushes each change as OPERATION_UPDATED, and this pages the truncated operations of both snapshot kinds.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
+        "description": "Recovery: list your account's on-chain operations, one page at a time.\n\nAn operation is one on-chain action Totalis relays for you, such as a trade or a withdrawal payout. A personal key reads its own; a maker key reads its maker's. The stream pushes each change as `OPERATION_UPDATED`; page this when a snapshot truncated them.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -4384,7 +4398,7 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/account/list-operations",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       }
     },
@@ -4397,7 +4411,7 @@
       "get": {
         "operationId": "getOperation",
         "summary": "Get operation",
-        "description": "One durable operation of the credential's account (a personal credential's participant or a maker key's maker) and its latest canonical chain evidence. Another account's operation is 404.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
+        "description": "Recovery: get one on-chain operation of your account and its latest chain status.\n\nA personal key reads its own operations; a maker key reads its maker's. Another account's operation returns `404`.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -4663,7 +4677,7 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/account/get-operation",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       }
     },
@@ -4683,7 +4697,7 @@
       "get": {
         "operationId": "getWithdrawal",
         "summary": "Get withdrawal",
-        "description": "Recover a withdrawal after a reload, a reconnect or a lost create response. Day to day the account stream pushes every change as WITHDRAWAL_UPDATED with this same resource.\n\nRequires a personal key with `account:read`.",
+        "description": "Recovery: get a withdrawal after a reload, a reconnect or a lost create response.\n\nDay to day, the account stream pushes every change as `WITHDRAWAL_UPDATED` with this same resource.\n\nRequires a personal key with `account:read`.",
         "tags": [
           "Withdrawals"
         ],
@@ -4941,7 +4955,7 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/withdrawals/get-withdrawal",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       }
     },
@@ -4954,7 +4968,7 @@
       "get": {
         "operationId": "listMakerAcceptances",
         "summary": "List acceptances",
-        "description": "Cursor-paginated pending acceptances of this maker's quotes, earliest deadline first. The maker stream pushes each as QUOTE_ACCEPTED and the maker snapshot carries up to 100 as acceptances, so read this only when a snapshot names it in truncated. Items are identical to the snapshot's; taker signatures and acceptance IDs are never disclosed.\n\nRequires a maker key with `quote:read`.",
+        "description": "Recovery: list the acceptances of your quotes that still wait for your confirm, earliest deadline first.\n\nThe maker stream pushes each as `QUOTE_ACCEPTED`, and the maker snapshot carries up to 100 in `acceptances`. Read this only when a snapshot names this route in `truncated`. Items never include the taker's signature or `acceptance_id`.\n\nRequires a maker key with `quote:read`.",
         "tags": [
           "Quotes"
         ],
@@ -4975,7 +4989,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Pending acceptances",
+            "description": "One page of acceptances waiting for your confirm.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5237,7 +5251,7 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/quotes/list-acceptances",
-          "content": "<Note>\nA recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost response. The SDK makes it for you. The day-to-day flow never needs it.\n</Note>\n"
+          "content": "<Note>\nRecovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost response. The day-to-day flow never calls it.\n</Note>\n"
         }
       }
     },
@@ -5248,7 +5262,7 @@
         "tags": [
           "Positions"
         ],
-        "description": "Positions of the credential's account, reconciled against committed vault state: the positions a personal credential holds, or the positions a maker key's maker wrote. The credential selects the account and deployment. Access is checked against the credential's current permissions on every request.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
+        "description": "Takers and makers: list your account's positions, reconciled against the vault contract.\n\nA personal key lists the positions it holds; a maker key lists the positions its maker backs. The key's current permissions are checked on every request.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
         "security": [
           {
             "apiKey": [
@@ -5648,7 +5662,7 @@
         "tags": [
           "Positions"
         ],
-        "description": "One position of the credential's account (held, or written by a maker key's maker) by position ID, reconciled against committed vault state. The credential selects the account and deployment. Access is checked against the credential's current permissions on every request.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
+        "description": "Takers and makers: get one of your account's positions by ID, reconciled against the vault contract.\n\nA personal key reads the positions it holds; a maker key reads the positions its maker backs. The key's current permissions are checked on every request.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
         "security": [
           {
             "apiKey": [
@@ -5970,7 +5984,7 @@
         "tags": [
           "Account"
         ],
-        "description": "Durable scoped activity of the credential's account (a maker key reads its maker's) from qualified chain evidence and operations. The credential selects the account and deployment; requires current authorization. Returns 503 while the activity producer is disabled or source coverage is unavailable.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_ACTIVITY`",
+        "description": "Takers and makers: list your account's activity, built from on-chain records and operations.\n\nA personal key reads its own activity; a maker key reads its maker's.\n\n- Returns `503` while activity is temporarily unavailable. Retry after `Retry-After`.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_ACTIVITY`",
         "security": [
           {
             "apiKey": [
@@ -6345,7 +6359,7 @@
       "get": {
         "operationId": "getBalances",
         "summary": "Get balances",
-        "description": "Returns the TOTALIS balance: the bound Privy embedded wallet's authoritative HyperEVM USDC plus free canonical vault collateral, with its components and pending or unknown state explicit. HyperCore balances are not part of this response; read them from Hyperliquid or GET /v1/hypercore/portfolio.\n\nRequires a personal key with `account:read`.",
+        "description": "Takers: get your Totalis balance, your wallet's USDC on HyperEVM plus your free vault balance.\n\nThe response breaks the total into its parts and marks any amount that is pending or unknown. HyperCore balances are not included; read them from Hyperliquid.\n\nRequires a personal key with `account:read`.",
         "tags": [
           "Account"
         ],
@@ -6547,7 +6561,10 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/get-balances"
+          "href": "/hyperliquid/api-reference/account/get-balances",
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -6555,7 +6572,7 @@
       "post": {
         "operationId": "createWithdrawal",
         "summary": "Create withdrawal",
-        "description": "Sends amount of the bound Privy embedded wallet's USDC to destination in one request, topping the wallet up from the vault first. The owner signs the vault Exit for the exact shortfall (vault_withdrawal) and the USDC TransferWithAuthorization for the payout (payout_authorization), whose nonce derives from this request's Idempotency-Key. Totalis relays the Exit, relays the payout once the Exit commits and pays the gas for both. 202 means admitted, not paid: follow WITHDRAWAL_UPDATED on the account stream, which carries the whole withdrawal, to PAYOUT_COMMITTED or FAILED. A replay with the same key and body returns the withdrawal as it stands; a different body under the key is 409 IDEMPOTENCY_KEY_REUSED.\n\nRequires a personal key with `funding:withdraw`, `sponsorship:use`.",
+        "description": "Takers: send USDC from your Totalis balance to an external address in one request.\n\nTotalis tops your wallet up from the vault if needed, relays the payout and pays the gas. `202` means admitted, not paid: follow `WITHDRAWAL_UPDATED` on the account stream until `PAYOUT_COMMITTED` or `FAILED`.\n\n- Sign two authorizations: `vault_withdrawal` for any shortfall and `payout_authorization` for the payout.\n- The payout's nonce derives from the `Idempotency-Key`, so choose the key before you sign.\n- A retry with the same key and body returns the withdrawal as it stands; a different body returns `409 IDEMPOTENCY_KEY_REUSED`.\n\nRequires a personal key with `funding:withdraw`, `sponsorship:use`.",
         "tags": [
           "Withdrawals"
         ],
@@ -6885,7 +6902,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/withdrawals/create-withdrawal",
-          "content": "<Tip>\n**SDK:** `totalis.withdraw({ destination, amount })` signs both parts, sends this once and resolves when the payout commits. `totalis.waitForWithdrawal(id)` follows one after a restart. See [Withdraw](/hyperliquid/withdraw).\n</Tip>\n"
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -7076,7 +7095,7 @@
             }
           }
         },
-        "description": "The canonical contract deployment every signature is made against: the EIP-712 domain's chain_id and verifying contract (vault_address), the USDC token and its EIP-3009 domain, and the fees quotes must carry.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key",
+        "description": "Anyone: get the contract deployment every signature is made against.\n\nIt carries the signing domain (`chain_id` and `vault_address`), the USDC token and its signing domain, and the fees every quote must carry. Read it once and cache it.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key",
         "security": [
           {},
           {
@@ -7084,8 +7103,7 @@
           }
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/deployment/get-deployment",
-          "content": "<Tip>\n**SDK:** `totalis.deployment()` and `maker.deployment()` read it once and cache it. Every flow signs against it. See [Signing](/hyperliquid/signing).\n</Tip>\n"
+          "href": "/hyperliquid/api-reference/deployment/get-deployment"
         }
       }
     },
@@ -7093,6 +7111,7 @@
       "get": {
         "operationId": "getIdentity",
         "summary": "Get identity",
+        "description": "Takers: get the account your personal key acts for: its ID, its status and its wallet.\n\nRequires a personal key with `identity:read`.",
         "tags": [
           "Account"
         ],
@@ -7307,9 +7326,11 @@
             }
           }
         },
-        "description": "Requires a personal key with `identity:read`.",
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/get-identity"
+          "href": "/hyperliquid/api-reference/account/get-identity",
+          "metadata": {
+            "tag": "Taker"
+          }
         }
       }
     },
@@ -7317,7 +7338,7 @@
       "get": {
         "operationId": "stream",
         "summary": "Open stream",
-        "description": "WebSocket upgrade for authenticated, principal-scoped committed updates. Browser clients request the `totalis.realtime.v2` subprotocol plus `auth.<base64url-access-token>`; non-browser clients may send the `Authorization: Bearer` header instead. After the upgrade, send one `subscribe` frame naming an `account` or a `maker` subscription; the stream then delivers a `subscriptionResponse`, a snapshot or replay, and live events, each frame discriminated by `channel`, as described in the realtime stream reference. HTTP resource reads and maker snapshot/replay are recovery paths. API keys stream the one account they are bound to: a personal key subscribes to `account`, a maker key to `maker` with its maker_id. A dashboard session subscribes to its personal `account`, or to a `maker` it belongs to; all four financial read permissions are required. Membership revision or controller epoch changes close the connection.\n\nRequires one of:\n\n- a personal key with `account:stream`\n- a maker key with `rfq:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`\n- a personal key with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | personal key | `rfq:read` |\n| Account | personal key | `account:stream` |\n| RFQ | maker key | `rfq:read` |\n| Quote | maker key | `quote:read` |\n| Account | maker key | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
+        "description": "Takers and makers: open the WebSocket that pushes your account's or your maker's updates.\n\nAfter the upgrade, send one `subscribe` frame: `account` with a personal key, or `maker` with a maker key and its `maker_id`. The stream answers with a `subscriptionResponse`, then a snapshot or a replay from your cursor, then live events. Every frame is tagged by `channel`, as the realtime stream reference describes. HTTP reads are only for recovery.\n\n- Send the key as `Authorization: Bearer`. Browsers request the `totalis.realtime.v2` subprotocol plus `auth.<base64url-access-token>` instead.\n- The server closes the connection when your maker's membership or controller changes; reconnect to continue.\n\nRequires one of:\n\n- a personal key with `account:stream`\n- a maker key with `rfq:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`\n- a personal key with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | personal key | `rfq:read` |\n| Account | personal key | `account:stream` |\n| RFQ | maker key | `rfq:read` |\n| Quote | maker key | `quote:read` |\n| Account | maker key | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
         "tags": [
           "Streams"
         ],
@@ -7573,8 +7594,7 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/streams/open-stream",
-          "content": "<Tip>\n**SDK:** `createTotalis` opens an `account` subscription as `totalis.stream`, and `createMaker` a `maker` subscription as `maker.stream`. For direct use, `TotalisStream` from `@totalistrading/hip4-client/realtime`. See [Connect and resume](/hyperliquid/streams).\n</Tip>\n"
+          "href": "/hyperliquid/api-reference/streams/open-stream"
         }
       }
     },
@@ -7585,7 +7605,7 @@
         "tags": [
           "Makers"
         ],
-        "description": "This maker's vault capital, reservations and action availability, reconciled against committed vault state. The credential selects the deployment. Access is checked against the credential's current permissions on every request.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Makers: get your maker vault's capital, reservations and free collateral, reconciled against the vault contract.\n\nCheck it before you quote: a confirm fails when your capital cannot cover the fill. Read it again on every `MAKER_CAPITAL_UPDATED`.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
         "security": [
           {
             "apiKey": [
@@ -7902,7 +7922,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/makers/get-maker-capital",
-          "content": "<Tip>\n**SDK:** Read it with the typed client: `maker.client.GET(\"/v1/makers/{maker_id}/capital\", ...)`. Read it again on `MAKER_CAPITAL_UPDATED`. See [Make markets](/hyperliquid/make-markets).\n</Tip>\n"
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     },
@@ -7915,7 +7937,7 @@
       "post": {
         "operationId": "createCollateralReduction",
         "summary": "Create collateral reduction",
-        "description": "Durably triggers a server-derived HyperEVM attestation job for this maker. The request has no body and accepts no caller-authored risk input.\n\nRequires a maker key with `vault:write`.",
+        "description": "Makers: start a job that lowers your collateral requirement against correlated open positions.\n\nTotalis computes the reduction itself, so the request has no body. Follow the job with `GET /v1/makers/{maker_id}/collateral-reductions/{job_id}` or `COLLATERAL_REDUCTION_UPDATED` on the maker stream, then submit its transaction.\n\nRequires a maker key with `vault:write`.",
         "tags": [
           "Makers"
         ],
@@ -8211,7 +8233,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/makers/create-collateral-reduction",
-          "content": "<Tip>\n**SDK:** `maker.reduceCollateral({ signTransaction })` creates the job and follows it. See [Make markets](/hyperliquid/make-markets).\n</Tip>\n"
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     },
@@ -8227,7 +8251,7 @@
       "get": {
         "operationId": "getCollateralReduction",
         "summary": "Get collateral reduction",
-        "description": "Returns solver status separately from the durable chain operation and committed evidence.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Makers: get a collateral-reduction job.\n\nThe job's own status is reported separately from the on-chain operation that applies it and that operation's chain evidence.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
         "tags": [
           "Makers"
         ],
@@ -8497,7 +8521,10 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/makers/get-collateral-reduction"
+          "href": "/hyperliquid/api-reference/makers/get-collateral-reduction",
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     },
@@ -8520,7 +8547,7 @@
       "post": {
         "operationId": "submitMakerSelfFundedTransaction",
         "summary": "Submit self-funded transaction",
-        "description": "Validates and relays an MM-funded EIP-1559 transaction for the exact previously admitted operation of this maker. The portable contract calls are permissionless; their embedded controller or funder signature remains financial authority. Totalis never receives the gas payer's private key or allocates its nonce.\n\nRequires a maker key with `operations:submit`.",
+        "description": "Makers: relay a transaction your own gas wallet signed and pays for, for an operation Totalis already admitted for your maker.\n\nUse it to apply a collateral reduction: Totalis checks the signed EIP-1559 transaction and broadcasts it. Totalis never holds the gas wallet's key or chooses its nonce.\n\n- The transaction must be for exactly this operation.\n- The contract call is permissionless; the signature inside it is what authorizes it.\n\nRequires a maker key with `operations:submit`.",
         "tags": [
           "Makers"
         ],
@@ -8864,7 +8891,9 @@
         },
         "x-mint": {
           "href": "/hyperliquid/api-reference/makers/submit-self-funded-transaction",
-          "content": "<Tip>\n**SDK:** `maker.reduceCollateral({ signTransaction })` has your gas wallet sign the attestation and relays it here. See [Make markets](/hyperliquid/make-markets).\n</Tip>\n"
+          "metadata": {
+            "tag": "Maker"
+          }
         }
       }
     }
@@ -8880,7 +8909,7 @@
           "format": "uuid",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
-        "description": "Lowercase UUIDv7 chosen before the first send and reused for every retry: it is the acceptance_id. One namespace per taker account across every quote, so the same key, quote and body replays the stored acceptance, and the same key with another quote or body returns 409 IDEMPOTENCY_KEY_REUSED.",
+        "description": "Lowercase UUIDv7 that names this acceptance: it becomes the `acceptance_id`. Choose it before the first send and reuse it on every retry. The same key, quote and body returns the stored acceptance without restarting its deadline; the same key with another quote or body returns `409 IDEMPOTENCY_KEY_REUSED`. Keys are unique per taker account, across all quotes.",
         "example": "01994f3d-3c4d-7e5f-8a61-7b8c9d0e1f2a"
       },
       "ActivityKindQueryOptional": {
@@ -9021,7 +9050,7 @@
           "format": "uuid",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
-        "description": "Lowercase UUIDv7 naming this command, scoped to the caller and route. An exact retry with the same key and body returns the original result; reusing the key with a different body returns 409 IDEMPOTENCY_KEY_REUSED.",
+        "description": "Lowercase UUIDv7 naming this command, unique per caller and route. A retry with the same key and body returns the original result; the same key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`.",
         "example": "0198a6f6-82a5-7abc-9f2a-4f0fb437493e"
       },
       "Limit": {
@@ -9128,7 +9157,7 @@
         "schema": {
           "$ref": "#/components/schemas/Bytes32"
         },
-        "description": "Quote ID: the digest of the quote's terms, from the quote itself.",
+        "description": "The quote's `quote_id`, from `QUOTE_CREATED`, `QUOTE_ACCEPTED` or Create quote.",
         "example": "0x2b7c9d1e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c"
       },
       "RfqId": {
@@ -9139,7 +9168,7 @@
           "type": "string",
           "format": "uuid"
         },
-        "description": "RFQ ID returned when the RFQ was created.",
+        "description": "The RFQ's `rfq_id`, from Create RFQ or `RFQ_CREATED`.",
         "example": "01994f3a-6c2e-7d41-9b8a-2f3c4d5e6f70"
       },
       "Side": {
@@ -9232,7 +9261,7 @@
         "properties": {
           "taker_signature": {
             "$ref": "#/components/schemas/ContractSignature",
-            "description": "For an ENTRY quote, the taker's EIP-712 TakerAccept signature over the quote's entry terms. For a CASHOUT quote, the owner's EIP-712 SellBack or CashoutTransfer signature over quote_id, the same digest the maker signs."
+            "description": "Your EIP-712 signature over the quote. For an entry quote, sign its `entry` terms as `TakerAccept`. For a cash-out quote, the owner signs `quote_id` as `SellBack` or `CashoutTransfer`, the same digest the maker signs."
           },
           "funding": {
             "oneOf": [
@@ -9246,10 +9275,10 @@
                 "$ref": "#/components/schemas/CombinedFundingRequest"
               }
             ],
-            "description": "ENTRY only. Funding for the stake shortfall, discriminated by kind: an embedded-wallet USDC authorization (WALLET), a HyperCore spot USDC payment (CORE), or both (COMBINED). Absent when the trading balance already covers the stake."
+            "description": "Entry quotes only; not allowed on a cash-out. Covers the part of the stake your vault balance is short, by `kind`: `WALLET` (a USDC authorization from your wallet), `CORE` (a HyperCore spot USDC payment) or `COMBINED` (both). Omit it when your vault balance covers the stake."
           }
         },
-        "description": "The taker's acceptance of the quote in the path. The Idempotency-Key header is the acceptance_id."
+        "description": "The taker's accept of the quote in the path. The `Idempotency-Key` header becomes the `acceptance_id`."
       },
       "Acceptance": {
         "allOf": [
@@ -9274,7 +9303,7 @@
         "properties": {
           "acceptance_id": {
             "$ref": "#/components/schemas/Uuid",
-            "description": "The taker's UUIDv7 accept Idempotency-Key, which names this acceptance. Never sent to the maker."
+            "description": "The `Idempotency-Key` the taker sent with the accept, which names this acceptance. Never sent to the maker."
           },
           "quote_id": {
             "$ref": "#/components/schemas/Bytes32",
@@ -9295,20 +9324,20 @@
               "TIMED_OUT",
               "CANCELLED"
             ],
-            "description": "PENDING_CONFIRM: waiting for the maker's confirm. PENDING_FUNDING: the maker confirmed an ENTRY whose HyperCore funding is still pending. ACCEPTED: the maker confirmed and execution is queued as operation_id. FILLED: that operation committed on chain. FAILED: it reverted or expired unexecuted. DECLINED: the maker declined. TIMED_OUT: the maker did not answer by deadline. CANCELLED: the quote or RFQ stopped being available first, or the HyperCore funding failed."
+            "description": "`PENDING_CONFIRM`: waiting for the maker. `PENDING_FUNDING`: the maker confirmed an entry whose HyperCore payment is still pending. `ACCEPTED`: the maker confirmed and the trade is queued as `operation_id`. `FILLED`: the trade committed on chain. `FAILED`: it reverted or expired unexecuted. `DECLINED`: the maker declined. `TIMED_OUT`: the maker did not answer by `deadline`. `CANCELLED`: the quote or RFQ went away first, or the HyperCore payment failed."
           },
           "deadline": {
             "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Server-set instant, two seconds after the acceptance, by which the maker must confirm, as an RFC3339 UTC timestamp."
+            "description": "When the maker's time to confirm ends, two seconds after the accept, as an RFC3339 UTC timestamp."
           },
           "operation_id": {
             "$ref": "#/components/schemas/Bytes32",
-            "description": "Venue operation that executes the trade; present once status is ACCEPTED, FILLED or FAILED."
+            "description": "The on-chain operation that executes the trade; present once status is `ACCEPTED`, `FILLED` or `FAILED`."
           }
         }
       },
       "AcceptanceResult": {
-        "description": "The accept response: the acceptance once it has left PENDING_CONFIRM.",
+        "description": "The accept response: the acceptance after the maker answered or the deadline passed.",
         "allOf": [
           {
             "$ref": "#/components/schemas/Acceptance"
@@ -9319,7 +9348,7 @@
                 "not": {
                   "const": "PENDING_CONFIRM"
                 },
-                "description": "Status after the maker answered or the deadline passed; an accept response is never PENDING_CONFIRM."
+                "description": "Status after the maker answered or the deadline passed. Never `PENDING_CONFIRM`."
               }
             }
           }
@@ -10226,11 +10255,11 @@
             "properties": {
               "decision": {
                 "const": "CONFIRM",
-                "description": "Confirm and sign the accepted terms."
+                "description": "Confirm and sign the accepted terms; the trade executes."
               },
               "maker_signature": {
                 "$ref": "#/components/schemas/ContractSignature",
-                "description": "Quote signer's EIP-712 signature over the accepted Quote (ENTRY) or SellBack or CashoutTransfer terms (CASHOUT)."
+                "description": "Your quote signer's EIP-712 signature over the accepted terms: `entry` as `Quote`, `sell_back` as `SellBack`, `transfer` as `CashoutTransfer`."
               }
             }
           },
@@ -10243,12 +10272,12 @@
             "properties": {
               "decision": {
                 "const": "DECLINE",
-                "description": "Decline the accepted terms; the quote leaves the book."
+                "description": "Decline the accepted terms. Nothing executes and the quote leaves the RFQ."
               }
             }
           }
         ],
-        "description": "The maker's answer: CONFIRM with a signature, or DECLINE."
+        "description": "Your answer to the acceptance: `CONFIRM` with your signature, or `DECLINE`."
       },
       "ConfirmQuoteResult": {
         "allOf": [
@@ -10263,7 +10292,7 @@
         },
         "unevaluatedProperties": false,
         "type": "object",
-        "description": "The acceptance after the maker's answer, without the taker's acceptance_id."
+        "description": "The acceptance after your answer. It never includes the taker's `acceptance_id`."
       },
       "Content": {
         "type": "object",
@@ -10451,11 +10480,11 @@
             "properties": {
               "quote_id": {
                 "$ref": "#/components/schemas/Bytes32",
-                "description": "EIP-712 Quote digest of entry. It must match the terms exactly; it is what the maker signs when it confirms an acceptance, and the position_id of the position the trade opens."
+                "description": "EIP-712 digest of `entry`, as the `Quote` struct. It must match the terms exactly. You sign it when you confirm an acceptance, and it becomes the `position_id` of the position the trade opens."
               },
               "entry": {
                 "$ref": "#/components/schemas/QuoteTerms",
-                "description": "Entry terms for an ENTRY RFQ. stake, taker and legs must match the RFQ, maker_id must be the authenticated maker, and expiry is Unix seconds at most 30 seconds ahead."
+                "description": "Entry terms. `stake`, `taker` and `legs` must match the RFQ, `maker_id` must be your maker, and `expiry` is Unix seconds, at most 30 seconds ahead."
               }
             }
           },
@@ -10469,11 +10498,11 @@
             "properties": {
               "quote_id": {
                 "$ref": "#/components/schemas/Bytes32",
-                "description": "EIP-712 SellBack digest of sell_back. It must match the terms exactly; the maker and the owner both sign it."
+                "description": "EIP-712 digest of `sell_back`, as the `SellBack` struct. It must match the terms exactly; you and the owner both sign it."
               },
               "sell_back": {
                 "$ref": "#/components/schemas/SellBackTerms",
-                "description": "Sell-back terms for a CASHOUT RFQ, offered only by the position's underwriting maker: the maker vault pays owner price and the position closes. position_id, owner and leg_state must match the RFQ, and expiry is 25 to 60 seconds ahead."
+                "description": "Sell-back terms, only from the maker that backs the position: your maker vault pays the owner `price` and the position closes. `position_id`, `owner` and `leg_state` must match the RFQ, and `expiry` is 25 to 60 seconds ahead."
               }
             }
           },
@@ -10487,16 +10516,16 @@
             "properties": {
               "quote_id": {
                 "$ref": "#/components/schemas/Bytes32",
-                "description": "EIP-712 CashoutTransfer digest of transfer. It must match the terms exactly; the maker, as buyer, and the owner, as seller, both sign it."
+                "description": "EIP-712 digest of `transfer`, as the `CashoutTransfer` struct. It must match the terms exactly; you (the buyer) and the owner (the seller) both sign it."
               },
               "transfer": {
                 "$ref": "#/components/schemas/TransferTerms",
-                "description": "Transfer terms for a CASHOUT RFQ, offered by any other maker: buyer, that maker's quote signer, pays seller price and takes the position. position_id, seller and leg_state must match the RFQ, and expiry is 25 to 60 seconds ahead."
+                "description": "Transfer terms, from any maker other than the one that backs the position: `buyer`, your quote signer, pays `seller` the `price` and takes the position. `position_id`, `seller` and `leg_state` must match the RFQ, and `expiry` is 25 to 60 seconds ahead."
               }
             }
           }
         ],
-        "description": "Unsigned quote to create; it replaces this maker's live quote on the RFQ. Send entry terms for an ENTRY RFQ, and sell_back or transfer terms for a CASHOUT RFQ."
+        "description": "Your quote on the RFQ: `quote_id` plus exactly one set of terms. Send `entry` for an entry RFQ, and `sell_back` or `transfer` for a cash-out RFQ. It replaces your live quote on the RFQ."
       },
       "CreateRfqCommand": {
         "type": "object",
@@ -11289,7 +11318,7 @@
         }
       },
       "MakerAcceptance": {
-        "description": "A taker's acceptance of this maker's quote, awaiting the maker's confirm until deadline. The maker snapshot's acceptances, its continuation GET /v1/makers/{maker_id}/acceptances and QUOTE_ACCEPTED carry identical items; the taker's signature and acceptance_id are never disclosed.",
+        "description": "A taker's accept of your quote, waiting for your confirm until `deadline`. `QUOTE_ACCEPTED`, the maker snapshot's `acceptances` and List pending acceptances carry the same item. It never includes the taker's signature or `acceptance_id`.",
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -11301,7 +11330,7 @@
         "properties": {
           "quote_id": {
             "$ref": "#/components/schemas/Bytes32",
-            "description": "The accepted quote; the value the maker signs. Confirm at /v1/quotes/{quote_id}/confirm."
+            "description": "The accepted quote; its terms are what you sign. Confirm with `POST /v1/quotes/{quote_id}/confirm`."
           },
           "rfq_id": {
             "$ref": "#/components/schemas/Uuid",
@@ -11312,11 +11341,11 @@
               "ENTRY",
               "CASHOUT"
             ],
-            "description": "Kind of the RFQ; ENTRY acceptances carry entry terms, CASHOUT acceptances sell_back or transfer terms."
+            "description": "The RFQ's kind. `ENTRY` carries `entry` terms; `CASHOUT` carries `sell_back` or `transfer` terms."
           },
           "deadline": {
             "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Confirm before this instant, an RFC3339 UTC timestamp; a later answer cannot reopen the acceptance."
+            "description": "Confirm before this instant, an RFC3339 UTC timestamp. A later answer cannot reopen the acceptance."
           },
           "entry": {
             "$ref": "#/components/schemas/QuoteTerms",
@@ -11423,7 +11452,7 @@
             "items": {
               "$ref": "#/components/schemas/MakerAcceptance"
             },
-            "description": "Pending acceptances of this maker's quotes on this page, earliest deadline first. One answered, declined or past its deadline since the snapshot is left out; one made after it arrives on the stream."
+            "description": "Acceptances of your quotes waiting for your confirm on this page, earliest deadline first. One answered or expired since the snapshot is left out; a new one arrives on the stream."
           },
           "next_cursor": {
             "$ref": "#/components/schemas/NextCursor",
@@ -11434,7 +11463,7 @@
             "description": "True when another page follows; send next_cursor to read it."
           }
         },
-        "description": "The pending acceptances a maker snapshot left out past its cap: the snapshot names this route in truncated. Items are identical to the snapshot's acceptances and to QUOTE_ACCEPTED."
+        "description": "Acceptances a maker snapshot left out past its cap; the snapshot names this route in `truncated`. Items match the snapshot's `acceptances` and `QUOTE_ACCEPTED`."
       },
       "MakerCapital": {
         "type": "object",
@@ -12853,7 +12882,7 @@
         "properties": {
           "quote_id": {
             "$ref": "#/components/schemas/Bytes32",
-            "description": "Opaque quote ID: the EIP-712 digest of the terms, the Quote digest for an ENTRY quote and the SellBack or CashoutTransfer digest for a CASHOUT quote. Accept the quote at /v1/quotes/{quote_id}/accept."
+            "description": "Quote ID: the EIP-712 digest of the terms (the `Quote` struct for an entry quote, `SellBack` or `CashoutTransfer` for a cash-out quote). Accept it with `POST /v1/quotes/{quote_id}/accept`."
           },
           "rfq_id": {
             "$ref": "#/components/schemas/Uuid",
@@ -12864,7 +12893,7 @@
               "ENTRY",
               "CASHOUT"
             ],
-            "description": "Kind of the RFQ; ENTRY quotes carry entry terms, CASHOUT quotes carry sell_back or transfer terms."
+            "description": "The RFQ's kind. `ENTRY` quotes carry `entry` terms; `CASHOUT` quotes carry `sell_back` or `transfer` terms."
           },
           "sequence": {
             "type": "integer",
@@ -12873,15 +12902,15 @@
           },
           "entry": {
             "$ref": "#/components/schemas/QuoteTerms",
-            "description": "ENTRY terms; the taker signs them as TakerAccept to accept."
+            "description": "Entry terms. To accept, the taker signs them as the EIP-712 `TakerAccept` struct."
           },
           "sell_back": {
             "$ref": "#/components/schemas/SellBackTerms",
-            "description": "CASHOUT sell-back terms from the position's underwriting maker; the owner signs them as SellBack, whose digest is quote_id, to accept."
+            "description": "Cash-out terms from the maker that backs the position. To accept, the owner signs them as `SellBack`, whose digest is `quote_id`."
           },
           "transfer": {
             "$ref": "#/components/schemas/TransferTerms",
-            "description": "CASHOUT transfer terms from any other maker; the owner signs them as CashoutTransfer, whose digest is quote_id, to accept."
+            "description": "Cash-out terms from another maker. To accept, the owner signs them as `CashoutTransfer`, whose digest is `quote_id`."
           }
         },
         "oneOf": [
@@ -12961,7 +12990,7 @@
             }
           }
         ],
-        "description": "One live unsigned quote on an RFQ. The list, the account snapshot's quotes and QUOTE_CREATED carry identical items."
+        "description": "One live, unsigned quote on an RFQ. List quotes, the account snapshot's quotes and `QUOTE_CREATED` carry the same item."
       },
       "QuoteCancellation": {
         "type": "object",
@@ -12976,7 +13005,7 @@
               "REPLACED",
               "ACCEPTED"
             ],
-            "description": "Status of the quote after the call. CANCELLED: off the book, now or earlier; the maker cancelled or declined it, or its acceptance timed out. REPLACED: a newer quote from the same maker already replaced it. ACCEPTED: a confirm already accepted it for a taker, so it cannot be cancelled (returned with HTTP 409)."
+            "description": "The quote's status after the call. `CANCELLED`: off the RFQ, now or earlier (you cancelled or declined it, or its acceptance timed out). `REPLACED`: a newer quote of yours replaced it. `ACCEPTED`: you already confirmed it, so it cannot be cancelled; returned with `409`."
           }
         }
       },
@@ -13008,7 +13037,7 @@
             "items": {
               "$ref": "#/components/schemas/Quote"
             },
-            "description": "Live unsigned quotes on this RFQ in creation order, at most 100: entry quotes for an ENTRY RFQ, sell-back and transfer quotes for a CASHOUT RFQ. Rank them yourself. Entry quotes expiring within two seconds, and cash-out quotes expiring within 22 seconds, are left out, as are quotes that can no longer be accepted: one whose acceptance passed its deadline unanswered, and every quote on a CASHOUT RFQ that already has an accepted one. The account stream carries the same quotes."
+            "description": "Live quotes on this RFQ in creation order, at most 100. Rank them yourself. Left out: entry quotes within two seconds of expiry, cash-out quotes within 22 seconds of expiry, a quote whose acceptance timed out, and every quote on a cash-out RFQ that already has an accepted one."
           },
           "server_time": {
             "$ref": "#/components/schemas/CommonTimestamp",

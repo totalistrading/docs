@@ -8,8 +8,8 @@ app-only routes. This script:
   Account, Makers, Deployment, Streams. The resource becomes the operation's tag;
 - titles every page with one pattern, verb + resource ("Create RFQ", "Accept quote"), replacing
   the spec's summary;
-- gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, and puts the SDK
-  equivalent on the pages of the trading flow, or a recovery note on the recovery reads (x-mint);
+- gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, a Taker or Maker
+  badge from the description's audience prefix, and a recovery note on the recovery reads (x-mint);
 - writes the API reference tab: the endpoints overview, then one group per resource.
 
 A route the spec has and PAGES does not place, or the reverse, stops the script.
@@ -57,12 +57,12 @@ PAGES: dict[str, tuple[str, list[tuple[str, str]]]] = {
         ],
     ),
     "Quotes": (
-        "A maker's quote on an RFQ, the taker's accept, the maker's confirm, and the acceptance they "
-        "create.",
+        "The quote flow in order: a maker creates or cancels a quote on an RFQ, the taker accepts it, "
+        "the maker confirms it, and the acceptance records the result.",
         [
             ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote"),
-            ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes"),
             ("DELETE /v1/quotes/{quote_id}", "Cancel quote"),
+            ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes"),
             ("POST /v1/quotes/{quote_id}/accept", "Accept quote"),
             ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote"),
             ("GET /v1/quotes/{quote_id}/acceptance", "Get acceptance"),
@@ -127,69 +127,12 @@ RECOVERY = {
     "GET /v1/me/operations",
     "GET /v1/operations/{operation_id}",
 }
+# The audience prefix each description opens with, shown as a sidebar badge on that page.
+AUDIENCES = {"Takers:": "Taker", "Makers:": "Maker"}
 RECOVERING = (
-    "A recovery read. Use it after a reconnect, a snapshot that names it in `truncated`, or a lost "
-    "response. The SDK makes it for you. The day-to-day flow never needs it."
+    "Recovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost "
+    "response. The day-to-day flow never calls it."
 )
-
-OPENING = "[Open a position](/hyperliquid/open-a-position)"
-CASHING = "[Cash out a position](/hyperliquid/cash-out)"
-MAKING = "[Make markets](/hyperliquid/make-markets)"
-WITHDRAWING = "[Withdraw](/hyperliquid/withdraw)"
-
-# The SDK equivalent shown on each page of the trading flow.
-SDK = {
-    "GET /v1/deployment": (
-        "`totalis.deployment()` and `maker.deployment()` read it once and cache it. Every flow signs "
-        "against it. See [Signing](/hyperliquid/signing)."
-    ),
-    "GET /v1/stream": (
-        "`createTotalis` opens an `account` subscription as `totalis.stream`, and `createMaker` a `maker` "
-        "subscription as `maker.stream`. For direct use, `TotalisStream` from "
-        "`@totalistrading/hip4-client/realtime`. See [Connect and resume](/hyperliquid/streams)."
-    ),
-    "POST /v1/rfqs": (
-        "`totalis.openPosition({ legs, stake })` creates the RFQ, takes a quote from the stream and "
-        f"accepts it. See {OPENING}."
-    ),
-    "POST /v1/rfqs/{rfq_id}/cancel": (
-        "`openPosition` and `cashOut` cancel their RFQ when no acceptable quote arrives within "
-        f"`quoteTimeoutMs`, and while recovering a lost accept. See {OPENING}."
-    ),
-    "POST /v1/positions/{position_id}/cashout": (
-        "`totalis.cashOut({ positionId })` creates the cash-out RFQ, takes a quote, has the owner sign "
-        f"it and accepts it. See {CASHING}."
-    ),
-    "POST /v1/quotes/{quote_id}/accept": (
-        "`openPosition` and `cashOut` send it once, under an acceptance ID made before the first send, "
-        f"and return the result. See {OPENING}."
-    ),
-    "POST /v1/rfqs/{rfq_id}/quotes": (
-        "`maker.quote(rfq, { payout })` creates a quote on an entry RFQ, and `maker.bid(rfq, { price })` "
-        f"a quote on a cash-out RFQ. See {MAKING}."
-    ),
-    "DELETE /v1/quotes/{quote_id}": f"`maker.cancelQuote(quoteId)`. See {MAKING}.",
-    "POST /v1/quotes/{quote_id}/confirm": (
-        "`maker.onAcceptance(handler)` answers every acceptance with your handler's `\"CONFIRM\"` or "
-        f"`\"DECLINE\"`. `maker.confirm(acceptance)` answers one. See {MAKING}."
-    ),
-    "GET /v1/makers/{maker_id}/capital": (
-        "Read it with the typed client: `maker.client.GET(\"/v1/makers/{maker_id}/capital\", ...)`. "
-        f"Read it again on `MAKER_CAPITAL_UPDATED`. See {MAKING}."
-    ),
-    "POST /v1/makers/{maker_id}/collateral-reductions": (
-        f"`maker.reduceCollateral({{ signTransaction }})` creates the job and follows it. See {MAKING}."
-    ),
-    "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction": (
-        "`maker.reduceCollateral({ signTransaction })` has your gas wallet sign the attestation and "
-        f"relays it here. See {MAKING}."
-    ),
-    "POST /v1/withdrawals": (
-        "`totalis.withdraw({ destination, amount })` signs both parts, sends this once and resolves when "
-        f"the payout commits. `totalis.waitForWithdrawal(id)` follows one after a restart. See {WITHDRAWING}."
-    ),
-}
-
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
@@ -207,7 +150,7 @@ def placed() -> dict[str, tuple[str, str]]:
 
 
 def publish(spec: dict) -> dict:
-    """File each operation under its resource, title it, and set its URL and SDK or recovery note."""
+    """File each operation under its resource, title it, and set its URL and recovery note."""
     pages = placed()
     routes = {key for key, _ in operations(spec)}
     if routes != set(pages):
@@ -221,10 +164,11 @@ def publish(spec: dict) -> dict:
         operation["tags"] = [resource]
         operation["summary"] = title
         mint = {"href": f"/hyperliquid/api-reference/{slug(resource)}/{slug(title)}"}
-        if key in SDK:
-            mint["content"] = f"<Tip>\n**SDK:** {SDK[key]}\n</Tip>\n"
-        elif key in RECOVERY:
+        if key in RECOVERY:
             mint["content"] = f"<Note>\n{RECOVERING}\n</Note>\n"
+        audience = next((a for p, a in AUDIENCES.items() if operation.get("description", "").startswith(p)), None)
+        if audience:
+            mint["metadata"] = {"tag": audience}
         operation["x-mint"] = mint
     return spec
 
