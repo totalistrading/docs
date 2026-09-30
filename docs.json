@@ -234,43 +234,28 @@
             "openapi": "/hyperliquid/openapi.json",
             "groups": [
               {
-                "group": "API reference",
-                "pages": [
-                  "hyperliquid/endpoints"
-                ]
-              },
-              {
-                "group": "Trading",
-                "pages": [
-                  "POST /v1/rfqs",
-                  "POST /v1/quotes/{quote_id}/accept",
-                  "POST /v1/rfqs/{rfq_id}/cancel",
-                  "POST /v1/positions/{position_id}/cashout",
-                  "GET /v1/rfqs",
-                  "GET /v1/rfqs/{rfq_id}",
-                  "GET /v1/rfqs/{rfq_id}/quotes",
-                  "GET /v1/quotes/{quote_id}/acceptance"
-                ]
-              },
-              {
-                "group": "Market maker",
-                "pages": [
-                  "POST /v1/rfqs/{rfq_id}/quotes",
-                  "DELETE /v1/quotes/{quote_id}",
-                  "POST /v1/quotes/{quote_id}/confirm",
-                  "GET /v1/makers/{maker_id}/capital",
-                  "POST /v1/makers/{maker_id}/collateral-reductions",
-                  "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
-                  "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
-                  "GET /v1/makers/{maker_id}/acceptances"
-                ]
-              },
-              {
                 "group": "Markets",
                 "pages": [
                   "GET /v1/markets",
                   "GET /v1/markets/{outcome_id}",
                   "GET /v1/markets/{outcome_id}/history"
+                ]
+              },
+              {
+                "group": "RFQs & Quotes",
+                "pages": [
+                  "POST /v1/rfqs",
+                  "POST /v1/rfqs/{rfq_id}/quotes",
+                  "DELETE /v1/quotes/{quote_id}",
+                  "POST /v1/quotes/{quote_id}/accept",
+                  "POST /v1/quotes/{quote_id}/confirm",
+                  "POST /v1/rfqs/{rfq_id}/cancel",
+                  "POST /v1/positions/{position_id}/cashout",
+                  "GET /v1/rfqs",
+                  "GET /v1/rfqs/{rfq_id}",
+                  "GET /v1/rfqs/{rfq_id}/quotes",
+                  "GET /v1/quotes/{quote_id}/acceptance",
+                  "GET /v1/makers/{maker_id}/acceptances"
                 ]
               },
               {
@@ -281,32 +266,40 @@
                 ]
               },
               {
-                "group": "Withdrawals",
-                "pages": [
-                  "POST /v1/withdrawals",
-                  "GET /v1/withdrawals/{withdrawal_id}"
-                ]
-              },
-              {
                 "group": "Account",
                 "pages": [
                   "GET /v1/me",
                   "GET /v1/me/balances",
                   "GET /v1/me/activity",
                   "GET /v1/me/operations",
-                  "GET /v1/operations/{operation_id}"
+                  "GET /v1/operations/{operation_id}",
+                  "POST /v1/withdrawals",
+                  "GET /v1/withdrawals/{withdrawal_id}"
                 ]
               },
               {
-                "group": "Streams",
+                "group": "Makers",
                 "pages": [
-                  "GET /v1/stream"
+                  "GET /v1/makers/{maker_id}/capital",
+                  "POST /v1/makers/{maker_id}/collateral-reductions",
+                  "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
+                  "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction"
                 ]
               },
               {
                 "group": "Deployment",
                 "pages": [
                   "GET /v1/deployment"
+                ]
+              },
+              {
+                "group": "WebSocket",
+                "pages": [
+                  "hyperliquid/websocket/connection",
+                  "hyperliquid/websocket/account",
+                  "hyperliquid/websocket/maker",
+                  "hyperliquid/websocket/market-data",
+                  "GET /v1/stream"
                 ]
               }
             ]

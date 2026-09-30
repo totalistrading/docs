@@ -4,14 +4,14 @@
 The source is hip4-backend's public spec (tools/public_openapi.py), which already leaves out the
 app-only routes. This script:
 
-- files every operation under one sidebar group (PAGES), split by who calls it as the Solana
-  reference is: Trading (the taker flow), Market maker, then Markets, Positions, Withdrawals,
-  Account, Streams and Deployment. The group becomes the operation's tag;
+- files every operation under one sidebar group (PAGES), by resource on one axis: Markets,
+  RFQs & Quotes, Positions, Account, Makers, Deployment and WebSocket. The group becomes the
+  operation's tag;
 - titles every page with one pattern, verb + resource ("Create RFQ", "Accept quote"), replacing
   the spec's summary;
 - gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, kept by resource so
-  regrouping never breaks a link, and a recovery note on the recovery reads (x-mint);
-- writes the API reference tab: the endpoints overview, then one group per PAGES entry.
+  regrouping never breaks a link (x-mint);
+- writes the API reference tab: one group per PAGES entry, led by its hand-written pages (LEADS).
 
 A route the spec has and PAGES does not place, or the reverse, stops the script.
 
@@ -34,32 +34,58 @@ SPEC = ROOT / "hyperliquid/openapi.json"
 DOCS = ROOT / "docs.json"
 PRODUCT = "Hyperliquid"
 TAB = "API reference"
-OVERVIEW = "hyperliquid/endpoints"
 METHODS = ("get", "put", "post", "delete", "patch")
 
-# Sidebar groups, split by who calls them the way the Solana reference is: the taker flow, the maker
-# flow, then shared resources. Each page is (route, page title, URL section); URL sections stay by
-# resource so links survive regrouping. Recovery reads close the group they belong to.
+# Sidebar groups by resource, one axis, in reading order. Each page is (route, page title, URL
+# section); URL sections stay by resource so regrouping never breaks a link.
 PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
-    "Trading": (
-        "The taker flow: request quotes, accept one to open a position, and cash a position out.",
+    "Markets": (
+        "HIP-4 markets, their sides and price history. No API key needed.",
+        [
+            ("GET /v1/markets", "List markets", "Markets"),
+            ("GET /v1/markets/{outcome_id}", "Get market", "Markets"),
+            ("GET /v1/markets/{outcome_id}/history", "Get market history", "Markets"),
+        ],
+    ),
+    "RFQs & Quotes": (
+        "RFQs and the quotes, accepts and confirms that answer them, in flow order.",
         [
             ("POST /v1/rfqs", "Create RFQ", "RFQs"),
+            ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
+            ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
             ("POST /v1/quotes/{quote_id}/accept", "Accept quote", "Quotes"),
+            ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("POST /v1/rfqs/{rfq_id}/cancel", "Cancel RFQ", "RFQs"),
             ("POST /v1/positions/{position_id}/cashout", "Cash out position", "Positions"),
             ("GET /v1/rfqs", "List RFQs", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}", "Get RFQ", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes", "Quotes"),
             ("GET /v1/quotes/{quote_id}/acceptance", "Get acceptance", "Quotes"),
+            ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
         ],
     ),
-    "Market maker": (
-        "The maker flow: quote RFQs, cancel quotes, confirm accepted quotes, and manage capital.",
+    "Positions": (
+        "Positions the account holds, or its maker backs.",
         [
-            ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
-            ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
-            ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
+            ("GET /v1/me/positions", "List positions", "Positions"),
+            ("GET /v1/me/positions/{position_id}", "Get position", "Positions"),
+        ],
+    ),
+    "Account": (
+        "The account a key acts for: identity, balances, activity, operations and withdrawals.",
+        [
+            ("GET /v1/me", "Get identity", "Account"),
+            ("GET /v1/me/balances", "Get balances", "Account"),
+            ("GET /v1/me/activity", "List activity", "Account"),
+            ("GET /v1/me/operations", "List operations", "Account"),
+            ("GET /v1/operations/{operation_id}", "Get operation", "Account"),
+            ("POST /v1/withdrawals", "Create withdrawal", "Withdrawals"),
+            ("GET /v1/withdrawals/{withdrawal_id}", "Get withdrawal", "Withdrawals"),
+        ],
+    ),
+    "Makers": (
+        "A maker's capital and collateral.",
+        [
             ("GET /v1/makers/{maker_id}/capital", "Get maker capital", "Makers"),
             ("POST /v1/makers/{maker_id}/collateral-reductions", "Create collateral reduction", "Makers"),
             ("GET /v1/makers/{maker_id}/collateral-reductions/{job_id}", "Get collateral reduction", "Makers"),
@@ -68,66 +94,28 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
                 "Submit self-funded transaction",
                 "Makers",
             ),
-            ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
         ],
-    ),
-    "Markets": (
-        "HIP-4 markets: the catalog, one market with its sides, and price history. No API key needed.",
-        [
-            ("GET /v1/markets", "List markets", "Markets"),
-            ("GET /v1/markets/{outcome_id}", "Get market", "Markets"),
-            ("GET /v1/markets/{outcome_id}/history", "Get market history", "Markets"),
-        ],
-    ),
-    "Positions": (
-        "Positions the account holds, or a maker wrote.",
-        [
-            ("GET /v1/me/positions", "List positions", "Positions"),
-            ("GET /v1/me/positions/{position_id}", "Get position", "Positions"),
-        ],
-    ),
-    "Withdrawals": (
-        "A withdrawal of Totalis USDC to an external address, in one signed request.",
-        [
-            ("POST /v1/withdrawals", "Create withdrawal", "Withdrawals"),
-            ("GET /v1/withdrawals/{withdrawal_id}", "Get withdrawal", "Withdrawals"),
-        ],
-    ),
-    "Account": (
-        "The identity, balances, activity and operations of the account a key acts for.",
-        [
-            ("GET /v1/me", "Get identity", "Account"),
-            ("GET /v1/me/balances", "Get balances", "Account"),
-            ("GET /v1/me/activity", "List activity", "Account"),
-            ("GET /v1/me/operations", "List operations", "Account"),
-            ("GET /v1/operations/{operation_id}", "Get operation", "Account"),
-        ],
-    ),
-    "Streams": (
-        "The authenticated WebSocket for account and maker subscriptions.",
-        [("GET /v1/stream", "Open stream", "Streams")],
     ),
     "Deployment": (
-        "The contract deployment every signature is made against: chain, vault, fees and the USDC domain.",
+        "The contract deployment every signature is made against.",
         [("GET /v1/deployment", "Get deployment", "Deployment")],
+    ),
+    "WebSocket": (
+        "The authenticated WebSocket for account and maker updates.",
+        [("GET /v1/stream", "Open stream", "Streams")],
     ),
 }
 
-# Reads that rebuild state after a reconnect, a truncated snapshot or a lost response.
-RECOVERY = {
-    "GET /v1/rfqs",
-    "GET /v1/rfqs/{rfq_id}",
-    "GET /v1/rfqs/{rfq_id}/quotes",
-    "GET /v1/quotes/{quote_id}/acceptance",
-    "GET /v1/makers/{maker_id}/acceptances",
-    "GET /v1/withdrawals/{withdrawal_id}",
-    "GET /v1/me/operations",
-    "GET /v1/operations/{operation_id}",
+# Hand-written pages that open a reference group, ahead of its generated pages.
+LEADS = {
+    "WebSocket": [
+        "hyperliquid/websocket/connection",
+        "hyperliquid/websocket/account",
+        "hyperliquid/websocket/maker",
+        "hyperliquid/websocket/market-data",
+    ],
 }
-RECOVERING = (
-    "Recovery: only needed after a reconnect, a snapshot that names it in `truncated`, or a lost "
-    "response. The day-to-day flow never calls it."
-)
+
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
@@ -145,7 +133,7 @@ def placed() -> dict[str, tuple[str, str, str]]:
 
 
 def publish(spec: dict) -> dict:
-    """File each operation under its resource, title it, and set its URL and recovery note."""
+    """File each operation under its resource, title it, and set its URL."""
     pages = placed()
     routes = {key for key, _ in operations(spec)}
     if routes != set(pages):
@@ -158,20 +146,19 @@ def publish(spec: dict) -> dict:
         group, title, section = pages[key]
         operation["tags"] = [group]
         operation["summary"] = title
-        mint = {"href": f"/hyperliquid/api-reference/{slug(section)}/{slug(title)}"}
-        if key in RECOVERY:
-            mint["content"] = f"<Note>\n{RECOVERING}\n</Note>\n"
-        operation["x-mint"] = mint
+        operation["x-mint"] = {"href": f"/hyperliquid/api-reference/{slug(section)}/{slug(title)}"}
     return spec
 
 
 def tab() -> dict:
-    """The API reference tab: the endpoints overview, then one group per resource."""
+    """The API reference tab: one group per resource, each led by its hand-written pages."""
     return {
         "tab": TAB,
         "openapi": "/hyperliquid/openapi.json",
-        "groups": [{"group": "API reference", "pages": [OVERVIEW]}]
-        + [{"group": group, "pages": [route for route, _, _ in pages]} for group, (_, pages) in PAGES.items()],
+        "groups": [
+            {"group": group, "pages": LEADS.get(group, []) + [route for route, _, _ in pages]}
+            for group, (_, pages) in PAGES.items()
+        ],
     }
 
 

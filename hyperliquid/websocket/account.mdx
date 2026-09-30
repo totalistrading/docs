@@ -1,0 +1,91 @@
+---
+title: 'Account channel'
+icon: 'user'
+description: 'The account subscription: your RFQs, the quotes on them, your acceptances, operations, positions, balances and withdrawals.'
+---
+
+Needs a personal key with `account:stream`. Connecting and resuming are on
+[Connection](/hyperliquid/websocket/connection).
+
+## Subscribe
+
+```json
+{
+  "method": "subscribe",
+  "subscription": { "type": "account", "publication_freshness": true }
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `type` | Yes | `account`: the account your key acts for. |
+| `cursor` | No | Your last applied cursor. Needs `replay:read`. |
+| `open_rfqs` | No | `true` for every open RFQ, not only yours. Needs `rfq:read`. |
+| `account_reads` | No | `true` for `readInvalidated` frames. |
+| `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. |
+
+## Event
+
+```json
+{
+  "channel": "event",
+  "data": {
+    "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184243" },
+    "event_id": "0199a1c9-3d44-7f60-8b53-8e0fbacd0004",
+    "event_type": "QUOTE_CREATED",
+    "occurred_at": "2026-09-26T20:00:05.412Z",
+    "payload": {
+      "quote_id": "0x2b7c9d1e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c",
+      "rfq_id": "0199a1c9-0a11-7c3e-9f20-5b7d8e9fa001",
+      "kind": "ENTRY",
+      "sequence": 8812,
+      "entry": {
+        "maker_id": "3",
+        "legs": [{ "outcome_id": "1209", "side": "YES" }],
+        "stake": "25000000",
+        "payout": "61000000",
+        "fee_bps": 500,
+        "taker_fee_bps": 20,
+        "taker": "0x1111111111111111111111111111111111111111",
+        "expiry": "1790193625",
+        "salt": "73100245913027741890236401853207113049"
+      }
+    }
+  }
+}
+```
+
+| `event_type` | When | `payload` |
+| --- | --- | --- |
+| `RFQ_CREATED` | You created an RFQ, or any RFQ opened (with `open_rfqs`) | The open RFQ, as [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq), without `status` |
+| `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at` |
+| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, and `entry`, `sell_back` or `transfer` |
+| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. Expiry sends no event. |
+| `OPERATION_UPDATED` | An operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
+| `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position changed on-chain | `position_id`, `block_number`, `log_index`. Read the position. |
+| `VAULT_BALANCE_CHANGED` | Your vault balance changed | `address`, `amount` (the new balance), `transaction_hash`, `status` |
+| `WALLET_BALANCE_CHANGED` | A USDC transfer touched your wallet | `address`, `transaction_hash`, `block_number` |
+| `WALLET_FUNDING_UPDATED`, `CORE_FUNDING_UPDATED` | An acceptance's funding changed | `acceptance_id`, `status`, `updated_at` |
+| `WITHDRAWAL_UPDATED` | A withdrawal changed | The withdrawal, as [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) |
+| `CORE_EXIT_UPDATED` | A HyperCore exit changed | `exit_id`, `status`, `updated_at` |
+| `HYPERCORE_WITHDRAWAL_UPDATED` | A HyperCore withdrawal changed | `operation_id`, `status`, `updated_at` |
+
+## Snapshot
+
+```json
+{
+  "channel": "snapshot",
+  "data": {
+    "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184240" },
+    "resources": { "rfqs": [], "quotes": [], "acceptances": [], "operations": [] }
+  }
+}
+```
+
+| Class | Holds | Pages the rest when `truncated` |
+| --- | --- | --- |
+| `rfqs` | Your RFQs | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |
+| `quotes` | Live quotes on your open RFQs | [List quotes](/hyperliquid/api-reference/quotes/list-quotes), per RFQ |
+| `acceptances` | Your acceptances in `PENDING_CONFIRM` or `PENDING_FUNDING` | [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance), per quote |
+| `operations` | Your operations | [List operations](/hyperliquid/api-reference/account/list-operations) |
+| `open_rfqs` | Every open RFQ, with `open_rfqs: true` | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |

@@ -1,0 +1,141 @@
+---
+title: 'Connection'
+icon: 'plug'
+description: 'Connect to the Hyperliquid WebSocket, send one subscribe frame, resume from a cursor, and handle heartbeats, drains and resets.'
+---
+
+| | Value |
+| --- | --- |
+| URL | `wss://hip4-api.totalis.trade/v1/stream` (staging: `wss://hip4-api-staging.totalis.trade/v1/stream`) |
+| Subprotocol | `totalis.realtime.v2` |
+| Auth | `Authorization: Bearer <key>` on the upgrade. Browsers send a second subprotocol, `auth.<base64url of the key>`, instead. |
+| Channels | [Account](/hyperliquid/websocket/account) (personal key), [Maker](/hyperliquid/websocket/maker) (maker key) |
+
+Public market prices use a separate socket: [Market data](/hyperliquid/websocket/market-data).
+
+## Subscribe
+
+Send one frame after the upgrade:
+
+```json
+{ "method": "subscribe", "subscription": { "type": "account" } }
+```
+
+Response:
+
+```json
+{
+  "channel": "subscriptionResponse",
+  "data": {
+    "method": "subscribe",
+    "subscription": { "type": "account" },
+    "connection_id": "0199a1c8-7f01-7d10-9a2b-3c4d5e6f7081",
+    "server_time": "2026-09-26T20:00:00.412Z",
+    "heartbeat_interval_ms": 15000,
+    "resume": "SNAPSHOT",
+    "cursor": {
+      "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60",
+      "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61",
+      "sequence": "184240"
+    }
+  }
+}
+```
+
+A malformed or late frame closes with `INVALID_SUBSCRIPTION`. A subscription your key may not use
+closes with `SUBSCRIPTION_DENIED`. There is no unsubscribe: close the socket.
+
+## Frames
+
+Every server frame is `{ "channel": ..., "data": ... }`.
+
+| `channel` | When | `data` |
+| --- | --- | --- |
+| `subscriptionResponse` | Once, after your subscribe | Your subscription, `connection_id`, `server_time`, `heartbeat_interval_ms`, `resume`, `cursor` |
+| `snapshot` | After the response, when `resume` is `SNAPSHOT` or `RESET` | `cursor`, `resources`, and `truncated` when a class was cut short |
+| `event` | Each committed change, in order | `cursor`, `event_id`, `event_type`, `occurred_at`, `payload` |
+| `publication` | Each heartbeat, with `publication_freshness` | `cursor`, `source_cut_at`, `server_time` |
+| `readInvalidated` | With `account_reads`, when an account read changed | The `resources` to read again |
+| `marketRefresh` | After the snapshot, and when the market catalog changes | `catalog_generation`, `resource: "/v1/markets"` |
+| `drain` | The server is restarting | `deadline`, `retry_after_ms` |
+| `reset` | Right before a close with `CURSOR_RESET` | None |
+
+```json
+{
+  "channel": "event",
+  "data": {
+    "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184241" },
+    "event_id": "0199a1c9-1b22-7d4e-8f31-6c8d9eafb002",
+    "event_type": "OPERATION_UPDATED",
+    "occurred_at": "2026-09-26T20:00:02.905114Z",
+    "payload": {
+      "operation_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+      "kind": "ACCEPT",
+      "status": "COMMITTED",
+      "transaction_hash": "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "updated_at": "2026-09-26T20:00:02.905114Z"
+    }
+  }
+}
+```
+
+`event_type` selects the shape of `payload`. Ignore event types you do not recognize.
+
+## Snapshot
+
+The snapshot is your current state and the cursor it matches. Replace your local state with it, then
+apply events after that cursor. A class cut short is listed in `truncated` with the route that pages
+the rest:
+
+```json
+{ "resource": "acceptances", "href": "/v1/makers/7/acceptances" }
+```
+
+Page that route once from the first page. Balances, positions and maker capital are not snapshot
+classes: read them over HTTP when you connect, and again on their events.
+
+## Apply events
+
+- Delivery is at least once. Skip an event whose `event_id` you have seen, or whose
+  `cursor.sequence` is not above yours.
+- Apply events in `sequence` order. Sequences skip numbers; a skipped number is not a gap.
+- Save the event's `cursor` after you apply it.
+
+## Resume
+
+Send your last applied cursor. Resuming needs `replay:read`.
+
+```json
+{
+  "method": "subscribe",
+  "subscription": {
+    "type": "account",
+    "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184241" }
+  }
+}
+```
+
+| `resume` | Do |
+| --- | --- |
+| `REPLAY` | Apply the events that follow, in order. |
+| `SNAPSHOT` | You sent no cursor. Apply the snapshot that follows. |
+| `RESET` | Your cursor is too old, ahead, or from another generation. Discard local state and apply the snapshot that follows. |
+
+The stream is the only replay; there is no HTTP event log. The replay window is on
+[Limits](/hyperliquid/errors#limits).
+
+## Heartbeats, drain and reset
+
+- Keepalive is WebSocket ping and pong, every `heartbeat_interval_ms`.
+- On `drain`, open a new connection, resume from your cursor, then close the old one. The server
+  closes it with `CONNECTION_DRAIN` by `deadline`.
+- On `reset`, discard local state and reconnect without a cursor.
+
+Every close carries a code from [Errors](/hyperliquid/errors#codes) as its reason. Its `retry` says what
+to do:
+
+| `retry` | Do | Codes |
+| --- | --- | --- |
+| `BACKOFF` | Reconnect with backoff and resume from your cursor. | `SLOW_CONSUMER`, `CONNECTION_DRAIN` |
+| `REFRESH` | Reconnect without a cursor and apply the fresh snapshot. | `CURSOR_RESET` |
+| `NEVER` | Stop. | `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED` |
