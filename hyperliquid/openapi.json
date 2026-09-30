@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "119.0.0-price-series"
+    "version": "120.0.0-me-routes"
   },
   "servers": [
     {
@@ -1747,7 +1747,7 @@
         }
       }
     },
-    "/v1/positions/{position_id}/cashout": {
+    "/v1/me/positions/{position_id}/cashout": {
       "parameters": [
         {
           "$ref": "#/components/parameters/PositionId"
@@ -2488,7 +2488,7 @@
         }
       }
     },
-    "/v1/operations/{operation_id}": {
+    "/v1/me/operations/{operation_id}": {
       "parameters": [
         {
           "$ref": "#/components/parameters/OperationId"
@@ -2639,7 +2639,7 @@
         }
       }
     },
-    "/v1/withdrawals/{withdrawal_id}": {
+    "/v1/me/withdrawals/{withdrawal_id}": {
       "parameters": [
         {
           "name": "withdrawal_id",
@@ -3752,7 +3752,7 @@
         }
       }
     },
-    "/v1/withdrawals": {
+    "/v1/me/withdrawals": {
       "post": {
         "operationId": "createWithdrawal",
         "summary": "Create withdrawal",
@@ -6367,7 +6367,7 @@
             "$ref": "#/components/schemas/IntentIdentityPair"
           }
         ],
-        "description": "The entry RFQ to open: new legs and a stake, whose taker is the caller's embedded wallet. To sell a position you already hold, use `POST /v1/positions/{position_id}/cashout` instead.",
+        "description": "The entry RFQ to open: new legs and a stake, whose taker is the caller's embedded wallet. To sell a position you already hold, use `POST /v1/me/positions/{position_id}/cashout` instead.",
         "required": [
           "stake",
           "legs"

@@ -234,7 +234,7 @@
                       "POST /v1/rfqs",
                       "POST /v1/quotes/{quote_id}/accept",
                       "POST /v1/rfqs/{rfq_id}/cancel",
-                      "POST /v1/positions/{position_id}/cashout"
+                      "POST /v1/me/positions/{position_id}/cashout"
                     ]
                   },
                   {
@@ -271,9 +271,9 @@
                   "GET /v1/me/balances",
                   "GET /v1/me/activity",
                   "GET /v1/me/operations",
-                  "GET /v1/operations/{operation_id}",
-                  "POST /v1/withdrawals",
-                  "GET /v1/withdrawals/{withdrawal_id}"
+                  "GET /v1/me/operations/{operation_id}",
+                  "POST /v1/me/withdrawals",
+                  "GET /v1/me/withdrawals/{withdrawal_id}"
                 ]
               },
               {
