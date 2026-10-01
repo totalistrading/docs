@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "125.0.0-session-admission"
+    "version": "127.0.0-pure-reads"
   },
   "servers": [
     {
@@ -2062,7 +2062,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance as it stands now, whichever key or session made it. Reading it moves no funds.",
+            "description": "The acceptance as it stands now, whichever key or session made it. Reading it writes nothing and moves no funds.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5626,7 +5626,7 @@
                 "type": "null"
               }
             ],
-            "description": "Trade details for FILL and CONVERSION; null for every other kind and for entries recorded before trade details were retained."
+            "description": "Trade details for FILL, CONVERSION and CREDIT; null for every other kind and for entries recorded before trade details were retained. A CREDIT is an outcome settlement: it sells all size shares of side at price, what one share of that side paid at settlement, so the gross payout is size times price before the fee effect."
           },
           "counterparty": {
             "oneOf": [
@@ -7184,7 +7184,7 @@
               "BUY",
               "SELL"
             ],
-            "description": "BUY or SELL of side, as Hyperliquid reported it."
+            "description": "BUY or SELL of side, as Hyperliquid reported it; always SELL for a settlement credit."
           },
           "size": {
             "type": "string",
@@ -7194,7 +7194,7 @@
           "price": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]*[1-9])?$",
-            "description": "Price per share in USDC, as an exact decimal string with no trailing zeros; 0 is possible for a conversion leg."
+            "description": "Price per share in USDC, as an exact decimal string with no trailing zeros; 0 is possible for a conversion leg or a losing settlement."
           },
           "oid": {
             "$ref": "#/components/schemas/UInt64String",
@@ -7205,7 +7205,7 @@
             "description": "Hyperliquid trade ID, as a decimal string."
           }
         },
-        "description": "The traded leg of a HyperCore fill or conversion. Cash and fees stay in effects."
+        "description": "The traded leg of a HyperCore fill, conversion or settlement credit. Cash and fees stay in effects."
       },
       "Hash32": {
         "type": "string",
