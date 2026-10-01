@@ -597,7 +597,7 @@
       "get": {
         "operationId": "listQuotes",
         "summary": "List quotes",
-        "description": "List the live quotes on your RFQ.\n\nRequires a personal key with `quote:read`.",
+        "description": "List the live quotes on your RFQ.\n\nRequires a key for your account with `quote:read`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -748,7 +748,7 @@
       "post": {
         "operationId": "createQuote",
         "summary": "Create quote",
-        "description": "Create a quote in response to an RFQ.\n\nRequires a maker key with `quote:write`.",
+        "description": "Create a quote in response to an RFQ.\n\nRequires a key for a maker with `quote:write`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -930,7 +930,7 @@
       "delete": {
         "operationId": "cancelQuote",
         "summary": "Cancel quote",
-        "description": "Cancel your quote.\n\nRequires a maker key with `quote:write`.",
+        "description": "Cancel your quote.\n\nRequires a key for a maker with `quote:write`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -1078,7 +1078,7 @@
       "post": {
         "operationId": "acceptQuote",
         "summary": "Accept quote",
-        "description": "Accept a quote to open a position or cash one out.\n\nRequires a personal key with `quote:accept`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.",
+        "description": "Accept a quote to open a position or cash one out.\n\nRequires a key for your account with `quote:accept`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -1263,7 +1263,7 @@
       "post": {
         "operationId": "confirmQuote",
         "summary": "Confirm quote",
-        "description": "Confirm or decline an acceptance of your quote.\n\nRequires a maker key with `quote:write`.",
+        "description": "Confirm or decline an acceptance of your quote.\n\nRequires a key for a maker with `quote:write`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -1438,7 +1438,7 @@
       "get": {
         "operationId": "listRfqs",
         "summary": "List RFQs",
-        "description": "List open RFQs.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
+        "description": "List open RFQs.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a key for your account with `rfq:read`\n- a key for a maker with `rfq:read`",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -1741,7 +1741,7 @@
             }
           }
         },
-        "description": "Create an RFQ that asks makers to quote a new position.\n\nRequires a personal key with `rfq:write`.",
+        "description": "Create an RFQ that asks makers to quote a new position.\n\nRequires a key for your account with `rfq:write`.",
         "x-mint": {
           "href": "/hyperliquid/api-reference/rfqs/create-rfq"
         }
@@ -1891,7 +1891,7 @@
             }
           }
         },
-        "description": "Cash out a position by opening a cash-out RFQ.\n\nRequires a personal key with `rfq:write`.",
+        "description": "Cash out a position by opening a cash-out RFQ.\n\nRequires a key for your account with `rfq:write`.",
         "x-mint": {
           "href": "/hyperliquid/api-reference/positions/cash-out-position"
         }
@@ -1906,7 +1906,7 @@
       "post": {
         "operationId": "cancelRfq",
         "summary": "Cancel RFQ",
-        "description": "Cancel your RFQ.\n\nRequires a personal key with `rfq:write`.",
+        "description": "Cancel your RFQ.\n\nRequires a key for your account with `rfq:write`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -2049,7 +2049,7 @@
       "get": {
         "operationId": "getAcceptance",
         "summary": "Get acceptance",
-        "description": "Get a quote's acceptance, for example after a lost response.\n\nRequires a personal key with `quote:read`.",
+        "description": "Get a quote's acceptance, for example after a lost response.\n\nRequires a key for your account with `quote:read`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -2188,7 +2188,7 @@
       "get": {
         "operationId": "getRfq",
         "summary": "Get RFQ",
-        "description": "Get an RFQ.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key with `rfq:read`\n- a maker key with `rfq:read`",
+        "description": "Get an RFQ.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a key for your account with `rfq:read`\n- a key for a maker with `rfq:read`",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -2330,7 +2330,7 @@
       "get": {
         "operationId": "listOperations",
         "summary": "List operations",
-        "description": "List your account's on-chain operations.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
+        "description": "List your account's on-chain operations.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -2356,7 +2356,7 @@
         ],
         "responses": {
           "200": {
-            "description": "One page of operations. An operation is one on-chain action Totalis relays for you, such as a trade or a withdrawal payout. A personal key reads its own; a maker key reads its maker's. The stream pushes each change as `OPERATION_UPDATED`; page this when a snapshot truncated them.",
+            "description": "One page of operations. An operation is one on-chain action Totalis relays for you, such as a trade or a withdrawal payout. A key reads its own account's: yours, or its maker's. The stream pushes each change as `OPERATION_UPDATED`; page this when a snapshot truncated them.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2497,7 +2497,7 @@
       "get": {
         "operationId": "getOperation",
         "summary": "Get operation",
-        "description": "Get an on-chain operation and its latest chain status.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
+        "description": "Get an on-chain operation and its latest chain status.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`",
         "tags": [
           "Account"
         ],
@@ -2515,7 +2515,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The operation and its latest chain status. A personal key reads its own operations; a maker key reads its maker's.",
+            "description": "The operation and its latest chain status. A key reads its own account's operations: yours, or its maker's.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2655,7 +2655,7 @@
       "get": {
         "operationId": "getWithdrawal",
         "summary": "Get withdrawal",
-        "description": "Get a withdrawal.\n\nRequires a personal key with `account:read`.",
+        "description": "Get a withdrawal.\n\nRequires a key for your account with `account:read`.",
         "tags": [
           "Account"
         ],
@@ -2798,7 +2798,7 @@
       "get": {
         "operationId": "listMakerAcceptances",
         "summary": "List acceptances",
-        "description": "List the acceptances of your quotes that wait for your confirm.\n\nRequires a maker key with `quote:read`.",
+        "description": "List the acceptances of your quotes that wait for your confirm.\n\nRequires a key for a maker with `quote:read`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -2963,7 +2963,7 @@
         "tags": [
           "Positions"
         ],
-        "description": "List your account's positions.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
+        "description": "List your account's positions.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permission `READ_POSITIONS`",
         "security": [
           {
             "apiKey": [
@@ -3000,7 +3000,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Your positions, reconciled against the vault contract. A personal key lists the positions it holds; a maker key lists the positions its maker backs. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
+            "description": "Your positions, reconciled against the vault contract. A key for your account lists the positions you hold; a key for a maker lists the positions the maker backs. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
             "headers": {
               "Cache-Control": {
                 "$ref": "#/components/headers/CacheControl"
@@ -3213,7 +3213,7 @@
         "tags": [
           "Positions"
         ],
-        "description": "Get one of your account's positions.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_POSITIONS`",
+        "description": "Get one of your account's positions.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permission `READ_POSITIONS`",
         "security": [
           {
             "apiKey": [
@@ -3244,7 +3244,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The position, reconciled against the vault contract. A personal key reads the positions it holds; a maker key reads the positions its maker backs. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
+            "description": "The position, reconciled against the vault contract. A key for your account reads the positions you hold; a key for a maker reads the positions the maker backs. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
             "headers": {
               "Cache-Control": {
                 "$ref": "#/components/headers/CacheControl"
@@ -3406,7 +3406,7 @@
         "tags": [
           "Account"
         ],
-        "description": "List your account's activity.\n\nRequires one of:\n\n- a personal key with `account:read`\n- a maker key with `vault:read` and the maker permission `READ_ACTIVITY`",
+        "description": "List your account's activity.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permission `READ_ACTIVITY`",
         "security": [
           {
             "apiKey": [
@@ -3457,7 +3457,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Your activity, built from on-chain records and operations. A personal key reads its own; a maker key reads its maker's. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
+            "description": "Your activity, built from on-chain records and operations. A key reads its own account's: yours, or its maker's. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
             "headers": {
               "Cache-Control": {
                 "$ref": "#/components/headers/CacheControl"
@@ -3631,7 +3631,7 @@
       "get": {
         "operationId": "getBalances",
         "summary": "Get balances",
-        "description": "Get your Totalis balance: your wallet's USDC on HyperEVM plus your free vault balance.\n\nRequires a personal key with `account:read`.",
+        "description": "Get your Totalis balance: your wallet's USDC on HyperEVM plus your free vault balance.\n\nRequires a key for your account with `account:read`.",
         "tags": [
           "Account"
         ],
@@ -3756,7 +3756,7 @@
       "post": {
         "operationId": "createWithdrawal",
         "summary": "Create withdrawal",
-        "description": "Withdraw USDC from your Totalis balance to an external address.\n\nRequires a personal key with `funding:withdraw`, `sponsorship:use`.",
+        "description": "Withdraw USDC from your Totalis balance to an external address.\n\nRequires a key for your account with `funding:withdraw`, `sponsorship:use`.",
         "tags": [
           "Account"
         ],
@@ -4037,7 +4037,7 @@
             }
           }
         },
-        "description": "Get the deployment your signatures are made against: chain, vault, fees and USDC domain.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a personal key\n- a maker key",
+        "description": "Get the deployment your signatures are made against: chain, vault, fees and USDC domain.\n\nNo API key required; callers without one receive the public projection. A key, when sent, must be one of:\n\n- a key for your account\n- a key for a maker",
         "security": [
           {},
           {
@@ -4053,7 +4053,7 @@
       "get": {
         "operationId": "getIdentity",
         "summary": "Get identity",
-        "description": "Get the account your personal key acts for.\n\nRequires a personal key with `identity:read`.",
+        "description": "Get the account your key acts for.\n\nRequires a key for your account with `identity:read`.",
         "tags": [
           "Account"
         ],
@@ -4170,7 +4170,7 @@
       "get": {
         "operationId": "stream",
         "summary": "Open stream",
-        "description": "Open the WebSocket that streams your account's or your maker's updates.\n\nRequires one of:\n\n- a personal key with `account:stream`\n- a maker key with `rfq:read`\n- a maker key with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a maker key with `quote:read`\n- a personal key with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | personal key | `rfq:read` |\n| Account | personal key | `account:stream` |\n| RFQ | maker key | `rfq:read` |\n| Quote | maker key | `quote:read` |\n| Account | maker key | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
+        "description": "Open the WebSocket that streams your account's or your maker's updates.\n\nRequires one of:\n\n- a key for your account with `account:stream`\n- a key for a maker with `rfq:read`\n- a key for a maker with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a key for a maker with `quote:read`\n- a key for your account with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | key for your account | `rfq:read` |\n| Account | key for your account | `account:stream` |\n| RFQ | key for a maker | `rfq:read` |\n| Quote | key for a maker | `quote:read` |\n| Account | key for a maker | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
         "tags": [
           "WebSocket"
         ],
@@ -4198,7 +4198,7 @@
         ],
         "responses": {
           "101": {
-            "description": "Switching protocols. Send the key as `Authorization: Bearer`; browsers request the `totalis.realtime.v2` subprotocol plus `auth.<base64url-access-token>` instead. Then send one `subscribe` frame: `account` with a personal key, or `maker` with a maker key and its `maker_id`. The stream answers with a `subscriptionResponse`, then a snapshot or a replay from your cursor, then live events, every frame tagged by `channel`. The server closes the connection when your maker's membership or controller changes; reconnect to continue."
+            "description": "Switching protocols. Send the key as `Authorization: Bearer`; browsers request the `totalis.realtime.v2` subprotocol plus `auth.<base64url-access-token>` instead. Then send one `subscribe` frame: `account` with a key for your account, or `maker` with a key for a maker and its `maker_id`. The stream answers with a `subscriptionResponse`, then a snapshot or a replay from your cursor, then live events, every frame tagged by `channel`. The server closes the connection when your maker's membership or controller changes; reconnect to continue."
           },
           "400": {
             "description": "- `SUBPROTOCOL_REQUIRED` (retry `NEVER`): The stream request did not negotiate a supported subprotocol or extension.\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
@@ -4307,7 +4307,7 @@
         "tags": [
           "Makers"
         ],
-        "description": "Get your maker vault's capital, reservations and free collateral.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Get your maker vault's capital, reservations and free collateral.\n\nRequires a key for a maker with `vault:read` and the maker permission `READ_CAPITAL`.",
         "security": [
           {
             "apiKey": [
@@ -4507,7 +4507,7 @@
       "post": {
         "operationId": "createCollateralReduction",
         "summary": "Create collateral reduction",
-        "description": "Start a job that lowers your collateral requirement against correlated open positions.\n\nRequires a maker key with `vault:write`.",
+        "description": "Start a job that lowers your collateral requirement against correlated open positions.\n\nRequires a key for a maker with `vault:write`.",
         "tags": [
           "Makers"
         ],
@@ -4666,7 +4666,7 @@
       "get": {
         "operationId": "getCollateralReduction",
         "summary": "Get collateral reduction",
-        "description": "Get a collateral-reduction job.\n\nRequires a maker key with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Get a collateral-reduction job.\n\nRequires a key for a maker with `vault:read` and the maker permission `READ_CAPITAL`.",
         "tags": [
           "Makers"
         ],
@@ -4832,7 +4832,7 @@
       "post": {
         "operationId": "submitMakerSelfFundedTransaction",
         "summary": "Submit self-funded transaction",
-        "description": "Submit a transaction your own gas wallet signed and pays for, such as a collateral reduction.\n\nRequires a maker key with `operations:submit`.",
+        "description": "Submit a transaction your own gas wallet signed and pays for, such as a collateral reduction.\n\nRequires a key for a maker with `operations:submit`.",
         "tags": [
           "Makers"
         ],
@@ -9434,7 +9434,7 @@
       "apiKey": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Scoped API key from the Totalis app settings. Personal keys act for one account; maker keys act for one maker. Each operation lists the scopes it requires."
+        "description": "Scoped API key from the Totalis app settings. Each key acts for one account, yours or a maker's, and holds only scopes that account can use. Each operation lists the scopes it requires."
       }
     }
   }

@@ -15,23 +15,25 @@ sent in the request body. Market reads need no key; an expired or revoked key on
 
 ## Keys
 
-| | Personal key | Maker key |
-| --- | --- | --- |
-| Acts for | Your Totalis account | One maker (`maker_id`) |
-| Approved by | Your Totalis wallet | The maker's controller |
-| Signs trades | Your Totalis wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | The quote signer (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) |
-| Reads | `/v1/me/...`, `/v1/operations/{operation_id}` | The same, for its maker, plus `/v1/makers/{maker_id}/...` |
+There is one kind of key. Each key acts for one account, yours or a maker's, and holds only scopes
+that account can use.
+
+| Account | Approved by | Signs trades | Reads |
+| --- | --- | --- | --- |
+| Yours | Your Totalis wallet | Your Totalis wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
+| A maker (`maker_id`) | The maker's controller | The quote signer (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
 
 - The key alone selects the account, chain and vault. No header or parameter does.
-- A maker key naming another `maker_id` gets `404`.
+- A key for a maker naming another `maker_id` gets `404`.
 - Keys start with `ttk_v1_prd_` (production) or `ttk_v1_stg_` (staging) and work only there.
 
 ## Create, rotate, revoke
 
 In the [Totalis app](https://totalis-hip4.vercel.app/account/api-keys), under Account, then API keys:
 
-1. Choose **Personal account** or **Maker account**.
-2. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever.
+1. Under **Keys act for**, choose **Your account** or a maker.
+2. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only the
+   account's scopes are offered.
 3. The owner approves with a Sign-In with Ethereum message: your wallet, or the maker's controller.
 4. Copy the key. It is shown once.
 
@@ -42,31 +44,31 @@ keys.
 
 ## Scopes
 
-| Scope | Key | Grants |
+| Scope | Account | Grants |
 | --- | --- | --- |
-| `identity:read` | Personal | Your identity and wallet |
-| `account:read` | Personal | Balances, positions, activity, operations, withdrawals |
-| `account:stream` | Personal | The [account channel](/hyperliquid/websocket/account) |
-| `rfq:read` | Both | Open RFQs and RFQ events |
-| `rfq:write` | Personal | Create and cancel RFQs |
-| `quote:read` | Both | Personal: quotes on your RFQs, your acceptances. Maker: acceptances of your quotes. |
-| `quote:accept` | Personal | Accept a quote |
-| `position:cashout` | Personal | Accept a cash-out quote |
-| `funding:deposit` | Personal | Fund an accept's shortfall from your wallet |
-| `funding:withdraw` | Personal | Withdraw |
-| `sponsorship:use` | Personal | Let Totalis pay the gas: accepts, cash-outs, withdrawals |
+| `identity:read` | Yours | Your identity and wallet |
+| `account:read` | Yours | Balances, positions, activity, operations, withdrawals |
+| `account:stream` | Yours | The [account channel](/hyperliquid/websocket/account) |
+| `rfq:read` | Either | Open RFQs and RFQ events |
+| `rfq:write` | Yours | Create and cancel RFQs |
+| `quote:read` | Either | Yours: quotes on your RFQs, your acceptances. A maker: acceptances of its quotes. |
+| `quote:accept` | Yours | Accept a quote |
+| `position:cashout` | Yours | Accept a cash-out quote |
+| `funding:deposit` | Yours | Fund an accept's shortfall from your wallet |
+| `funding:withdraw` | Yours | Withdraw |
+| `sponsorship:use` | Yours | Let Totalis pay the gas: accepts, cash-outs, withdrawals |
 | `quote:write` | Maker | Create, cancel and confirm quotes |
-| `replay:read` | Both | Resume the WebSocket from a cursor |
+| `replay:read` | Either | Resume the WebSocket from a cursor |
 | `vault:read` | Maker | Capital, positions, activity, operations, collateral reductions |
 | `vault:write` | Maker | Request a collateral reduction |
 | `operations:submit` | Maker | Submit a self-funded transaction |
 
-| Integration | Scopes |
-| --- | --- |
-| Taker | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
-| Taker that withdraws | The taker scopes plus `funding:withdraw` |
-| Maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
-| Maker collateral | `vault:read`, `vault:write`, `operations:submit` |
+| Integration | Account | Scopes |
+| --- | --- | --- |
+| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker that withdraws | Yours | The taker scopes plus `funding:withdraw` |
+| Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
+| Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
 
 A controller change invalidates every key of that maker.
 

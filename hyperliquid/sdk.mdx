@@ -44,7 +44,7 @@ const me = unwrap(await client.GET("/v1/me"));
 
 | Function | Calls | Signer |
 | --- | --- | --- |
-| `createClient(environment, options)` | Any personal or public route, typed | None |
+| `createClient(environment, options)` | Any route for your account, or any public route, typed | None |
 | `createTotalis(options)` | `openPosition`, `cashOut`, `withdraw`, `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, `waitForOperation`, `watchQuotes`, `deployment` | Your Totalis wallet |
 | `createMakerClient(environment, options)` | Any maker route, typed | None |
 | `createMaker(options)` | `onRfq`, `quote`, `bid`, `cancelQuote`, `onAcceptance`, `confirm`, `deployment`, `controller`, `reduceCollateral` | The quote signer |

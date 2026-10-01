@@ -7,7 +7,7 @@ description: 'Quote RFQs, confirm accepted quotes before the deadline, and manag
 | Role | What it is |
 | --- | --- |
 | Maker | Your market-making identity on the vault, named by `maker_id`. |
-| Controller (`owner`) | The wallet that created the maker. It approves maker keys, moves maker funds and sets the quote signer. |
+| Controller (`owner`) | The wallet that created the maker. It approves the maker's keys, moves maker funds and sets the quote signer. |
 | Quote signer (`signer`) | Your bot's key. It signs confirms. It holds no funds and cannot withdraw. |
 | Maker vault | Your USDC in the vault. It backs every confirmed quote. |
 
@@ -17,7 +17,7 @@ description: 'Quote RFQs, confirm accepted quotes before the deadline, and manag
 2. At [totalis-hip4.vercel.app/mm](https://totalis-hip4.vercel.app/mm), choose **Start market making**,
    enter the quote signer address, and create the maker. The controller pays the gas in HYPE.
 3. Fund the maker vault from the dashboard, or with [controller calls](#move-maker-funds).
-4. Create a maker key with the [maker scopes](/hyperliquid/authentication#scopes).
+4. Create a key for the maker with the [maker scopes](/hyperliquid/authentication#scopes).
 
 ## Quote
 

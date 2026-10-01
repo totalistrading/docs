@@ -9,7 +9,7 @@ description: 'Connect to the Hyperliquid WebSocket, send one subscribe frame, re
 | URL | `wss://hip4-api.totalis.trade/v1/stream` (staging: `wss://hip4-api-staging.totalis.trade/v1/stream`) |
 | Subprotocol | `totalis.realtime.v2` |
 | Auth | `Authorization: Bearer <key>` on the upgrade. Browsers send a second subprotocol, `auth.<base64url of the key>`, instead. |
-| Channels | [Account](/hyperliquid/websocket/account) (personal key), [Maker](/hyperliquid/websocket/maker) (maker key) |
+| Channels | [Account](/hyperliquid/websocket/account) (a key for your account), [Maker](/hyperliquid/websocket/maker) (a key for a maker) |
 
 Public market prices use a separate socket: [Market data](/hyperliquid/websocket/market-data).
 
