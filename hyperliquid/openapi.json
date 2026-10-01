@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "122.0.0-quote-kinds"
+    "version": "124.0.0-owner-access"
   },
   "servers": [
     {
@@ -3028,6 +3028,7 @@
                       "close_reason": null,
                       "fee_bps": 100,
                       "net_stake": "24950000",
+                      "acquisition_cost": "25000000",
                       "payout": "100000000",
                       "settlement_payout": null,
                       "unclaimed_profit": "0",
@@ -3060,6 +3061,7 @@
                       "close_reason": null,
                       "fee_bps": 100,
                       "net_stake": "49900000",
+                      "acquisition_cost": "50000000",
                       "payout": "120000000",
                       "settlement_payout": "120000000",
                       "unclaimed_profit": "70100000",
@@ -3271,6 +3273,7 @@
                     "close_reason": null,
                     "fee_bps": 100,
                     "net_stake": "49900000",
+                    "acquisition_cost": "50000000",
                     "payout": "120000000",
                     "settlement_payout": "120000000",
                     "unclaimed_profit": "70100000",
@@ -3493,16 +3496,27 @@
                       ],
                       "effects": [
                         {
+                          "asset": {
+                            "asset_id": "eip155:999/erc20:0xb88339cb7199b77e23db6e890353e22632ba630f",
+                            "symbol": "USDC",
+                            "decimals": 6
+                          },
                           "bucket": "VAULT_USER",
                           "delta": "250000000",
                           "classification": "INTERNAL_TRANSFER"
                         },
                         {
+                          "asset": {
+                            "asset_id": "eip155:999/erc20:0xb88339cb7199b77e23db6e890353e22632ba630f",
+                            "symbol": "USDC",
+                            "decimals": 6
+                          },
                           "bucket": "WALLET",
                           "delta": "-250000000",
                           "classification": "INTERNAL_TRANSFER"
                         }
                       ],
+                      "fill": null,
                       "counterparty": "0x1111111111111111111111111111111111111111",
                       "description_code": "WALLET_VAULT_TRANSFER"
                     }
@@ -5507,6 +5521,7 @@
           "supersedes",
           "transaction_hashes",
           "effects",
+          "fill",
           "counterparty",
           "description_code"
         ],
@@ -5544,7 +5559,7 @@
             "description": "PENDING: in progress; UNKNOWN: outcome not yet known; COMMITTED: final at its source; FAILED or REVERTED: took no effect and moves no committed cash; CORRECTED: a correction entry reversing superseded activity."
           },
           "occurred_at": {
-            "description": "RFC3339 evidence time; null when the occurrence time is uncertain, such as unconfirmed chain work."
+            "description": "RFC3339 evidence time; for workflow entries, the operation's creation time, which later revisions keep. Null when the occurrence time is uncertain, such as an order with no retained placement time."
           },
           "recorded_at": {
             "type": "string",
@@ -5591,7 +5606,15 @@
             "items": {
               "$ref": "#/components/schemas/Effect"
             },
-            "description": "Balance effects for the scoped subject; empty only for ORDER and POSITION_TRANSFER, which move no cash."
+            "description": "Balance effects for the scoped subject, each in its own asset; empty only for ORDER and POSITION_TRANSFER, which move no cash."
+          },
+          "fill": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Fill"
+              }
+            ],
+            "description": "Trade details for FILL and CONVERSION; null for every other kind and for entries recorded before trade details were retained."
           },
           "counterparty": {
             "description": "Address of the other party when known, such as a deposit's payer; null otherwise."
@@ -5664,6 +5687,35 @@
       "Amount": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]{0,77})$"
+      },
+      "Asset": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "asset_id",
+          "symbol",
+          "decimals"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "pattern": "^(eip155:[1-9][0-9]{0,18}/erc20:0x[0-9a-f]{40}|hypercore:(mainnet|testnet)/token:0x[0-9a-f]{32})$",
+            "description": "Stable asset identifier. HyperEVM tokens use CAIP-19 `eip155:<chain_id>/erc20:<lowercase address>`; HyperCore spot tokens use `hypercore:<mainnet|testnet>/token:<spotMeta tokenId>`."
+          },
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Display symbol, e.g. USDC or HYPE. Not an identity (HyperEVM USDC and HyperCore USDC share it), but USDC is one dollar per whole unit on either chain."
+          },
+          "decimals": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 36,
+            "description": "Scale of the asset's atomic unit: 6 for HyperEVM USDC, 8 for HyperCore USDC and HYPE."
+          }
+        },
+        "description": "Asset an effect moves. Deltas of different assets are different units and are never summed or compared."
       },
       "Balance": {
         "description": "The account's spendable Totalis balance in atomic USDC (6 decimals, \"1000000\" = 1 USDC): embedded wallet USDC plus free vault cash. HyperCore balances are read from Hyperliquid directly or through GET /v1/hypercore/portfolio.",
@@ -6501,11 +6553,16 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "asset",
           "bucket",
           "delta",
           "classification"
         ],
         "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/Asset",
+            "description": "Asset the delta is denominated in."
+          },
           "bucket": {
             "type": "string",
             "enum": [
@@ -6526,7 +6583,7 @@
           },
           "delta": {
             "$ref": "#/components/schemas/SignedAmount",
-            "description": "Signed change to the bucket in atomic USDC (6 decimals, \"1000000\" = 1 USDC). Lane deltas are not summable income."
+            "description": "Signed change to the bucket in atomic units of asset, e.g. \"1000000\" = 1 USDC on HyperEVM (6 decimals) and \"100000000\" = 1 USDC on HyperCore (8 decimals). Lane deltas are not summable income."
           },
           "classification": {
             "type": "string",
@@ -6908,6 +6965,56 @@
           "code"
         ],
         "type": "object"
+      },
+      "Fill": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "outcome_id",
+          "side",
+          "direction",
+          "size",
+          "price",
+          "oid",
+          "tid"
+        ],
+        "properties": {
+          "outcome_id": {
+            "$ref": "#/components/schemas/UInt32String",
+            "description": "HIP-4 outcome ID traded, as a decimal string."
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side",
+            "description": "Outcome side traded, YES or NO."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
+            "description": "BUY or SELL of side, as Hyperliquid reported it."
+          },
+          "size": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*(\\.[0-9]*[1-9])?$|^0\\.[0-9]*[1-9]$",
+            "description": "Shares filled, as an exact decimal string with no trailing zeros."
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]*[1-9])?$",
+            "description": "Price per share in USDC, as an exact decimal string with no trailing zeros; 0 is possible for a conversion leg."
+          },
+          "oid": {
+            "$ref": "#/components/schemas/UInt64String",
+            "description": "Hyperliquid order ID, as a decimal string."
+          },
+          "tid": {
+            "$ref": "#/components/schemas/NonZeroUInt64String",
+            "description": "Hyperliquid trade ID, as a decimal string."
+          }
+        },
+        "description": "The traded leg of a HyperCore fill or conversion. Cash and fees stay in effects."
       },
       "Hash32": {
         "type": "string",
@@ -7785,6 +7892,7 @@
           "close_reason",
           "fee_bps",
           "net_stake",
+          "acquisition_cost",
           "payout",
           "settlement_payout",
           "unclaimed_profit",
@@ -7839,6 +7947,10 @@
           "net_stake": {
             "$ref": "#/components/schemas/UnsignedMetric",
             "description": "Stake after the taker entry fee."
+          },
+          "acquisition_cost": {
+            "$ref": "#/components/schemas/UnsignedMetric",
+            "description": "What the current owner paid for the whole position: the price of the latest transfer to them, or the gross stake with the entry fee if they have held it since opening. Settlement, claims and sell-back don't change it. Null when retained chain history has a gap that could hide a transfer. P&L compares it with what the owner gets back, settlement_payout or cashout_price, less the profit fee of fee_bps on the amount above net_stake, whatever the owner paid."
           },
           "payout": {
             "$ref": "#/components/schemas/UnsignedMetric",
