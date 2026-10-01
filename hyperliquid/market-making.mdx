@@ -4,20 +4,18 @@ icon: 'chart-candlestick'
 description: 'Quote RFQs, confirm accepted quotes before the deadline, and manage your maker capital and collateral.'
 ---
 
-| Role | What it is |
-| --- | --- |
-| Maker | Your market-making identity on the vault, named by `maker_id`. |
-| Controller (`owner`) | The wallet that created the maker. It approves the maker's keys, moves maker funds and sets the quote signer. |
-| Quote signer (`signer`) | Your bot's key. It signs confirms. It holds no funds and cannot withdraw. |
-| Maker vault | Your USDC in the vault. It backs every confirmed quote. |
+Your Totalis wallet runs your maker. It owns the maker vault, the USDC that backs every confirmed quote,
+and signs your bot's confirms.
 
 ## Set up
 
-1. Generate a key pair for the quote signer.
-2. At [totalis-hip4.vercel.app/mm](https://totalis-hip4.vercel.app/mm), choose **Start market making**,
-   enter the quote signer address, and create the maker. The controller pays the gas in HYPE.
-3. Fund the maker vault from the dashboard, or with [controller calls](#move-maker-funds).
+At [totalis-hip4.vercel.app/mm](https://totalis-hip4.vercel.app/mm):
+
+1. Under **Your wallet**, add a little HYPE for gas and the USDC you will quote with.
+2. Choose **Create maker account**: one transaction, then one signature.
+3. Choose **Fund vault**.
 4. Create a key for the maker with the [maker scopes](/hyperliquid/authentication#scopes).
+5. Run your bot with that key, your `maker_id` and your [wallet key](/hyperliquid/authentication#wallet-key).
 
 ## Quote
 
@@ -69,7 +67,8 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 | `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
 
 For a cash-out RFQ, price the position at `decision_block` and send `sell_back` terms if your maker backs
-it, or `transfer` terms if not. A `transfer` buyer pays from the quote signer's vault balance.
+it, or `transfer` terms if not. A `transfer` pays from your account balance and the position becomes
+yours. Keep that balance at zero to sell back only.
 
 ### Cancel quote
 
@@ -128,7 +127,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 {
   "context": { "as_of": "2026-09-26T12:00:02Z", "status": "CURRENT" },
   "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "signer": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "signer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "vault_gross": "5250000000",
   "stake_escrow": "150000000",
   "payable_owed": "40000000",
@@ -142,14 +141,14 @@ A confirm fails when `free_collateral` cannot cover the fill.
 
 ### Move maker funds
 
-The controller calls the vault directly and pays the gas. Totalis does not relay these.
+Your wallet calls the vault directly and pays the gas. Totalis does not relay these.
 
 | Vault call | Does |
 | --- | --- |
 | USDC `approve(vault, amount)`, then `depositMaker` | Deposits into the maker vault. |
 | `requestMakerWithdraw`, then `executeMakerWithdraw` | Withdraws after the [delay](/hyperliquid/errors#limits). |
 | `cancelMakerWithdraw` | Cancels a pending withdrawal. |
-| `setQuoteSigner` | Replaces the quote signer at once. The zero address stops all fills. |
+| `setQuoteSigner` | Moves confirm signing to another key at once, so your bot never holds your wallet key. The zero address stops all fills. |
 | `resetDiscount` | Sets your collateral discount to zero. |
 
 ### Reduce collateral

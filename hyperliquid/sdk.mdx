@@ -26,7 +26,7 @@ ESM, Node 22 or later, and browsers. `viem` or ethers only turns a private key i
 | Import | Holds |
 | --- | --- |
 | `@totalistrading/hip4-client` | `createTotalis`, `createClient`, `bestQuote`, `bestBid`, `ApiError`, `NetworkError`, `pages`, `items`, `unwrap`, `toTotalisSigner`, `TotalisStream`, `uuidv7` |
-| `.../maker` | `createMaker`, `createMakerClient`, the controller's vault calls |
+| `.../maker` | `createMaker`, `createMakerClient`, the maker's vault calls |
 | `.../realtime` | `TotalisStream` and frame types |
 | `.../typed-data` | Builders and hashing for every signed message |
 | `.../signer` | `toTotalisSigner` for viem, EIP-1193 and ethers signers |
@@ -47,7 +47,7 @@ const me = unwrap(await client.GET("/v1/me"));
 | `createClient(environment, options)` | Any route for your account, or any public route, typed | None |
 | `createTotalis(options)` | `openPosition`, `cashOut`, `withdraw`, `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, `waitForOperation`, `watchQuotes`, `deployment` | Your Totalis wallet |
 | `createMakerClient(environment, options)` | Any maker route, typed | None |
-| `createMaker(options)` | `onRfq`, `quote`, `bid`, `cancelQuote`, `onAcceptance`, `confirm`, `deployment`, `controller`, `reduceCollateral` | The quote signer |
+| `createMaker(options)` | `onRfq`, `quote`, `bid`, `cancelQuote`, `onAcceptance`, `confirm`, `deployment`, `controller`, `reduceCollateral` | Your wallet |
 
 `environment` is `"production"` or `"staging"`; `baseUrl` overrides it. Money is atomic USDC as a
 `bigint` or decimal string. `createTotalis` and `createMaker` expose `client` and `stream`; call
@@ -111,7 +111,7 @@ const maker = createMaker({
   environment: "production",
   apiKey: process.env.TOTALIS_MAKER_KEY!,
   makerId: process.env.TOTALIS_MAKER_ID!,
-  signer: privateKeyToAccount(process.env.QUOTE_SIGNER_KEY as `0x${string}`),
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
 });
 
 maker.onRfq(async (rfq) => {
@@ -131,7 +131,7 @@ maker.onAcceptance((acceptance) => (Date.parse(acceptance.deadline) > Date.now()
 - Pass `stream: { cursor }` to resume, and save `maker.stream.cursor` after each event.
 
 ```ts
-const tx = await maker.controller(); // { chain_id, to, data, value } for the controller to send
+const tx = await maker.controller(); // { chain_id, to, data, value } for your wallet to send
 await send(tx.approveUsdc(1_000_000_000n));
 await send(tx.deposit(1_000_000_000n));
 
@@ -141,7 +141,7 @@ const { job, submitted } = await maker.reduceCollateral({
 });
 ```
 
-Controller builders: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`,
+Vault call builders: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`,
 `setQuoteSigner`, `resetDiscount`.
 
 ## Signing

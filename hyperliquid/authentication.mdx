@@ -21,7 +21,7 @@ that account can use.
 | Account | Approved by | Signs trades | Reads |
 | --- | --- | --- | --- |
 | Yours | Your Totalis wallet | Your Totalis wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
-| A maker (`maker_id`) | The maker's controller | The quote signer (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
+| A maker (`maker_id`) | Your Totalis wallet | Your Totalis wallet (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
 
 - The key alone selects the account, chain and vault. No header or parameter does.
 - A key for a maker naming another `maker_id` gets `404`.
@@ -34,7 +34,7 @@ In the [Totalis app](https://totalis-hip4.vercel.app/account/api-keys), under Ac
 1. Under **Keys act for**, choose **Your account** or a maker.
 2. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only the
    account's scopes are offered.
-3. The owner approves with a Sign-In with Ethereum message: your wallet, or the maker's controller.
+3. Your wallet approves with a Sign-In with Ethereum message.
 4. Copy the key. It is shown once.
 
 Rotating takes the same approval and keeps the name and scopes. The old key can overlap for none, one
@@ -70,7 +70,7 @@ keys.
 | Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 | Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
 
-A controller change invalidates every key of that maker.
+A change of the maker's owner invalidates every key of that maker.
 
 ## Wallet key
 
@@ -82,7 +82,8 @@ The exported key also signs withdrawals. Anyone who has it can withdraw everythi
 Keep only the balance your bot needs.
 </Warning>
 
-A maker bot signs with its quote signer, which holds no funds and cannot withdraw.
+A maker bot signs confirms with the same key. To keep it off the bot, move signing to a key that holds
+no funds with [`setQuoteSigner`](/hyperliquid/market-making#move-maker-funds).
 
 ## Who signs what
 
@@ -90,8 +91,8 @@ A maker bot signs with its quote signer, which holds no funds and cannot withdra
 | --- | --- | --- | --- |
 | Accept an entry quote | Your wallet | `TakerAccept` | `taker_signature` |
 | Accept a cash-out quote | The owner | `SellBack` or `CashoutTransfer` | `taker_signature` |
-| Confirm an entry quote | The quote signer | `Quote` | `maker_signature` |
-| Confirm a cash-out quote | The quote signer | `SellBack` or `CashoutTransfer` | `maker_signature` |
+| Confirm an entry quote | Your wallet | `Quote` | `maker_signature` |
+| Confirm a cash-out quote | Your wallet | `SellBack` or `CashoutTransfer` | `maker_signature` |
 | Fund an accept | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
 | Withdraw: vault shortfall | Your wallet | `Exit` | `vault_withdrawal.signature` |
 | Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |
