@@ -157,13 +157,13 @@ curl https://hip4-api.totalis.trade/v1/positions/$POSITION_ID/cashout \
 { "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f" }
 ```
 
-Quotes arrive as `QUOTE_CREATED` with `kind: CASHOUT` and a `price`:
+Quotes arrive as `QUOTE_CREATED`. `kind` is `SELL_BACK` or `TRANSFER` and names the terms it carries:
 
 ```json
 {
   "quote_id": "0x7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d",
   "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f",
-  "kind": "CASHOUT",
+  "kind": "SELL_BACK",
   "sequence": 48240,
   "sell_back": {
     "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
@@ -176,10 +176,10 @@ Quotes arrive as `QUOTE_CREATED` with `kind: CASHOUT` and a `price`:
 }
 ```
 
-| Terms | Buyer | The position |
-| --- | --- | --- |
-| `sell_back` | The maker that backs it | Closes (`close_reason: SELL_BACK`) |
-| `transfer` | Another maker | Moves to the buyer |
+| `kind` | Terms | Buyer | The position |
+| --- | --- | --- | --- |
+| `SELL_BACK` | `sell_back` | The maker that backs it | Closes (`close_reason: SELL_BACK`) |
+| `TRANSFER` | `transfer` | Another maker | Moves to the buyer |
 
 Sign `sell_back` as `SellBack` or `transfer` as `CashoutTransfer`, then accept it like an entry quote,
 with no `funding`. On `COMMITTED` you receive `POSITION_CLOSED` or `POSITION_TRANSFERRED`, and the price

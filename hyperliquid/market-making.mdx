@@ -86,7 +86,7 @@ curl -X DELETE https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID \
 
 ### Confirm quote
 
-`QUOTE_ACCEPTED` carries the exact terms. Sign them (`entry` as `Quote`, `sell_back` as `SellBack`,
+`QUOTE_ACCEPTED` carries the exact terms, named by `kind`. Sign them (`entry` as `Quote`, `sell_back` as `SellBack`,
 `transfer` as `CashoutTransfer`) and answer with no `Idempotency-Key`:
 
 ```bash

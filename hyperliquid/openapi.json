@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "120.0.0-me-routes"
+    "version": "122.0.0-quote-kinds"
   },
   "servers": [
     {
@@ -6602,6 +6602,77 @@
         },
         "title": "Enabled"
       },
+      "EntryMakerAcceptance": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "rfq_id",
+          "kind",
+          "deadline",
+          "entry"
+        ],
+        "properties": {
+          "quote_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "The accepted quote. Confirm with `POST /v1/quotes/{quote_id}/confirm`."
+          },
+          "rfq_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "RFQ this quote answers."
+          },
+          "kind": {
+            "const": "ENTRY",
+            "description": "Always `ENTRY`: the accepted quote opens a new position."
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "Confirm before this instant, an RFC3339 UTC timestamp. A later answer cannot reopen the acceptance."
+          },
+          "entry": {
+            "$ref": "#/components/schemas/QuoteTerms",
+            "description": "Accepted entry terms; sign them as `Quote`."
+          }
+        },
+        "description": "A taker's accept of your entry quote.",
+        "title": "Entry acceptance"
+      },
+      "EntryQuote": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "rfq_id",
+          "kind",
+          "sequence",
+          "entry"
+        ],
+        "properties": {
+          "quote_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "Quote ID: the EIP-712 digest of `entry` as the `Quote` struct. Accept it with `POST /v1/quotes/{quote_id}/accept`."
+          },
+          "rfq_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "RFQ this quote answers."
+          },
+          "kind": {
+            "const": "ENTRY",
+            "description": "Always `ENTRY`: the quote opens a new position."
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Venue-wide publication sequence number; a higher value was created later."
+          },
+          "entry": {
+            "$ref": "#/components/schemas/QuoteTerms",
+            "description": "Entry terms. To accept, the taker signs them as the EIP-712 `TakerAccept` struct."
+          }
+        },
+        "description": "A maker's offer to open a position on an entry RFQ.",
+        "title": "Entry quote"
+      },
       "EntryRfq": {
         "allOf": [
           {
@@ -6981,48 +7052,18 @@
         "pattern": "^0x[0-9a-f]{40}$"
       },
       "MakerAcceptance": {
-        "description": "A taker's accept of your quote, waiting for your confirm until `deadline`. `QUOTE_ACCEPTED`, the maker snapshot's `acceptances` and List pending acceptances carry the same item. It never includes the taker's signature or `acceptance_id`.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "quote_id",
-          "rfq_id",
-          "kind",
-          "deadline"
-        ],
-        "properties": {
-          "quote_id": {
-            "$ref": "#/components/schemas/Bytes32",
-            "description": "The accepted quote; its terms are what you sign. Confirm with `POST /v1/quotes/{quote_id}/confirm`."
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EntryMakerAcceptance"
           },
-          "rfq_id": {
-            "$ref": "#/components/schemas/Uuid",
-            "description": "RFQ the quote answers."
+          {
+            "$ref": "#/components/schemas/SellBackMakerAcceptance"
           },
-          "kind": {
-            "enum": [
-              "ENTRY",
-              "CASHOUT"
-            ],
-            "description": "The RFQ's kind. `ENTRY` carries `entry` terms; `CASHOUT` carries `sell_back` or `transfer` terms."
-          },
-          "deadline": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Confirm before this instant, an RFC3339 UTC timestamp. A later answer cannot reopen the acceptance."
-          },
-          "entry": {
-            "$ref": "#/components/schemas/QuoteTerms",
-            "description": "Accepted ENTRY terms to sign."
-          },
-          "sell_back": {
-            "$ref": "#/components/schemas/SellBackTerms",
-            "description": "Accepted sell-back terms to sign."
-          },
-          "transfer": {
-            "$ref": "#/components/schemas/TransferTerms",
-            "description": "Accepted transfer terms to sign."
+          {
+            "$ref": "#/components/schemas/TransferMakerAcceptance"
           }
-        }
+        ],
+        "description": "A taker's accept of your quote, waiting for your confirm until `deadline`, told apart by `kind`. `QUOTE_ACCEPTED`, the maker snapshot's `acceptances` and List pending acceptances carry the same item. It never includes the taker's signature or `acceptance_id`."
       },
       "MakerAcceptanceList": {
         "type": "object",
@@ -8058,49 +8099,18 @@
         }
       },
       "Quote": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "quote_id",
-          "rfq_id",
-          "kind",
-          "sequence"
-        ],
-        "properties": {
-          "quote_id": {
-            "$ref": "#/components/schemas/Bytes32",
-            "description": "Quote ID: the EIP-712 digest of the terms (the `Quote` struct for an entry quote, `SellBack` or `CashoutTransfer` for a cash-out quote). Accept it with `POST /v1/quotes/{quote_id}/accept`."
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EntryQuote"
           },
-          "rfq_id": {
-            "$ref": "#/components/schemas/Uuid",
-            "description": "RFQ this quote answers."
+          {
+            "$ref": "#/components/schemas/SellBackQuote"
           },
-          "kind": {
-            "enum": [
-              "ENTRY",
-              "CASHOUT"
-            ],
-            "description": "The RFQ's kind. `ENTRY` quotes carry `entry` terms; `CASHOUT` quotes carry `sell_back` or `transfer` terms."
-          },
-          "sequence": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Venue-wide publication sequence number; a higher value was created later."
-          },
-          "entry": {
-            "$ref": "#/components/schemas/QuoteTerms",
-            "description": "Entry terms. To accept, the taker signs them as the EIP-712 `TakerAccept` struct."
-          },
-          "sell_back": {
-            "$ref": "#/components/schemas/SellBackTerms",
-            "description": "Cash-out terms from the maker that backs the position. To accept, the owner signs them as `SellBack`, whose digest is `quote_id`."
-          },
-          "transfer": {
-            "$ref": "#/components/schemas/TransferTerms",
-            "description": "Cash-out terms from another maker. To accept, the owner signs them as `CashoutTransfer`, whose digest is `quote_id`."
+          {
+            "$ref": "#/components/schemas/TransferQuote"
           }
-        },
-        "description": "One live, unsigned quote on an RFQ. List quotes, the account snapshot's quotes and `QUOTE_CREATED` carry the same item."
+        ],
+        "description": "One live, unsigned quote on an RFQ, told apart by `kind`. List quotes, the account snapshot's quotes and `QUOTE_CREATED` carry the same item."
       },
       "QuoteCancellation": {
         "type": "object",
@@ -8833,6 +8843,77 @@
           }
         }
       },
+      "SellBackMakerAcceptance": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "rfq_id",
+          "kind",
+          "deadline",
+          "sell_back"
+        ],
+        "properties": {
+          "quote_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "The accepted quote. Confirm with `POST /v1/quotes/{quote_id}/confirm`."
+          },
+          "rfq_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "RFQ this quote answers."
+          },
+          "kind": {
+            "const": "SELL_BACK",
+            "description": "Always `SELL_BACK`: your vault buys the position back."
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "Confirm before this instant, an RFC3339 UTC timestamp. A later answer cannot reopen the acceptance."
+          },
+          "sell_back": {
+            "$ref": "#/components/schemas/SellBackTerms",
+            "description": "Accepted sell-back terms; sign them as `SellBack`."
+          }
+        },
+        "description": "An owner's accept of your sell-back quote.",
+        "title": "Sell-back acceptance"
+      },
+      "SellBackQuote": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "rfq_id",
+          "kind",
+          "sequence",
+          "sell_back"
+        ],
+        "properties": {
+          "quote_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "Quote ID: the EIP-712 digest of `sell_back` as the `SellBack` struct, which the owner signs to accept."
+          },
+          "rfq_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "RFQ this quote answers."
+          },
+          "kind": {
+            "const": "SELL_BACK",
+            "description": "Always `SELL_BACK`: the backing maker buys the position back."
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Venue-wide publication sequence number; a higher value was created later."
+          },
+          "sell_back": {
+            "$ref": "#/components/schemas/SellBackTerms",
+            "description": "Sell-back terms the owner accepts by signing `quote_id` as `SellBack`."
+          }
+        },
+        "description": "A cash-out offer from the maker that backs the position: its vault buys the position back for `price`.",
+        "title": "Sell-back quote"
+      },
       "SellBackTerms": {
         "type": "object",
         "additionalProperties": false,
@@ -8958,6 +9039,77 @@
             "description": "Native value in wei; always zero."
           }
         }
+      },
+      "TransferMakerAcceptance": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "rfq_id",
+          "kind",
+          "deadline",
+          "transfer"
+        ],
+        "properties": {
+          "quote_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "The accepted quote. Confirm with `POST /v1/quotes/{quote_id}/confirm`."
+          },
+          "rfq_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "RFQ this quote answers."
+          },
+          "kind": {
+            "const": "TRANSFER",
+            "description": "Always `TRANSFER`: you take over the position."
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "Confirm before this instant, an RFC3339 UTC timestamp. A later answer cannot reopen the acceptance."
+          },
+          "transfer": {
+            "$ref": "#/components/schemas/TransferTerms",
+            "description": "Accepted transfer terms; sign them as `CashoutTransfer`."
+          }
+        },
+        "description": "An owner's accept of your transfer quote.",
+        "title": "Transfer acceptance"
+      },
+      "TransferQuote": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "quote_id",
+          "rfq_id",
+          "kind",
+          "sequence",
+          "transfer"
+        ],
+        "properties": {
+          "quote_id": {
+            "$ref": "#/components/schemas/Bytes32",
+            "description": "Quote ID: the EIP-712 digest of `transfer` as the `CashoutTransfer` struct, which the owner signs to accept."
+          },
+          "rfq_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "RFQ this quote answers."
+          },
+          "kind": {
+            "const": "TRANSFER",
+            "description": "Always `TRANSFER`: another maker takes over the position."
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Venue-wide publication sequence number; a higher value was created later."
+          },
+          "transfer": {
+            "$ref": "#/components/schemas/TransferTerms",
+            "description": "Transfer terms the owner accepts by signing `quote_id` as `CashoutTransfer`."
+          }
+        },
+        "description": "A cash-out offer from another maker: it pays the owner `price` and takes over the position.",
+        "title": "Transfer quote"
       },
       "TransferTerms": {
         "type": "object",

@@ -155,6 +155,12 @@ def placed() -> dict[str, tuple[str, str, str]]:
 VARIANT_TITLES = {
     "EntryRfq": "Entry RFQ",
     "CashoutRfq": "Cash-out RFQ",
+    "EntryQuote": "Entry quote",
+    "SellBackQuote": "Sell-back quote",
+    "TransferQuote": "Transfer quote",
+    "EntryMakerAcceptance": "Entry acceptance",
+    "SellBackMakerAcceptance": "Sell-back acceptance",
+    "TransferMakerAcceptance": "Transfer acceptance",
     "ResultUnresolved": "Unresolved",
     "ResultNumeric": "Numeric result",
     "ResultNonnumeric": "Named result",
