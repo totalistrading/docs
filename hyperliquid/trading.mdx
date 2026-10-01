@@ -1,0 +1,208 @@
+---
+title: 'Trading'
+icon: 'route'
+description: 'Open a position, cash it out, and let Totalis settle it: the taker flow on the Hyperliquid API.'
+---
+
+You need a key for your account with the [taker scopes](/hyperliquid/authentication#scopes), your
+[wallet key](/hyperliquid/authentication#wallet-key) to sign, and USDC on HyperEVM in your wallet
+(`usdc.address` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment)). Totalis pays
+the gas.
+
+## Open a position
+
+1. Subscribe to the [account channel](/hyperliquid/websocket/account) and wait for the snapshot.
+2. [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq).
+3. Collect `QUOTE_CREATED` events.
+4. Sign one quote and [accept](/hyperliquid/api-reference/quotes/accept-quote) it.
+5. Follow `OPERATION_UPDATED` until `COMMITTED`.
+
+### Create RFQ
+
+Legs go in strictly ascending `outcome_id` order. One leg is a single; more is a parlay.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/rfqs \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771" \
+  -H "Content-Type: application/json" \
+  -d '{ "stake": "25000000", "legs": [{ "outcome_id": "1209", "side": "YES" }] }'
+```
+
+```json
+{ "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a" }
+```
+
+### Collect quotes
+
+Each `QUOTE_CREATED` carries one quote:
+
+```json
+{
+  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+  "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
+  "kind": "ENTRY",
+  "sequence": 48213,
+  "entry": {
+    "maker_id": "7",
+    "legs": [{ "outcome_id": "1209", "side": "YES" }],
+    "stake": "25000000",
+    "payout": "98500000",
+    "fee_bps": 100,
+    "taker_fee_bps": 20,
+    "taker": "0x1111111111111111111111111111111111111111",
+    "expiry": "1790452875",
+    "salt": "48151623429108"
+  }
+}
+```
+
+`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. A quote
+also stops at `expiry` (unix seconds), which sends no event.
+
+### Accept
+
+Sign the quote's `entry` terms as `TakerAccept` ([Signing](/hyperliquid/authentication#who-signs-what)).
+The `Idempotency-Key` becomes the `acceptance_id`: choose it before the first send and reuse it on every
+retry.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/accept \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01a0df4e-6269-78d2-a4f6-a1b3c5d7e9f8" \
+  -H "Content-Type: application/json" \
+  -d '{ "taker_signature": "0xabab...ab1b" }'
+```
+
+The response waits for the maker's answer:
+
+```json
+{
+  "acceptance_id": "01a0df4e-6269-78d2-a4f6-a1b3c5d7e9f8",
+  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+  "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
+  "status": "ACCEPTED",
+  "deadline": "2026-09-26T20:00:53.352Z",
+  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
+}
+```
+
+| `status` | Meaning |
+| --- | --- |
+| `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. |
+| `PENDING_FUNDING` | Confirmed; waits for a HyperCore payment. Becomes `ACCEPTED` or `CANCELLED`. |
+| `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded. Create a new RFQ. |
+
+Read later, an acceptance can also be `FILLED` or `FAILED`.
+
+### Funding
+
+If your free vault balance is short of the stake, add `funding` to the accept. The vault draws exactly
+the shortfall in the same transaction as the trade. It needs `funding:deposit`.
+
+```json
+{
+  "taker_signature": "0xabab...ab1b",
+  "funding": {
+    "kind": "WALLET",
+    "value": "20000000",
+    "valid_after": "1790452800",
+    "valid_before": "1790453400",
+    "salt": "0x0000000000000000000000000000000000000000000000000000000000000042",
+    "authorization_signature": "0x9e9e...9e1b"
+  }
+}
+```
+
+`value` is the stake minus `VAULT_FREE` in [Get balances](/hyperliquid/api-reference/account/get-balances),
+signed as USDC `ReceiveWithAuthorization`. `kind` is `WALLET`, `CORE` (HyperCore spot USDC) or
+`COMBINED`.
+
+### Lost response
+
+Resend the identical request with the same `Idempotency-Key`. Or read
+[Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance): a `404` means no accept was admitted;
+[cancel the RFQ](/hyperliquid/api-reference/rfqs/cancel-rfq) and read once more. A `404` after the cancel
+is final. Never accept the same quote under a second key.
+
+### Follow the fill
+
+| Operation `status` | Meaning |
+| --- | --- |
+| `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
+| `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. No stake was taken. |
+
+The position's ID is the `quote_id` you accepted:
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me/positions/$QUOTE_ID \
+  -H "Authorization: Bearer $TOTALIS_API_KEY"
+```
+
+## Cash out
+
+[Cash out position](/hyperliquid/api-reference/positions/cash-out-position) opens a cash-out RFQ on an
+`OPEN` position you own. The body is empty.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me/positions/$POSITION_ID/cashout \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01a0df58-a825-7f0e-9d2c-3b4a59687701" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json
+{ "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f" }
+```
+
+Quotes arrive as `QUOTE_CREATED`. `kind` is `SELL_BACK` or `TRANSFER` and names the terms it carries:
+
+```json
+{
+  "quote_id": "0x7c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d",
+  "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f",
+  "kind": "SELL_BACK",
+  "sequence": 48240,
+  "sell_back": {
+    "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
+    "price": "18000000",
+    "owner": "0x1111111111111111111111111111111111111111",
+    "expiry": "1790452905",
+    "salt": "90210331458871",
+    "leg_state": "0x0000000000000000000000000000000000000000000000000000000000000002"
+  }
+}
+```
+
+| `kind` | Terms | Buyer | The position |
+| --- | --- | --- | --- |
+| `SELL_BACK` | `sell_back` | The maker that backs it | Closes (`close_reason: SELL_BACK`) |
+| `TRANSFER` | `transfer` | Another maker | Moves to the buyer |
+
+Sign `sell_back` as `SellBack` or `transfer` as `CashoutTransfer`, then accept it like an entry quote,
+with no `funding`. On `COMMITTED` you receive `POSITION_CLOSED` or `POSITION_TRANSFERRED`, and the price
+lands in your vault balance.
+
+## Settlement
+
+Automatic. Totalis settles every resolved position, then claims a win into your vault balance. Nothing
+to call or sign. `SETTLED_UNCLAIMED` is the short wait between the two.
+
+| Position `status` | Meaning |
+| --- | --- |
+| `OPEN` | A leg is unresolved. You can cash out. |
+| `AWAITING_SETTLEMENT` | Resolved, or a leg lost; settlement has not landed. |
+| `SETTLED_UNCLAIMED` | A `WIN` with profit not yet claimed. |
+| `CLOSED` | Claimed (`CLAIM`), sold back (`SELL_BACK`), or settled with nothing to claim (`null`), per `close_reason`. |
+
+| `settlement_kind` | Meaning |
+| --- | --- |
+| `WIN` | Pays at least the net stake. The profit is claimed after. |
+| `PARTIAL` | Pays less than the net stake. |
+| `LOSS` | Pays nothing. |
+| `EARLY_LOST` | A leg lost before the others resolved. Pays nothing. |
+
+Each leg's result is `result_numerator / result_denominator`. The position pays its `payout` times the
+product of its legs' results.

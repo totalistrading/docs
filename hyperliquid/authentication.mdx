@@ -1,0 +1,159 @@
+---
+title: 'Authentication & signing'
+icon: 'key'
+description: 'Scoped API keys, the scopes each route needs, and the EIP-712 and EIP-3009 signatures that move funds.'
+---
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me \
+  -H "Authorization: Bearer $TOTALIS_API_KEY"
+```
+
+A key authenticates the call. The vault contract only moves funds with a signature from their owner,
+sent in the request body. Market reads need no key; an expired or revoked key on them still returns
+`401`.
+
+## Keys
+
+There is one kind of key. Each key acts for one account, yours or a maker's, and holds only scopes
+that account can use.
+
+| Account | Approved by | Signs trades | Reads |
+| --- | --- | --- | --- |
+| Yours | Your Totalis wallet | Your Totalis wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
+| A maker (`maker_id`) | Your Totalis wallet | Your Totalis wallet (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
+
+- The key alone selects the account, chain and vault. No header or parameter does.
+- A key for a maker naming another `maker_id` gets `404`.
+- Keys start with `ttk_v1_prd_` (production) or `ttk_v1_stg_` (staging) and work only there.
+
+## Create, rotate, revoke
+
+In the [Totalis app](https://totalis-hip4.vercel.app/account/api-keys), under Account, then API keys:
+
+1. Under **Keys act for**, choose **Your account** or a maker.
+2. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only the
+   account's scopes are offered.
+3. Your wallet approves with a Sign-In with Ethereum message.
+4. Copy the key. It is shown once.
+
+Rotating takes the same approval and keeps the name and scopes. The old key can overlap for none, one
+hour or 24 hours. Revoking needs no signature and takes effect at once. A key that reports
+`SECRET_UNAVAILABLE` is lost: revoke it and create another. An API key cannot create, rotate or revoke
+keys.
+
+## Scopes
+
+| Scope | Account | Grants |
+| --- | --- | --- |
+| `identity:read` | Yours | Your identity and wallet |
+| `account:read` | Yours | Balances, positions, activity, operations, withdrawals |
+| `account:stream` | Yours | The [account channel](/hyperliquid/websocket/account) |
+| `rfq:read` | Either | Open RFQs and RFQ events |
+| `rfq:write` | Yours | Create and cancel RFQs |
+| `quote:read` | Either | Yours: quotes on your RFQs, your acceptances. A maker: acceptances of its quotes. |
+| `quote:accept` | Yours | Accept a quote |
+| `position:cashout` | Yours | Accept a cash-out quote |
+| `funding:deposit` | Yours | Fund an accept's shortfall from your wallet |
+| `funding:withdraw` | Yours | Withdraw |
+| `sponsorship:use` | Yours | Let Totalis pay the gas: accepts, cash-outs, withdrawals |
+| `quote:write` | Maker | Create, cancel and confirm quotes |
+| `replay:read` | Either | Resume the WebSocket from a cursor |
+| `vault:read` | Maker | Capital, positions, activity, operations, collateral reductions |
+| `vault:write` | Maker | Request a collateral reduction |
+| `operations:submit` | Maker | Submit a self-funded transaction |
+
+| Integration | Account | Scopes |
+| --- | --- | --- |
+| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker that withdraws | Yours | The taker scopes plus `funding:withdraw` |
+| Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
+| Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
+
+A change of the maker's owner invalidates every key of that maker.
+
+## Wallet key
+
+To sign from code, export your Totalis wallet's key: Account, then Private key, then **Reveal private
+key**. Check its address equals `wallet` in `GET /v1/me`.
+
+<Warning>
+The exported key also signs withdrawals. Anyone who has it can withdraw everything the account holds.
+Keep only the balance your bot needs.
+</Warning>
+
+A maker bot signs its confirmations with the same key. To keep it off the bot, move signing to a key that holds
+no funds with [`setQuoteSigner`](/hyperliquid/market-making#move-maker-funds).
+
+## Who signs what
+
+| Action | Signer | Message | Body field |
+| --- | --- | --- | --- |
+| Accept an entry quote | Your wallet | `TakerAccept` | `taker_signature` |
+| Accept a cash-out quote | The owner | `SellBack` or `CashoutTransfer` | `taker_signature` |
+| Confirm an entry quote | Your wallet | `Quote` | `maker_signature` |
+| Confirm a cash-out quote | Your wallet | `SellBack` or `CashoutTransfer` | `maker_signature` |
+| Fund an accept | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
+| Withdraw: vault shortfall | Your wallet | `Exit` | `vault_withdrawal.signature` |
+| Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |
+
+Settling and claiming need no signature. Send signatures as lowercase hex with `v` of 27 or 28. EOA and
+ERC-1271 signatures are accepted.
+
+## Domain
+
+Read [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) before you sign; re-read the
+fees before each quote.
+
+```json
+{
+  "chain_id": "999",
+  "vault_address": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745",
+  "fee_bps": 100,
+  "taker_fee_bps": 20,
+  "usdc": {
+    "address": "0xb88339cb7199b77e23db6e890353e22632ba630f",
+    "eip712_domain": { "name": "USDC", "version": "2", "chain_id": "999", "verifying_contract": "0xb88339cb7199b77e23db6e890353e22632ba630f" }
+  }
+}
+```
+
+| Messages | EIP-712 domain |
+| --- | --- |
+| `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit` | `{ name: "TotalisParlay", version: "1", chainId: chain_id, verifyingContract: vault_address }` |
+| `ReceiveWithAuthorization`, `TransferWithAuthorization` | `usdc.eip712_domain` |
+
+## Types
+
+```text
+Quote(uint64 makerId,Leg[] legs,uint128 stake,uint128 payout,uint16 feeBps,uint16 takerFeeBps,address taker,uint64 expiry,uint256 salt)
+TakerAccept(uint64 makerId,Leg[] legs,uint128 stake,uint128 payout,uint16 feeBps,uint16 takerFeeBps,address taker,uint64 expiry,uint256 salt)
+Leg(uint32 outcomeId,uint8 side)
+SellBack(bytes32 ticketId,uint128 price,address owner,uint64 expiry,uint256 salt,bytes32 legState)
+CashoutTransfer(bytes32 ticketId,uint128 price,address seller,address buyer,uint64 expiry,uint256 salt,bytes32 legState)
+Exit(address account,address to,uint128 amount,uint64 expiry,uint256 salt)
+ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
+TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
+```
+
+## API names and signed names
+
+Signed field names differ from the API's. This is the only place they do.
+
+| API | Signed |
+| --- | --- |
+| `position_id` | `ticketId` |
+| `entry` terms | `Quote` and `TakerAccept` |
+| `sell_back`, `transfer`, `vault_withdrawal` | `SellBack`, `CashoutTransfer`, `Exit` |
+| `quote_id` | The EIP-712 digest of the quote's terms. For an entry quote it is also the new `position_id`. |
+| Leg `side`: `YES`, `NO` | `side`: `0`, `1` |
+| `maker_id`, `fee_bps`, `taker_fee_bps`, `leg_state`, `outcome_id` | `makerId`, `feeBps`, `takerFeeBps`, `legState`, `outcomeId` |
+
+## USDC nonces
+
+| Authorization | Nonce |
+| --- | --- |
+| Accept funding | `keccak256(abi.encode(vault, chainId, from, salt, account))`, with `from` and `account` your wallet. Send `salt`, not the nonce. |
+| Withdrawal payout | `keccak256(abi.encode(keccak256("TOTALIS_PAYOUT_NONCE_V1"), chainId, vault, account, uint128(Idempotency-Key)))`. Not sent. |
+
+Signature windows are on [Limits](/hyperliquid/errors#limits).

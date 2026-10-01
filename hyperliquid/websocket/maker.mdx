@@ -1,0 +1,94 @@
+---
+title: 'Maker channel'
+icon: 'chart-candlestick'
+description: 'The maker subscription: every open RFQ to quote, the acceptances to confirm, and your maker operations, positions and capital.'
+---
+
+Needs a key for this `maker_id`. Connecting and resuming are on
+[Connection](/hyperliquid/websocket/connection).
+
+## Subscribe
+
+```json
+{
+  "method": "subscribe",
+  "subscription": { "type": "maker", "maker_id": "7" }
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `type` | Yes | `maker`. |
+| `maker_id` | Yes | Your key's maker. Another maker's ID closes with `SUBSCRIPTION_DENIED`. |
+| `cursor` | No | Your last applied cursor. Needs `replay:read`. |
+| `account_reads` | No | `true` for `readInvalidated` frames. |
+| `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. |
+
+A key receives only the frames its scopes allow:
+
+| Frames | Needs |
+| --- | --- |
+| `open_rfqs`, `RFQ_*` | `rfq:read` |
+| `acceptances`, `QUOTE_ACCEPTED` | `quote:read` |
+| `operations`, `OPERATION_UPDATED`, `POSITION_*`, `MAKER_CAPITAL_UPDATED`, `COLLATERAL_REDUCTION_UPDATED` | `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS` |
+
+## Event
+
+```json
+{
+  "channel": "event",
+  "data": {
+    "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184244" },
+    "event_id": "0199a1c9-4e55-7071-9c64-9f10cbde0005",
+    "event_type": "QUOTE_ACCEPTED",
+    "occurred_at": "2026-09-26T20:00:06.101Z",
+    "payload": {
+      "quote_id": "0x2b7c9d1e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c",
+      "rfq_id": "0199a1c9-0a11-7c3e-9f20-5b7d8e9fa001",
+      "kind": "ENTRY",
+      "deadline": "2026-09-26T20:00:08.101Z",
+      "entry": {
+        "maker_id": "3",
+        "legs": [{ "outcome_id": "1209", "side": "YES" }],
+        "stake": "25000000",
+        "payout": "61000000",
+        "fee_bps": 500,
+        "taker_fee_bps": 20,
+        "taker": "0x1111111111111111111111111111111111111111",
+        "expiry": "1790193625",
+        "salt": "73100245913027741890236401853207113049"
+      }
+    }
+  }
+}
+```
+
+| `event_type` | When | `payload` |
+| --- | --- | --- |
+| `RFQ_CREATED` | An RFQ opened | Entry: `rfq_id`, `kind: ENTRY`, `taker`, `stake`, `legs`, `created_at`, `expires_at`. Cash-out: `rfq_id`, `kind: CASHOUT`, `position_id`, `owner`, `maker_id`, `legs`, `legs_hash`, `leg_state`, `decision_block`, `decision_read_gas`, `created_at`, `expires_at`. |
+| `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended. Stop quoting it. | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at` |
+| `QUOTE_ACCEPTED` | A taker accepted your quote | `quote_id`, `rfq_id`, `kind` (`ENTRY`, `SELL_BACK` or `TRANSFER`), `deadline`, and one terms object: `entry`, `sell_back` or `transfer`, per `kind`. Answer with [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline`. |
+| `OPERATION_UPDATED` | A maker operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
+| `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position your maker backs changed | `position_id`, `block_number`, `log_index` |
+| `MAKER_CAPITAL_UPDATED` | Your capital changed on-chain | `maker_id`, `block_number`, `log_index`. Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
+| `COLLATERAL_REDUCTION_UPDATED` | A collateral reduction changed | `job_id`, `status`, `operation_id`, `updated_at` |
+
+An RFQ stops taking quotes at `expires_at`, which sends no event.
+
+## Snapshot
+
+```json
+{
+  "channel": "snapshot",
+  "data": {
+    "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184240" },
+    "resources": { "open_rfqs": [], "acceptances": [], "operations": [] }
+  }
+}
+```
+
+| Class | Holds | Pages the rest when `truncated` |
+| --- | --- | --- |
+| `open_rfqs` | Every open RFQ | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |
+| `acceptances` | Acceptances waiting for your confirm, earliest deadline first | [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) |
+| `operations` | Your maker's operations | [List operations](/hyperliquid/api-reference/account/list-operations) |

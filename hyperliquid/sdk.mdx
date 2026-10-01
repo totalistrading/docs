@@ -1,0 +1,224 @@
+---
+title: 'TypeScript SDK'
+icon: 'code'
+description: 'The @totalistrading/hip4-client SDK 0.14.0: install, the taker and maker flows, signing, the WebSocket, retries, and changes from 0.13.0.'
+---
+
+`@totalistrading/hip4-client` 0.14.0 wraps every route, both flows, every signed message and the
+WebSocket. It never stores a key: every signature goes to the signer you pass in.
+
+## Install
+
+The SDK is private. Email [founders@totalis.trade](mailto:founders@totalis.trade) with the GitHub
+account that should read it, then:
+
+```ini .npmrc
+@totalistrading:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+```bash
+npm install @totalistrading/hip4-client@0.14.0 viem
+```
+
+ESM, Node 22 or later, and browsers. `viem` or ethers only turns a private key into a signer.
+
+| Import | Holds |
+| --- | --- |
+| `@totalistrading/hip4-client` | `createTotalis`, `createClient`, `bestQuote`, `bestBid`, `ApiError`, `NetworkError`, `pages`, `items`, `unwrap`, `toTotalisSigner`, `TotalisStream`, `uuidv7` |
+| `.../maker` | `createMaker`, `createMakerClient`, the maker's vault calls |
+| `.../realtime` | `TotalisStream` and frame types |
+| `.../typed-data` | Builders and hashing for every signed message |
+| `.../signer` | `toTotalisSigner` for viem, EIP-1193 and ethers signers |
+| `.../errors` | The error registry, `ApiError`, `NetworkError` |
+| `.../api-keys` | Key issuance for apps with a signed-in user session |
+
+## Clients
+
+```ts
+import { createClient, unwrap } from "@totalistrading/hip4-client";
+
+const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
+const me = unwrap(await client.GET("/v1/me"));
+```
+
+| Function | Calls | Signer |
+| --- | --- | --- |
+| `createClient(environment, options)` | Any route for your account, or any public route, typed | None |
+| `createTotalis(options)` | `openPosition`, `cashOut`, `withdraw`, `signWithdrawal`, `sendWithdrawal`, `waitForWithdrawal`, `waitForOperation`, `watchQuotes`, `deployment` | Your Totalis wallet |
+| `createMakerClient(environment, options)` | Any maker route, typed | None |
+| `createMaker(options)` | `onRfq`, `quote`, `bid`, `cancelQuote`, `onAcceptance`, `confirm`, `deployment`, `controller`, `reduceCollateral` | Your wallet |
+
+`environment` is `"production"` or `"staging"`; `baseUrl` overrides it. Money is atomic USDC as a
+`bigint` or decimal string. `createTotalis` and `createMaker` expose `client` and `stream`; call
+`close()` when done.
+
+## Open a position
+
+```ts
+import { createTotalis } from "@totalistrading/hip4-client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const totalis = createTotalis({
+  environment: "production",
+  accessToken: process.env.TOTALIS_API_KEY!,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+});
+
+const opened = await totalis.openPosition({
+  legs: [{ outcome_id: "1209", side: "YES" }],
+  stake: 25_000_000n,
+  quoteTimeoutMs: 10_000,
+});
+if (opened.status === "ACCEPTED") await totalis.waitForOperation(opened.operationId!);
+```
+
+`openPosition` subscribes, creates the RFQ, picks a quote, signs, accepts with any funding, and recovers
+a lost accept. It returns `rfqId`, `acceptanceId`, `quoteId`, `positionId`, `entry`, `status` and
+`operationId`.
+
+| Option | Default | Does |
+| --- | --- | --- |
+| `choose(quotes, serverNowMs)` | `bestQuote()`: highest payout with 5 seconds left | Returns one quote, or `undefined` to wait |
+| `funding` | `"wallet"` | `"wallet"` signs the exact shortfall; `"none"` never funds; a funding command is sent as is |
+| `quoteTimeoutMs` | | Cancels the RFQ and throws `TimeoutError` if nothing acceptable arrives |
+
+`status` can also be `NOT_ADMITTED`: every response was lost, and the SDK cancelled the RFQ.
+`watchQuotes(rfqId, listener)` reports live quotes, and `[]` while the stream is down.
+
+## Cash out and withdraw
+
+```ts
+const sale = await totalis.cashOut({ positionId }); // choose defaults to bestBid(): 25 seconds left
+
+const done = await totalis.withdraw({
+  destination: "0x2222222222222222222222222222222222222222",
+  amount: 15_000_000n,
+  onStarted: (withdrawalId) => save(withdrawalId),
+});
+```
+
+After a restart, `waitForWithdrawal(withdrawalId)` follows a started withdrawal. To store the signed
+request first, `signWithdrawal` returns `{ idempotencyKey, account, body }` and `sendWithdrawal(signed)`
+sends it.
+
+## Make markets
+
+```ts
+import { createMaker } from "@totalistrading/hip4-client/maker";
+
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!,
+  makerId: process.env.TOTALIS_MAKER_ID!,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+});
+
+maker.onRfq(async (rfq) => {
+  if (rfq.kind === "ENTRY") await maker.quote(rfq, { payout: (BigInt(rfq.stake) * 18n) / 10n });
+  else await maker.bid(rfq, { price: 18_000_000n });
+});
+maker.onAcceptance((acceptance) => (Date.parse(acceptance.deadline) > Date.now() ? "CONFIRM" : "DECLINE"));
+```
+
+- `onRfq` runs once per open RFQ, from events and the snapshot, and pages a truncated snapshot.
+- `quote` builds `entry` terms with the deployment's fees and a 20 second life (`lifetimeSeconds`).
+  `bid` builds `sell_back` or `transfer` terms with a 45 second life.
+- `onAcceptance` checks the terms, signs them once, and resends a lost answer byte for byte. It never
+  signs terms this maker did not create.
+- `published` stores the `quote_id`s this maker created (`record`, `forget`, `expiry`). Back it with
+  durable storage so a restarted process can confirm them.
+- Pass `stream: { cursor }` to resume, and save `maker.stream.cursor` after each event.
+
+```ts
+const tx = await maker.controller(); // { chain_id, to, data, value } for your wallet to send
+await send(tx.approveUsdc(1_000_000_000n));
+await send(tx.deposit(1_000_000_000n));
+
+const { job, submitted } = await maker.reduceCollateral({
+  signTransaction: async ({ to, data }) =>
+    gasWallet.signTransaction(await gasWallet.prepareTransactionRequest({ to, data, type: "eip1559" })),
+});
+```
+
+Vault call builders: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`,
+`setQuoteSigner`, `resetDiscount`.
+
+## Signing
+
+| Builder | Message |
+| --- | --- |
+| `takerAcceptTypedData(deployment, entry)` | `TakerAccept` |
+| `quoteTypedData(deployment, entry)` | `Quote` |
+| `sellBackTypedData(deployment, sellBack)` | `SellBack` |
+| `cashoutTransferTypedData(deployment, transfer)` | `CashoutTransfer` |
+| `exitTypedData(deployment, exit)` | `Exit` |
+| `receiveWithAuthorizationTypedData(deployment, authorization)` | USDC `ReceiveWithAuthorization` |
+| `transferWithAuthorizationTypedData(deployment, payout)` | USDC `TransferWithAuthorization` |
+
+`hashTypedData` gives a digest, `canonicalSignature` the form the API accepts, `depositNonce` and
+`payoutNonce` the USDC nonces.
+
+## WebSocket and pagination
+
+```ts
+import { TotalisStream } from "@totalistrading/hip4-client/realtime";
+
+const stream = new TotalisStream({
+  environment: "production",
+  accessToken: process.env.TOTALIS_API_KEY!,
+  subscription: { type: "account" }, // or { type: "maker", maker_id: "7" }
+});
+stream.on("event", (event) => console.log(event.event_type, event.payload));
+stream.start();
+```
+
+It applies the snapshot or replay, drops duplicates, and reconnects from the last applied cursor.
+`status` is `live` only while caught up.
+
+```ts
+for await (const position of items(
+  (query) => client.GET("/v1/me/positions", { params: { query } }).then(unwrap),
+  (page) => page.items,
+)) console.log(position.position_id);
+```
+
+## Retries and errors
+
+Each command is built once with its `Idempotency-Key` and resent byte for byte after a network failure
+or a `BACKOFF` error, up to five sends (`retry: { attempts }`, or `retry: false`). `unwrap` throws
+`ApiError` with `code`, `retry`, `status`, `requestId`, `fieldViolations` and `retryAfterMs`.
+
+```ts
+import { ApiError, NetworkError } from "@totalistrading/hip4-client";
+
+try {
+  await totalis.openPosition({ legs: [{ outcome_id: "1209", side: "YES" }], stake: 25_000_000n });
+} catch (error) {
+  if (error instanceof NetworkError || (error instanceof ApiError && error.retry === "BACKOFF")) {
+    await error.resend?.(); // same bytes, same key
+  } else throw error;
+}
+```
+
+`NetworkError` means the outcome is unknown. Call `resend()`, never a new command.
+
+## Changes in 0.14.0
+
+Breaking; needs contract 118. Signed messages and digests are unchanged. The full list ships as
+`CHANGELOG.md`.
+
+| 0.13.0 | 0.14.0 |
+| --- | --- |
+| `placeBet` | `openPosition` |
+| `cashOut({ ticketId })` | `cashOut({ positionId })` |
+| `watchBook` | `watchQuotes` |
+| `release()` | `deployment()` |
+| `maker.withdraw(rfqId, digest)` | `maker.cancelQuote(quoteId)` |
+| `maker.onConfirmation` | `maker.onAcceptance` |
+| `state` | `status` |
+| `{ outcome_id: 1209, side: 0 }` | `{ outcome_id: "1209", side: "YES" }` |
+| `ticket_id`, `quote_digest`, `attempt_id` | `position_id`, `quote_id`, `acceptance_id` |
+| `BookQuote`, `Confirmation`, `Release`, `MakerConfirmationRequest` | `Quote`, `Acceptance`, `Deployment`, `MakerAcceptance` |
+| Stream option `topic` | `subscription: { type: "account" }` or `{ type: "maker", maker_id }` |
+| `ticket:accept`, `ticket:cashout` | `quote:accept`, `position:cashout` |

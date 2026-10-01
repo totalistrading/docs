@@ -1,0 +1,215 @@
+---
+title: 'Errors, pagination & limits'
+icon: 'triangle-exclamation'
+description: 'Request conventions, idempotency, pagination, every limit and rate limit, and every error code of the Hyperliquid API.'
+---
+
+## Requests
+
+| Kind | Encoding | Example |
+| --- | --- | --- |
+| Amount | String, USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
+| Large number | Decimal string: outcome, chain, block, sequence | `"1209"` |
+| Leg | `outcome_id` and `side` | `{ "outcome_id": "1209", "side": "YES" }` |
+| Address | Lowercase `0x` hex. Input may be checksummed. | `"0xedf7131c57e0ac4eade509e1bf56a9ab7af43745"` |
+| `quote_id`, `position_id`, hash, signature | Lowercase `0x` hex. Opaque. | `"0x5e5e...5e5e"` |
+| `rfq_id`, `acceptance_id`, `withdrawal_id` | UUIDv7 | `"01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a"` |
+| Timestamp | RFC 3339 UTC. Signed terms use unix seconds. | `"2026-09-26T20:00:50Z"` |
+| Enum | Upper snake case. Ignore unknown values on reads. | `"ACCEPTED"` |
+
+An omitted optional field and `null` are not interchangeable unless the field says so.
+
+### Idempotency
+
+A command `POST` sends an `Idempotency-Key`: a lowercase UUIDv7, new for every command. The routes in the
+table below are the exceptions.
+
+```http
+POST /v1/rfqs HTTP/1.1
+Authorization: Bearer ttk_v1_prd_...
+Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771
+Content-Type: application/json
+
+{ "stake": "25000000", "legs": [{ "outcome_id": "1209", "side": "YES" }] }
+```
+
+| You send | You get |
+| --- | --- |
+| Same key, same body | The original response, with `Idempotency-Replayed: true` |
+| Same key, different body | `409 IDEMPOTENCY_KEY_REUSED` |
+
+| Route | Key |
+| --- | --- |
+| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | Required. It becomes the `acceptance_id`, unique across all your quotes. |
+| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | None. Sending one returns `INVALID_IDEMPOTENCY_KEY`. |
+| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. |
+
+## Pagination
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJhIjoxMjExLCJrIjoibWFya2V0In0"
+```
+
+```json
+{ "items": [], "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjYwLCJrIjoibWFya2V0In0", "has_more": true }
+```
+
+| Field | Rule |
+| --- | --- |
+| `limit` | 1 to 200, default 50. [Get market history](/hyperliquid/api-reference/markets/get-market-history) allows 1,440. |
+| `cursor` | Omit for the first page, then send `next_cursor` unchanged. Never parse it. |
+| `next_cursor` | `null` exactly when `has_more` is `false`. |
+| `has_more` | Keep paging until `false`. A page may hold fewer than `limit` items, even none. |
+
+## Limits
+
+Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
+
+| Trading | Value |
+| --- | --- |
+| Legs per RFQ | 1 to 50, strictly ascending `outcome_id` |
+| Minimum stake | Net stake (after the entry fee) of at least 1 USDC |
+| Maximum payout | 100,000 USDC |
+| Fees | `taker_fee_bps` on the stake at accept, `fee_bps` on profit at claim; currently 20 and 100 |
+| Entry RFQ open | 20 seconds |
+| Cash-out RFQ open | 30 seconds |
+| Entry quote `expiry` | At most 30 seconds ahead. Quotes within 2 seconds of expiry are left out. |
+| Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
+| Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
+| Settlement and claim | About every 5 minutes |
+
+| Signing | Window |
+| --- | --- |
+| Accept funding | `valid_before` at least 5 seconds ahead and at most 900 seconds after `valid_after` |
+| Withdrawal `Exit` | `expiry` 5 to 3,600 seconds ahead, less a 5 second margin |
+| Withdrawal payout | At most 4,500 seconds from `valid_after` to `valid_before`; `valid_before` at least 300 seconds after the `Exit` `expiry`, or after now with no `Exit` |
+| Maker vault withdrawal delay | 86,400 seconds |
+
+| WebSocket and keys | Value |
+| --- | --- |
+| Replay window | 24 hours. An older cursor resets to a snapshot. |
+| Snapshot | 100 items per class |
+| Heartbeat | 15 seconds, or 1 second with `publication_freshness` |
+| Market data | 1 to 256 outcomes per subscription, frames up to 1 MiB |
+| API keys | 20 live per account; 1 to 90 days, or Forever |
+| Key approval message | 5 minutes, single use |
+| Request body | 64 KiB |
+
+### Rate limits
+
+Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. Each route also has a total limit
+across all callers, so it can arrive below these figures.
+
+| Route | Per account, per minute |
+| --- | --- |
+| [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq), [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | 30, shared |
+| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | 30 |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote), [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | 120 each |
+| [List quotes](/hyperliquid/api-reference/quotes/list-quotes), [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | 600 each |
+| Position and capital reads | 120, shared |
+| [List activity](/hyperliquid/api-reference/account/list-activity) | 120 |
+
+Too many open RFQs on one account returns `429 RFQ_INTENT_LIMIT`.
+
+## Errors
+
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "The stake must be a positive integer.",
+    "retry": "NEVER",
+    "request_id": "0198f0a2-5c1e-7b3a-9f10-2d4c6e8a0b12",
+    "field_violations": [{ "field": "/stake", "code": "INVALID" }]
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `code` | Stable. Branch on it. |
+| `message` | For logs. May change. |
+| `retry` | What to do next. |
+| `request_id` | This request's ID, also in `X-Request-ID`. |
+| `field_violations` | JSON pointers to invalid inputs, each with `REQUIRED`, `INVALID` or `UNEXPECTED`. |
+
+| `retry` | Do |
+| --- | --- |
+| `NEVER` | Stop. |
+| `BACKOFF` | Resend the same request, same `Idempotency-Key`, after `Retry-After`. |
+| `REFRESH` | Re-read the state, then send a new request with a new key. |
+
+| HTTP | Meaning |
+| ---: | --- |
+| `400` | Malformed request |
+| `401` | Missing, invalid, expired or revoked key |
+| `403` | Missing scope or permission |
+| `404` | Not found, or not visible to this key |
+| `409` | Conflicts with current state |
+| `422` | A business or signature rule rejects it |
+| `429` | Rate limited. Always `BACKOFF`. |
+| `503` | A dependency is unavailable. Always `BACKOFF`. |
+
+### Codes
+
+Each [reference](/hyperliquid/api-reference/markets/list-markets) page lists its codes per status. WebSocket
+closes use the same codes.
+
+{/* error-registry:start (generated by scripts/hyperliquid_errors.py; do not edit) */}
+
+| Code | HTTP | Stream close | Retry | Meaning |
+| --- | ---: | ---: | --- | --- |
+| `INVALID_REQUEST` | 400 | - | `NEVER` | The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. |
+| `INVALID_QUERY` | 400 | - | `NEVER` | A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it. |
+| `INVALID_CURSOR` | 400 | - | `NEVER` | The cursor is malformed or was issued for a different query. |
+| `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none. |
+| `SUBPROTOCOL_REQUIRED` | 400 | 1008 | `NEVER` | The stream request did not negotiate a supported subprotocol or extension. |
+| `UNAUTHENTICATED` | 401 | - | `NEVER` | The credential is missing, invalid, expired or revoked. |
+| `FORBIDDEN` | 403 | - | `NEVER` | The credential is valid but lacks the scope, permission or role this operation needs. |
+| `NOT_FOUND` | 404 | - | `NEVER` | The resource does not exist or is not visible to this credential. |
+| `IDENTITY_NOT_FOUND` | 404 | - | `NEVER` | The account has no venue identity yet; bind the embedded wallet first. |
+| `QUOTE_NOT_FOUND` | 404 | - | `NEVER` | The quote does not exist. |
+| `IDEMPOTENCY_KEY_REUSED` | 409 | - | `NEVER` | The idempotency key was already used with different input. |
+| `STATE_CONFLICT` | 409 | - | `REFRESH` | The resource changed and no longer admits this request. |
+| `STALE_CURSOR` | 409 | - | `REFRESH` | The cursor belongs to an older catalog or browse generation; restart from the first page. |
+| `CURSOR_EXPIRED` | 409 | - | `REFRESH` | The account-read snapshot behind this cursor expired or its scope changed; restart from the first page. |
+| `CURSOR_RESET` | 409 | 1008 | `REFRESH` | The realtime cursor is no longer replayable; take a fresh snapshot. |
+| `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
+| `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
+| `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
+| `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
+| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote expired. |
+| `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
+| `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
+| `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |
+| `QUOTE_CAPACITY_EXCEEDED` | 409 | - | `REFRESH` | The maker's current capacity does not cover the quote. |
+| `CORE_FUNDING_CONFLICT` | 409 | - | `REFRESH` | Another Core funding is active for this account. |
+| `CORE_VAULT_RESERVATION` | 409 | - | `REFRESH` | The vault reservation for this Core funding changed. |
+| `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
+| `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
+| `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirm. |
+| `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |
+| `CONNECTION_LIMIT` | 429 | - | `BACKOFF` | The stream connection limit is reached. |
+| `RFQ_INTENT_LIMIT` | 429 | - | `BACKOFF` | The account has too many open RFQs. |
+| `QUOTE_EXPOSURE_LIMIT` | 429 | - | `BACKOFF` | The maker's open quote exposure is at its limit. |
+| `DEPENDENCY_STALE` | 503 | 1013 | `BACKOFF` | A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable. |
+| `AUTHORIZATION_UNAVAILABLE` | 503 | - | `BACKOFF` | Identity or credential authority storage is unavailable. |
+| `SOURCE_UNAVAILABLE` | 503 | 1013 | `BACKOFF` | The account-read or stream source is unavailable. |
+| `CONTRACT_UNAVAILABLE` | 503 | - | `BACKOFF` | This producer is disabled in this environment. |
+| `MARKET_DATA_UNAVAILABLE` | 503 | - | `BACKOFF` | No complete market catalog is available. |
+| `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this deployment. |
+| `CORE_FUNDING_UNAVAILABLE` | 503 | - | `BACKOFF` | Core funding cannot be admitted now. |
+| `SPONSORSHIP_UNAVAILABLE` | 503 | - | `BACKOFF` | Venue gas sponsorship is unavailable. |
+| `CONTRACT_SIGNATURE_OVERLOADED` | 503 | - | `BACKOFF` | Contract signature verification is at capacity. |
+| `QUOTE_EXPOSURE_STALE` | 503 | - | `BACKOFF` | The maker's exposure projection is stale. |
+| `COMBO_AUTOMATIC_DISABLED` | 503 | - | `BACKOFF` | Automatic combo quoting is disabled. |
+| `EMBEDDED_WALLET_UNAVAILABLE` | 503 | - | `BACKOFF` | The bound embedded wallet is unavailable. |
+| `CONNECTION_DRAIN` | 503 | 1012 | `BACKOFF` | The stream replica is draining; reconnect and resume from the last applied cursor. |
+| `INVALID_SUBSCRIPTION` | - | 1008 | `NEVER` | The first stream frame is not a valid subscribe. |
+| `SUBSCRIPTION_DENIED` | - | 1008 | `NEVER` | The credential may not subscribe to the requested channels or outcomes. |
+| `AUTHORIZATION_REVOKED` | - | 1008 | `NEVER` | The credential that opened the stream lost its authorization. |
+| `SLOW_CONSUMER` | - | 1008 | `BACKOFF` | The client fell behind; reconnect and resume from the last applied cursor. |
+| `RESNAPSHOT_REQUIRED` | - | 1008 | `REFRESH` | The stream cannot continue from this state; reload HTTP state and resubscribe. |
+| `SNAPSHOT_TOO_LARGE` | - | 1013 | `BACKOFF` | The snapshot exceeds the frame ceiling. |
+
+{/* error-registry:end */}

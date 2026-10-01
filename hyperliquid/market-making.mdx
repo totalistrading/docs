@@ -1,0 +1,177 @@
+---
+title: 'Market making'
+icon: 'chart-candlestick'
+description: 'Quote RFQs, confirm accepted quotes before the deadline, and manage your maker capital and collateral.'
+---
+
+Your Totalis wallet runs your maker. It owns the maker vault, the USDC that backs every confirmed quote,
+and signs your bot's confirms.
+
+## Set up
+
+At [totalis-hip4.vercel.app/mm](https://totalis-hip4.vercel.app/mm):
+
+1. Under **Your wallet**, add a little HYPE for gas and the USDC you will quote with.
+2. Choose **Create maker account**: one transaction.
+3. Choose **Fund vault**.
+4. Create a key for the maker with the [maker scopes](/hyperliquid/authentication#scopes).
+5. Run your bot with that key, your `maker_id` and your [wallet key](/hyperliquid/authentication#wallet-key).
+
+## Quote
+
+1. Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). `free_collateral`
+   backs new fills.
+2. Subscribe to the [maker channel](/hyperliquid/websocket/maker).
+3. Receive `RFQ_CREATED`. Price it from your own Hyperliquid market data.
+4. [Create quote](/hyperliquid/api-reference/quotes/create-quote). It is unsigned.
+5. Replace it with a new quote, or [cancel it](/hyperliquid/api-reference/quotes/cancel-quote).
+6. Receive `QUOTE_ACCEPTED` with a `deadline`.
+7. [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) with your signature before the
+   deadline, or decline.
+8. Re-read capital on every `MAKER_CAPITAL_UPDATED`.
+
+### Create quote
+
+```bash
+curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+  -H "Idempotency-Key: 01a0df4e-5f11-7a2b-9c3d-4e5f6a7b8c9d" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quote_id": "0x5e5e...5e5e",
+    "entry": {
+      "maker_id": "7",
+      "legs": [{ "outcome_id": "1209", "side": "YES" }],
+      "stake": "25000000",
+      "payout": "98500000",
+      "fee_bps": 100,
+      "taker_fee_bps": 20,
+      "taker": "0x1111111111111111111111111111111111111111",
+      "expiry": "1790452875",
+      "salt": "48151623429108"
+    }
+  }'
+```
+
+```json
+{ "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e" }
+```
+
+| Field | Rule |
+| --- | --- |
+| `legs`, `stake`, `taker` | Copied from the RFQ. |
+| `payout` | What you pay if every leg wins. |
+| `fee_bps`, `taker_fee_bps` | The current values in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
+| `expiry` | Unix seconds. |
+| `salt` | A random uint256. |
+| `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
+
+For a cash-out RFQ, price the position at `decision_block` and send `sell_back` terms if your maker backs
+it, or `transfer` terms if not. A `transfer` pays from your own vault balance, not the maker vault, and
+the position becomes yours. Keep that balance at zero to sell back only.
+
+### Cancel quote
+
+```bash
+curl -X DELETE https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY"
+```
+
+```json
+{ "status": "CANCELLED" }
+```
+
+`CANCELLED` or `REPLACED` means it is off the RFQ. `409` with `ACCEPTED` means you already confirmed it.
+
+### Confirm quote
+
+`QUOTE_ACCEPTED` carries the exact terms, named by `kind`. Sign them (`entry` as `Quote`, `sell_back` as `SellBack`,
+`transfer` as `CashoutTransfer`) and answer with no `Idempotency-Key`:
+
+```bash
+curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "CONFIRM", "maker_signature": "0xcdcd...cd1c" }'
+```
+
+```json
+{
+  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+  "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
+  "status": "ACCEPTED",
+  "deadline": "2026-09-26T20:00:53.352Z",
+  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
+}
+```
+
+| `status` | Meaning |
+| --- | --- |
+| `ACCEPTED` | Queued as `operation_id`. |
+| `PENDING_FUNDING` | Waits for the taker's HyperCore payment, then `ACCEPTED` or `CANCELLED`. |
+| `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing filled. |
+
+`{ "decision": "DECLINE" }` needs no signature. Resend the same answer if a response is lost; until you
+know the outcome, treat the quote as filled.
+
+## Collateral
+
+### Capital
+
+```bash
+curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY"
+```
+
+```json
+{
+  "context": { "as_of": "2026-09-26T12:00:02Z", "status": "CURRENT" },
+  "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "signer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "vault_gross": "5250000000",
+  "stake_escrow": "150000000",
+  "payable_owed": "40000000",
+  "gross_open": "300000000",
+  "requirement": "300000000",
+  "free_collateral": "4760000000"
+}
+```
+
+A confirm fails when `free_collateral` cannot cover the fill.
+
+### Move maker funds
+
+Your wallet calls the vault directly and pays the gas. Totalis does not relay these.
+
+| Vault call | Does |
+| --- | --- |
+| USDC `approve(vault, amount)`, then `depositMaker` | Deposits into the maker vault. |
+| `requestMakerWithdraw`, then `executeMakerWithdraw` | Withdraws after the [delay](/hyperliquid/errors#limits). |
+| `cancelMakerWithdraw` | Cancels a pending withdrawal. |
+| `setQuoteSigner` | Moves confirm signing to another key at once, so your bot never holds your wallet key. The zero address stops all fills. |
+| `resetDiscount` | Sets your collateral discount to zero. |
+
+### Reduce collateral
+
+1. [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction), with no
+   body.
+2. Follow `COLLATERAL_REDUCTION_UPDATED`, or
+   [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction), until the job
+   holds its `transaction`.
+3. Sign that transaction with any gas wallet and send it to
+   [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction).
+
+```bash
+curl -X POST https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/collateral-reductions \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+  -H "Idempotency-Key: 01998713-2f4a-7c3e-9b1d-6a0e4f5c8d20"
+```
+
+```json
+{
+  "job_id": "01998713-2f4a-7c3e-9b1d-6a0e4f5c8d21",
+  "status": "QUEUED",
+  "next_eligible_at": "2026-09-26T14:07:00Z",
+  "status_url": "/v1/makers/7/collateral-reductions/01998713-2f4a-7c3e-9b1d-6a0e4f5c8d21"
+}
+```

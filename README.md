@@ -18,6 +18,23 @@ mint dev
 
 View your local preview at `http://localhost:3000`.
 
+## Hyperliquid API reference
+
+The Hyperliquid API reference is generated. Regenerate it from a hip4-backend checkout on current `main`:
+
+```
+python3 scripts/hyperliquid_openapi.py --backend ../hip4-backend
+python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonschema/error.schema.json
+```
+
+`scripts/hyperliquid_openapi.py` writes `hyperliquid/openapi.json` and the Hyperliquid API reference tab in
+`docs.json`. Its `PAGES` table files every operation under one resource (Markets, RFQs & Quotes, Positions,
+Account, Makers, Deployment, WebSocket) and titles its page verb + resource; `LEADS` puts the hand-written
+WebSocket channel pages ahead of Open stream. A route the spec has and `PAGES` does not place stops the
+script. Edit the tables at the top of the script, not the generated files.
+
+`--check` on either script fails when the committed files are stale.
+
 ## Publishing changes
 
 Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.

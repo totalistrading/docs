@@ -1,0 +1,64 @@
+---
+title: 'Withdrawals'
+icon: 'arrow-up-from-bracket'
+description: 'Send your Totalis USDC to any HyperEVM address in one signed request. Totalis pays the gas.'
+---
+
+Needs `funding:withdraw` and `sponsorship:use`.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me/withdrawals \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01998683-79f0-7c21-8d3e-5a6b7c8d9e0f" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destination": "0x2222222222222222222222222222222222222222",
+    "amount": "15000000",
+    "vault_withdrawal": { "amount": "10000000", "expiry": "1790434800", "salt": "4919131752989213764", "signature": "0xefef...efef" },
+    "payout_authorization": { "valid_after": "1790433540", "valid_before": "1790435100", "authorization_signature": "0x9e9e...9e1b" }
+  }'
+```
+
+```json
+{
+  "withdrawal_id": "01998683-7a31-7e5a-a3c1-6f2b8d4e9a17",
+  "account": "0x1111111111111111111111111111111111111111",
+  "destination": "0x2222222222222222222222222222222222222222",
+  "amount": "15000000",
+  "shortfall_amount": "10000000",
+  "status": "VAULT_WITHDRAWAL_QUEUED",
+  "vault_operation_id": "0x3a7d1e9c5b2f8a4e6d1c9b3f7a5e2d8c4b1f6a9e3d7c2b5f8a1e4d9c6b3f7a20",
+  "payout_operation_id": null,
+  "payout_transaction_hash": null,
+  "updated_at": "2026-09-26T14:30:00.412000Z"
+}
+```
+
+## What you sign
+
+The payout always leaves from your wallet.
+
+| Part | When | Message |
+| --- | --- | --- |
+| `vault_withdrawal` | Your wallet holds less than `amount`. Moves exactly the shortfall from the vault to your wallet. | `Exit`, with your wallet as `account` and `to` |
+| `payout_authorization` | Always. Pays `amount` from your wallet to `destination`. | USDC `TransferWithAuthorization` |
+
+The shortfall is `amount` minus `WALLET_USDC` minus `pending.wallet_reserved` in
+[Get balances](/hyperliquid/api-reference/account/get-balances), never below zero. The payout nonce
+derives from the `Idempotency-Key` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)), so choose the
+key before you sign.
+
+## Statuses
+
+`202` means admitted, not paid. Follow `WITHDRAWAL_UPDATED` on the
+[account channel](/hyperliquid/websocket/account).
+
+| `status` | Meaning |
+| --- | --- |
+| `VAULT_WITHDRAWAL_QUEUED` | The shortfall is moving to your wallet. |
+| `PAYOUT_SUBMITTED` | The payout is queued or relayed. |
+| `PAYOUT_COMMITTED` | Done. `payout_transaction_hash` is set. |
+| `FAILED` | Nothing left your Totalis balance. USDC already moved from the vault stays in your wallet. |
+
+A resend with the same key and body returns the same withdrawal. A `409 STATE_CONFLICT` means your
+balance changed: re-read it and sign again under a new key.

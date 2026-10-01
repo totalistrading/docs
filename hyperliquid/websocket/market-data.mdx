@@ -1,0 +1,139 @@
+---
+title: 'Market data'
+icon: 'wave-square'
+description: 'The public market data WebSocket: catalog entries and reference prices for the outcomes you select, as a snapshot then deltas.'
+---
+
+| | Value |
+| --- | --- |
+| URL | `wss://hip4-api.totalis.trade/v1/market-stream` (staging: `wss://hip4-api-staging.totalis.trade/v1/market-stream`) |
+| Subprotocol | `totalis.market.v2` |
+| Auth | None. The upgrade needs an allowed browser `Origin`, or it is refused with `ORIGIN_NOT_ALLOWED`. |
+
+Server integrations read [List markets](/hyperliquid/api-reference/markets/list-markets) and
+[Get market](/hyperliquid/api-reference/markets/get-market) instead, and price from their own
+Hyperliquid feed.
+
+## Subscribe
+
+```json
+{
+  "method": "subscribe",
+  "subscription": { "type": "market", "outcome_ids": ["1209", "1211"] }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `type` | `market`. |
+| `outcome_ids` | 1 to 256 unique outcome IDs, as decimal strings ([Limits](/hyperliquid/errors#limits)). More is refused with `SUBSCRIPTION_DENIED`. To change them, open a new connection. |
+
+Response:
+
+```json
+{
+  "channel": "subscriptionResponse",
+  "data": {
+    "method": "subscribe",
+    "subscription": { "type": "market", "outcome_ids": ["1209", "1211"] },
+    "server_time": "2026-08-07T20:00:00.118Z",
+    "heartbeat_interval_ms": 15000,
+    "max_frame_bytes": 1048576
+  }
+}
+```
+
+## Snapshot
+
+Sent at once, and again after the server repairs a source outage. Replace all local state with it.
+
+```json
+{
+  "channel": "snapshot",
+  "data": {
+    "schema_version": "1",
+    "producer_id": "019fd6f1-d200-7000-8000-000000000001",
+    "catalog_generation": "7",
+    "feed_generation": "12",
+    "complete": true,
+    "version": "44",
+    "catalog": [
+      {
+        "outcome_id": "1209",
+        "native_question_id": "166",
+        "title": "HYPE touches 100 by 20261001-0000",
+        "state": "ACTIVE",
+        "sides": [
+          { "side": "YES", "coin": "#12090", "asset_id": "100012090" },
+          { "side": "NO", "coin": "#12091", "asset_id": "100012091" }
+        ],
+        "version": "44"
+      }
+    ],
+    "references": [
+      {
+        "outcome_id": "1209",
+        "side": "YES",
+        "reference": { "availability": "UNAVAILABLE", "source": "HYPERLIQUID_ALL_MIDS", "reason": "NOT_OBSERVED", "freshness": "UNKNOWN", "received_at": "2026-08-07T20:00:00Z" },
+        "version": "44"
+      }
+    ]
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `version` | This state's version. The next delta's `previous_version` equals it. |
+| `catalog` | Each selected outcome's catalog entry, trimmed above. The full shape is [Get market](/hyperliquid/api-reference/markets/get-market). |
+| `references` | The reference price of each side, with its source and `freshness`. |
+| `catalog_generation`, `producer_id` | A change to either resets the stream. |
+| `feed_generation` | The reference-price feed generation. |
+| `complete` | `true` when every selected outcome is covered. |
+
+## Delta
+
+```json
+{
+  "channel": "delta",
+  "data": {
+    "schema_version": "1",
+    "producer_id": "019fd6f1-d200-7000-8000-000000000001",
+    "catalog_generation": "7",
+    "feed_generation": "12",
+    "previous_version": "44",
+    "version": "52",
+    "catalog_upserts": [],
+    "catalog_removals": [],
+    "reference_upserts": [
+      {
+        "outcome_id": "1209",
+        "side": "YES",
+        "reference": { "availability": "UNAVAILABLE", "source": "HYPERLIQUID_ALL_MIDS", "reason": "NOT_OBSERVED", "freshness": "UNKNOWN", "received_at": "2026-08-07T20:00:05Z" },
+        "version": "52"
+      }
+    ],
+    "reference_removals": []
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `previous_version` | Must equal the `version` you last applied. If not, reconnect. |
+| `version` | Higher than `previous_version`, not always by one. |
+| `catalog_upserts`, `reference_upserts` | Entries added or changed. Replace them whole. |
+| `catalog_removals`, `reference_removals` | Entries removed. |
+
+A change that only moves a timestamp is not sent. Read each reference's `freshness`.
+
+## Reset and close
+
+No cursor, no replay. When the stream cannot continue, the server sends `{"channel":"reset"}` and
+closes with `RESNAPSHOT_REQUIRED`. On `drain`, reconnect after `retry_after_ms`.
+
+| Close reason | Do |
+| --- | --- |
+| `RESNAPSHOT_REQUIRED` | Reload markets over HTTP and reconnect. |
+| `CONNECTION_DRAIN`, `SLOW_CONSUMER`, `SOURCE_UNAVAILABLE` | Reconnect with backoff. |
+| `INVALID_SUBSCRIPTION`, `SUBSCRIPTION_DENIED` | Fix the subscribe frame. |

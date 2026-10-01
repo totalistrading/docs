@@ -1,0 +1,89 @@
+---
+title: 'Quickstart'
+icon: 'rocket'
+description: 'Get a Hyperliquid API key, make your first reads, and request your first quotes.'
+---
+
+## 1. Get a key
+
+In the [Totalis app](https://totalis-hip4.vercel.app/account/api-keys), go to Account, then API keys,
+choose **Your account** under **Keys act for**, pick the [taker scopes](/hyperliquid/authentication#scopes), and approve
+with your wallet. The key is shown once.
+
+```bash
+export TOTALIS_API_KEY="ttk_v1_prd_..."
+```
+
+## 2. Read
+
+Markets need no key:
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/markets?limit=1"
+```
+
+```json
+{
+  "items": [
+    {
+      "outcome_id": "1209",
+      "title": "HYPE touches 100 by 20261001-0000",
+      "state": "ACTIVE",
+      "sides": [
+        { "side": "YES", "coin": "#12090" },
+        { "side": "NO", "coin": "#12091" }
+      ]
+    }
+  ],
+  "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjExLCJrIjoibWFya2V0In0",
+  "has_more": true
+}
+```
+
+Your identity checks the key:
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me \
+  -H "Authorization: Bearer $TOTALIS_API_KEY"
+```
+
+```json
+{
+  "account_id": "0198a6f6-82a5-7abc-9f2a-4f0fb4374941",
+  "status": "ACTIVE",
+  "wallet": "0x1111111111111111111111111111111111111111"
+}
+```
+
+`wallet` is your Totalis wallet. It signs your trades.
+
+## 3. Request quotes
+
+Subscribe to your account first, so no quote is missed:
+
+```bash
+wscat -c wss://hip4-api.totalis.trade/v1/stream -s totalis.realtime.v2 \
+  -H "Authorization: Bearer $TOTALIS_API_KEY"
+> {"method":"subscribe","subscription":{"type":"account"}}
+```
+
+Then create an RFQ for 5 USDC on `YES` of outcome `1209`:
+
+```bash
+curl https://hip4-api.totalis.trade/v1/rfqs \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771" \
+  -H "Content-Type: application/json" \
+  -d '{ "stake": "5000000", "legs": [{ "outcome_id": "1209", "side": "YES" }] }'
+```
+
+```json
+{ "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a" }
+```
+
+Quotes arrive on the socket as `QUOTE_CREATED`, each with a `payout`. Generate a new lowercase UUIDv7
+`Idempotency-Key` for every command.
+
+## 4. Accept
+
+Sign a quote and accept it: [Trading](/hyperliquid/trading#accept).
