@@ -193,6 +193,47 @@ def note(prop: dict, text: str) -> None:
         prop["description"] = (prop.get("description", "").rstrip() + " " + text).strip()
 
 
+def real_variants(members: list) -> bool:
+    """Inline members that are shapes of their own, not rules on a parent's fields.
+
+    A scalar or array member is a real type (`string` or `null`), and object members whose
+    field sets differ are real variants (`entry`, `sell_back` or `transfer` terms). Object
+    members over the same fields only restate one shape per status, so they fold into notes.
+    """
+    if any(member.get("type") not in (None, "object") for member in members):
+        return True
+    shapes = [frozenset(member.get("properties") or {}) for member in members if member.get("type") == "object"]
+    return len(shapes) > 1 and len(set(shapes)) > 1
+
+
+def name_variants(members: list) -> None:
+    """Title each object variant by its constant (`CONFIRM`) or the field only it has (`entry`)."""
+    shapes = [member for member in members if member.get("type") == "object"]
+    for member in shapes:
+        fields = member.get("properties") or {}
+        const = next((rule["const"] for rule in fields.values() if isinstance(rule, dict) and isinstance(rule.get("const"), str)), None)
+        own = [name for name in fields if not any(name in (other.get("properties") or {}) for other in shapes if other is not member)]
+        label = const or (own[0] if own else None)
+        if label and "title" not in member:
+            member["title"] = label.replace("_", " ").capitalize()
+
+
+def merge_field(a, b):
+    """One field restated by two status shapes: every value and description either allows."""
+    if a == b or not isinstance(a, dict) or not isinstance(b, dict):
+        return a
+    values = lambda rule: rule["enum"] if "enum" in rule else [rule["const"]] if "const" in rule else None
+    merged = {key: value for key, value in a.items() if key not in ("const", "enum", "description")}
+    if values(a) is not None and values(b) is not None:
+        merged["enum"] = values(a) + [value for value in values(b) if value not in values(a)]
+    elif a.get("type") != b.get("type"):
+        merged = {"oneOf": [{k: v for k, v in rule.items() if k != "description"} for rule in (a, b)]}
+    descriptions = [rule["description"] for rule in (a, b) if rule.get("description")]
+    if descriptions:
+        merged["description"] = " ".join(dict.fromkeys(descriptions))
+    return merged
+
+
 def simplify(node):
     """Docs view of a schema: fold validation-only branches into field descriptions.
 
@@ -213,6 +254,23 @@ def simplify(node):
         if not isinstance(members, list):
             continue
         inline = [member for member in members if isinstance(member, dict) and "$ref" not in member]
+        if real_variants(inline):
+            name_variants(inline)
+            continue
+        inline = [member for member in inline if "type" not in member or member.get("type") == "object"]
+        if key == "allOf":
+            for member in inline:
+                if not member.get("properties") and member.get("description"):
+                    note(node, member["description"])
+        shapes = [member for member in inline if member.get("type") == "object" and member.get("properties")]
+        if props is None and shapes:
+            # One shape restated per status: show it once, the differences as notes.
+            props = {}
+            for member in shapes:
+                for name, rule in member["properties"].items():
+                    props[name] = merge_field(props[name], rule) if name in props else rule
+            node["type"] = "object"
+            node["required"] = [name for name in shapes[0].get("required", []) if all(name in member.get("required", []) for member in shapes)]
         branches += inline
         kept = [member for member in members if member not in inline]
         if kept:
@@ -221,6 +279,10 @@ def simplify(node):
             node.pop(key)
     if isinstance(node.get("then"), dict):
         branches.append({**node["then"], "properties": {**(node.get("if") or {}).get("properties", {}), **node["then"].get("properties", {})}})
+    banned = node.get("not") if isinstance(node.get("not"), dict) else {}
+    banned = [banned["const"]] if "const" in banned else banned.get("enum", [])
+    if banned:
+        note(node, "Never " + " or ".join(f"`{value}`" for value in banned) + ".")
     for key in ("if", "then", "else", "not"):
         node.pop(key, None)
     if props is not None:

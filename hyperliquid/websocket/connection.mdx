@@ -42,7 +42,7 @@ Response:
 }
 ```
 
-A malformed or late frame closes with `INVALID_SUBSCRIPTION`. A subscription your key may not use
+A first frame that is not a valid subscribe, or arrives late, closes with `INVALID_SUBSCRIPTION`. A subscription your key may not use
 closes with `SUBSCRIPTION_DENIED`. There is no unsubscribe: close the socket.
 
 ## Frames

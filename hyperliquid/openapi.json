@@ -5559,6 +5559,15 @@
             "description": "PENDING: in progress; UNKNOWN: outcome not yet known; COMMITTED: final at its source; FAILED or REVERTED: took no effect and moves no committed cash; CORRECTED: a correction entry reversing superseded activity."
           },
           "occurred_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "RFC3339 evidence time; for workflow entries, the operation's creation time, which later revisions keep. Null when the occurrence time is uncertain, such as an order with no retained placement time."
           },
           "recorded_at": {
@@ -5612,11 +5621,23 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Fill"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Trade details for FILL and CONVERSION; null for every other kind and for entries recorded before trade details were retained."
           },
           "counterparty": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^0x[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Address of the other party when known, such as a deposit's payer; null otherwise."
           },
           "description_code": {
@@ -5734,6 +5755,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -5815,6 +5839,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -5939,7 +5966,26 @@
         ],
         "title": "Cash-out RFQ"
       },
-      "Category": {},
+      "Category": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "Crypto",
+              "Economics",
+              "Entertainment",
+              "Finance",
+              "Politics",
+              "Sports",
+              "Tech",
+              "Weather"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
       "CategorySlug": {
         "type": "string",
         "enum": [
@@ -6021,6 +6067,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/UInt64String"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6029,6 +6078,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/UInt64String"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6037,6 +6089,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6045,6 +6100,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6053,6 +6111,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6061,6 +6122,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Uint"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6069,6 +6133,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/UInt64String"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6077,6 +6144,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Bytes32"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6085,6 +6155,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Bytes32"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6093,6 +6166,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/OperationState"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6101,6 +6177,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/TransactionCall"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -6217,6 +6296,41 @@
         "maxLength": 30
       },
       "ConfirmQuoteCommand": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "decision",
+              "maker_signature"
+            ],
+            "properties": {
+              "decision": {
+                "const": "CONFIRM",
+                "description": "Confirm and sign the accepted terms; the trade executes."
+              },
+              "maker_signature": {
+                "$ref": "#/components/schemas/ContractSignature",
+                "description": "Your quote signer's EIP-712 signature over the accepted terms: `entry` as `Quote`, `sell_back` as `SellBack`, `transfer` as `CashoutTransfer`. Your capital stays reserved for as long as this signature can execute."
+              }
+            },
+            "title": "Confirm"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "const": "DECLINE",
+                "description": "Decline the accepted terms. Nothing executes and the quote leaves the RFQ."
+              }
+            },
+            "title": "Decline"
+          }
+        ],
         "description": "Your answer to the acceptance, before its `deadline`, two seconds after the accept: `CONFIRM` with your signature, or `DECLINE`. Send no `Idempotency-Key`: the quote identifies its one acceptance."
       },
       "ConfirmQuoteResult": {
@@ -6238,9 +6352,27 @@
         ],
         "properties": {
           "title": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Rendered display title; null when the template is unknown or the description does not fit it."
           },
           "rules": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 65536
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Rendered resolution rules; the native description for a free-form market, null when the template is unknown or the description does not fit it."
           }
         }
@@ -6386,6 +6518,65 @@
         "description": "The cash-out RFQ to open on the position in the path. The caller's embedded wallet must be its current owner."
       },
       "CreateQuoteCommand": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "quote_id",
+              "entry"
+            ],
+            "properties": {
+              "quote_id": {
+                "$ref": "#/components/schemas/Bytes32",
+                "description": "EIP-712 digest of `entry`, as the `Quote` struct. It must match the terms exactly. You sign it when you confirm an acceptance, and it becomes the `position_id` of the position the trade opens."
+              },
+              "entry": {
+                "$ref": "#/components/schemas/QuoteTerms",
+                "description": "Entry terms. `stake`, `taker` and `legs` must match the RFQ, `maker_id` must be your maker, and `expiry` is Unix seconds, at most 30 seconds ahead."
+              }
+            },
+            "title": "Entry"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "quote_id",
+              "sell_back"
+            ],
+            "properties": {
+              "quote_id": {
+                "$ref": "#/components/schemas/Bytes32",
+                "description": "EIP-712 digest of `sell_back`, as the `SellBack` struct. It must match the terms exactly; you and the owner both sign it."
+              },
+              "sell_back": {
+                "$ref": "#/components/schemas/SellBackTerms",
+                "description": "Sell-back terms, only from the maker that backs the position: your maker vault pays the owner `price` and the position closes. `position_id`, `owner` and `leg_state` must match the RFQ, and `expiry` is 25 to 60 seconds ahead."
+              }
+            },
+            "title": "Sell back"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "quote_id",
+              "transfer"
+            ],
+            "properties": {
+              "quote_id": {
+                "$ref": "#/components/schemas/Bytes32",
+                "description": "EIP-712 digest of `transfer`, as the `CashoutTransfer` struct. It must match the terms exactly; you (the buyer) and the owner (the seller) both sign it."
+              },
+              "transfer": {
+                "$ref": "#/components/schemas/TransferTerms",
+                "description": "Transfer terms, from any maker other than the one that backs the position: `buyer`, your quote signer, pays `seller` the `price` and takes the position. `position_id`, `seller` and `leg_state` must match the RFQ, and `expiry` is 25 to 60 seconds ahead."
+              }
+            },
+            "title": "Transfer"
+          }
+        ],
         "description": "Your quote on the RFQ: `quote_id` plus exactly one set of terms. Send `entry` for an entry RFQ, and `sell_back` or `transfer` for a cash-out RFQ. It replaces your live quote on the RFQ."
       },
       "CreateRfqCommand": {
@@ -7057,11 +7248,23 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/IntegerValue"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Executed base size in the bucket, divided by the response's volume_scale for contracts; null for reference-price bars."
           },
           "trade_count": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Number of trades in the bucket; null for reference-price bars."
           }
         }
@@ -7153,10 +7356,65 @@
         "description": "Nonnegative integer value paired with an explicit positive scale."
       },
       "IntentIdentityPair": {},
-      "Leg": {},
+      "Leg": {
+        "type": "object",
+        "required": [
+          "outcome_id",
+          "side",
+          "status",
+          "result_numerator",
+          "result_denominator"
+        ],
+        "properties": {
+          "outcome_id": {
+            "$ref": "#/components/schemas/UInt32String",
+            "description": "HIP-4 outcome ID of the leg, as a decimal string."
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "YES",
+              "NO"
+            ],
+            "description": "Outcome side the position holds, YES or NO."
+          },
+          "status": {
+            "enum": [
+              "RESOLVED",
+              "UNRESOLVED",
+              "UNAVAILABLE"
+            ],
+            "description": "RESOLVED: the outcome has a final result. UNRESOLVED: result still pending; UNAVAILABLE: historical result evidence is missing."
+          },
+          "result_numerator": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,7}|100000000)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected-side result factor over result_denominator: 100000000 is a full win, 0 a loss, values between are fractional. Null until the leg has a known result."
+          },
+          "result_denominator": {
+            "oneOf": [
+              {
+                "const": "100000000"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always 100000000, the pinned grading scale. Null until the leg has a known result."
+          }
+        }
+      },
       "LowercaseNonZeroAddress": {
         "type": "string",
-        "pattern": "^0x[0-9a-f]{40}$"
+        "pattern": "^0x[0-9a-f]{40}$",
+        "description": "Never `0x0000000000000000000000000000000000000000`."
       },
       "MakerAcceptance": {
         "oneOf": [
@@ -7330,6 +7588,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RealQuestionId"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Hyperliquid question this market belongs to; null for a standalone market."
@@ -7377,6 +7638,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/MarketDates"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Display dates and the market class; null when the market has neither reviewed timing nor a market class. Never controls availability or settlement."
@@ -7400,6 +7664,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/DateEvent"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "The scheduled event the market is about; null when unknown or already in the title."
@@ -7408,6 +7675,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PositiveInt64"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Latest instant at which the source rules fix the result, in Unix seconds; null when unknown or already in the title."
@@ -7416,6 +7686,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PositiveInt64"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Resolution cannot occur before this instant, in Unix seconds; not a settlement promise. Null when unknown or already in the title."
@@ -7424,6 +7697,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PositiveInt64"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Scheduled start or decision named by the source rules, in Unix seconds; null when the market has none."
@@ -7432,11 +7708,24 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PositiveInt64"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "End of the observation window named by the source rules, in Unix seconds; null when the market has none."
           },
           "market_class": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Reviewed market class, for example PRICE_BINARY, PRICE_TOUCH or SPORTS_TOURNAMENT; null when no reviewed rule classifies the market."
           }
         }
@@ -7467,6 +7756,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Question"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Parent question with all of its markets; null for a standalone market."
@@ -7475,6 +7767,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SeriesId"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Key of the price series this standalone binaryPrice or priceTouch market belongs to, the series_id of the series read; set even while it is the only listed member. Null for every other market."
@@ -7487,6 +7782,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RecurringRoundContext"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "The recurring round the market belongs to, with its recorded neighbours; null for a market outside a recurring series or a round whose recorded definition is withheld."
@@ -7495,6 +7793,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/MarketDetailStats"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "This market's 24h volume and open interest; null until a current stats snapshot has a row for it."
@@ -7574,6 +7875,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Scale"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Divisor for open, high, low and close of every bar and the anchor; null when there are neither. Currently 1000000000000000000 (18 decimals); a scale change starts a new page."
@@ -7582,6 +7886,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Scale"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Divisor for volume of every bar and the anchor; null for reference-price history or when there are no bars. Divisor for volume; null only when there are no bars. Always null; reference-price bars carry no volume."
@@ -7610,6 +7917,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/HistoryBar"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Latest retained earlier full bucket within the 90-day online window for the selected source and side, last received before from. Its close is an observed price, not proof that the value held through from. Null when there is none or its scale differs from the bars."
@@ -7709,6 +8019,9 @@
         "oneOf": [
           {
             "$ref": "#/components/schemas/SignedAmount"
+          },
+          {
+            "type": "null"
           }
         ],
         "description": "Signed amount in atomic USDC (6 decimals, \"1000000\" = 1 USDC); null when it could not be established, never zero in its place."
@@ -7727,21 +8040,24 @@
           {
             "$ref": "#/components/schemas/Address"
           }
-        ]
+        ],
+        "description": "Never `0x0000000000000000000000000000000000000000`."
       },
       "NonZeroBytes32": {
         "allOf": [
           {
             "$ref": "#/components/schemas/Bytes32"
           }
-        ]
+        ],
+        "description": "Never `0x0000000000000000000000000000000000000000000000000000000000000000`."
       },
       "NonZeroUInt64String": {
         "allOf": [
           {
             "$ref": "#/components/schemas/UInt64String"
           }
-        ]
+        ],
+        "description": "Never `0`."
       },
       "Operation": {
         "type": "object",
@@ -7769,6 +8085,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -7781,6 +8100,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Bytes32"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -8088,6 +8410,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Parent"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Parent question details for a NAMED or FALLBACK market; null for a standalone market."
@@ -8371,7 +8696,7 @@
             "$ref": "#/components/schemas/UInt32String"
           }
         ],
-        "description": "A real native question identifier; the standalone NO_QUESTION sentinel is excluded."
+        "description": "A real native question identifier; the standalone NO_QUESTION sentinel is excluded. Never `4294967295`."
       },
       "RecurringClass": {
         "type": "string",
@@ -8406,17 +8731,36 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RecurringPrice"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "PRICE_BINARY settles YES when the interpolated mark price is at or above this value."
           },
           "price_thresholds": {
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "$ref": "#/components/schemas/RecurringPrice"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Ascending PRICE_BUCKET boundaries; the three buckets cover `< P1`, `[P1, P2)` and `>= P2`."
           },
           "native_question_id": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RealQuestionId"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Parent question of a bucket round; null for a standalone binary round."
@@ -8464,6 +8808,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RecurringRound"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Nearest earlier recorded round of the same series; null unless previous_state is AVAILABLE."
@@ -8481,6 +8828,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RecurringRound"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Nearest later recorded round of the same series; null unless next_state is AVAILABLE."
@@ -8519,6 +8869,16 @@
             "description": "STANDALONE for the single market of a binary round, NAMED for a price bucket of a bucket round, FALLBACK for the bucket question's fallback outcome."
           },
           "index": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Bucket position the child market states for itself; null unless the role is NAMED."
           }
         }
@@ -8597,6 +8957,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/IntegerValue"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Best bid at scale when the feed carries a book, otherwise null."
@@ -8605,6 +8968,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/IntegerValue"
+              },
+              {
+                "type": "null"
               }
             ],
             "description": "Best ask at scale when the feed carries a book, otherwise null."
@@ -9093,6 +9459,15 @@
             "description": "Market side the label belongs to, YES or NO."
           },
           "label": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Display label for the side; null when a templated name cannot be rendered from a qualified template."
           }
         }
@@ -9115,7 +9490,18 @@
           "HYPERLIQUID_TRADES"
         ]
       },
-      "Subcategory": {},
+      "Subcategory": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:_[a-z0-9]+)*$",
+            "maxLength": 50
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
       "Timestamp": {
         "type": "string",
         "format": "date-time"
@@ -9292,6 +9678,9 @@
         "oneOf": [
           {
             "$ref": "#/components/schemas/Amount"
+          },
+          {
+            "type": "null"
           }
         ],
         "description": "Non-negative amount in atomic USDC (6 decimals, \"1000000\" = 1 USDC); null when it could not be established, never zero in its place."
@@ -9447,6 +9836,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Bytes32"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -9455,6 +9847,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Bytes32"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -9463,6 +9858,9 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Bytes32"
+              },
+              {
+                "type": "null"
               }
             ]
           },

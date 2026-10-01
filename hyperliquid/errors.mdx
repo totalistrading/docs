@@ -21,7 +21,8 @@ An omitted optional field and `null` are not interchangeable unless the field sa
 
 ### Idempotency
 
-Every command `POST` sends an `Idempotency-Key`: a lowercase UUIDv7, new for every command.
+A command `POST` sends an `Idempotency-Key`: a lowercase UUIDv7, new for every command. The routes in the
+table below are the exceptions.
 
 ```http
 POST /v1/rfqs HTTP/1.1

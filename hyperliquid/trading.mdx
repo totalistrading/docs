@@ -146,7 +146,7 @@ curl https://hip4-api.totalis.trade/v1/me/positions/$QUOTE_ID \
 `OPEN` position you own. The body is empty.
 
 ```bash
-curl https://hip4-api.totalis.trade/v1/positions/$POSITION_ID/cashout \
+curl https://hip4-api.totalis.trade/v1/me/positions/$POSITION_ID/cashout \
   -H "Authorization: Bearer $TOTALIS_API_KEY" \
   -H "Idempotency-Key: 01a0df58-a825-7f0e-9d2c-3b4a59687701" \
   -H "Content-Type: application/json" \
@@ -187,8 +187,8 @@ lands in your vault balance.
 
 ## Settlement
 
-Automatic. Totalis settles every resolved position and claims its winnings into your vault balance.
-Nothing to call or sign.
+Automatic. Totalis settles every resolved position, then claims a win into your vault balance. Nothing
+to call or sign. `SETTLED_UNCLAIMED` is the short wait between the two.
 
 | Position `status` | Meaning |
 | --- | --- |

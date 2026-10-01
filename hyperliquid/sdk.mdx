@@ -190,6 +190,8 @@ or a `BACKOFF` error, up to five sends (`retry: { attempts }`, or `retry: false`
 `ApiError` with `code`, `retry`, `status`, `requestId`, `fieldViolations` and `retryAfterMs`.
 
 ```ts
+import { ApiError, NetworkError } from "@totalistrading/hip4-client";
+
 try {
   await totalis.openPosition({ legs: [{ outcome_id: "1209", side: "YES" }], stake: 25_000_000n });
 } catch (error) {

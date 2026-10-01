@@ -67,7 +67,7 @@ A key receives only the frames its scopes allow:
 | --- | --- | --- |
 | `RFQ_CREATED` | An RFQ opened | Entry: `rfq_id`, `kind: ENTRY`, `taker`, `stake`, `legs`, `created_at`, `expires_at`. Cash-out: `rfq_id`, `kind: CASHOUT`, `position_id`, `owner`, `maker_id`, `legs`, `legs_hash`, `leg_state`, `decision_block`, `decision_read_gas`, `created_at`, `expires_at`. |
 | `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended. Stop quoting it. | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at` |
-| `QUOTE_ACCEPTED` | A taker accepted your quote | `quote_id`, `rfq_id`, `kind` (`ENTRY`, `SELL_BACK` or `TRANSFER`), `deadline`, and the terms `kind` names. Answer with [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline`. |
+| `QUOTE_ACCEPTED` | A taker accepted your quote | `quote_id`, `rfq_id`, `kind` (`ENTRY`, `SELL_BACK` or `TRANSFER`), `deadline`, and one terms object: `entry`, `sell_back` or `transfer`, per `kind`. Answer with [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline`. |
 | `OPERATION_UPDATED` | A maker operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position your maker backs changed | `position_id`, `block_number`, `log_index` |
 | `MAKER_CAPITAL_UPDATED` | Your capital changed on-chain | `maker_id`, `block_number`, `log_index`. Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |

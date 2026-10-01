@@ -67,8 +67,8 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 | `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
 
 For a cash-out RFQ, price the position at `decision_block` and send `sell_back` terms if your maker backs
-it, or `transfer` terms if not. A `transfer` pays from your account balance and the position becomes
-yours. Keep that balance at zero to sell back only.
+it, or `transfer` terms if not. A `transfer` pays from your own vault balance, not the maker vault, and
+the position becomes yours. Keep that balance at zero to sell back only.
 
 ### Cancel quote
 

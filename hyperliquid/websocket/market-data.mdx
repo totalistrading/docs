@@ -26,7 +26,7 @@ Hyperliquid feed.
 | Field | Meaning |
 | --- | --- |
 | `type` | `market`. |
-| `outcome_ids` | Unique outcome IDs, as decimal strings. To change them, open a new connection. |
+| `outcome_ids` | 1 to 256 unique outcome IDs, as decimal strings ([Limits](/hyperliquid/errors#limits)). More is refused with `SUBSCRIPTION_DENIED`. To change them, open a new connection. |
 
 Response:
 
