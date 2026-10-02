@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "127.0.0-pure-reads"
+    "version": "129.0.0-usernames"
   },
   "servers": [
     {
@@ -4080,7 +4080,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The account's ID, status and wallet.",
+            "description": "The account's ID, status, username and wallet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4089,6 +4089,7 @@
                 "example": {
                   "account_id": "0198a6f6-82a5-7abc-9f2a-4f0fb4374941",
                   "status": "ACTIVE",
+                  "username": "abhi_p",
                   "wallet": "0x1111111111111111111111111111111111111111"
                 }
               }
@@ -7060,12 +7061,15 @@
           "CORE_FUNDING_CONFLICT",
           "CORE_VAULT_RESERVATION",
           "CORE_MOVE_IN_FLIGHT",
+          "USERNAME_TAKEN",
+          "USERNAME_ALREADY_SET",
           "INVALID_SIGNATURE",
           "WRONG_AUTHORITY",
           "KEY_LIMIT_REACHED",
           "HYPERCORE_WALLET_UNQUALIFIED",
           "HYPERCORE_ACCOUNT_NOT_MAIN",
           "HYPERCORE_INSUFFICIENT_BALANCE",
+          "USERNAME_NOT_ALLOWED",
           "RATE_LIMITED",
           "CONNECTION_LIMIT",
           "RFQ_INTENT_LIMIT",
@@ -9685,6 +9689,11 @@
         ],
         "description": "Non-negative amount in atomic USDC (6 decimals, \"1000000\" = 1 USDC); null when it could not be established, never zero in its place."
       },
+      "Username": {
+        "type": "string",
+        "pattern": "^[a-z0-9_]{3,20}$",
+        "description": "3 to 20 lowercase letters, digits or underscores. Unique across accounts."
+      },
       "Uuid": {
         "type": "string",
         "format": "uuid",
@@ -9740,6 +9749,17 @@
               "CLOSED"
             ],
             "description": "Account status: ACTIVE, RESTRICTED (some actions are refused by policy) or CLOSED."
+          },
+          "username": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Username"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The account's public username, or null until it picks one with PUT /v1/me/username. Servers before contract 129 omit it."
           },
           "wallet": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
