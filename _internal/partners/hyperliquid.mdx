@@ -140,4 +140,14 @@ the API.
 | External wallets, during an incident | Sign-in, sessions and their own API keys get `AUTHORIZATION_UNAVAILABLE`, retry `BACKOFF`. Open streams close. | Signing out. Sessions work again once it is back on. |
 | Your partner credentials | Your keys and origins stop working, and admissions stop. Your account code is revoked; Totalis reissues it when you are reinstated. | Your users' funds stay in their own vault balances. |
 
-Accounts signed in with a Totalis-managed wallet are never affected. Every code is on [Errors](/hyperliquid/errors).
+Accounts signed in with a Totalis-managed wallet are never affected.
+
+## Sign-in errors
+
+Sign-in and admission are not in the public API reference, so their two own codes are listed here. Every other
+code is on [Errors](/hyperliquid/errors).
+
+| Code | Status | Retry | Meaning |
+| --- | --- | --- | --- |
+| `ACCESS_REQUIRED` | 403 | `NEVER` | The wallet has no account and no partner admitted it. Admit it, then sign in again. |
+| `ORIGIN_NOT_ALLOWED` | 403 | `NEVER` | The sign-in origin is not one Totalis registered for you. |
