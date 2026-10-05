@@ -1,0 +1,143 @@
+---
+title: 'Hyperliquid: your users, their own wallets'
+icon: 'wallet'
+description: 'For partners on Totalis Hyperliquid: your users sign in with their own wallet, which is their Totalis account, and trade through the SDK. Credentials, admission, sign-in, funding, withdrawals and attribution.'
+---
+
+Your users trade with their own wallet. The wallet is the Totalis account: it signs in once, then signs its own bets,
+cash-outs and withdrawals. Totalis never holds the key, and you never hold the funds. This page is not in the public
+navigation.
+
+```bash
+npm install @totalistrading/hip4-client
+```
+
+## What Totalis issues you
+
+Totalis issues partner credentials; there is no self-serve signup.
+
+| Credential | Looks like | Where it lives | Does |
+| --- | --- | --- | --- |
+| Server key | `tpk_v1_prd_...` | Your server only. It is a secret, shown once. | Admits new wallets |
+| Browser key | `tpb_v1_prd_...` | Your pages. It is public. | Sent as `X-Totalis-Partner`. Selects your share of rate limits. Honoured only from your registered origins. |
+| Registered origins | `https://app.example.com` | Totalis's records | The origins your users sign in from |
+| Account code | `tot_rfq_production_...` | Totalis's records | Recorded on every RFQ from an account you admitted |
+
+The SDK refuses to send a server key from a browser, and refuses to send a server key as the browser key.
+
+## Onboard a user
+
+<Steps>
+  <Step title="The wallet consents to you, in your frontend">
+    ```js
+    import { createClient } from "@totalistrading/hip4-client";
+    import { signAdmissionConsent } from "@totalistrading/hip4-client/partner";
+
+    const { data: deployment } = await createClient("production").GET("/v1/deployment");
+    const { address, consent } = await signAdmissionConsent({
+      signer: window.ethereum, partner: "your-slug", environment: "production", chainId: deployment.chain_id,
+    });
+    // Send { address, consent } to your server.
+    ```
+
+    The wallet signs a message naming your partner slug, the wallet, the environment, the chain and an expiry at most a
+    day ahead. Without it you cannot admit the wallet.
+  </Step>
+  <Step title="Your server admits the wallet">
+    ```js
+    import { createPartnerServer } from "@totalistrading/hip4-client/partner";
+
+    const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY });
+    await partner.admitWallet(address, consent);
+    ```
+
+    Admitting the same wallet again returns the first admission. A wallet another partner admitted is
+    `STATE_CONFLICT`. A consent that does not verify is `INVALID_SIGNATURE`.
+  </Step>
+  <Step title="The wallet signs in">
+    ```js
+    import { createTotalis } from "@totalistrading/hip4-client";
+    import { signInWithWallet, signOutWallet } from "@totalistrading/hip4-client/wallet-session";
+
+    const partnerKey = "tpb_v1_prd_...";
+    const session = await signInWithWallet({ environment: "production", signer: window.ethereum, partnerKey });
+    const totalis = createTotalis({ environment: "production", accessToken: session.access_token, signer: window.ethereum, partnerKey });
+    ```
+
+    The wallet signs a Sign-In with Ethereum message for this page's origin. It authorizes no financial action. The
+    first sign-in after admission creates the account. A wallet nobody admitted gets `ACCESS_REQUIRED`. An origin
+    Totalis has not registered for you gets `ORIGIN_NOT_ALLOWED`.
+
+    A session lasts at most 30 days, ends after 7 idle days, and ends at `signOutWallet`. There is no refresh token: sign
+    in again. Outside a browser, pass `origin`, one of your registered origins.
+  </Step>
+  <Step title="The wallet trades">
+    `totalis` has the same flows as any account: `openPosition`, `cashOut`, `withdraw`. See
+    [Trading](/hyperliquid/trading) and [Withdrawals](/hyperliquid/withdrawals).
+  </Step>
+</Steps>
+
+## Embedded and extension wallets
+
+The `signer` is any EIP-1193 provider, viem account or wallet client, or ethers signer.
+
+| Wallet | What your user sees |
+| --- | --- |
+| An embedded wallet you run | Nothing: your wallet signs without a popup. |
+| An extension, such as `window.ethereum` | A signature request for sign-in and for each signed action |
+
+The signed actions are listed in [Who signs what](/hyperliquid/authentication#who-signs-what). Totalis pays the gas for
+bets, cash-outs, settlements, claims, withdrawals and exits to HyperCore.
+
+## Funding
+
+| From | How | Who pays gas |
+| --- | --- | --- |
+| The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
+| The wallet's USDC on HyperEVM, ahead of time | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
+| The wallet's spot USDC on HyperCore, at bet time | Pass a `CORE` funding command to `openPosition`: the wallet signs Hyperliquid's `sendAsset` to the Totalis float. The command is on [Accept quote](/hyperliquid/api-reference/quotes/accept-quote). | Totalis |
+
+```js
+const calls = await totalis.directDepositCalls(10_000_000n); // 10 USDC
+for (const call of calls) await walletClient.sendTransaction(call);
+```
+
+## Moving cash to HyperCore
+
+An external wallet's vault cash is not swept to HyperCore in the background. Before a native HyperCore order, move it:
+
+```js
+const exit = await totalis.exitToCore({ amount: 5_000_000n });
+await totalis.waitForCoreExit(exit.exit_id); // resolves once HyperCore credits it
+```
+
+The wallet signs an `Exit` to the CoreExit router, and Totalis pays the gas. One exit at a time per account:
+another is `CORE_MOVE_IN_FLIGHT`.
+
+## Withdrawal limits
+
+Withdrawals and exits to HyperCore are sponsored. For an account that signs in with an external wallet:
+
+| Limit | Value | Over it |
+| --- | --- | --- |
+| Smallest withdrawal or exit | 1 USDC | `INVALID_REQUEST`, naming the amount |
+| Withdrawals and exits | 10 per hour per account, together | `RATE_LIMITED`, with `Retry-After` |
+
+## Attribution and revenue share
+
+An account you admit is yours for good. The partner is fixed when the account is created, so a copied browser key
+cannot move it to another partner. Every RFQ from the account records your account code, whatever credential it
+uses, and its requests spend your share of rate limits.
+
+Totalis pays you an agreed share of the fees your accounts generate, in USDC on HyperEVM. Totalis reports your
+accounts' volume and fees per ticket, with transaction hashes. Terms are agreed with Totalis and are not stored in
+the API.
+
+## If something is switched off
+
+| Switched off | What your users see | What still works |
+| --- | --- | --- |
+| External wallets, during an incident | Sign-in, sessions and their own API keys get `AUTHORIZATION_UNAVAILABLE`, retry `BACKOFF`. Open streams close. | Signing out. Sessions work again once it is back on. |
+| Your partner credentials | Your keys and origins stop working, and admissions stop. Your account code is revoked; Totalis reissues it when you are reinstated. | Your users' funds stay in their own vault balances. |
+
+Accounts signed in with a Totalis-managed wallet are never affected. Every code is on [Errors](/hyperliquid/errors).
