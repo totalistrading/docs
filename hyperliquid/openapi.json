@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "129.0.0-usernames"
+    "version": "133.0.0-admission-consent"
   },
   "servers": [
     {
@@ -262,6 +262,11 @@
         "description": "Get one market with its YES and NO sides, product details, current round and 24-hour stats.\n\nNo API key required.",
         "tags": [
           "Markets"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DetailContract"
+          }
         ],
         "responses": {
           "200": {
@@ -5106,6 +5111,21 @@
         },
         "example": "eyJ2IjoxLCJzIjoiMTIzNDUifQ"
       },
+      "DetailContract": {
+        "name": "contract",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        "description": "Browse contract of the detail. 4 adds game, the market's game with up to 256 current members, and series_id for IPO ladder members; 2, 3 or omitted return the earlier detail. Only this query parameter selects it, so a browser read needs no CORS preflight; the X-Totalis-Browse-Contract header is ignored on this route. Repeated, malformed or other values return 400 UNSUPPORTED_BROWSE_CONTRACT.",
+        "example": "4"
+      },
       "From": {
         "name": "from",
         "in": "query",
@@ -6741,6 +6761,34 @@
         "type": "string",
         "pattern": "^0x[0-9a-f]{64}$"
       },
+      "DiscoveryDisplay": {
+        "required": [
+          "title",
+          "state",
+          "category",
+          "subcategory"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Display title of the question, standalone market or price series."
+          },
+          "state": {
+            "$ref": "#/components/schemas/MarketState",
+            "description": "Lifecycle of the item: ACTIVE, CLOSED or UNSUPPORTED; for a question or price series, ACTIVE when any of its markets is active."
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category",
+            "description": "Display category, or null when the item is not mapped to one."
+          },
+          "subcategory": {
+            "$ref": "#/components/schemas/Subcategory",
+            "description": "Display subcategory slug within the category; null when unmapped or not subdivided."
+          }
+        }
+      },
       "Effect": {
         "type": "object",
         "additionalProperties": false,
@@ -7064,6 +7112,7 @@
           "USERNAME_TAKEN",
           "USERNAME_ALREADY_SET",
           "INVALID_SIGNATURE",
+          "WALLET_CONTRACT_UNSUPPORTED",
           "WRONG_AUTHORITY",
           "KEY_LIMIT_REACHED",
           "HYPERCORE_WALLET_UNQUALIFIED",
@@ -7210,6 +7259,68 @@
           }
         },
         "description": "The traded leg of a HyperCore fill, conversion or settlement credit. Cash and fees stay in effects."
+      },
+      "Game": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sport",
+          "scheduled_start",
+          "participants",
+          "winner_outcome_ids",
+          "spread_outcome_ids",
+          "total_outcome_ids"
+        ],
+        "properties": {
+          "sport": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Sport as the first member names it, trimmed."
+          },
+          "scheduled_start": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "Scheduled start every member shares, RFC 3339 UTC."
+          },
+          "participants": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "The two participants in the first member's order, trimmed. Other members may list them the other way round; each keeps its own orientation and sides."
+          },
+          "winner_outcome_ids": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/UInt32String"
+            },
+            "description": "Members that pick the contest winner (sportsContestWinner), in market order."
+          },
+          "spread_outcome_ids": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/UInt32String"
+            },
+            "description": "Members on participantA's points spread (sportsSpread), in market order."
+          },
+          "total_outcome_ids": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/UInt32String"
+            },
+            "description": "Members on the combined total (sportsTotal), in market order."
+          }
+        }
       },
       "Hash32": {
         "type": "string",
@@ -7748,6 +7859,17 @@
           "updated_at"
         ],
         "properties": {
+          "game": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MarketGame"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only when the contract=4 query parameter selects browse contract 4: the game this standalone market belongs to with up to 256 current members, or null when it has none, is its only current member or has more active members than 256. Absent otherwise."
+          },
           "catalog_generation": {
             "$ref": "#/components/schemas/PositiveInt64",
             "description": "Catalog generation the market, question and metadata were read from."
@@ -7776,7 +7898,7 @@
                 "type": "null"
               }
             ],
-            "description": "Key of the price series this standalone binaryPrice or priceTouch market belongs to, the series_id of the series read; set even while it is the only listed member. Null for every other market."
+            "description": "Key of the series this standalone market belongs to, the series_id of the series read; set even while it is the only listed member. A binaryPrice or priceTouch market always carries it; a companyIpoFirstDayMarketCap market only when the contract=4 query parameter selects browse contract 4. Null for every other market."
           },
           "metadata": {
             "$ref": "#/components/schemas/ProductMetadata",
@@ -7828,6 +7950,15 @@
           }
         },
         "description": "This market's row of the stats snapshot, refreshed about every minute from Hyperliquid asset contexts. Display data only; it never gates trading."
+      },
+      "MarketGame": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DiscoveryDisplay"
+          }
+        ],
+        "unevaluatedProperties": false
       },
       "MarketHistory": {
         "type": "object",
@@ -9438,7 +9569,15 @@
       "SeriesId": {
         "type": "string",
         "pattern": "^[0-9a-f]{16}$",
-        "description": "Price series key: the first 16 lowercase hex characters of the SHA-256 of v1|network|template|underlying|expiry, where network is mainnet or testnet, template is binaryPrice or priceTouch, underlying is the perp name and expiry is decimal Unix seconds. Thresholds and membership are not part of the key."
+        "description": "Series key: the first 16 lowercase hex characters of the SHA-256 of v1|network|template|subject|expiry, where network is mainnet or testnet; for a price series template is binaryPrice or priceTouch, subject the perp name and expiry its decimal Unix seconds; for an IPO ladder template is companyIpoFirstDayMarketCap, subject the trimmed company and expiry the listing deadline's decimal Unix seconds. Thresholds and membership are not part of the key."
+      },
+      "SeriesMarket": {
+        "description": "A series or game member: a standalone market with no Hyperliquid question.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Market"
+          }
+        ]
       },
       "Side": {
         "type": "string",
@@ -9763,7 +9902,7 @@
           },
           "wallet": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "The account's one Privy embedded wallet. It is the account's owner, which signs API-key issuance, and its signer, which signs its financial actions."
+            "description": "The account's wallet: its Privy embedded wallet, or the one wallet of an account that signs in with an external wallet. It is the account's owner, which signs API-key issuance, and its signer, which signs its financial actions."
           }
         }
       },
