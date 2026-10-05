@@ -144,9 +144,9 @@ Accounts signed in with a Totalis-managed wallet are never affected.
 
 ## Sign-in errors
 
-Only sign-in returns these two codes. Every other code is on [Errors](/hyperliquid/errors).
+Sign-in can return two codes the [Errors](/hyperliquid/errors) page does not list. Every other code is there.
 
 | Code | Status | Retry | Meaning |
 | --- | --- | --- | --- |
 | `ACCESS_REQUIRED` | 403 | `NEVER` | The wallet has no account and no partner admitted it. Admit it, then sign in again. |
-| `ORIGIN_NOT_ALLOWED` | 403 | `NEVER` | The sign-in origin is not one Totalis registered for you. |
+| `ORIGIN_NOT_ALLOWED` | 403 | `NEVER` | The origin is not one Totalis registered for you. |
