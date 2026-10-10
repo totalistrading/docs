@@ -109,3 +109,11 @@ page('integration-models',
      fork(28, 28, mid=True) + box('Totalis', s='quotes, positions, settlement', tall=True, hi=True),
      None, zoom=1.15)
 
+
+# Referrals: your link, then three tiers of the people it reaches
+page('referrals',
+     who(1, 'You') + dl() +
+     panel(people(2, 3, sm=True), box('Invited by you', n='40%', hi=True), cap='Your link') + dl() +
+     panel(people(4, 5, sm=True), box('Invited by them', n='20%')) + dl() +
+     panel(people(6, sm=True), box('One step further', n='3%')),
+     None, zoom=1.15)
