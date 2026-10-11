@@ -33,6 +33,16 @@ html, body { margin: 0; width: 1540px; height: 952px; background: var(--bg); fon
 .who { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .who .label { font-size: 26px; color: var(--muted); }
 
+/* tree: tiers top to bottom, each person under whoever invited them */
+.tree { display: flex; flex-direction: column; align-items: center; margin-top: 72px; }
+.band { position: relative; width: 1240px; padding: 50px 0 26px; display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; background: var(--panel); border: 2px solid var(--panel-line); border-radius: 30px; }
+.band.hi { outline: 3px solid var(--accent); outline-offset: -3px; }
+.band .tab { position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 16px; padding: 12px 26px; border-radius: 18px; background: var(--box); white-space: nowrap; }
+.band .tab .n { font-family: "DM Mono", ui-monospace, monospace; font-size: 34px; font-weight: 500; }
+.band .tab .t { font-size: 28px; font-weight: 500; }
+.band.hi .tab .n, .band.hi .tab .t { color: var(--accent-ink); }
+.kin { display: flex; gap: var(--g); }
+
 /* boxes and panels */
 .box { background: var(--box); border: 2px solid var(--box-line); border-radius: 22px; min-width: 190px; min-height: 112px; padding: 26px 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
 .box .t { font-size: 32px; font-weight: 500; line-height: 1.15; }

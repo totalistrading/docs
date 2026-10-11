@@ -110,10 +110,18 @@ page('integration-models',
      None, zoom=1.15)
 
 
-# Referrals: your link, then three tiers of the people it reaches
+# Referrals: you, then three tiers top to bottom. Each person sits under whoever
+# invited them: 3, 9, 27 people as the share falls 40%, 20%, 3%.
+def tot(size, c): return f'<div class="avatar a{c}" style="width:{size}px;height:{size}px"></div>'
+def kin(gap, *x): return f'<div class="kin" style="--g:{gap}px">' + ''.join(x) + '</div>'
+def band(n, t, cols, hi=False):
+    return (f'<div class="band{" hi" if hi else ""}"><div class="tab"><span class="n">{esc(n)}</span><span class="t">{esc(t)}</span></div>'
+            + ''.join(cols) + '</div>')
+hue = iter([2, 3, 4, 5, 6] * 9)
 page('referrals',
-     who(1, 'You') + dl() +
-     panel(people(2, 3, sm=True), box('Invited by you', n='40%', hi=True), cap='Your link') + dl() +
-     panel(people(4, 5, sm=True), box('Invited by them', n='20%')) + dl() +
-     panel(people(6, sm=True), box('One step further', n='3%')),
-     None, zoom=1.15)
+     '<div class="tree">' + who(1, 'You') + vl(72) +
+     band('40%', 'Invited by you', [tot(72, next(hue)) for _ in range(3)], hi=True) + vl(72) +
+     band('20%', 'Invited by them', [kin(72, *(tot(48, next(hue)) for _ in range(3))) for _ in range(3)]) + vl(72) +
+     band('3%', 'One step further', [kin(26, *(kin(8, *(tot(26, next(hue)) for _ in range(3))) for _ in range(3))) for _ in range(3)]) +
+     '</div>',
+     None, zoom=1.0)
