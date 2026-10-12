@@ -201,7 +201,8 @@
                 "pages": [
                   "hyperliquid/trading",
                   "hyperliquid/market-making",
-                  "hyperliquid/withdrawals"
+                  "hyperliquid/withdrawals",
+                  "hyperliquid/referrals"
                 ]
               },
               {
