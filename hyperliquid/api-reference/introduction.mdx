@@ -44,7 +44,8 @@ a wallet signature in the body. Keys, scopes and signing are on
 
 ## Requests
 
-- Every command `POST` sends an `Idempotency-Key` header, a new lowercase UUIDv7 per command.
+- A command `POST` sends an `Idempotency-Key` header, a new lowercase UUIDv7 per command. A few
+  routes take none.
 - Amounts are strings in USDC atomic units (6 decimals): `"25000000"` is 25 USDC. Never a JSON number.
 - Large identifiers (`outcome_id`, chain, block) are decimal strings.
 
@@ -53,8 +54,8 @@ The full encoding table and the idempotency exceptions are on
 
 ## Responses
 
-A successful response is the resource itself, with no envelope. A list returns its rows in `items`
-and pages by cursor:
+A successful response is the resource itself, with no envelope. A `204` has no body. A list returns its
+rows in `items` and pages by cursor:
 
 ```json
 { "items": [], "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjYwLCJrIjoibWFya2V0In0", "has_more": true }
@@ -65,7 +66,7 @@ or build them. Page size rules are on [Pagination](/hyperliquid/errors#paginatio
 
 ## Errors
 
-Every error, on every route, has the same shape:
+Every HTTP error has the same shape:
 
 ```json
 {
@@ -79,8 +80,8 @@ Every error, on every route, has the same shape:
 }
 ```
 
-Branch on `error.code`, never on `error.message`, and follow `retry`. Every code is on
-[Errors](/hyperliquid/errors#errors).
+Branch on `error.code`, never on `error.message`, and follow `retry`. A WebSocket closes with a close
+code and the error `code` as its reason instead. Every code is on [Errors](/hyperliquid/errors#codes).
 
 ## Rate limits
 
