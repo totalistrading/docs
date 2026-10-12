@@ -318,6 +318,7 @@ def publish(spec: dict) -> dict:
             f"PAGES does not match the spec. Unplaced: {sorted(routes - set(pages))}. "
             f"Not in the spec: {sorted(set(pages) - routes)}"
         )
+    spec["servers"] = [server for server in spec["servers"] if "staging" not in server["url"]]
     spec["tags"] = [{"name": group, "description": description} for group, (description, _) in PAGES.items()]
     for key, operation in operations(spec):
         group, title, section = pages[key]
