@@ -1,0 +1,117 @@
+---
+title: 'API overview'
+description: 'The Totalis Hyperliquid REST and WebSocket API: base URL, authentication, requests, pagination, units, errors, and rate limits.'
+---
+
+The Hyperliquid API is REST over HTTPS with JSON bodies, in `snake_case`, plus a
+[WebSocket](/hyperliquid/websocket/connection) for account and maker updates and a
+[market data socket](/hyperliquid/websocket/market-data) for public prices. It is separate from the
+[Solana API](/api-reference/introduction) and has its own keys.
+
+## Base URL
+
+```
+https://hip4-api.totalis.trade
+```
+
+| Surface | URL |
+| --- | --- |
+| REST | `https://hip4-api.totalis.trade/v1/...` |
+| WebSocket | `wss://hip4-api.totalis.trade/v1/stream` |
+| Market data | `wss://hip4-api.totalis.trade/v1/market-stream` |
+
+Every route runs on HyperEVM, chain ID `999`.
+
+## Try it without a key
+
+Market reads are public:
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/markets?limit=3"
+```
+
+## Authentication
+
+Send your API key as a bearer token on every authenticated request:
+
+```
+Authorization: Bearer ttk_v1_prd_...
+```
+
+Each key acts for one account, yours or a maker's, and holds scopes. Calls that move funds also carry
+a wallet signature in the body. Keys, scopes and signing are on
+[Authentication & signing](/hyperliquid/authentication).
+
+## Requests
+
+- Every command `POST` sends an `Idempotency-Key` header, a new lowercase UUIDv7 per command.
+- Amounts are strings in USDC atomic units (6 decimals): `"25000000"` is 25 USDC. Never a JSON number.
+- Large identifiers (`outcome_id`, chain, block) are decimal strings.
+
+The full encoding table and the idempotency exceptions are on
+[Errors, pagination & limits](/hyperliquid/errors#requests).
+
+## Responses
+
+A successful response is the resource itself, with no envelope. A list returns its rows in `items`
+and pages by cursor:
+
+```json
+{ "items": [], "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjYwLCJrIjoibWFya2V0In0", "has_more": true }
+```
+
+Send `next_cursor` back as `?cursor=` until `has_more` is `false`. Cursors are opaque, so do not parse
+or build them. Page size rules are on [Pagination](/hyperliquid/errors#pagination).
+
+## Errors
+
+Every error, on every route, has the same shape:
+
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "The stake must be a positive integer.",
+    "retry": "NEVER",
+    "request_id": "0198f0a2-5c1e-7b3a-9f10-2d4c6e8a0b12",
+    "field_violations": [{ "field": "/stake", "code": "INVALID" }]
+  }
+}
+```
+
+Branch on `error.code`, never on `error.message`, and follow `retry`. Every code is on
+[Errors](/hyperliquid/errors#errors).
+
+## Rate limits
+
+Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-route limits are on
+[Rate limits](/hyperliquid/errors#rate-limits).
+
+## Endpoint groups
+
+<CardGroup cols={2}>
+  <Card title="Markets" icon="store" href="/hyperliquid/api-reference/markets/list-markets">
+    HIP-4 markets, their sides and price history. Public.
+  </Card>
+  <Card title="RFQs & Quotes" icon="bolt" href="/hyperliquid/api-reference/rfqs/create-rfq">
+    Request quotes and accept one as a taker, or quote and confirm as a maker.
+  </Card>
+  <Card title="Positions" icon="layer-group" href="/hyperliquid/api-reference/positions/list-positions">
+    Positions you hold or your maker backs, and cash-outs.
+  </Card>
+  <Card title="Account" icon="wallet" href="/hyperliquid/api-reference/account/get-identity">
+    Identity, balances, activity, operations and withdrawals.
+  </Card>
+  <Card title="Makers" icon="chart-line" href="/hyperliquid/api-reference/makers/get-maker-capital">
+    Maker capital and collateral.
+  </Card>
+  <Card title="Deployment" icon="cube" href="/hyperliquid/api-reference/deployment/get-deployment">
+    The chain, vault and fees every signature binds to.
+  </Card>
+  <Card title="WebSocket" icon="plug" href="/hyperliquid/websocket/connection">
+    Account and maker updates, resumable from a cursor.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/hyperliquid/errors">
+    Every code, limit and rate limit, and which errors to retry.
+  </Card>
+</CardGroup>

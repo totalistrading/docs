@@ -11,7 +11,8 @@ app-only routes. This script:
   the spec's summary;
 - gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, kept by resource so
   regrouping never breaks a link (x-mint);
-- writes the API reference tab: one group per PAGES entry, led by its hand-written pages (LEADS).
+- writes the API reference tab: an Overview group (OVERVIEW), then one group per PAGES entry, led
+  by its hand-written pages (LEADS).
 
 A route the spec has and PAGES does not place, or the reverse, stops the script.
 
@@ -107,6 +108,8 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
 }
 
 # Hand-written pages that open a reference group, ahead of its generated pages.
+OVERVIEW = ["hyperliquid/api-reference/introduction"]
+
 LEADS = {
     "WebSocket": [
         "hyperliquid/websocket/connection",
@@ -329,11 +332,12 @@ def publish(spec: dict) -> dict:
 
 
 def tab() -> dict:
-    """The API reference tab: one group per resource, each led by its hand-written pages."""
+    """The API reference tab: the overview, then one group per resource, each led by its hand-written pages."""
     return {
         "tab": TAB,
         "openapi": "/hyperliquid/openapi.json",
-        "groups": [
+        "groups": [{"group": "Overview", "pages": OVERVIEW}]
+        + [
             {"group": group, "pages": LEADS.get(group, []) + pages_of(group, [route for route, _, _ in pages])}
             for group, (_, pages) in PAGES.items()
         ],

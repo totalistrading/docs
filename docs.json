@@ -219,6 +219,12 @@
             "openapi": "/hyperliquid/openapi.json",
             "groups": [
               {
+                "group": "Overview",
+                "pages": [
+                  "hyperliquid/api-reference/introduction"
+                ]
+              },
+              {
                 "group": "Markets",
                 "pages": [
                   "GET /v1/markets",
