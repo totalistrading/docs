@@ -49,7 +49,7 @@ const me = unwrap(await client.GET("/v1/me"));
 | `createMakerClient(environment, options)` | Any maker route, typed | None |
 | `createMaker(options)` | `onRfq`, `quote`, `bid`, `cancelQuote`, `onAcceptance`, `confirm`, `deployment`, `controller`, `reduceCollateral` | Your wallet |
 
-`environment` is `"production"` or `"staging"`; `baseUrl` overrides it. Money is atomic USDC as a
+`environment` is `"production"`; `baseUrl` overrides it. Money is atomic USDC as a
 `bigint` or decimal string. `createTotalis` and `createMaker` expose `client` and `stream`; call
 `close()` when done.
 

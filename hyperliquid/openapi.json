@@ -9,10 +9,6 @@
     {
       "url": "https://hip4-api.totalis.trade",
       "description": "Production public edge"
-    },
-    {
-      "url": "https://hip4-api-staging.totalis.trade",
-      "description": "Staging and chain-998 public edge"
     }
   ],
   "tags": [
