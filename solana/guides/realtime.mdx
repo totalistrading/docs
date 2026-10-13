@@ -14,10 +14,10 @@ guarantee you need.
 | --- | --- | --- |
 | [SSE streams](/solana/api-reference/quote-service/stream) | Pre-trade pricing. Live `best_quote` updates on a quote request or cashout request. | Watching prices while you decide whether to commit |
 | [WebSocket](/solana/guides/websocket) | Post-trade events, live. Quote acceptance, confirmation, position created and settled. | Live UIs and bots that hold a connection |
-| [Webhooks](/solana/guides/webhooks) | Post-trade events, durable. The same lifecycle moments as HMAC signed POSTs with retries and replay. | Server systems of record that must never miss an event |
+| [Webhooks](/solana/guides/webhooks) | Post-trade events, durable. The same lifecycle moments as HMAC signed POSTs, retried, then dead-lettered and replayable. | Server systems of record, with failed deliveries monitored and replayed |
 | [REST reads](/solana/guides/reading-data) | State on demand. Portfolio, parlays, settlement detail, P&L, balances. | Backfill, reconciliation, on-demand display |
 
-All four authenticate with the same [API key](/solana/authentication).
+REST, SSE and the WebSocket authenticate with your [API key](/solana/authentication). Webhooks are signed with your endpoint's secret instead: [verify each delivery](/solana/guides/webhooks#verifying-signatures).
 
 ## One trade, three phases
 
