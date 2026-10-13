@@ -116,6 +116,7 @@ function connect() {
     headers: { Authorization: `Bearer ${process.env.TOTALIS_API_KEY}` },
   });
   let replaced = false;
+  let stable;
 
   ws.on("open", () => {
     // A maker sends { type: "maker", maker_id: "7" }
@@ -124,7 +125,7 @@ function connect() {
 
   ws.on("message", (raw) => {
     const { channel, data } = JSON.parse(raw);
-    if (channel === "subscriptionResponse") attempt = 0;
+    if (channel === "subscriptionResponse") stable = setTimeout(() => (attempt = 0), 60_000); // reset backoff once it holds
     if (channel === "snapshot") {
       replaceState(data.resources); // then page each class listed in data.truncated
       saveCursor((cursor = data.cursor));
@@ -142,7 +143,10 @@ function connect() {
     }
   });
 
+  ws.on("error", (error) => console.warn(`stream error: ${error.message}`)); // close follows
+
   ws.on("close", (_code, reason) => {
+    clearTimeout(stable);
     const code = reason.toString();
     if (STOP.has(code)) return console.error(`stream stopped: ${code}`); // fix the key or the frame
     if (code === "CURSOR_RESET") cursor = undefined;

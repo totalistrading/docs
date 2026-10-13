@@ -45,7 +45,7 @@ want, and earn the difference between what you quote and what the outcomes are w
 | Read fees and the signing domain | [`GET /v1/deployment`](/hyperliquid/api-reference/deployment/get-deployment) |
 | Quote, or replace your quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
-| Receive fills | `QUOTE_ACCEPTED` on the maker channel |
+| Receive acceptances | `QUOTE_ACCEPTED` on the maker channel. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
 | Read the positions you back | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with your maker key |

@@ -33,7 +33,8 @@ Market data is public. This call needs no key and no signup:
 curl "https://hip4-api.totalis.trade/v1/markets?limit=3"
 ```
 
-Everything else needs an API key. Start with the [Quickstart](/hyperliquid/quickstart).
+Market reads and [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) are public. Every account,
+trading and maker route needs an API key. Start with the [Quickstart](/hyperliquid/quickstart).
 
 ## How it works
 
@@ -75,7 +76,7 @@ signature from their owner. There is no deposit step and no claim step.
 | | |
 | --- | --- |
 | Base URL | `https://hip4-api.totalis.trade`, on HyperEVM (chain ID `999`) |
-| Auth | `Authorization: Bearer <key>` ([Authentication](/hyperliquid/authentication)). Market reads need no key. |
+| Auth | `Authorization: Bearer <key>` ([Authentication](/hyperliquid/authentication)). Market reads and the deployment need no key. |
 | Amounts | Strings in USDC atomic units: `"25000000"` is 25 USDC |
 | Gas | Totalis pays it for takers. Makers pay their own, in HYPE. |
 | Separate from Solana | The [Solana API](/guides/quickstart) has its own keys and endpoints |

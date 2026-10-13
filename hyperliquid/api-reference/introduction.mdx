@@ -114,7 +114,7 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | Receive RFQs | [`GET /v1/stream`](/hyperliquid/websocket/maker), `maker` subscription, `RFQ_CREATED` |
 | Quote, or replace a quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
-| Receive fills | `QUOTE_ACCEPTED` |
+| Receive acceptances | `QUOTE_ACCEPTED`. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
 | Read backed positions | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with a maker key |

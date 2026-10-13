@@ -37,6 +37,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
   "discount": "0",
   "requirement": "300000000",
   "free_collateral": "4760000000",
+  "floor_bps": 0,
   "pending_commitments": "25000000",
   "free_after_pending": "4735000000"
 }
@@ -49,7 +50,8 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 | `payable_owed` | Winnings you owe on settled positions that are not yet claimed. |
 | `gross_open` | The sum of `payout - net stake` over your open positions: your worst case, position by position. |
 | `discount` | What your last collateral reductions took off `gross_open`. |
-| `requirement` | `gross_open - discount`. What must stay locked for your open positions. |
+| `requirement` | What must stay locked for your open positions: `max(gross_open - min(discount, gross_open), ceil(gross_open * floor_bps / 10000))`. With a `floor_bps` of 0 that is `gross_open - discount`. `null` when `floor_bps` is `null`. |
+| `floor_bps` | The share of `gross_open` that stays locked whatever the discount. `null` when it cannot be read. |
 | `free_collateral` | `vault_gross - stake_escrow - payable_owed - requirement`, never below zero. What can back new fills, or be withdrawn. |
 | `pending_commitments` | Fills accepted but not yet on-chain. |
 | `free_after_pending` | `free_collateral - pending_commitments`, never below zero. Size new quotes from this. |
