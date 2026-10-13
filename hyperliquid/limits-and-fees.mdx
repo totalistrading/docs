@@ -1,0 +1,54 @@
+---
+title: 'Limits and fees'
+icon: 'scale-balanced'
+description: 'Every fee, size, timing, signing window and rate limit of the Hyperliquid API.'
+---
+
+Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
+
+| Trading | Value |
+| --- | --- |
+| Legs per RFQ | 1 to 50, strictly ascending `outcome_id` |
+| Minimum stake | Net stake (after the entry fee) of at least 1 USDC |
+| Maximum payout | 100,000 USDC |
+| Fees | `taker_fee_bps` on the stake at accept, `fee_bps` on profit at claim. Read the current values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
+| Entry RFQ open | 20 seconds |
+| Cash-out RFQ open | 30 seconds |
+| Entry quote `expiry` | At most 30 seconds ahead. Quotes within 2 seconds of expiry are left out. |
+| Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
+| Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
+| Settlement and claim | About every 5 minutes |
+
+| Signing | Window |
+| --- | --- |
+| Accept funding | `valid_before` at least 5 seconds ahead and at most 900 seconds after `valid_after` |
+| Withdrawal `Exit` | `expiry` 5 to 3,600 seconds ahead, less a 5 second margin |
+| Withdrawal payout | At most 4,500 seconds from `valid_after` to `valid_before`; `valid_before` at least 300 seconds after the `Exit` `expiry`, or after now with no `Exit` |
+| Maker vault withdrawal delay | 86,400 seconds |
+| Collateral reduction `transaction` | Valid for 2 minutes after the job signs it (`expiry`) |
+
+| WebSocket and keys | Value |
+| --- | --- |
+| Replay window | 24 hours. An older cursor resets to a snapshot. |
+| Snapshot | 100 items per class |
+| Heartbeat | 15 seconds, or 1 second with `publication_freshness` |
+| Market data | 1 to 256 outcomes per subscription, frames up to 1 MiB |
+| API keys | 20 live per account; 1 to 90 days, or Forever |
+| Key approval message | 5 minutes, single use |
+| Request body | 64 KiB |
+
+## Rate limits
+
+Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. Each route also has a total limit
+across all callers, so it can arrive below these figures.
+
+| Route | Per account, per minute |
+| --- | --- |
+| [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq), [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | 30, shared |
+| [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | 30 |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote), [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | 120 each |
+| [List quotes](/hyperliquid/api-reference/quotes/list-quotes), [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | 600 each |
+| Position and capital reads | 120, shared |
+| [List activity](/hyperliquid/api-reference/account/list-activity) | 120 |
+
+Too many open RFQs on one account returns `429 RFQ_INTENT_LIMIT`.

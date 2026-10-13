@@ -48,7 +48,7 @@ keys.
 | --- | --- | --- |
 | `identity:read` | Yours | Your identity and wallet |
 | `account:read` | Yours | Balances, positions, activity, operations, withdrawals |
-| `account:stream` | Yours | The [account channel](/hyperliquid/websocket/account) |
+| `account:stream` | Yours | The [account channel](/hyperliquid/api-reference/websocket/account) |
 | `rfq:read` | Either | Open RFQs and RFQ events |
 | `rfq:write` | Yours | Create and cancel RFQs |
 | `quote:read` | Either | Yours: quotes on your RFQs, your acceptances. A maker: acceptances of its quotes. |
@@ -83,7 +83,7 @@ Keep only the balance your bot needs.
 </Warning>
 
 A maker bot signs its confirmations with the same key. To keep it off the bot, move signing to a key that holds
-no funds with [`setQuoteSigner`](/hyperliquid/collateral#move-maker-funds).
+no funds with [`setQuoteSigner`](/hyperliquid/guides/collateral#move-maker-funds).
 
 ## Who signs what
 
@@ -156,4 +156,4 @@ Signed field names differ from the API's. This is the only place they do.
 | Accept funding | `keccak256(abi.encode(vault, chainId, from, salt, account))`, with `from` and `account` your wallet. Send `salt`, not the nonce. |
 | Withdrawal payout | `keccak256(abi.encode(keccak256("TOTALIS_PAYOUT_NONCE_V1"), chainId, vault, account, uint128(Idempotency-Key)))`. Not sent. |
 
-Signature windows are on [Limits](/hyperliquid/errors#limits).
+Signature windows are on [Limits](/hyperliquid/limits-and-fees).

@@ -4,9 +4,9 @@ description: 'The Totalis Hyperliquid REST and WebSocket API: base URL, authenti
 ---
 
 The Hyperliquid API is REST over HTTPS with JSON bodies, in `snake_case`, plus a
-[WebSocket](/hyperliquid/websocket/connection) for account and maker updates and a
-[market data socket](/hyperliquid/websocket/market-data) for public prices. It is separate from the
-[Solana API](/api-reference/introduction) and has its own keys.
+[WebSocket](/hyperliquid/api-reference/websocket/connection) for account and maker updates and a
+[market data socket](/hyperliquid/api-reference/websocket/market-data) for public prices. It is separate from the
+[Solana API](/solana/api-reference/introduction) and has its own keys.
 
 ## Base URL
 
@@ -86,7 +86,7 @@ code and the error `code` as its reason instead. Every code is on [Errors](/hype
 ## Rate limits
 
 Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-route limits are on
-[Rate limits](/hyperliquid/errors#rate-limits).
+[Rate limits](/hyperliquid/limits-and-fees#rate-limits).
 
 ## Endpoints by task
 
@@ -96,7 +96,7 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | --- | --- |
 | Find markets | [`GET /v1/markets`](/hyperliquid/api-reference/markets/list-markets), [`GET /v1/markets/{outcome_id}`](/hyperliquid/api-reference/markets/get-market) |
 | Check your balance | [`GET /v1/me/balances`](/hyperliquid/api-reference/account/get-balances) |
-| Follow your account | [`GET /v1/stream`](/hyperliquid/websocket/account), `account` subscription |
+| Follow your account | [`GET /v1/stream`](/hyperliquid/api-reference/websocket/account), `account` subscription |
 | Ask for quotes | [`POST /v1/rfqs`](/hyperliquid/api-reference/rfqs/create-rfq), then `QUOTE_CREATED` |
 | Accept one | [`POST /v1/quotes/{quote_id}/accept`](/hyperliquid/api-reference/quotes/accept-quote) |
 | Recover a lost accept | [`GET /v1/quotes/{quote_id}/acceptance`](/hyperliquid/api-reference/quotes/get-acceptance) |
@@ -111,7 +111,7 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | Step | Endpoint or event |
 | --- | --- |
 | Check capital | [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/makers/get-maker-capital) |
-| Receive RFQs | [`GET /v1/stream`](/hyperliquid/websocket/maker), `maker` subscription, `RFQ_CREATED` |
+| Receive RFQs | [`GET /v1/stream`](/hyperliquid/api-reference/websocket/maker), `maker` subscription, `RFQ_CREATED` |
 | Quote, or replace a quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
 | Receive acceptances | `QUOTE_ACCEPTED`. Nothing is filled until you confirm. |
@@ -120,7 +120,7 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | Read backed positions | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with a maker key |
 | Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/api-reference/makers/create-collateral-reduction) |
 
-The full maker loop is on [Market making](/hyperliquid/market-making).
+The full maker loop is on [Market making](/hyperliquid/guides/market-making).
 
 ## Endpoint groups
 
@@ -143,7 +143,7 @@ The full maker loop is on [Market making](/hyperliquid/market-making).
   <Card title="Deployment" icon="cube" href="/hyperliquid/api-reference/deployment/get-deployment">
     The chain, vault and fees every signature binds to.
   </Card>
-  <Card title="WebSocket" icon="plug" href="/hyperliquid/websocket/connection">
+  <Card title="WebSocket" icon="plug" href="/hyperliquid/api-reference/websocket/connection">
     Account and maker updates, resumable from a cursor.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/hyperliquid/errors">

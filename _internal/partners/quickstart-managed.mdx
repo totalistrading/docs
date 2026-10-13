@@ -22,28 +22,28 @@ public API used as a partner, so every public page applies.
     The end user logs in at [app.totalis.trade](https://app.totalis.trade) and creates an API key
     under Settings, then API Keys. Use the Trading preset for a bot that places parlays,
     the full preset if it also withdraws (it adds `funds:withdraw`), or Read-only for display. The key is shown once. See
-    [Authentication](/guides/authentication) for the scope catalog.
+    [Authentication](/solana/authentication) for the scope catalog.
   </Step>
   <Step title="Enable trading, once">
     The user approves a consent dialog in the app that delegates signing to Totalis inside a secure
     enclave. Check the state with
-    [`GET /v1/wallet/delegation-status`](/api-reference/funds/delegation-status). Until it is on,
-    commits and withdrawals are refused. See [Vaults and custody](/guides/vault-architecture).
+    [`GET /v1/wallet/delegation-status`](/solana/api-reference/funds/delegation-status). Until it is on,
+    commits and withdrawals are refused. See [Vaults and custody](/solana/guides/vault-architecture).
   </Step>
   <Step title="Fund the wallet">
-    Send native Solana USDC to the address from [`GET /v1/wallet`](/api-reference/user/get-wallet).
+    Send native Solana USDC to the address from [`GET /v1/wallet`](/solana/api-reference/user/get-wallet).
     Placing a parlay moves the stake into the vault by itself. To pre-fund the vault, call
-    `POST /v1/vault/deposit`. See [Funding](/guides/funding).
+    `POST /v1/vault/deposit`. See [Funding](/solana/guides/funding).
   </Step>
   <Step title="Quote and commit">
     Open a quote request, watch the stream, commit the best quote. The commit body
-    proves you saw the current price. See [How parlays work](/guides/lifecycle) and
-    [Quote requests in depth](/guides/quote-requests).
+    proves you saw the current price. See [How parlays work](/solana/guides/lifecycle) and
+    [Quote requests in depth](/solana/guides/quote-requests).
   </Step>
   <Step title="Settle and withdraw">
     Positions settle by themselves when the last market resolves. Read outcomes from
-    [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) or take the `position.settled` webhook.
-    Withdraw with [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw). One call
+    [`GET /v1/rfqs/{id}`](/solana/api-reference/parlays/get) or take the `position.settled` webhook.
+    Withdraw with [`POST /v1/wallet/withdraw`](/solana/api-reference/funds/wallet-withdraw). One call
     reaches both the wallet and the vault's free balance.
   </Step>
 </Steps>
@@ -52,19 +52,19 @@ public API used as a partner, so every public page applies.
 
 | Purpose | Endpoint |
 | --- | --- |
-| Profile and identifiers | [`GET /v1/me`](/api-reference/user/get-profile) |
-| Wallet address and balances | [`GET /v1/wallet`](/api-reference/user/get-wallet) |
-| Balance, stats and position counts | [`GET /v1/portfolio`](/api-reference/funds/portfolio) |
-| Markets and the correlation rules | [`GET /markets`](/api-reference/markets/list), `exclusion_keys` on [`GET /v1/markets/list`](/api-reference/markets/list-flat) |
-| Open, update, read, commit, cancel a quote request | [Quote service](/api-reference/quote-service/create) |
-| Live pricing | [Quote request stream](/api-reference/quote-service/stream) |
-| Positions and history | [`GET /v1/rfqs`](/api-reference/parlays/list), [`GET /v1/rfqs/{id}`](/api-reference/parlays/get) |
-| Withdraw | [`POST /v1/wallet/withdraw`](/api-reference/funds/wallet-withdraw) |
-| Events | [Webhooks](/guides/webhooks), [WebSocket](/guides/websocket) |
+| Profile and identifiers | [`GET /v1/me`](/solana/api-reference/user/get-profile) |
+| Wallet address and balances | [`GET /v1/wallet`](/solana/api-reference/user/get-wallet) |
+| Balance, stats and position counts | [`GET /v1/portfolio`](/solana/api-reference/funds/portfolio) |
+| Markets and the correlation rules | [`GET /markets`](/solana/api-reference/markets/list), `exclusion_keys` on [`GET /v1/markets/list`](/solana/api-reference/markets/list-flat) |
+| Open, update, read, commit, cancel a quote request | [Quote service](/solana/api-reference/quote-service/create) |
+| Live pricing | [Quote request stream](/solana/api-reference/quote-service/stream) |
+| Positions and history | [`GET /v1/rfqs`](/solana/api-reference/parlays/list), [`GET /v1/rfqs/{id}`](/solana/api-reference/parlays/get) |
+| Withdraw | [`POST /v1/wallet/withdraw`](/solana/api-reference/funds/wallet-withdraw) |
+| Events | [Webhooks](/solana/guides/webhooks), [WebSocket](/solana/guides/websocket) |
 
 `market_ticker` is venue specific: the Kalshi ticker for Kalshi, the `condition_id` for Polymarket.
 Two markets can share a parlay only if their `exclusion_keys` do not intersect. Both rules are on
-[Limits and fees](/guides/limits-and-fees#parlay-construction).
+[Limits and fees](/solana/limits-and-fees#parlay-construction).
 
 ## What managed cannot do for a platform
 
