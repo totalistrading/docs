@@ -370,7 +370,7 @@
     ]
   },
   "openapi": [
-    "/solana/api-reference/openapi.json"
+    "/api-reference/openapi.json"
   ],
   "redirects": [
     {
@@ -732,10 +732,6 @@
     {
       "source": "/hyperliquid/websocket/market-data",
       "destination": "/hyperliquid/api-reference/websocket/market-data"
-    },
-    {
-      "source": "/api-reference/openapi.json",
-      "destination": "/solana/api-reference/openapi.json"
     }
   ],
   "seo": {
