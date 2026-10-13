@@ -1,0 +1,186 @@
+---
+title: 'Real time'
+icon: 'tower-broadcast'
+description: 'Follow your trades and your maker live: which socket to open, how a connection runs from snapshot to resume, what arrives at each step of a trade, and a client that reconnects without missing an event.'
+---
+
+You hold one WebSocket open for everything that happens to your account or your maker: RFQs, quotes,
+acceptances, on-chain operations, positions and balances. It starts with a snapshot of your state,
+then streams every change in order. Each change carries a cursor, so a dropped connection resumes
+where it stopped.
+
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/hl-realtime-light.png" alt="Your bot connects with its key, takes a snapshot, applies events in order, and resumes from its saved place after a drop" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/hl-realtime-dark.png" alt="Your bot connects with its key, takes a snapshot, applies events in order, and resumes from its saved place after a drop" />
+
+## Pick a socket
+
+| You are | Open | Subscription | Key |
+| --- | --- | --- | --- |
+| A taker, or an app for one account | `wss://hip4-api.totalis.trade/v1/stream` | [`account`](/hyperliquid/websocket/account) | A key for your account with `account:stream` |
+| A market maker | `wss://hip4-api.totalis.trade/v1/stream` | [`maker`](/hyperliquid/websocket/maker) | A key for the maker with the [maker scopes](/hyperliquid/authentication#scopes) |
+| A browser showing live prices | `wss://hip4-api.totalis.trade/v1/market-stream` | [`market`](/hyperliquid/websocket/market-data) | None. Browser origins only. |
+
+A maker that also trades as a taker opens two connections, one per key. Server integrations price from
+their own Hyperliquid feed and read the market catalog over
+[List markets](/hyperliquid/api-reference/markets/list-markets). The market data socket is for apps.
+
+## How a connection runs
+
+<Steps>
+  <Step title="Connect">
+    Open the socket with the `totalis.realtime.v2` subprotocol and your key as
+    `Authorization: Bearer <key>` on the upgrade. A browser cannot set that header, so it sends a
+    second subprotocol, `auth.<base64url of the key>`, instead.
+  </Step>
+  <Step title="Subscribe">
+    Send one `subscribe` frame. Include your saved `cursor` if you have one. The server answers with
+    `subscriptionResponse`, whose `resume` says what follows.
+  </Step>
+  <Step title="Load the snapshot">
+    On `SNAPSHOT` or `RESET`, a `snapshot` frame carries your open RFQs, quotes, acceptances and
+    operations, and the cursor they match. Replace your local state with it. Balances, positions and
+    maker capital are not in the snapshot: read them over HTTP now.
+  </Step>
+  <Step title="Apply events">
+    Each `event` frame is one committed change. Apply it, then save its `cursor`. Delivery is at
+    least once, so skip any event whose `cursor.sequence` is not above the one you saved.
+  </Step>
+  <Step title="Resume">
+    After a drop, reconnect and subscribe with your saved cursor. On `REPLAY` you get only the
+    events you missed. Resuming needs the `replay:read` scope, which the taker scopes do not include,
+    so add it to the key.
+  </Step>
+</Steps>
+
+The server sends a WebSocket ping every `heartbeat_interval_ms`. WebSocket libraries answer with a
+pong on their own. There is no unsubscribe: to change the subscription, open a new connection.
+
+## One trade on the socket
+
+The same trade, seen from each side:
+
+| Moment | Account channel (taker) | Maker channel | You do |
+| --- | --- | --- | --- |
+| An RFQ opens | `RFQ_CREATED` for your RFQ | `RFQ_CREATED` for every RFQ | Maker: price it and [create a quote](/hyperliquid/api-reference/quotes/create-quote) |
+| A maker quotes | `QUOTE_CREATED` | | Taker: compare quotes |
+| A quote leaves | `QUOTE_REMOVED` | | Taker: drop it |
+| The taker accepts | The accept response holds the maker's answer | `QUOTE_ACCEPTED`, with a `deadline` | Maker: [confirm](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline` |
+| The RFQ ends | `RFQ_ACCEPTED`, `RFQ_CANCELLED` or `RFQ_FAILED` | The same | Maker: stop quoting it |
+| The trade lands | `OPERATION_UPDATED` to `COMMITTED` | | Taker: the position is on-chain |
+| The position opens | `POSITION_OPENED` | `POSITION_OPENED` | Read the position |
+| Capital moves | `VAULT_BALANCE_CHANGED`, `WALLET_BALANCE_CHANGED` | `MAKER_CAPITAL_UPDATED` | Re-read balances or [capital](/hyperliquid/api-reference/makers/get-maker-capital) |
+| It settles or closes | `POSITION_SETTLED`, `POSITION_CLOSED` | The same | Read the position |
+
+An RFQ that reaches `expires_at`, and a quote that reaches `expiry`, send no event. Track both
+timestamps yourself.
+
+Position, capital and wallet balance events are pointers. They name what changed and the block it
+changed in, not the new state. Read [Get position](/hyperliquid/api-reference/positions/get-position),
+[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) or
+[Get balances](/hyperliquid/api-reference/account/get-balances) when one arrives.
+
+Every event type and payload: [Account channel](/hyperliquid/websocket/account) and
+[Maker channel](/hyperliquid/websocket/maker).
+
+## When the server closes
+
+Every close carries an error code as its reason. Its `retry` says what to do.
+
+| Frame or close | Do |
+| --- | --- |
+| `drain` frame | Open a new connection and resume from your cursor. The server closes the old one by `deadline`. |
+| `reset` frame, then `CURSOR_RESET` | Discard local state. Reconnect without a cursor and load the fresh snapshot. |
+| `SLOW_CONSUMER` | You fell behind. Reconnect with backoff and resume. Apply events off the socket's read loop. |
+| `CONNECTION_DRAIN`, `SOURCE_UNAVAILABLE`, `DEPENDENCY_STALE` | Reconnect with backoff and resume. |
+| `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED`, `INVALID_SUBSCRIPTION` | Stop. Fix the key, its scopes or the subscribe frame. |
+| No reason (the network dropped) | Reconnect with backoff and resume. |
+
+The replay window and the heartbeat interval are on [Limits](/hyperliquid/errors#limits). A cursor
+older than the window resumes as `RESET`. The stream is the only replay: there is no HTTP event log.
+
+## Example
+
+A Node client that resumes, dedupes and reconnects. It uses the [`ws`](https://www.npmjs.com/package/ws)
+package, which can set the `Authorization` header. The
+[TypeScript SDK](/hyperliquid/sdk#websocket-and-pagination) wraps all of this in `TotalisStream`.
+
+```javascript
+import WebSocket from "ws";
+
+const STOP = new Set(["SUBSCRIPTION_DENIED", "AUTHORIZATION_REVOKED", "INVALID_SUBSCRIPTION", "SUBPROTOCOL_REQUIRED"]);
+let cursor = loadCursor(); // your last applied cursor, or undefined
+let attempt = 0;
+
+function connect() {
+  const ws = new WebSocket("wss://hip4-api.totalis.trade/v1/stream", "totalis.realtime.v2", {
+    headers: { Authorization: `Bearer ${process.env.TOTALIS_API_KEY}` },
+  });
+  let replaced = false;
+  let stable;
+
+  ws.on("open", () => {
+    // A maker sends { type: "maker", maker_id: "7" }
+    ws.send(JSON.stringify({ method: "subscribe", subscription: { type: "account", ...(cursor && { cursor }) } }));
+  });
+
+  ws.on("message", (raw) => {
+    const { channel, data } = JSON.parse(raw);
+    if (channel === "subscriptionResponse") stable = setTimeout(() => (attempt = 0), 60_000); // reset backoff once it holds
+    if (channel === "snapshot") {
+      replaceState(data.resources); // then page each class listed in data.truncated
+      saveCursor((cursor = data.cursor));
+      readBalancesAndPositions();
+    }
+    if (channel === "event") {
+      if (cursor && BigInt(data.cursor.sequence) <= BigInt(cursor.sequence)) return; // already applied
+      apply(data.event_type, data.payload); // ignore event types you do not know
+      saveCursor((cursor = data.cursor));
+    }
+    if (channel === "reset") cursor = undefined;
+    if (channel === "drain") {
+      replaced = true;
+      connect(); // the new socket resumes from cursor; the server closes this one
+    }
+  });
+
+  ws.on("error", (error) => console.warn(`stream error: ${error.message}`)); // close follows
+
+  ws.on("close", (_code, reason) => {
+    clearTimeout(stable);
+    const code = reason.toString();
+    if (STOP.has(code)) return console.error(`stream stopped: ${code}`); // fix the key or the frame
+    if (code === "CURSOR_RESET") cursor = undefined;
+    if (replaced) return;
+    setTimeout(connect, Math.min(30_000, 500 * 2 ** attempt++));
+  });
+}
+
+connect();
+```
+
+Save the cursor where it survives a restart, in the same transaction as the state you applied, so
+the two never disagree.
+
+## Socket or reads
+
+| Need | Use |
+| --- | --- |
+| React to quotes, acceptances and fills within the deadline | The socket |
+| Balances, positions and maker capital | HTTP reads, on connect and on each event that names them |
+| Backfill after more than the replay window | HTTP reads. The socket resumes as `RESET` with a fresh snapshot. |
+| History: past positions, activity, operations | [List positions](/hyperliquid/api-reference/positions/list-positions), [List activity](/hyperliquid/api-reference/account/list-activity), [List operations](/hyperliquid/api-reference/account/list-operations) |
+
+<CardGroup cols={2}>
+  <Card title="Connection" icon="plug" href="/hyperliquid/websocket/connection">
+    Every frame, the subscribe response and the resume rules.
+  </Card>
+  <Card title="Account channel" icon="user" href="/hyperliquid/websocket/account">
+    Every taker event and snapshot class.
+  </Card>
+  <Card title="Maker channel" icon="chart-candlestick" href="/hyperliquid/websocket/maker">
+    Every maker event, snapshot class and the scopes each needs.
+  </Card>
+  <Card title="Market data" icon="wave-square" href="/hyperliquid/websocket/market-data">
+    Public reference prices for browsers.
+  </Card>
+</CardGroup>

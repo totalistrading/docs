@@ -78,6 +78,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/me", "Get identity", "Account"),
             ("GET /v1/me/balances", "Get balances", "Account"),
             ("GET /v1/me/activity", "List activity", "Account"),
+            ("GET /v1/me/pnl", "Get P&L", "Account"),
             ("GET /v1/me/operations", "List operations", "Account"),
             ("GET /v1/me/operations/{operation_id}", "Get operation", "Account"),
             ("POST /v1/me/withdrawals", "Create withdrawal", "Withdrawals"),

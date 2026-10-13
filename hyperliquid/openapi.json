@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nAuthenticate with a scoped API key created in the Totalis app, sent as `Authorization: Bearer <key>`. Public market reads need no key. Balance-affecting commands also carry the wallet or maker signature the HyperEVM contract verifies.\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "133.0.0-admission-consent"
+    "version": "142.0.0-core-funding-dropped"
   },
   "servers": [
     {
@@ -99,6 +99,11 @@
                             "value": "240800000000000000",
                             "best_bid": "238600000000000000",
                             "best_ask": "243000000000000000",
+                            "last_trade": "240000000000000000",
+                            "last_trade_at": "2026-09-26T19:58:41.512Z",
+                            "chance": "240800000000000000",
+                            "chance_basis": "MID",
+                            "mark": "240800000000000000",
                             "scale": "1000000000000000000",
                             "freshness": "FRESH",
                             "received_at": "2026-09-26T19:59:09.72902044Z"
@@ -113,6 +118,11 @@
                             "value": "759200000000000000",
                             "best_bid": "757000000000000000",
                             "best_ask": "761400000000000000",
+                            "last_trade": "760000000000000000",
+                            "last_trade_at": "2026-09-26T19:58:41.512Z",
+                            "chance": "759200000000000000",
+                            "chance_basis": "MID",
+                            "mark": "759200000000000000",
                             "scale": "1000000000000000000",
                             "freshness": "FRESH",
                             "received_at": "2026-09-26T19:59:09.72902044Z"
@@ -153,6 +163,11 @@
                             "value": "6030000000000000",
                             "best_bid": "6010000000000000",
                             "best_ask": "6050000000000000",
+                            "last_trade": "6030000000000000",
+                            "last_trade_at": "2026-09-26T19:58:41.512Z",
+                            "chance": "6030000000000000",
+                            "chance_basis": "MID",
+                            "mark": "6030000000000000",
                             "scale": "1000000000000000000",
                             "freshness": "FRESH",
                             "received_at": "2026-09-26T19:59:09.751601549Z"
@@ -167,6 +182,11 @@
                             "value": "993970000000000000",
                             "best_bid": "993950000000000000",
                             "best_ask": "993990000000000000",
+                            "last_trade": "993970000000000000",
+                            "last_trade_at": "2026-09-26T19:58:41.512Z",
+                            "chance": "993970000000000000",
+                            "chance_basis": "MID",
+                            "mark": "993970000000000000",
                             "scale": "1000000000000000000",
                             "freshness": "FRESH",
                             "received_at": "2026-09-26T19:59:09.751601549Z"
@@ -299,6 +319,11 @@
                           "value": "240800000000000000",
                           "best_bid": "238600000000000000",
                           "best_ask": "243000000000000000",
+                          "last_trade": "240000000000000000",
+                          "last_trade_at": "2026-09-26T19:58:41.512Z",
+                          "chance": "240800000000000000",
+                          "chance_basis": "MID",
+                          "mark": "240800000000000000",
                           "scale": "1000000000000000000",
                           "freshness": "FRESH",
                           "received_at": "2026-09-26T19:59:25.086007173Z"
@@ -313,6 +338,11 @@
                           "value": "759200000000000000",
                           "best_bid": "757000000000000000",
                           "best_ask": "761400000000000000",
+                          "last_trade": "760000000000000000",
+                          "last_trade_at": "2026-09-26T19:58:41.512Z",
+                          "chance": "759200000000000000",
+                          "chance_basis": "MID",
+                          "mark": "759200000000000000",
                           "scale": "1000000000000000000",
                           "freshness": "FRESH",
                           "received_at": "2026-09-26T19:59:25.086007173Z"
@@ -1092,7 +1122,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance after the maker answered or the two-second confirm window closed, returned within three seconds. Its status is `ACCEPTED`, `PENDING_FUNDING`, `DECLINED`, `TIMED_OUT` or `CANCELLED`, never `PENDING_CONFIRM`. `ACCEPTED` means the trade is queued, not yet on chain: follow `OPERATION_UPDATED` on the account stream until it fills.",
+            "description": "The acceptance after the maker answered or the two-second confirm window closed, returned within three seconds. Its status is `ACCEPTED`, `DECLINED`, `TIMED_OUT` or `CANCELLED`, never `PENDING_CONFIRM`. `ACCEPTED` means the trade is queued, not yet on chain: follow `OPERATION_UPDATED` on the account stream until it fills.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1166,7 +1196,7 @@
             }
           },
           "409": {
-            "description": "A quote can be accepted once: a new `Idempotency-Key` on an RFQ that already has a live acceptance returns `STATE_CONFLICT`.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote expired.\n- `QUOTE_CANCELLED` (retry `REFRESH`): The maker cancelled the quote.\n- `QUOTE_REPLACED` (retry `REFRESH`): A newer quote from the same maker replaced this one.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `CORE_FUNDING_CONFLICT` (retry `REFRESH`): Another Core funding is active for this account.\n- `CORE_VAULT_RESERVATION` (retry `REFRESH`): The vault reservation for this Core funding changed.\n- `CORE_MOVE_IN_FLIGHT` (retry `REFRESH`): A HyperCore transfer for this account is still in flight.",
+            "description": "A quote can be accepted once: a new `Idempotency-Key` on an RFQ that already has a live acceptance returns `STATE_CONFLICT`.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote expired.\n- `QUOTE_CANCELLED` (retry `REFRESH`): The maker cancelled the quote.\n- `QUOTE_REPLACED` (retry `REFRESH`): A newer quote from the same maker replaced this one.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `CORE_MOVE_IN_FLIGHT` (retry `REFRESH`): A HyperCore transfer for this account is still in flight.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1213,7 +1243,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.\n- `CORE_FUNDING_UNAVAILABLE` (retry `BACKOFF`): Core funding cannot be admitted now.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -1277,7 +1307,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance after your answer. `ACCEPTED` means the trade is queued, not yet on chain, and carries its `operation_id`. `PENDING_FUNDING` means the taker pays from HyperCore: the acceptance becomes `ACCEPTED`, or `CANCELLED` if the payment fails.",
+            "description": "The acceptance after your answer. `ACCEPTED` means the trade is queued, not yet on chain, and carries its `operation_id`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3403,6 +3433,167 @@
         }
       }
     },
+    "/v1/me/pnl": {
+      "get": {
+        "operationId": "getAccountPnl",
+        "summary": "Get P&L",
+        "tags": [
+          "Account"
+        ],
+        "description": "Your cumulative trading P&L over one range, for the account your Portfolio shows; a window's change is its last point minus its first.\n\nRequires a key for your account with `account:read`.",
+        "security": [
+          {
+            "apiKey": [
+              "account:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PnlRangeQueryOptional"
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for browser sessions; API keys do not require an Origin.",
+            "example": "https://totalis.trade"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your P&L series with one freshness status; points are cumulative atomic USDC strings, or null where a held share had no known value. No shared caching.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PnL"
+                },
+                "example": {
+                  "range": "1D",
+                  "tracked_since": "2026-09-08T00:00:00Z",
+                  "points": [
+                    {
+                      "at": "2026-09-16T12:03:20Z",
+                      "pnl": "1250000"
+                    },
+                    {
+                      "at": "2026-09-16T12:15:00Z",
+                      "pnl": "1250000"
+                    },
+                    {
+                      "at": "2026-09-17T12:00:00Z",
+                      "pnl": null
+                    },
+                    {
+                      "at": "2026-09-17T12:03:20Z",
+                      "pnl": "1360000"
+                    }
+                  ],
+                  "context": {
+                    "as_of": "2026-09-17T12:03:20Z",
+                    "status": "CURRENT"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "P&L is temporarily unavailable; resend after `Retry-After`.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `SOURCE_UNAVAILABLE` (retry `BACKOFF`): The account-read or stream source is unavailable.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/account/get-p-l"
+        }
+      }
+    },
     "/v1/me/activity": {
       "get": {
         "operationId": "listAccountActivity",
@@ -3967,8 +4158,8 @@
                 },
                 "example": {
                   "chain_id": "999",
-                  "vault_address": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745",
-                  "source_revision": "05d9ceb7d577a18013683ed677eedf5d7b4d9728",
+                  "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83",
+                  "source_revision": "d712d4658f3e5ee3e0fc7634c7f545586f290964",
                   "audit_status": "PRE_AUDIT",
                   "fee_bps": 100,
                   "taker_fee_bps": 20,
@@ -4081,7 +4272,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The account's ID, status, username and wallet.",
+            "description": "The account's ID, status, username, avatar seed and wallet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4091,6 +4282,7 @@
                   "account_id": "0198a6f6-82a5-7abc-9f2a-4f0fb4374941",
                   "status": "ACTIVE",
                   "username": "abhi_p",
+                  "avatar_seed": "5f0c9a2e-8b1d-4c3e-9f7a-1d2e3f4a5b6c",
                   "wallet": "0x1111111111111111111111111111111111111111"
                 }
               }
@@ -4381,7 +4573,7 @@
                   "pending_commitments": "25000000",
                   "free_after_pending": "4735000000",
                   "floor_bps": 0,
-                  "deployment_digest": "0x0f6e28930640eed03d5ef0ff488c4d5329aca6137cecc6fbb315153e9bb518e8",
+                  "deployment_digest": "0x40452ed111ecbd2a2c5bc4200002747a19eb0f8d62e602c38e34204d3f609910",
                   "actions": [
                     {
                       "action": "MAKER_WITHDRAW",
@@ -4646,7 +4838,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `COLLATERAL_REDUCTION_UNAVAILABLE` (retry `BACKOFF`): This vault does not serve collateral reductions now.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -4717,7 +4909,7 @@
                   "operation_status": "QUEUED",
                   "transaction": {
                     "chain_id": "999",
-                    "to": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745",
+                    "to": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83",
                     "data": "0x22879f2b0000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000600aea7d000000000000000000000000000000000000000000000000000000002b98f840800000000000000000000000000000000000000000000000000000001671e344000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000006ab7d058000000000000000000000000000000000000000000000000000000006ab7d184000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000415e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e00000000000000000000000000000000000000000000000000000000000000",
                     "value": "0"
                   },
@@ -5241,6 +5433,23 @@
         "description": "HIP-4 outcome ID of the market, as a decimal string.",
         "example": "1209"
       },
+      "PnlRangeQueryOptional": {
+        "name": "range",
+        "in": "query",
+        "required": false,
+        "description": "Window of the series: 1D, 1W, 1M (default) or ALL since tracking began.",
+        "example": "1D",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "1D",
+            "1W",
+            "1M",
+            "ALL"
+          ],
+          "default": "1M"
+        }
+      },
       "PositionId": {
         "name": "position_id",
         "in": "path",
@@ -5403,18 +5612,8 @@
             "description": "Your EIP-712 signature over the quote. For an entry quote, sign its `entry` terms as `TakerAccept`. For a cash-out quote, the owner signs `quote_id` as `SellBack` or `CashoutTransfer`, the same digest the maker signs."
           },
           "funding": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/WalletFunding"
-              },
-              {
-                "$ref": "#/components/schemas/CoreFundingRequest"
-              },
-              {
-                "$ref": "#/components/schemas/CombinedFundingRequest"
-              }
-            ],
-            "description": "Entry quotes only; not allowed on a cash-out. Covers the part of the stake your vault balance is short, by `kind`: `WALLET` (a USDC authorization from your wallet), `CORE` (a HyperCore spot USDC payment) or `COMBINED` (both). Omit it when your vault balance covers the stake."
+            "$ref": "#/components/schemas/WalletFunding",
+            "description": "Entry quotes only; not allowed on a cash-out. A USDC authorization from your wallet for the part of the stake your vault balance is short. Omit it when your vault balance covers the stake."
           }
         },
         "description": "The taker's accept of the quote in the path. The `Idempotency-Key` header becomes the `acceptance_id`."
@@ -5455,7 +5654,6 @@
           "status": {
             "enum": [
               "PENDING_CONFIRM",
-              "PENDING_FUNDING",
               "ACCEPTED",
               "FILLED",
               "FAILED",
@@ -5463,7 +5661,7 @@
               "TIMED_OUT",
               "CANCELLED"
             ],
-            "description": "`PENDING_CONFIRM`: waiting for the maker. `PENDING_FUNDING`: the maker confirmed an entry whose HyperCore payment is still pending. `ACCEPTED`: the maker confirmed and the trade is queued as `operation_id`. `FILLED`: the trade committed on chain. `FAILED`: it reverted or expired unexecuted. `DECLINED`: the maker declined. `TIMED_OUT`: the maker did not answer by `deadline`. `CANCELLED`: the quote or RFQ went away first, or the HyperCore payment failed."
+            "description": "`PENDING_CONFIRM`: waiting for the maker. `ACCEPTED`: the maker confirmed and the trade is queued as `operation_id`. `FILLED`: the trade committed on chain. `FAILED`: it reverted or expired unexecuted. `DECLINED`: the maker declined. `TIMED_OUT`: the maker did not answer by `deadline`. `CANCELLED`: the quote or RFQ went away first."
           },
           "deadline": {
             "$ref": "#/components/schemas/CommonTimestamp",
@@ -5717,11 +5915,6 @@
           }
         }
       },
-      "Address": {
-        "type": "string",
-        "pattern": "^0x[0-9a-fA-F]{40}$",
-        "format": "eip55-address"
-      },
       "Amount": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]{0,77})$"
@@ -5755,6 +5948,11 @@
         },
         "description": "Asset an effect moves. Deltas of different assets are different units and are never summed or compared."
       },
+      "AvatarSeed": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        "description": "A random (version 4) UUID, lowercase."
+      },
       "Balance": {
         "description": "The account's spendable Totalis balance in atomic USDC (6 decimals, \"1000000\" = 1 USDC): embedded wallet USDC plus free vault cash. HyperCore balances are read from Hyperliquid directly or through GET /v1/hypercore/portfolio.",
         "type": "object",
@@ -5768,7 +5966,7 @@
         ],
         "properties": {
           "amount": {
-            "description": "Spendable total in atomic USDC; null unless state is CURRENT. It is wallet USDC plus free vault cash minus pending.wallet_reserved, floored at zero.",
+            "description": "Spendable total in atomic USDC; null unless state is CURRENT. It is wallet USDC plus free vault cash minus the withdrawals and stake fundings in pending.wallet_reserved, floored at zero. A wallet deposit that has not committed stays in it.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -5808,7 +6006,7 @@
             ],
             "properties": {
               "wallet_reserved": {
-                "description": "Wallet USDC already committed to open Totalis withdrawals and stake fundings; subtracted from amount.",
+                "description": "Wallet USDC already committed to open Totalis withdrawals, stake fundings and wallet deposits that have not committed, so not spendable from the wallet. Withdrawals and stake fundings are subtracted from amount; a wallet deposit only moves into the vault and is not.",
                 "$ref": "#/components/schemas/CommonAmount"
               },
               "vault_deposits": {
@@ -5961,7 +6159,7 @@
           "legs": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 50,
+            "maxItems": 100,
             "items": {
               "$ref": "#/components/schemas/CommonLeg"
             },
@@ -6257,30 +6455,6 @@
           }
         }
       },
-      "CombinedFundingRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "core",
-          "wallet"
-        ],
-        "description": "Funds one stake from Hyperliquid Core spot USDC and the embedded wallet at once. Both amounts are authorized before the maker is asked, and core.value + wallet.value must equal the exact shortfall recomputed at admission.",
-        "properties": {
-          "kind": {
-            "description": "Funding source: COMBINED splits the shortfall between Core spot USDC and the embedded wallet.",
-            "const": "COMBINED"
-          },
-          "core": {
-            "description": "Core part of the funding; its value plus wallet.value must equal the exact shortfall.",
-            "$ref": "#/components/schemas/CoreFundingRequest"
-          },
-          "wallet": {
-            "$ref": "#/components/schemas/WalletFunding",
-            "description": "EIP-3009 authorization for the wallet part. valid_before must be strictly after the quote expiry, because the vault draws it only after Core evidence arrives and still accepts a quote on its expiry second, when an equal valid_before has already expired."
-          }
-        }
-      },
       "CommonAmount": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]*)$",
@@ -6397,122 +6571,6 @@
       "ContractSignature": {
         "type": "string",
         "pattern": "^0x(?:[0-9a-f]{2}){1,4096}$"
-      },
-      "CoreFundingAction": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "type",
-          "hyperliquidChain",
-          "signatureChainId",
-          "destination",
-          "sourceDex",
-          "destinationDex",
-          "token",
-          "amount",
-          "fromSubAccount",
-          "nonce"
-        ],
-        "properties": {
-          "type": {
-            "description": "Hyperliquid action type; always sendAsset.",
-            "const": "sendAsset"
-          },
-          "hyperliquidChain": {
-            "description": "Hyperliquid network: Mainnet pairs with HyperEVM chain 999, Testnet with 998.",
-            "enum": [
-              "Mainnet",
-              "Testnet"
-            ]
-          },
-          "signatureChainId": {
-            "description": "Hex chain ID the action is signed under: 0x3e7 (999) on Mainnet, 0x3e6 (998) on Testnet.",
-            "enum": [
-              "0x3e6",
-              "0x3e7"
-            ]
-          },
-          "destination": {
-            "description": "Totalis float address that receives the USDC; must equal deployment.float_address.",
-            "$ref": "#/components/schemas/NonZeroAddress"
-          },
-          "sourceDex": {
-            "description": "Balance the USDC leaves; always spot.",
-            "const": "spot"
-          },
-          "destinationDex": {
-            "description": "Balance the USDC arrives in; always spot.",
-            "const": "spot"
-          },
-          "token": {
-            "description": "Hyperliquid USDC spot token: USDC:0x6d1e7cde53ba9467b783cb7c530ce054 on Mainnet, USDC:0xeb62eee3685fc4c43992febcd9e75443 on Testnet.",
-            "enum": [
-              "USDC:0x6d1e7cde53ba9467b783cb7c530ce054",
-              "USDC:0xeb62eee3685fc4c43992febcd9e75443"
-            ]
-          },
-          "amount": {
-            "description": "Core part as a decimal USDC string, e.g. \"12.5\"; must equal value divided by 1,000,000.",
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,6})?$"
-          },
-          "fromSubAccount": {
-            "description": "Sub-account to send from; always the empty string, meaning the main account.",
-            "const": ""
-          },
-          "nonce": {
-            "description": "Action nonce in Unix milliseconds, from 48 hours before to 24 hours after server time; must equal core_action.nonce.",
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          }
-        }
-      },
-      "CoreFundingRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "value",
-          "core_action"
-        ],
-        "properties": {
-          "kind": {
-            "description": "Funding source: CORE pays the shortfall from Hyperliquid Core spot USDC.",
-            "const": "CORE"
-          },
-          "value": {
-            "type": "string",
-            "pattern": "^[1-9][0-9]*$",
-            "description": "Exact requested shortfall in integer USDC-6; recomputed at admission."
-          },
-          "core_action": {
-            "description": "Signed Hyperliquid sendAsset moving value from the caller's Core spot balance to the Totalis float.",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "action",
-              "nonce",
-              "signature"
-            ],
-            "properties": {
-              "action": {
-                "description": "The sendAsset action exactly as signed.",
-                "$ref": "#/components/schemas/CoreFundingAction"
-              },
-              "nonce": {
-                "description": "Hyperliquid request nonce in Unix milliseconds; must equal action.nonce.",
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 9007199254740991
-              },
-              "signature": {
-                "description": "Signature by the paying account, the caller's embedded wallet, over the HyperliquidTransaction:SendAsset message.",
-                "$ref": "#/components/schemas/HypercoreSignature"
-              }
-            }
-          }
-        }
       },
       "CreateCashoutCommand": {
         "type": "object",
@@ -7102,8 +7160,6 @@
           "QUOTE_CAPACITY_EXCEEDED",
           "CORE_ACCOUNT_NOT_READY",
           "CORE_EXIT_ABANDONED",
-          "CORE_FUNDING_CONFLICT",
-          "CORE_VAULT_RESERVATION",
           "CORE_MOVE_IN_FLIGHT",
           "USERNAME_TAKEN",
           "USERNAME_ALREADY_SET",
@@ -7126,8 +7182,8 @@
           "MARKET_DATA_UNAVAILABLE",
           "BROWSE_UNAVAILABLE",
           "FINANCIAL_ACTIONS_DISABLED",
-          "CORE_FUNDING_UNAVAILABLE",
           "CORE_EXIT_UNAVAILABLE",
+          "COLLATERAL_REDUCTION_UNAVAILABLE",
           "SPONSORSHIP_UNAVAILABLE",
           "CONTRACT_SIGNATURE_OVERLOADED",
           "QUOTE_EXPOSURE_STALE",
@@ -7430,35 +7486,6 @@
           }
         }
       },
-      "HypercoreSignature": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "r",
-          "s",
-          "v"
-        ],
-        "properties": {
-          "r": {
-            "type": "string",
-            "pattern": "^0x[0-9a-f]{64}$",
-            "description": "ECDSA r component of the secp256k1 signature, 32-byte hex."
-          },
-          "s": {
-            "type": "string",
-            "pattern": "^0x[0-9a-f]{64}$",
-            "description": "ECDSA s component of the secp256k1 signature, 32-byte hex."
-          },
-          "v": {
-            "type": "integer",
-            "enum": [
-              27,
-              28
-            ],
-            "description": "ECDSA recovery value, 27 or 28."
-          }
-        }
-      },
       "IntegerValue": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]*)$",
@@ -7600,8 +7627,9 @@
             "description": "Maker owner (its controller) from the same indexed vault row as the lanes."
           },
           "signer": {
-            "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "Maker signer (its quote signer) from the same indexed vault row as the lanes."
+            "type": "string",
+            "pattern": "^0x[0-9a-f]{40}$",
+            "description": "Maker signer (its quote signer) from the same indexed vault row as the lanes. The zero address means the maker was opened without one and cannot quote."
           },
           "vault_gross": {
             "$ref": "#/components/schemas/UnsignedMetric",
@@ -8166,14 +8194,6 @@
         "maxLength": 2048,
         "description": "Opaque cursor for the next page, or null when has_more is false."
       },
-      "NonZeroAddress": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Address"
-          }
-        ],
-        "description": "Never `0x0000000000000000000000000000000000000000`."
-      },
       "NonZeroBytes32": {
         "allOf": [
           {
@@ -8334,6 +8354,74 @@
           }
         }
       },
+      "PnL": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "range",
+          "tracked_since",
+          "points",
+          "context"
+        ],
+        "description": "Cumulative trading P&L of the account Portfolio shows, computed on read: Core trading plus Combos closed in the deployment's vault. Points are cumulative since tracked_since, not rebased: a window's change is its last point minus its first. Deposits, withdrawals and moves between Core and the vault never move it.",
+        "properties": {
+          "range": {
+            "type": "string",
+            "enum": [
+              "1D",
+              "1W",
+              "1M",
+              "ALL"
+            ],
+            "description": "The requested range, echoed."
+          },
+          "tracked_since": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Start of the account's recorded Core history; P&L is cumulative from here. It does not prove that history is complete: a fill gap, an unbridged cash gap or holdings the history cannot reproduce make the read UNAVAILABLE with tracked_since still set. Null while the wallet is not yet observed, with no points and a STALE context."
+          },
+          "points": {
+            "type": "array",
+            "maxItems": 400,
+            "description": "Ascending instants: the window start (never before tracked_since), every round UTC step boundary inside it (1D every 15 minutes, 1W every hour, 1M every 6 hours, ALL an adaptive step of at most 200 points), then the read time valued at live marks.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "at",
+                "pnl"
+              ],
+              "properties": {
+                "at": {
+                  "$ref": "#/components/schemas/Timestamp",
+                  "description": "Point time."
+                },
+                "pnl": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SignedAmount"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Cumulative P&L from tracked_since up to at, in atomic USDC (6 decimals, \"1000000\" = 1 USDC), rounded once, half away from zero. Null when a share held at at has no known value, when at precedes the first known value of shares held at tracked_since (every earlier point is null), or when the read is UNAVAILABLE; null is never zero."
+                }
+              }
+            }
+          },
+          "context": {
+            "$ref": "#/components/schemas/ReadContext",
+            "description": "Freshness of this read. as_of is the valuation instant, the last point's at: it values the covered history at that instant's marks, and STALE says a source lags. UNAVAILABLE nulls every point."
+          }
+        }
+      },
       "Position": {
         "type": "object",
         "additionalProperties": false,
@@ -8377,7 +8465,7 @@
               "SETTLED_UNCLAIMED",
               "CLOSED"
             ],
-            "description": "OPEN: not yet known eligible for settlement; AWAITING_SETTLEMENT: every leg resolved, or a leg lost, but no settlement observed; SETTLED_UNCLAIMED: settled with profit still unclaimed; CLOSED: closed by zero-profit settlement, final claim or sell-back."
+            "description": "OPEN: not yet known eligible for settlement; AWAITING_SETTLEMENT: every leg resolved, or the payout with every unresolved leg counted as a win already rounds down to zero, but no settlement observed; SETTLED_UNCLAIMED: settled with profit still unclaimed; CLOSED: closed by zero-profit settlement, final claim or sell-back."
           },
           "fee_bps": {
             "type": "integer",
@@ -8427,7 +8515,7 @@
               "$ref": "#/components/schemas/Leg"
             },
             "minItems": 1,
-            "maxItems": 50,
+            "maxItems": 100,
             "description": "Position legs in ascending outcome_id order, with each leg's resolution."
           },
           "created_at": {
@@ -9106,9 +9194,68 @@
             ],
             "description": "Best ask at scale when the feed carries a book, otherwise null."
           },
+          "last_trade": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IntegerValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Price of the latest book execution on this side at scale, kept across restarts; a fill prints on both sides at prices summing to scale. Null when no trade is known."
+          },
+          "last_trade_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommonTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hyperliquid time of last_trade, RFC 3339 UTC; null exactly when last_trade is null."
+          },
+          "chance": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IntegerValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Crowd probability at scale: the book midpoint when best_ask - best_bid is at most 10% of scale, last_trade when the spread is at most 50% and last_trade lies within [best_bid, best_ask], otherwise null. The midpoint rounds half to even, so YES and NO chances sum to scale. chance_basis says which applied."
+          },
+          "chance_basis": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "MID",
+                  "LAST_TRADE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which input chance is: MID, the book midpoint, so a midpoint history describes it; LAST_TRADE, last_trade on a wide book, where midpoint history does not. Null exactly when chance is null."
+          },
+          "mark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IntegerValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Value of one held share at scale: chance when known, else best_bid, else 0 when only asks exist; null when no book is known. Not a price a trade receives."
+          },
           "scale": {
             "$ref": "#/components/schemas/Scale",
-            "description": "Divisor for value, best_bid and best_ask; currently 1000000000000000000 (18 decimals)."
+            "description": "Divisor for value, best_bid, best_ask, last_trade, chance and mark; currently 1000000000000000000 (18 decimals)."
           },
           "freshness": {
             "type": "string",
@@ -9894,7 +10041,11 @@
                 "type": "null"
               }
             ],
-            "description": "The account's public username, or null until it picks one with PUT /v1/me/username. Servers before contract 129 omit it."
+            "description": "The account's public username and the name of its /r/ link, or null until it picks one with PUT /v1/me/username or takes a generated one with POST /v1/me/username. It can change. Servers before contract 129 omit it."
+          },
+          "avatar_seed": {
+            "$ref": "#/components/schemas/AvatarSeed",
+            "description": "Random seed assigned when the account is created; the account can change it with PUT /v1/me/avatar. Clients draw the account's generated avatar from it, so the avatar is the same on every device. Servers before contract 134 omit it."
           },
           "wallet": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
@@ -9920,7 +10071,7 @@
             "description": "Funding source: WALLET pays the shortfall from the caller's embedded wallet."
           },
           "value": {
-            "description": "Atomic USDC (6 decimals) drawn from the wallet into the vault. It must equal the exact stake shortfall over free vault cash at admission, or the wallet part of a Combined funding.",
+            "description": "Atomic USDC (6 decimals) drawn from the wallet into the vault. It must equal the exact stake shortfall over free vault cash at admission.",
             "$ref": "#/components/schemas/CommonAmount"
           },
           "valid_after": {
