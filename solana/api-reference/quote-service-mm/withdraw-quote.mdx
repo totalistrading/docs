@@ -1,0 +1,73 @@
+---
+title: 'Withdraw quote'
+api: 'DELETE /v1/mm/quote-requests/{id}/quote'
+description: 'Withdraw your active quote from a quote request before the user commits it.'
+---
+
+Withdraw your active quote from a quote request. If the quote already expired naturally, you get `already_expired` instead of an error.
+
+<Note>
+Withdraw only to retract a current-version quote you no longer want to honor, for example when your price moved before the user committed. A `version` change needs no withdraw: your prior-version quote is invalidated automatically. To quote the new version, [submit](/solana/api-reference/quote-service-mm/submit-quote) again with the new `request_version` and `request_hash`.
+</Note>
+
+## Authentication
+
+API key required. Pass your API key in the `X-API-Key` header.
+
+```
+X-API-Key: <key>
+```
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The quote request ID (UUID).
+</ParamField>
+
+## Request body (optional)
+
+<ParamField body="request_version" type="integer">
+  The request version your quote was submitted for. Defaults to the current version.
+</ParamField>
+
+<ParamField body="request_hash" type="string">
+  The request hash your quote was submitted for. Defaults to the current hash.
+</ParamField>
+
+## Response
+
+Returns `204 No Content` when the quote is withdrawn, or `200 OK` if it had already expired naturally:
+
+```json
+{
+  "data": {
+    "status": "already_expired"
+  }
+}
+```
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 404 | `NOT_FOUND` | Quote request not found. |
+| 409 | `CONFLICT` | No active quote to withdraw, request expired, no longer active, or version mismatch. See `details.reason`. |
+
+<RequestExample>
+```bash
+curl -X DELETE https://api.totalis.trade/v1/mm/quote-requests/1a6d1f06-9d4f-47cb-994b-3bdfbbef7e40/quote \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_version": 1,
+    "request_hash": "sha256:9f86d08..."
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```bash 204
+# No response body
+```
+</ResponseExample>

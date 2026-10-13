@@ -1,0 +1,104 @@
+---
+title: 'Reading your data'
+icon: 'chart-line'
+description: 'Pull account state on demand: portfolio, parlay history, settlement outcomes, P&L, and balances, for backfill and reconciliation.'
+---
+
+Read endpoints return your current state on demand. Use them to backfill, reconcile, and display.
+For events as they happen, use [webhooks](/solana/guides/webhooks) or the [WebSocket](/solana/guides/websocket).
+[Real time and data channels](/solana/guides/realtime) compares all four channels.
+
+Authenticated reads take a scoped API key and live under `/v1`. Market data at `/markets` is public
+and needs no key.
+
+## What to read
+
+| You want | Endpoint | Scope |
+| --- | --- | --- |
+| Balance, stats, and status counts in one call | [`GET /v1/portfolio`](/solana/api-reference/funds/portfolio) | `positions:read` + `balances:read` |
+| Vault balance and active positions | [`GET /v1/vault`](/solana/api-reference/funds/get-vault) | `balances:read` |
+| Wallet address, all balances, locked funds | [`GET /v1/wallet`](/solana/api-reference/user/get-wallet) | `balances:read` |
+| Your parlays, paginated, filterable by status | [`GET /v1/rfqs`](/solana/api-reference/parlays/list) | `positions:read` |
+| One parlay's detail and settlement outcome | [`GET /v1/rfqs/{id}`](/solana/api-reference/parlays/get) | `positions:read` |
+| Realized P&L timeseries | [`GET /v1/pnl`](/solana/api-reference/funds/pnl) | `positions:read` |
+| Your profile | [`GET /v1/me`](/solana/api-reference/user/get-profile) | `account:read` |
+| Live market data | [`GET /markets`](/solana/api-reference/markets/list) | none, public |
+
+## Filtering parlays
+
+[`GET /v1/rfqs`](/solana/api-reference/parlays/list) takes two query parameters:
+
+| Parameter | Behavior |
+| --- | --- |
+| `status` | Comma joined, for example `?status=executed,settled`. See the [status reference](/solana/guides/lifecycle#status-reference). |
+| `include=quotes` | Attaches each parlay's `quotes` array. Without it, `quotes` is `null`, meaning not requested. With it, an empty array `[]` means no quotes were submitted. |
+
+## P&L windows
+
+[`GET /v1/pnl`](/solana/api-reference/funds/pnl) returns realized P&L per day. Pick the window with
+`?period=1D`, `1W`, `1M`, or `ALL`. The default is `1W`.
+
+<Warning>
+Everything on the read surface is realized. `portfolio.summary.portfolio_value` is your deposited
+USDC. It does not mark open positions to market, and there is no unrealized P&L field anywhere in
+the API. To value open positions, price each leg yourself against live
+[`/markets`](/solana/api-reference/markets/list) data.
+</Warning>
+
+## Balances
+
+[`GET /v1/wallet`](/solana/api-reference/user/get-wallet) returns every balance in one call. Each field is
+defined in the [Glossary](/solana/glossary#balance-fields).
+
+```
+total USDC you control = usdc_balance + vault_balance
+available to trade     = usdc_balance + vault_balance - locked_amount
+```
+
+<Warning>
+Do not subtract `/v1/vault`'s `locked_collateral` on top of `locked_amount`. It is already counted
+inside `locked_amount`. Subtracting both understates your available balance and makes a bot refuse
+trades it can afford.
+</Warning>
+
+## Settlement outcomes
+
+[`GET /v1/rfqs/{id}`](/solana/api-reference/parlays/get) is the source of truth for how a parlay resolved.
+Once it is terminal, the response carries the full settlement detail:
+
+| Field | Contents |
+| --- | --- |
+| per-leg `outcome` | How each leg resolved. |
+| `status` | `settled`, `cancelled`, `expired`, or `bought_back`. |
+| payout | The amount paid to the winning side. |
+| `settle_tx`, `cancel_tx`, `buyback_tx` | On-chain transaction signatures. |
+
+A parlay id you do not own returns `404`.
+
+## Reconciling
+
+<Steps>
+  <Step title="Enumerate terminal parlays">
+    Page through [`GET /v1/rfqs?status=settled`](/solana/api-reference/parlays/list), following
+    `meta.cursor` until `has_more` is false.
+  </Step>
+  <Step title="Fetch detail for anything new">
+    For each parlay you have not recorded, fetch
+    [`GET /v1/rfqs/{id}`](/solana/api-reference/parlays/get) for the settlement detail and transaction
+    signatures.
+  </Step>
+  <Step title="Cross-check the totals">
+    Compare realized P&L against [`GET /v1/pnl`](/solana/api-reference/funds/pnl) and current balances
+    against [`GET /v1/vault`](/solana/api-reference/funds/get-vault).
+  </Step>
+</Steps>
+
+<Note>
+Cursors are opaque. Pass the `meta.cursor` value from the previous response as `?cursor=...`. Never
+parse or construct one.
+</Note>
+
+### What reconciliation is the only way to catch
+
+Cashout bids that acquire a position you did not back. See
+[the acquisition gap](/solana/guides/event-catalog#the-acquisition-gap).

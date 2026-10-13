@@ -24,8 +24,8 @@ description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptanc
 | Vault | The Totalis contract on HyperEVM that holds USDC and every position (`vault_address`). |
 | Maker vault | The USDC that backs a maker's positions: its deposits, plus takers' stakes held while their positions are open. Separate from the maker owner's own vault balance. |
 | Free collateral | What a maker vault can still back: `free_collateral` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
-| Collateral reduction | A job that lowers a maker's requirement to what its open positions can lose together. See [Maker collateral](/hyperliquid/collateral). |
+| Collateral reduction | A job that lowers a maker's requirement to what its open positions can lose together. See [Maker collateral](/hyperliquid/guides/collateral). |
 | Totalis balance | Your wallet's USDC on HyperEVM plus your free vault balance. |
 | Wallet | Your Totalis embedded wallet. It approves your keys and signs your trades. |
 | Deployment | The chain, vault, current fees and USDC domain that quotes and signatures use ([Get deployment](/hyperliquid/api-reference/deployment/get-deployment)). Trade messages sign against the vault; USDC authorizations sign against the USDC domain. |
-| Cursor | Your place in the [WebSocket](/hyperliquid/realtime). Send it back to resume. |
+| Cursor | Your place in the [WebSocket](/hyperliquid/guides/realtime). Send it back to resume. |

@@ -37,47 +37,47 @@
               {
                 "group": "Overview",
                 "pages": [
-                  "index"
+                  "solana/index"
                 ]
               },
               {
                 "group": "Get started",
                 "pages": [
-                  "guides/quickstart",
-                  "guides/how-do-i",
-                  "guides/authentication"
+                  "solana/quickstart",
+                  "solana/how-do-i",
+                  "solana/authentication"
                 ]
               },
               {
                 "group": "Core concepts",
                 "pages": [
-                  "guides/lifecycle",
-                  "guides/limits-and-fees",
-                  "guides/funding",
-                  "guides/vault-architecture",
-                  "guides/glossary"
+                  "solana/guides/lifecycle",
+                  "solana/limits-and-fees",
+                  "solana/guides/funding",
+                  "solana/guides/vault-architecture",
+                  "solana/glossary"
                 ]
               },
               {
                 "group": "Guides",
                 "pages": [
-                  "guides/realtime-and-data",
-                  "guides/event-catalog",
-                  "guides/reading-data",
-                  "guides/webhooks",
-                  "guides/websocket",
-                  "guides/early-cashout",
-                  "guides/quote-requests",
-                  "guides/market-maker",
-                  "guides/cashout-auctions"
+                  "solana/guides/realtime",
+                  "solana/guides/event-catalog",
+                  "solana/guides/reading-data",
+                  "solana/guides/webhooks",
+                  "solana/guides/websocket",
+                  "solana/guides/early-cashout",
+                  "solana/guides/quote-requests",
+                  "solana/guides/market-making",
+                  "solana/guides/cashout-auctions"
                 ]
               },
               {
                 "group": "Resources",
                 "pages": [
-                  "guides/faq",
-                  "changelog",
-                  "referrals",
+                  "solana/faq",
+                  "solana/changelog",
+                  "solana/referrals",
                   "terms-of-service",
                   "privacy-policy"
                 ]
@@ -90,91 +90,91 @@
               {
                 "group": "Overview",
                 "pages": [
-                  "api-reference/introduction",
-                  "api-reference/errors"
+                  "solana/api-reference/introduction",
+                  "solana/errors"
                 ]
               },
               {
                 "group": "Quote service",
                 "pages": [
-                  "api-reference/quote-service/create",
-                  "api-reference/quote-service/update",
-                  "api-reference/quote-service/get",
-                  "api-reference/quote-service/commit",
-                  "api-reference/quote-service/cancel",
-                  "api-reference/quote-service/stream",
-                  "api-reference/quote-service/cashout-create",
-                  "api-reference/quote-service/cashout-stream",
-                  "api-reference/quote-service/cashout-commit"
+                  "solana/api-reference/quote-service/create",
+                  "solana/api-reference/quote-service/update",
+                  "solana/api-reference/quote-service/get",
+                  "solana/api-reference/quote-service/commit",
+                  "solana/api-reference/quote-service/cancel",
+                  "solana/api-reference/quote-service/stream",
+                  "solana/api-reference/quote-service/cashout-create",
+                  "solana/api-reference/quote-service/cashout-stream",
+                  "solana/api-reference/quote-service/cashout-commit"
                 ]
               },
               {
                 "group": "Market maker",
                 "pages": [
-                  "api-reference/quote-service-mm/stream",
-                  "api-reference/quote-service-mm/submit-quote",
-                  "api-reference/quote-service-mm/withdraw-quote",
-                  "api-reference/quote-service-mm/cashout-quote",
-                  "api-reference/mm/list-quotes",
-                  "api-reference/mm/confirm-quote",
-                  "api-reference/mm/list-positions",
-                  "api-reference/mm/get-position"
+                  "solana/api-reference/quote-service-mm/stream",
+                  "solana/api-reference/quote-service-mm/submit-quote",
+                  "solana/api-reference/quote-service-mm/withdraw-quote",
+                  "solana/api-reference/quote-service-mm/cashout-quote",
+                  "solana/api-reference/mm/list-quotes",
+                  "solana/api-reference/mm/confirm-quote",
+                  "solana/api-reference/mm/list-positions",
+                  "solana/api-reference/mm/get-position"
                 ]
               },
               {
                 "group": "Markets",
                 "pages": [
-                  "api-reference/markets/list",
-                  "api-reference/markets/list-flat",
-                  "api-reference/markets/get"
+                  "solana/api-reference/markets/list",
+                  "solana/api-reference/markets/list-flat",
+                  "solana/api-reference/markets/get"
                 ]
               },
               {
                 "group": "Parlays",
                 "pages": [
-                  "api-reference/parlays/list",
-                  "api-reference/parlays/get"
+                  "solana/api-reference/parlays/list",
+                  "solana/api-reference/parlays/get"
                 ]
               },
               {
                 "group": "Account",
                 "pages": [
-                  "api-reference/user/get-profile",
-                  "api-reference/user/update-username",
-                  "api-reference/user/check-username",
-                  "api-reference/user/get-wallet",
-                  "api-reference/user/submit-tx"
+                  "solana/api-reference/user/get-profile",
+                  "solana/api-reference/user/update-username",
+                  "solana/api-reference/user/check-username",
+                  "solana/api-reference/user/get-wallet",
+                  "solana/api-reference/user/submit-tx"
                 ]
               },
               {
                 "group": "API keys",
                 "pages": [
-                  "api-reference/user/list-api-keys",
-                  "api-reference/user/create-api-key",
-                  "api-reference/user/revoke-api-key"
+                  "solana/api-reference/user/list-api-keys",
+                  "solana/api-reference/user/create-api-key",
+                  "solana/api-reference/user/revoke-api-key"
                 ]
               },
               {
                 "group": "Funds and vault",
                 "pages": [
-                  "api-reference/funds/get-vault",
-                  "api-reference/funds/vault-deposit",
-                  "api-reference/funds/vault-withdraw",
-                  "api-reference/funds/wallet-withdraw",
-                  "api-reference/funds/delegation-status",
-                  "api-reference/funds/enable-trading",
-                  "api-reference/funds/portfolio",
-                  "api-reference/funds/pnl"
+                  "solana/api-reference/funds/get-vault",
+                  "solana/api-reference/funds/vault-deposit",
+                  "solana/api-reference/funds/vault-withdraw",
+                  "solana/api-reference/funds/wallet-withdraw",
+                  "solana/api-reference/funds/delegation-status",
+                  "solana/api-reference/funds/enable-trading",
+                  "solana/api-reference/funds/portfolio",
+                  "solana/api-reference/funds/pnl"
                 ]
               },
               {
                 "group": "Webhooks",
                 "pages": [
-                  "api-reference/webhooks/get-config",
-                  "api-reference/webhooks/set-config",
-                  "api-reference/webhooks/rotate-secret",
-                  "api-reference/webhooks/list-deliveries",
-                  "api-reference/webhooks/redeliver"
+                  "solana/api-reference/webhooks/get-config",
+                  "solana/api-reference/webhooks/set-config",
+                  "solana/api-reference/webhooks/rotate-secret",
+                  "solana/api-reference/webhooks/list-deliveries",
+                  "solana/api-reference/webhooks/redeliver"
                 ]
               }
             ]
@@ -191,7 +191,7 @@
               {
                 "group": "Get started",
                 "pages": [
-                  "hyperliquid/overview",
+                  "hyperliquid/index",
                   "hyperliquid/quickstart",
                   "hyperliquid/authentication"
                 ]
@@ -199,18 +199,19 @@
               {
                 "group": "Guides",
                 "pages": [
-                  "hyperliquid/trading",
-                  "hyperliquid/market-making",
-                  "hyperliquid/collateral",
-                  "hyperliquid/realtime",
-                  "hyperliquid/withdrawals",
-                  "hyperliquid/referrals"
+                  "hyperliquid/guides/trading",
+                  "hyperliquid/guides/market-making",
+                  "hyperliquid/guides/collateral",
+                  "hyperliquid/guides/realtime",
+                  "hyperliquid/guides/withdrawals"
                 ]
               },
               {
                 "group": "Resources",
                 "pages": [
                   "hyperliquid/glossary",
+                  "hyperliquid/referrals",
+                  "hyperliquid/limits-and-fees",
                   "hyperliquid/errors",
                   "hyperliquid/sdk"
                 ]
@@ -305,10 +306,10 @@
               {
                 "group": "WebSocket",
                 "pages": [
-                  "hyperliquid/websocket/connection",
-                  "hyperliquid/websocket/account",
-                  "hyperliquid/websocket/maker",
-                  "hyperliquid/websocket/market-data",
+                  "hyperliquid/api-reference/websocket/connection",
+                  "hyperliquid/api-reference/websocket/account",
+                  "hyperliquid/api-reference/websocket/maker",
+                  "hyperliquid/api-reference/websocket/market-data",
                   "GET /v1/stream"
                 ]
               }
@@ -369,68 +370,372 @@
     ]
   },
   "openapi": [
-    "/api-reference/openapi.json"
+    "/solana/api-reference/openapi.json"
   ],
   "redirects": [
     {
       "source": "/guides/world-cup-reward-pool",
-      "destination": "/referrals"
+      "destination": "/solana/referrals"
     },
     {
       "source": "/guides/early-exit-auctions",
-      "destination": "/guides/early-cashout"
+      "destination": "/solana/guides/early-cashout"
     },
     {
       "source": "/api-reference/mm/submit-quote",
-      "destination": "/api-reference/quote-service-mm/submit-quote"
+      "destination": "/solana/api-reference/quote-service-mm/submit-quote"
     },
     {
       "source": "/api-reference/mm/withdraw-quote",
-      "destination": "/api-reference/quote-service-mm/withdraw-quote"
+      "destination": "/solana/api-reference/quote-service-mm/withdraw-quote"
     },
     {
       "source": "/api-reference/mm/submit-quote-request-quote",
-      "destination": "/api-reference/quote-service-mm/submit-quote"
+      "destination": "/solana/api-reference/quote-service-mm/submit-quote"
     },
     {
       "source": "/api-reference/mm/withdraw-quote-request-quote",
-      "destination": "/api-reference/quote-service-mm/withdraw-quote"
+      "destination": "/solana/api-reference/quote-service-mm/withdraw-quote"
     },
     {
       "source": "/api-reference/mm/list-rfqs",
-      "destination": "/api-reference/quote-service-mm/stream"
+      "destination": "/solana/api-reference/quote-service-mm/stream"
     },
     {
       "source": "/api-reference/mm/list-quote-requests",
-      "destination": "/api-reference/quote-service-mm/stream"
+      "destination": "/solana/api-reference/quote-service-mm/stream"
     },
     {
       "source": "/api-reference/rfqs/create",
-      "destination": "/api-reference/quote-service/create"
+      "destination": "/solana/api-reference/quote-service/create"
     },
     {
       "source": "/api-reference/rfqs/get",
-      "destination": "/api-reference/quote-service/get"
+      "destination": "/solana/api-reference/quote-service/get"
     },
     {
       "source": "/api-reference/rfqs/list",
-      "destination": "/guides/reading-data"
+      "destination": "/solana/guides/reading-data"
     },
     {
       "source": "/api-reference/rfqs/list-quotes",
-      "destination": "/api-reference/quote-service/get"
+      "destination": "/solana/api-reference/quote-service/get"
     },
     {
       "source": "/api-reference/rfqs/accept-quote",
-      "destination": "/api-reference/quote-service/commit"
+      "destination": "/solana/api-reference/quote-service/commit"
     },
     {
       "source": "/api-reference/rfqs/cancel",
-      "destination": "/api-reference/quote-service/cancel"
+      "destination": "/solana/api-reference/quote-service/cancel"
     },
     {
       "source": "/guides/live-quote-requests",
-      "destination": "/guides/quote-requests"
+      "destination": "/solana/guides/quote-requests"
+    },
+    {
+      "source": "/guides/quickstart",
+      "destination": "/solana/quickstart"
+    },
+    {
+      "source": "/guides/authentication",
+      "destination": "/solana/authentication"
+    },
+    {
+      "source": "/guides/how-do-i",
+      "destination": "/solana/how-do-i"
+    },
+    {
+      "source": "/guides/glossary",
+      "destination": "/solana/glossary"
+    },
+    {
+      "source": "/guides/faq",
+      "destination": "/solana/faq"
+    },
+    {
+      "source": "/guides/limits-and-fees",
+      "destination": "/solana/limits-and-fees"
+    },
+    {
+      "source": "/guides/lifecycle",
+      "destination": "/solana/guides/lifecycle"
+    },
+    {
+      "source": "/guides/funding",
+      "destination": "/solana/guides/funding"
+    },
+    {
+      "source": "/guides/vault-architecture",
+      "destination": "/solana/guides/vault-architecture"
+    },
+    {
+      "source": "/guides/event-catalog",
+      "destination": "/solana/guides/event-catalog"
+    },
+    {
+      "source": "/guides/reading-data",
+      "destination": "/solana/guides/reading-data"
+    },
+    {
+      "source": "/guides/webhooks",
+      "destination": "/solana/guides/webhooks"
+    },
+    {
+      "source": "/guides/websocket",
+      "destination": "/solana/guides/websocket"
+    },
+    {
+      "source": "/guides/early-cashout",
+      "destination": "/solana/guides/early-cashout"
+    },
+    {
+      "source": "/guides/quote-requests",
+      "destination": "/solana/guides/quote-requests"
+    },
+    {
+      "source": "/guides/cashout-auctions",
+      "destination": "/solana/guides/cashout-auctions"
+    },
+    {
+      "source": "/guides/realtime-and-data",
+      "destination": "/solana/guides/realtime"
+    },
+    {
+      "source": "/guides/market-maker",
+      "destination": "/solana/guides/market-making"
+    },
+    {
+      "source": "/changelog",
+      "destination": "/solana/changelog"
+    },
+    {
+      "source": "/referrals",
+      "destination": "/solana/referrals"
+    },
+    {
+      "source": "/api-reference/errors",
+      "destination": "/solana/errors"
+    },
+    {
+      "source": "/api-reference/funds/delegation-status",
+      "destination": "/solana/api-reference/funds/delegation-status"
+    },
+    {
+      "source": "/api-reference/funds/enable-trading",
+      "destination": "/solana/api-reference/funds/enable-trading"
+    },
+    {
+      "source": "/api-reference/funds/get-vault",
+      "destination": "/solana/api-reference/funds/get-vault"
+    },
+    {
+      "source": "/api-reference/funds/pnl",
+      "destination": "/solana/api-reference/funds/pnl"
+    },
+    {
+      "source": "/api-reference/funds/portfolio",
+      "destination": "/solana/api-reference/funds/portfolio"
+    },
+    {
+      "source": "/api-reference/funds/vault-deposit",
+      "destination": "/solana/api-reference/funds/vault-deposit"
+    },
+    {
+      "source": "/api-reference/funds/vault-withdraw",
+      "destination": "/solana/api-reference/funds/vault-withdraw"
+    },
+    {
+      "source": "/api-reference/funds/wallet-withdraw",
+      "destination": "/solana/api-reference/funds/wallet-withdraw"
+    },
+    {
+      "source": "/api-reference/introduction",
+      "destination": "/solana/api-reference/introduction"
+    },
+    {
+      "source": "/api-reference/markets/get",
+      "destination": "/solana/api-reference/markets/get"
+    },
+    {
+      "source": "/api-reference/markets/list-flat",
+      "destination": "/solana/api-reference/markets/list-flat"
+    },
+    {
+      "source": "/api-reference/markets/list",
+      "destination": "/solana/api-reference/markets/list"
+    },
+    {
+      "source": "/api-reference/mm/confirm-quote",
+      "destination": "/solana/api-reference/mm/confirm-quote"
+    },
+    {
+      "source": "/api-reference/mm/get-position",
+      "destination": "/solana/api-reference/mm/get-position"
+    },
+    {
+      "source": "/api-reference/mm/list-positions",
+      "destination": "/solana/api-reference/mm/list-positions"
+    },
+    {
+      "source": "/api-reference/mm/list-quotes",
+      "destination": "/solana/api-reference/mm/list-quotes"
+    },
+    {
+      "source": "/api-reference/parlays/get",
+      "destination": "/solana/api-reference/parlays/get"
+    },
+    {
+      "source": "/api-reference/parlays/list",
+      "destination": "/solana/api-reference/parlays/list"
+    },
+    {
+      "source": "/api-reference/quote-service/cancel",
+      "destination": "/solana/api-reference/quote-service/cancel"
+    },
+    {
+      "source": "/api-reference/quote-service/cashout-commit",
+      "destination": "/solana/api-reference/quote-service/cashout-commit"
+    },
+    {
+      "source": "/api-reference/quote-service/cashout-create",
+      "destination": "/solana/api-reference/quote-service/cashout-create"
+    },
+    {
+      "source": "/api-reference/quote-service/cashout-stream",
+      "destination": "/solana/api-reference/quote-service/cashout-stream"
+    },
+    {
+      "source": "/api-reference/quote-service/commit",
+      "destination": "/solana/api-reference/quote-service/commit"
+    },
+    {
+      "source": "/api-reference/quote-service/create",
+      "destination": "/solana/api-reference/quote-service/create"
+    },
+    {
+      "source": "/api-reference/quote-service/get",
+      "destination": "/solana/api-reference/quote-service/get"
+    },
+    {
+      "source": "/api-reference/quote-service/stream",
+      "destination": "/solana/api-reference/quote-service/stream"
+    },
+    {
+      "source": "/api-reference/quote-service/update",
+      "destination": "/solana/api-reference/quote-service/update"
+    },
+    {
+      "source": "/api-reference/quote-service-mm/cashout-quote",
+      "destination": "/solana/api-reference/quote-service-mm/cashout-quote"
+    },
+    {
+      "source": "/api-reference/quote-service-mm/stream",
+      "destination": "/solana/api-reference/quote-service-mm/stream"
+    },
+    {
+      "source": "/api-reference/quote-service-mm/submit-quote",
+      "destination": "/solana/api-reference/quote-service-mm/submit-quote"
+    },
+    {
+      "source": "/api-reference/quote-service-mm/withdraw-quote",
+      "destination": "/solana/api-reference/quote-service-mm/withdraw-quote"
+    },
+    {
+      "source": "/api-reference/user/check-username",
+      "destination": "/solana/api-reference/user/check-username"
+    },
+    {
+      "source": "/api-reference/user/create-api-key",
+      "destination": "/solana/api-reference/user/create-api-key"
+    },
+    {
+      "source": "/api-reference/user/get-profile",
+      "destination": "/solana/api-reference/user/get-profile"
+    },
+    {
+      "source": "/api-reference/user/get-wallet",
+      "destination": "/solana/api-reference/user/get-wallet"
+    },
+    {
+      "source": "/api-reference/user/list-api-keys",
+      "destination": "/solana/api-reference/user/list-api-keys"
+    },
+    {
+      "source": "/api-reference/user/revoke-api-key",
+      "destination": "/solana/api-reference/user/revoke-api-key"
+    },
+    {
+      "source": "/api-reference/user/submit-tx",
+      "destination": "/solana/api-reference/user/submit-tx"
+    },
+    {
+      "source": "/api-reference/user/update-username",
+      "destination": "/solana/api-reference/user/update-username"
+    },
+    {
+      "source": "/api-reference/webhooks/get-config",
+      "destination": "/solana/api-reference/webhooks/get-config"
+    },
+    {
+      "source": "/api-reference/webhooks/list-deliveries",
+      "destination": "/solana/api-reference/webhooks/list-deliveries"
+    },
+    {
+      "source": "/api-reference/webhooks/redeliver",
+      "destination": "/solana/api-reference/webhooks/redeliver"
+    },
+    {
+      "source": "/api-reference/webhooks/rotate-secret",
+      "destination": "/solana/api-reference/webhooks/rotate-secret"
+    },
+    {
+      "source": "/api-reference/webhooks/set-config",
+      "destination": "/solana/api-reference/webhooks/set-config"
+    },
+    {
+      "source": "/hyperliquid/overview",
+      "destination": "/hyperliquid"
+    },
+    {
+      "source": "/hyperliquid/trading",
+      "destination": "/hyperliquid/guides/trading"
+    },
+    {
+      "source": "/hyperliquid/market-making",
+      "destination": "/hyperliquid/guides/market-making"
+    },
+    {
+      "source": "/hyperliquid/collateral",
+      "destination": "/hyperliquid/guides/collateral"
+    },
+    {
+      "source": "/hyperliquid/realtime",
+      "destination": "/hyperliquid/guides/realtime"
+    },
+    {
+      "source": "/hyperliquid/withdrawals",
+      "destination": "/hyperliquid/guides/withdrawals"
+    },
+    {
+      "source": "/hyperliquid/websocket/connection",
+      "destination": "/hyperliquid/api-reference/websocket/connection"
+    },
+    {
+      "source": "/hyperliquid/websocket/account",
+      "destination": "/hyperliquid/api-reference/websocket/account"
+    },
+    {
+      "source": "/hyperliquid/websocket/maker",
+      "destination": "/hyperliquid/api-reference/websocket/maker"
+    },
+    {
+      "source": "/hyperliquid/websocket/market-data",
+      "destination": "/hyperliquid/api-reference/websocket/market-data"
+    },
+    {
+      "source": "/api-reference/openapi.json",
+      "destination": "/solana/api-reference/openapi.json"
     }
   ],
   "seo": {

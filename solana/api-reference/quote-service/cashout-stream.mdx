@@ -1,0 +1,137 @@
+---
+title: 'Stream cashout quote'
+api: 'GET /v1/cashout-requests/{id}/stream'
+description: 'Follow the best live bid and terminal status for an early cashout auction via Server-Sent Events.'
+---
+
+Open a Server-Sent Events (SSE) stream to follow a [cashout auction](/solana/api-reference/quote-service/cashout-create). You receive the highest live bid as `best_quote` each time the book moves. Ties go to the earliest bid. A terminal `status` frame arrives when the request leaves `active`/`committing`.
+
+## Authentication
+
+Send your API key in the `X-API-Key` header. The key needs the `positions:read` scope.
+
+```
+X-API-Key: <your-api-key>
+```
+
+A Privy JWT (`Authorization: Bearer <jwt>`) is also accepted. See [Authentication](/solana/authentication).
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The cashout request ID (UUID).
+</ParamField>
+
+## SSE event types
+
+### `best_quote`
+
+Sent when the best bid changes: a new highest bid, the leader replacing or withdrawing its bid, or the leader lapsing. `book_seq` increments monotonically, so a gap means you missed an update.
+
+```json
+{
+  "book_seq": 3,
+  "version": 1,
+  "best_quote": {
+    "id": "q1w2e3r4-5678-90ab-cdef-1234567890ab",
+    "market_maker_id": "did:privy:cm3mm...",
+    "price_micro": 66250000,
+    "valid_until": "2026-06-01T18:46:05.000Z"
+  }
+}
+```
+
+<ResponseField name="id" type="string">UUID of the winning bid.</ResponseField>
+<ResponseField name="market_maker_id" type="string">The bidding market maker's ID. Do not derive the outcome from it. The server decides whether the exit closes or transfers the position, and that does not change what you receive.</ResponseField>
+<ResponseField name="price_micro" type="integer">The all-in amount you receive, in [microUSDC](/solana/glossary#units) (`1_000_000` = $1.00). No direction and no separate fee term. Echo this exact value back as `min_price_micro` when you [commit](/solana/api-reference/quote-service/cashout-commit). The commit is rejected without it, and you are never filled below it.</ResponseField>
+<ResponseField name="valid_until" type="string">ISO 8601 timestamp when this bid lapses. A lapsed bid stops being the best bid.</ResponseField>
+
+When no bid is live, `best_quote` is `null`. That happens before the first bid arrives and after every bid has lapsed.
+
+```json
+{
+  "book_seq": 4,
+  "version": 1,
+  "best_quote": null
+}
+```
+
+### `status`
+
+Sent once the request leaves `active`/`committing`. `status` is the terminal cashout-request state, and the stream closes right after it. Unlike the [quote-request stream](/solana/api-reference/quote-service/stream#status), no second terminal event follows.
+
+```json
+{
+  "status": "committed"
+}
+```
+
+| Terminal `status` | Meaning |
+|-------------------|---------|
+| `committed` | The exit was driven on-chain. A win by the position's counterparty closed the position, and the RFQ becomes `bought_back`. A win by any other market maker transferred the position, which stays open under new ownership. Either way you received the winning bid, never less than your `min_price_micro`. |
+| `expired` | The auction's ~10 s TTL elapsed with no commit. |
+| `cancelled` | The request was cancelled. |
+
+## Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `UNAUTHORIZED` | Missing or invalid API key. |
+| 403 | `FORBIDDEN` | You do not own this cashout request, or the credential does not start with `api_` (`details.reason: "wrong_api_key_type"`). |
+| 404 | `NOT_FOUND` | Cashout request not found. |
+
+<RequestExample>
+```bash curl
+curl -N https://api.totalis.trade/v1/cashout-requests/c3d4e5f6-7890-abcd-ef12-34567890abcd/stream \
+  -H "X-API-Key: $TOTALIS_API_KEY" \
+  -H "Accept: text/event-stream"
+```
+
+```javascript JavaScript
+// Native EventSource cannot send an X-API-Key header, so read the SSE stream
+// with fetch instead (works in browsers and Node 18+).
+async function streamCashout(id, apiKey) {
+  const res = await fetch(
+    `https://api.totalis.trade/v1/cashout-requests/${id}/stream`,
+    { headers: { 'X-API-Key': apiKey, Accept: 'text/event-stream' } }
+  );
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+
+    let sep;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const event = frame.match(/^event: (.+)$/m)?.[1];
+      const data = frame.match(/^data: (.+)$/m)?.[1];
+      if (!event || !data) continue;
+      const payload = JSON.parse(data);
+
+      if (event === 'best_quote') {
+        console.log('Buyback quote:', payload.best_quote);
+      } else if (event === 'status') {
+        console.log('Terminal:', payload.status);
+        return; // the stream closes after the terminal status
+      }
+    }
+  }
+}
+```
+</RequestExample>
+
+<ResponseExample>
+```text SSE stream
+event: best_quote
+data: {"book_seq":3,"version":1,"best_quote":{"id":"q1w2e3r4-5678-90ab-cdef-1234567890ab","market_maker_id":"did:privy:cm3mm...","price_micro":66250000,"valid_until":"2026-06-01T18:46:05.000Z"}}
+
+event: status
+data: {"status":"committed"}
+```
+</ResponseExample>

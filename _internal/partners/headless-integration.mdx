@@ -66,7 +66,7 @@ The full catalog is `account:read`, `markets:read`, `positions:read`, `balances:
   <Step title="Browse markets">
     `GET /markets` is public and rate limited per IP. Take `markets[].ticker`, `markets[].venue` and
     the `exclusion_keys` you need to build legal legs. See
-    [Limits and fees](/guides/limits-and-fees#parlay-construction).
+    [Limits and fees](/solana/limits-and-fees#parlay-construction).
   </Step>
 
   <Step title="Register a sub-account">
@@ -294,7 +294,7 @@ A malformed `X-Subaccount` returns `400` with the message `X-Subaccount must be 
 - A registration challenge is valid for 10 minutes.
 - `POST /v1/wallet/submit-built-tx` and `POST /v1/vault/build-withdraw-tx` are each capped at 10 requests per minute, counted against the principal account.
 - Every sub-account shares that budget, so a platform submits at most 10 positions a minute, about 600 an hour, in total.
-- Everything else follows the buckets on [Limits and fees](/guides/limits-and-fees#rate-limits).
+- Everything else follows the buckets on [Limits and fees](/solana/limits-and-fees#rate-limits).
 - The caps and ceilings above are defaults. Email [founders@totalis.trade](mailto:founders@totalis.trade) to raise them before you launch.
 
 ## Endpoint reference

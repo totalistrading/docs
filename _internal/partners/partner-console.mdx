@@ -63,7 +63,7 @@ Deliveries use the same format as the public webhooks:
 
 - Each delivery is a `POST` with a JSON body of `{ id, type, data }`.
 - Headers: `X-Totalis-Event-Id`, `X-Totalis-Event-Type` and `X-Totalis-Signature`.
-- Verify the signature over the raw body as the public [Webhooks](/guides/webhooks#verifying-signatures) page shows, in Node or Python.
+- Verify the signature over the raw body as the public [Webhooks](/solana/guides/webhooks#verifying-signatures) page shows, in Node or Python.
 - Delivery is at least once with backoff, so dedupe on `X-Totalis-Event-Id`.
 - Payloads carry `rfq_id` but no sub-account id. Map each `rfq_id` to its sub-account from your commit
   responses.

@@ -51,9 +51,9 @@ Say the thing. If a table needs a preamble to be scannable, fix the table.
 
 ### Every number has exactly one home
 
-Limits, fees, ranges, timeouts, and rate limits live on [Limits and fees](/guides/limits-and-fees).
-Error codes live on [Errors](/api-reference/errors). Term definitions live on
-[Glossary](/guides/glossary).
+Limits, fees, ranges, timeouts, and rate limits live on [Limits and fees](/solana/limits-and-fees).
+Error codes live on [Errors](/solana/errors). Term definitions live on
+[Glossary](/solana/glossary).
 
 Every other page **links** to those. It does not restate them. A fee quoted on four pages becomes
 four different fees the first time it changes.
@@ -86,7 +86,7 @@ backend.
 - **One term per concept.** A *parlay* is the product. An *RFQ* is the API object that represents
   one after commit. A *quote request* is the pre-trade price-discovery object. A *position* is the
   on-chain, funded parlay. Pick the right term for the layer and do not swap mid-page. See
-  [Glossary](/guides/glossary).
+  [Glossary](/solana/glossary).
 - **Code is copy-paste-first.** Show a real `curl` with the auth header, real-ish values, and the
   response shape. Prefer a runnable example over a prose description of one.
 - **Use current paths in examples.** The supported contract surface is `/v1/...`. Public

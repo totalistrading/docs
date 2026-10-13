@@ -113,10 +113,10 @@ OVERVIEW = ["hyperliquid/api-reference/introduction"]
 
 LEADS = {
     "WebSocket": [
-        "hyperliquid/websocket/connection",
-        "hyperliquid/websocket/account",
-        "hyperliquid/websocket/maker",
-        "hyperliquid/websocket/market-data",
+        "hyperliquid/api-reference/websocket/connection",
+        "hyperliquid/api-reference/websocket/account",
+        "hyperliquid/api-reference/websocket/maker",
+        "hyperliquid/api-reference/websocket/market-data",
     ],
 }
 

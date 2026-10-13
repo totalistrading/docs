@@ -1,0 +1,81 @@
+---
+title: 'Real time and data channels'
+icon: 'tower-broadcast'
+description: 'Which channel to use when: SSE for live quote pricing, WebSocket for live trade events, webhooks for durable delivery, and REST reads for state on demand.'
+---
+
+Totalis has four data channels. Pick one by the phase of the trade you are in and the delivery
+guarantee you need.
+
+<img className="block dark:hidden rounded-2xl" src="/images/pictures/realtime-and-data-light.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
+<img className="hidden dark:block rounded-2xl" src="/images/pictures/realtime-and-data-dark.png" alt="Which channel covers which stretch of a trade: quote stream before commit, WebSocket live after, webhooks from settlement, REST any time" />
+
+| Channel | What it carries | Use it for |
+| --- | --- | --- |
+| [SSE streams](/solana/api-reference/quote-service/stream) | Pre-trade pricing. Live `best_quote` updates on a quote request or cashout request. | Watching prices while you decide whether to commit |
+| [WebSocket](/solana/guides/websocket) | Post-trade events, live. Quote acceptance, confirmation, position created and settled. | Live UIs and bots that hold a connection |
+| [Webhooks](/solana/guides/webhooks) | Post-trade events, durable. The same lifecycle moments as HMAC signed POSTs, retried, then dead-lettered and replayable. | Server systems of record, with failed deliveries monitored and replayed |
+| [REST reads](/solana/guides/reading-data) | State on demand. Portfolio, parlays, settlement detail, P&L, balances. | Backfill, reconciliation, on-demand display |
+
+REST, SSE and the WebSocket authenticate with your [API key](/solana/authentication). Webhooks are signed with your endpoint's secret instead: [verify each delivery](/solana/guides/webhooks#verifying-signatures).
+
+## One trade, three phases
+
+**Pricing is SSE.** Each quote request has its own stream at
+[`GET /v1/quote-requests/{id}/stream`](/solana/api-reference/quote-service/stream). Each cashout request
+has one at [`GET /v1/cashout-requests/{id}/stream`](/solana/api-reference/quote-service/cashout-stream). A
+stream exists only while its request is live and closes after a terminal event. Market makers watch
+the firehose variant, [`GET /v1/mm/quote-requests/stream`](/solana/api-reference/quote-service-mm/stream).
+
+**From commit onward it is events.** When you commit, the quote request becomes an
+[RFQ](/solana/glossary#the-noun-stack) and the SSE stream ends. Acceptance, confirmation, on-chain
+execution, and settlement arrive on the [WebSocket](/solana/guides/websocket) and as
+[webhooks](/solana/guides/webhooks).
+
+**State is always readable.** The [read endpoints](/solana/guides/reading-data) return current truth
+whenever you ask. Use them to backfill after downtime and to reconcile what the push channels told
+you.
+
+## WebSocket or webhooks
+
+Both deliver post-trade lifecycle events and overlap for most of the lifecycle. They differ in the
+delivery guarantee.
+
+| | WebSocket | Webhooks |
+| --- | --- | --- |
+| Delivery | To a connected client, in real time | POST to your server, at-least-once |
+| Missed while disconnected | Not redelivered | Retried with backoff, then dead-lettered |
+| Signed | No, the connection is authenticated | Yes, HMAC per delivery |
+| Replay | No | [Yes](/solana/guides/webhooks#replaying-deliveries) |
+| Best for | Live UIs and trading bots, where latency matters | Accounting, notifications, any system of record |
+
+## Typical integrations
+
+### Trading bot
+
+1. Create a quote request with [`POST /v1/quote-requests`](/solana/api-reference/quote-service/create).
+2. Watch its [SSE stream](/solana/api-reference/quote-service/stream) for `best_quote` events. Store
+   `book_seq` and the quote `id`.
+3. [Commit](/solana/api-reference/quote-service/commit) when the price is right.
+4. Follow the trade live on the WebSocket
+   [`rfq:{rfq_id}` channel](/solana/guides/websocket#subscribing-to-channels), or durably via the
+   [`parlay.status_changed`](/solana/guides/webhooks#event-catalog) webhook.
+5. Record the outcome from the `position.settled` webhook, or read it from
+   [`GET /v1/rfqs/{id}`](/solana/api-reference/parlays/get).
+
+### Read-only dashboard
+
+1. Pull state with [`GET /v1/portfolio`](/solana/api-reference/funds/portfolio),
+   [`GET /v1/rfqs`](/solana/api-reference/parlays/list), and [`GET /v1/pnl`](/solana/api-reference/funds/pnl).
+2. Subscribe to [`rfq:{rfq_id}`](/solana/guides/websocket#subscribing-to-channels) for live position
+   updates.
+3. On reconnect, [reconcile](/solana/guides/reading-data#reconciling) against the read endpoints.
+
+### Market maker
+
+The maker loop, including cashout pricing, is on [Market making](/solana/guides/market-making).
+
+## Every event, side by side
+
+The [event catalog](/solana/guides/event-catalog) gives the exact event name each channel uses for every
+moment in a trade.
