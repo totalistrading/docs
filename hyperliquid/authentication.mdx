@@ -83,7 +83,7 @@ Keep only the balance your bot needs.
 </Warning>
 
 A maker bot signs its confirmations with the same key. To keep it off the bot, move signing to a key that holds
-no funds with [`setQuoteSigner`](/hyperliquid/market-making#move-maker-funds).
+no funds with [`setQuoteSigner`](/hyperliquid/collateral#move-maker-funds).
 
 ## Who signs what
 
@@ -108,9 +108,9 @@ fees before each quote.
 ```json
 {
   "chain_id": "999",
-  "vault_address": "0xedf7131c57e0ac4eade509e1bf56a9ab7af43745",
+  "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83",
   "fee_bps": 100,
-  "taker_fee_bps": 20,
+  "taker_fee_bps": 150,
   "usdc": {
     "address": "0xb88339cb7199b77e23db6e890353e22632ba630f",
     "eip712_domain": { "name": "USDC", "version": "2", "chain_id": "999", "verifying_contract": "0xb88339cb7199b77e23db6e890353e22632ba630f" }

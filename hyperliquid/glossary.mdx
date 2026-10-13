@@ -1,0 +1,31 @@
+---
+title: 'Glossary'
+icon: 'book'
+description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptance, operation, cursor and collateral reduction.'
+---
+
+| Term | Meaning |
+| --- | --- |
+| HIP-4 | Hyperliquid's outcome markets. Each market resolves `YES` or `NO`. |
+| Market | One HIP-4 outcome (`outcome_id`) with a `YES` and a `NO` side. |
+| Leg | One outcome and one side: `{ "outcome_id": "1209", "side": "YES" }`. One leg is a single; two or more is a parlay. |
+| Parlay | One position on several legs that pays only if every leg wins. The app calls it a Combo. |
+| Taker | The account that creates an RFQ and accepts a quote. For a cash-out, the position's owner. |
+| Maker | A market maker (`maker_id`) that quotes, confirms and backs positions from its maker vault. |
+| RFQ | Request for quote. `ENTRY` prices new legs for a stake; `CASHOUT` prices an existing position. |
+| Quote | A maker's unsigned offer on one RFQ: `entry` terms (a `payout`), or `sell_back` or `transfer` terms (a `price`). |
+| Acceptance | The record of one accept on one quote, named by the accept's `Idempotency-Key` (`acceptance_id`). A quote has at most one. |
+| Confirm | The maker's answer to an acceptance before its `deadline`: `CONFIRM` with a signature, or `DECLINE`. |
+| Position | A filled trade on-chain: legs, stake, payout, owner and backing maker. An entry position's `position_id` is its `quote_id`. |
+| Stake, payout | What the taker pays, before the entry fee; what the position pays if every leg wins, before the profit fee. |
+| Cash-out | Selling an open position: a `sell_back` to its maker, or a `transfer` to another maker. |
+| Settlement, claim | Grading a resolved position, then paying its winnings into the owner's vault balance. Totalis runs both. |
+| Operation | One on-chain action Totalis relays for you, with a `status` (`operation_id`, `OPERATION_UPDATED`). |
+| Vault | The Totalis contract on HyperEVM that holds USDC and every position (`vault_address`). |
+| Maker vault | The USDC a maker has deposited to back its positions. Separate from the maker owner's own vault balance. |
+| Free collateral | What a maker vault can still back: `free_collateral` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
+| Collateral reduction | A job that lowers a maker's requirement to what its open positions can lose together. See [Maker collateral](/hyperliquid/collateral). |
+| Totalis balance | Your wallet's USDC on HyperEVM plus your free vault balance. |
+| Wallet | Your Totalis embedded wallet. It approves your keys and signs your trades. |
+| Deployment | The chain, vault, fees and USDC domain every signature binds to ([Get deployment](/hyperliquid/api-reference/deployment/get-deployment)). |
+| Cursor | Your place in the [WebSocket](/hyperliquid/realtime). Send it back to resume. |

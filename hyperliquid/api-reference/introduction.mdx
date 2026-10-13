@@ -88,6 +88,40 @@ code and the error `code` as its reason instead. Every code is on [Errors](/hype
 Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-route limits are on
 [Rate limits](/hyperliquid/errors#rate-limits).
 
+## Endpoints by task
+
+### Taking
+
+| Step | Endpoint or event |
+| --- | --- |
+| Find markets | [`GET /v1/markets`](/hyperliquid/api-reference/markets/list-markets), [`GET /v1/markets/{outcome_id}`](/hyperliquid/api-reference/markets/get-market) |
+| Check your balance | [`GET /v1/me/balances`](/hyperliquid/api-reference/account/get-balances) |
+| Follow your account | [`GET /v1/stream`](/hyperliquid/websocket/account), `account` subscription |
+| Ask for quotes | [`POST /v1/rfqs`](/hyperliquid/api-reference/rfqs/create-rfq), then `QUOTE_CREATED` |
+| Accept one | [`POST /v1/quotes/{quote_id}/accept`](/hyperliquid/api-reference/quotes/accept-quote) |
+| Recover a lost accept | [`GET /v1/quotes/{quote_id}/acceptance`](/hyperliquid/api-reference/quotes/get-acceptance) |
+| Stop asking | [`POST /v1/rfqs/{rfq_id}/cancel`](/hyperliquid/api-reference/rfqs/cancel-rfq) |
+| Follow the fill | `OPERATION_UPDATED`, or [`GET /v1/me/operations/{operation_id}`](/hyperliquid/api-reference/account/get-operation) |
+| Read positions | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions), [`GET /v1/me/positions/{position_id}`](/hyperliquid/api-reference/positions/get-position) |
+| Cash out | [`POST /v1/me/positions/{position_id}/cashout`](/hyperliquid/api-reference/positions/cash-out-position), then accept a quote |
+| Withdraw | [`POST /v1/me/withdrawals`](/hyperliquid/api-reference/withdrawals/create-withdrawal) |
+
+### Making
+
+| Step | Endpoint or event |
+| --- | --- |
+| Check capital | [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/makers/get-maker-capital) |
+| Receive RFQs | [`GET /v1/stream`](/hyperliquid/websocket/maker), `maker` subscription, `RFQ_CREATED` |
+| Quote, or replace a quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
+| Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
+| Receive fills | `QUOTE_ACCEPTED` |
+| Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
+| Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
+| Read backed positions | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with a maker key |
+| Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/api-reference/makers/create-collateral-reduction) |
+
+The full maker loop is on [Market making](/hyperliquid/market-making).
+
 ## Endpoint groups
 
 <CardGroup cols={2}>

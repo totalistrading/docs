@@ -125,3 +125,19 @@ page('referrals',
      band('3%', 'One step further', [kin(26, *(kin(8, *(tot(26, next(hue)) for _ in range(3))) for _ in range(3))) for _ in range(3)]) +
      '</div>',
      None, zoom=1.0)
+
+# Hyperliquid real time: connect, snapshot, events, resume from the saved place
+page('hl-realtime',
+     who(1, 'Your bot') + dl() + box('Connect', s='API key') + dl() + box('Snapshot') + dl() + box('Events', s='in order', tall=True, hi=True) + dl() + box('Resume', s='saved place'),
+     [(0, 'connect', True), (50, 'live', True), (100, 'reconnect', False)], zoom=1.1)
+
+# Hyperliquid market making: RFQ, quote, confirm, back, settle
+page('hl-market-maker',
+     who(2, 'Maker') + dl() + box('RFQ') + dl() + box('Quote', s='payout', hi=True) + dl() + box('Confirm', s='signed', warn=True) + dl() + box('Back') + dl() + box('Settle'),
+     [(0, 'quote', True), (50, 'confirm', True), (100, 'settle', True)], zoom=1.0)
+
+# Hyperliquid maker collateral: two positions in one tournament, only one can win
+page('hl-collateral',
+     stack(box('Team A wins', n='8,000'), box('Team B wins', n='5,000')) + fork(28, 28, mid=True) +
+     stack(box('One by one', n='13,000', warn=True), box('Reduced', n='8,000', hi=True)),
+     None, zoom=1.4)

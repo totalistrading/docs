@@ -49,7 +49,7 @@ Each `QUOTE_CREATED` carries one quote:
     "stake": "25000000",
     "payout": "98500000",
     "fee_bps": 100,
-    "taker_fee_bps": 20,
+    "taker_fee_bps": 150,
     "taker": "0x1111111111111111111111111111111111111111",
     "expiry": "1790452875",
     "salt": "48151623429108"
@@ -90,7 +90,6 @@ The response waits for the maker's answer:
 | `status` | Meaning |
 | --- | --- |
 | `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. |
-| `PENDING_FUNDING` | Confirmed; waits for a HyperCore payment. Becomes `ACCEPTED` or `CANCELLED`. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded. Create a new RFQ. |
 
 Read later, an acceptance can also be `FILLED` or `FAILED`.
@@ -115,8 +114,7 @@ the shortfall in the same transaction as the trade. It needs `funding:deposit`.
 ```
 
 `value` is the stake minus `VAULT_FREE` in [Get balances](/hyperliquid/api-reference/account/get-balances),
-signed as USDC `ReceiveWithAuthorization`. `kind` is `WALLET`, `CORE` (HyperCore spot USDC) or
-`COMBINED`.
+signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`.
 
 ### Lost response
 

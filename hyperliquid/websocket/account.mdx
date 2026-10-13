@@ -44,8 +44,8 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
         "legs": [{ "outcome_id": "1209", "side": "YES" }],
         "stake": "25000000",
         "payout": "61000000",
-        "fee_bps": 500,
-        "taker_fee_bps": 20,
+        "fee_bps": 100,
+        "taker_fee_bps": 150,
         "taker": "0x1111111111111111111111111111111111111111",
         "expiry": "1790193625",
         "salt": "73100245913027741890236401853207113049"
@@ -65,7 +65,7 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position changed on-chain | `position_id`, `block_number`, `log_index`. Read the position. |
 | `VAULT_BALANCE_CHANGED` | Your vault balance changed | `address`, `amount` (the new balance), `transaction_hash`, `status` |
 | `WALLET_BALANCE_CHANGED` | A USDC transfer touched your wallet | `address`, `transaction_hash`, `block_number` |
-| `WALLET_FUNDING_UPDATED`, `CORE_FUNDING_UPDATED` | An acceptance's funding changed | `acceptance_id`, `status`, `updated_at` |
+| `WALLET_FUNDING_UPDATED` | An acceptance's wallet funding changed | `acceptance_id`, `status`, `updated_at` |
 | `WITHDRAWAL_UPDATED` | A withdrawal changed | The withdrawal, as [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) |
 | `CORE_EXIT_UPDATED` | A HyperCore exit changed | `exit_id`, `status`, `updated_at` |
 | `HYPERCORE_WITHDRAWAL_UPDATED` | A HyperCore withdrawal changed | `operation_id`, `status`, `updated_at` |
@@ -86,6 +86,6 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | --- | --- | --- |
 | `rfqs` | Your RFQs | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |
 | `quotes` | Live quotes on your open RFQs | [List quotes](/hyperliquid/api-reference/quotes/list-quotes), per RFQ |
-| `acceptances` | Your acceptances in `PENDING_CONFIRM` or `PENDING_FUNDING` | [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance), per quote |
+| `acceptances` | Your acceptances in `PENDING_CONFIRM` | [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance), per quote |
 | `operations` | Your operations | [List operations](/hyperliquid/api-reference/account/list-operations) |
 | `open_rfqs` | Every open RFQ, with `open_rfqs: true` | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |

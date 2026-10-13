@@ -201,6 +201,8 @@
                 "pages": [
                   "hyperliquid/trading",
                   "hyperliquid/market-making",
+                  "hyperliquid/collateral",
+                  "hyperliquid/realtime",
                   "hyperliquid/withdrawals",
                   "hyperliquid/referrals"
                 ]
@@ -208,6 +210,7 @@
               {
                 "group": "Resources",
                 "pages": [
+                  "hyperliquid/glossary",
                   "hyperliquid/errors",
                   "hyperliquid/sdk"
                 ]
@@ -277,6 +280,7 @@
                   "GET /v1/me",
                   "GET /v1/me/balances",
                   "GET /v1/me/activity",
+                  "GET /v1/me/pnl",
                   "GET /v1/me/operations",
                   "GET /v1/me/operations/{operation_id}",
                   "POST /v1/me/withdrawals",

@@ -11,7 +11,7 @@ description: 'Request conventions, idempotency, pagination, every limit and rate
 | Amount | String, USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
 | Large number | Decimal string: outcome, chain, block, sequence | `"1209"` |
 | Leg | `outcome_id` and `side` | `{ "outcome_id": "1209", "side": "YES" }` |
-| Address | Lowercase `0x` hex. Input may be checksummed. | `"0xedf7131c57e0ac4eade509e1bf56a9ab7af43745"` |
+| Address | Lowercase `0x` hex. Input may be checksummed. | `"0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"` |
 | `quote_id`, `position_id`, hash, signature | Lowercase `0x` hex. Opaque. | `"0x5e5e...5e5e"` |
 | `rfq_id`, `acceptance_id`, `withdrawal_id` | UUIDv7 | `"01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a"` |
 | Timestamp | RFC 3339 UTC. Signed terms use unix seconds. | `"2026-09-26T20:00:50Z"` |
@@ -70,7 +70,7 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Legs per RFQ | 1 to 50, strictly ascending `outcome_id` |
 | Minimum stake | Net stake (after the entry fee) of at least 1 USDC |
 | Maximum payout | 100,000 USDC |
-| Fees | `taker_fee_bps` on the stake at accept, `fee_bps` on profit at claim; currently 20 and 100 |
+| Fees | `taker_fee_bps` on the stake at accept, `fee_bps` on profit at claim. Read the current values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
 | Entry RFQ open | 20 seconds |
 | Cash-out RFQ open | 30 seconds |
 | Entry quote `expiry` | At most 30 seconds ahead. Quotes within 2 seconds of expiry are left out. |
@@ -84,6 +84,7 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Withdrawal `Exit` | `expiry` 5 to 3,600 seconds ahead, less a 5 second margin |
 | Withdrawal payout | At most 4,500 seconds from `valid_after` to `valid_before`; `valid_before` at least 300 seconds after the `Exit` `expiry`, or after now with no `Exit` |
 | Maker vault withdrawal delay | 86,400 seconds |
+| Collateral reduction `transaction` | Valid for 2 minutes after the job signs it (`expiry`) |
 
 | WebSocket and keys | Value |
 | --- | --- |
@@ -183,8 +184,6 @@ closes use the same codes.
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
 | `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |
 | `QUOTE_CAPACITY_EXCEEDED` | 409 | - | `REFRESH` | The maker's current capacity does not cover the quote. |
-| `CORE_FUNDING_CONFLICT` | 409 | - | `REFRESH` | Another Core funding is active for this account. |
-| `CORE_VAULT_RESERVATION` | 409 | - | `REFRESH` | The vault reservation for this Core funding changed. |
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
 | `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirm. |
@@ -198,7 +197,7 @@ closes use the same codes.
 | `CONTRACT_UNAVAILABLE` | 503 | - | `BACKOFF` | This producer is disabled in this environment. |
 | `MARKET_DATA_UNAVAILABLE` | 503 | - | `BACKOFF` | No complete market catalog is available. |
 | `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this deployment. |
-| `CORE_FUNDING_UNAVAILABLE` | 503 | - | `BACKOFF` | Core funding cannot be admitted now. |
+| `COLLATERAL_REDUCTION_UNAVAILABLE` | 503 | - | `BACKOFF` | This vault does not serve collateral reductions now. |
 | `SPONSORSHIP_UNAVAILABLE` | 503 | - | `BACKOFF` | Venue gas sponsorship is unavailable. |
 | `CONTRACT_SIGNATURE_OVERLOADED` | 503 | - | `BACKOFF` | Contract signature verification is at capacity. |
 | `QUOTE_EXPOSURE_STALE` | 503 | - | `BACKOFF` | The maker's exposure projection is stale. |
