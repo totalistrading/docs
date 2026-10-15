@@ -82,8 +82,9 @@ The exported key also signs withdrawals. Anyone who has it can withdraw everythi
 Keep only the balance your bot needs.
 </Warning>
 
-A maker bot signs its confirmations with the same key. To keep it off the bot, move signing to a key that holds
-no funds with [`setQuoteSigner`](/hyperliquid/guides/collateral#move-maker-funds).
+A maker is one wallet too. Its bot signs confirmations with that wallet's key, the same key that funds
+and withdraws the maker. If the key leaks, call `setQuoteSigner(makerId, 0)` from it to stop every fill at
+once. See [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 
 ## Who signs what
 
