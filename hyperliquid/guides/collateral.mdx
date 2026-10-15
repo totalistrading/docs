@@ -180,7 +180,6 @@ Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not 
 | USDC `approve(vault, amount)`, then `depositMaker` | Deposits into the maker vault. Anyone can deposit for your maker. |
 | `requestMakerWithdraw`, then `executeMakerWithdraw` | Withdraws after the [delay](/hyperliquid/limits-and-fees). The execute fails if it would leave your positions uncovered. |
 | `cancelMakerWithdraw` | Cancels a pending withdrawal. One can be pending at a time. |
-| `setQuoteSigner` | Moves confirm signing to another key at once. The zero address stops all fills. |
 | `resetDiscount` | Sets your collateral discount to zero. |
 
 The [SDK](/hyperliquid/sdk#make-markets)'s `maker.controller()` builds each call for your wallet to

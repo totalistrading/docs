@@ -208,11 +208,11 @@ vault balance at zero to sell back only. A cash-out quote's `expiry` window is o
 | Name | What it is | Where to read it |
 | --- | --- | --- |
 | `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | The maker page in the app |
-| `owner` | The wallet that opened the maker. It funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
-| `signer` | The key whose signature confirms your fills. It starts as your wallet. | Get maker capital |
+| `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
+| `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
 
-To keep your wallet key off the bot, set a `signer` that holds no funds with `setQuoteSigner`. The
-zero address stops all fills at once. See [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
+Your maker is one wallet, so `owner` and `signer` are the same address. Run your bot with that wallet's
+key. Nothing fills without your confirmation signature, so to stop filling, stop confirming.
 
 <CardGroup cols={2}>
   <Card title="Maker collateral" icon="vault" href="/hyperliquid/guides/collateral">
