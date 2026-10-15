@@ -84,9 +84,7 @@ Keep only the balance your bot needs.
 
 A maker is one wallet too. Its bot signs confirmations with that wallet's key, the same key that funds
 and withdraws the maker. Anyone who has it controls the maker, so keep only the collateral your bot needs.
-`setQuoteSigner(makerId, 0)` pauses every fill at once, but it does not contain a leaked key: the holder can
-turn signing back on or request a withdrawal. The guardian can cancel a pending withdrawal during its
-delay. See [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
+See [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 
 ## Who signs what
 
