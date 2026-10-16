@@ -29,7 +29,7 @@ python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonsc
 
 `scripts/hyperliquid_openapi.py` writes `hyperliquid/openapi.json` and the Hyperliquid API reference tab in
 `docs.json`. Its `PAGES` table files every operation under one resource (Markets, RFQs & Quotes, Positions,
-Account, Makers, Deployment, WebSocket) and titles its page verb + resource; `LEADS` puts the hand-written
+Account, Makers, Partners & wallet sign-in, Deployment, WebSocket) and titles its page verb + resource; `LEADS` puts the hand-written
 WebSocket channel pages ahead of Open stream. A route the spec has and `PAGES` does not place stops the
 script. Edit the tables at the top of the script, not the generated files.
 

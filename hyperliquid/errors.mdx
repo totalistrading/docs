@@ -113,9 +113,12 @@ closes use the same codes.
 | `INVALID_QUERY` | 400 | - | `NEVER` | A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it. |
 | `INVALID_CURSOR` | 400 | - | `NEVER` | The cursor is malformed or was issued for a different query. |
 | `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none. |
+| `ORIGIN_REQUIRED` | 400 | - | `NEVER` | A browser route needs exactly one `Origin` header. |
 | `SUBPROTOCOL_REQUIRED` | 400 | 1008 | `NEVER` | The stream request did not negotiate a supported subprotocol or extension. |
 | `UNAUTHENTICATED` | 401 | - | `NEVER` | The credential is missing, invalid, expired or revoked. |
 | `FORBIDDEN` | 403 | - | `NEVER` | The credential is valid but lacks the scope, permission or role this operation needs. |
+| `ORIGIN_NOT_ALLOWED` | 403 | - | `NEVER` | The browser origin is not allowed to call this route. |
+| `ACCESS_REQUIRED` | 403 | - | `NEVER` | Totalis is invite-only: redeem an invite code before creating an account. |
 | `NOT_FOUND` | 404 | - | `NEVER` | The resource does not exist or is not visible to this credential. |
 | `IDENTITY_NOT_FOUND` | 404 | - | `NEVER` | The account has no venue identity yet; bind the embedded wallet first. |
 | `QUOTE_NOT_FOUND` | 404 | - | `NEVER` | The quote does not exist. |
@@ -133,8 +136,11 @@ closes use the same codes.
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
 | `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |
 | `QUOTE_CAPACITY_EXCEEDED` | 409 | - | `REFRESH` | The maker's current capacity does not cover the quote. |
+| `CORE_ACCOUNT_NOT_READY` | 409 | - | `REFRESH` | The HyperCore account is not an initialized user. |
+| `CORE_ACCOUNT_ACTIVATION_REQUIRED` | 409 | - | `NEVER` | The HyperCore account does not exist yet, and its first credit pays a 1 USDC activation fee. Resend with `activation_fee_accepted` once the user accepts it. |
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
+| `WALLET_CONTRACT_UNSUPPORTED` | 422 | - | `NEVER` | Wallet sign-in needs an externally owned account; this address holds contract code. |
 | `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirm. |
 | `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |
 | `CONNECTION_LIMIT` | 429 | - | `BACKOFF` | The stream connection limit is reached. |
@@ -146,6 +152,7 @@ closes use the same codes.
 | `CONTRACT_UNAVAILABLE` | 503 | - | `BACKOFF` | This producer is disabled in this environment. |
 | `MARKET_DATA_UNAVAILABLE` | 503 | - | `BACKOFF` | No complete market catalog is available. |
 | `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this deployment. |
+| `CORE_EXIT_UNAVAILABLE` | 503 | - | `BACKOFF` | Core exits cannot be admitted now. |
 | `COLLATERAL_REDUCTION_UNAVAILABLE` | 503 | - | `BACKOFF` | This vault does not serve collateral reductions now. |
 | `SPONSORSHIP_UNAVAILABLE` | 503 | - | `BACKOFF` | Venue gas sponsorship is unavailable. |
 | `CONTRACT_SIGNATURE_OVERLOADED` | 503 | - | `BACKOFF` | Contract signature verification is at capacity. |
@@ -156,6 +163,7 @@ closes use the same codes.
 | `INVALID_SUBSCRIPTION` | - | 1008 | `NEVER` | The first stream frame is not a valid subscribe. |
 | `SUBSCRIPTION_DENIED` | - | 1008 | `NEVER` | The credential may not subscribe to the requested channels or outcomes. |
 | `AUTHORIZATION_REVOKED` | - | 1008 | `NEVER` | The credential that opened the stream lost its authorization. |
+| `STREAM_REPLACED` | - | 1008 | `NEVER` | The owner's browser session opened a newer stream past its live-stream limit, which replaced this one. Reconnecting replaces the owner's oldest stream in turn. |
 | `SLOW_CONSUMER` | - | 1008 | `BACKOFF` | The client fell behind; reconnect and resume from the last applied cursor. |
 | `RESNAPSHOT_REQUIRED` | - | 1008 | `REFRESH` | The stream cannot continue from this state; reload HTTP state and resubscribe. |
 | `SNAPSHOT_TOO_LARGE` | - | 1013 | `BACKOFF` | The snapshot exceeds the frame ceiling. |

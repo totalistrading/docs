@@ -73,6 +73,8 @@ refuses an admission that carries an `Origin` header.
     | The request carries an `Origin` header | `403 FORBIDDEN`. Admit from your server. |
     | Your server key is revoked | `401 UNAUTHENTICATED` |
     | Too many admissions | `429 RATE_LIMITED`, with `Retry-After` |
+
+    The call is [Admit wallet](/hyperliquid/api-reference/partners/admit-wallet).
   </Step>
   <Step title="The wallet signs in">
     ```js
@@ -115,6 +117,10 @@ you, so its RFQs are attributed to you only with an [origin builder code](/hyper
 
 ## Sessions
 
+The SDK calls [Create wallet challenge](/hyperliquid/api-reference/wallet-sessions/create-wallet-challenge),
+[Create wallet session](/hyperliquid/api-reference/wallet-sessions/create-wallet-session) and
+[End wallet session](/hyperliquid/api-reference/wallet-sessions/end-wallet-session).
+
 | | |
 | --- | --- |
 | Token | `access_token`, a bearer token. Send it as `accessToken`. |
@@ -156,7 +162,7 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 | From | How | Who pays gas |
 | --- | --- | --- |
 | The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
-| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault. Size and rate [limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) apply. | Totalis |
+| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
 
 ```js
@@ -174,7 +180,8 @@ const exit = await totalis.exitToCore({ amount: 5_000_000n });
 await totalis.waitForCoreExit(exit.exit_id); // resolves once HyperCore credits it
 ```
 
-The wallet signs an `Exit`, and Totalis pays the gas. One move at a time per account: another is
+The wallet signs an `Exit`, and Totalis pays the gas ([Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit),
+[Get HyperCore exit](/hyperliquid/api-reference/core-exits/get-hypercore-exit)). One move at a time per account: another is
 `CORE_MOVE_IN_FLIGHT`. `returnToCore()` moves the wallet's USDC and its free vault cash back together.
 
 The first credit to a HyperCore account that does not exist yet pays Hyperliquid's activation fee, so it has a
