@@ -1,17 +1,14 @@
 ---
 title: 'Introduction'
 icon: 'house'
-description: 'Totalis is a request-for-quote venue for Hyperliquid HIP-4 outcome markets: trade one outcome or a parlay of many at a price market makers compete to quote, settled on HyperEVM.'
+description: 'Trade combos on Hyperliquid HIP-4 outcome markets: request a quote, market makers compete to fill it, and the position settles on HyperEVM.'
 ---
 
-Totalis is a request-for-quote venue for Hyperliquid's HIP-4 outcome markets. You pick one outcome (a
-**single**) or several (a **parlay**, one position that pays only if every leg wins). Market makers
-compete to quote it, you accept the best price with a wallet signature, and the position lives in the
-Totalis vault on HyperEVM until Totalis settles it and pays you. The app is
-[hip4.totalis.trade](https://hip4.totalis.trade), where parlays are called Combos.
-
-Everything the app does, the API does: open and cash out positions as a taker, or quote and back them
-as a market maker.
+Totalis lets you trade Hyperliquid's HIP-4 outcome markets as singles or combos. A **single** is one
+outcome and trades on the HyperCore order book. A **combo** is several outcomes in one position that
+pays only if every leg wins. Combos are request-for-quote: market makers compete to quote yours, and
+you take the best price with one signature. Totalis holds the position in its vault on HyperEVM and
+pays you when the markets settle.
 
 <CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/hyperliquid/quickstart">

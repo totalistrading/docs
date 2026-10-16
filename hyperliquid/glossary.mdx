@@ -8,8 +8,8 @@ description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptanc
 | --- | --- |
 | HIP-4 | Hyperliquid's outcome markets. Each market resolves `YES` or `NO`. |
 | Market | One HIP-4 outcome (`outcome_id`) with a `YES` and a `NO` side. |
-| Leg | One outcome and one side: `{ "outcome_id": "1209", "side": "YES" }`. One leg is a single; two or more is a parlay. |
-| Parlay | One position on several legs that pays only if every leg wins. The app calls it a Combo. |
+| Leg | One outcome and one side: `{ "outcome_id": "1209", "side": "YES" }`. One leg is a single; two or more is a combo. |
+| Combo | One position on several legs that pays only if every leg wins. |
 | Taker | The account that creates an RFQ and accepts a quote. For a cash-out, the position's owner. |
 | Maker | A market maker (`maker_id`) that quotes, confirms and backs positions from its maker vault. |
 | RFQ | Request for quote. `ENTRY` prices new legs for a stake; `CASHOUT` prices an existing position. |
