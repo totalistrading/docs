@@ -262,7 +262,11 @@
           {}
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/markets/list-markets"
+          "href": "/hyperliquid/api-reference/markets/list-markets",
+          "metadata": {
+            "title": "List markets",
+            "sidebarTitle": "List markets"
+          }
         }
       }
     },
@@ -439,7 +443,11 @@
           {}
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/markets/get-market"
+          "href": "/hyperliquid/api-reference/markets/get-market",
+          "metadata": {
+            "title": "Get market",
+            "sidebarTitle": "Get market"
+          }
         }
       }
     },
@@ -615,7 +623,11 @@
           {}
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/markets/get-market-history"
+          "href": "/hyperliquid/api-reference/markets/get-market-history",
+          "metadata": {
+            "title": "Get market history",
+            "sidebarTitle": "Get market history"
+          }
         }
       }
     },
@@ -773,7 +785,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/list-quotes"
+          "href": "/hyperliquid/api-reference/quotes/list-quotes",
+          "metadata": {
+            "title": "List quotes",
+            "sidebarTitle": "List quotes"
+          }
         }
       },
       "post": {
@@ -948,7 +964,11 @@
           }
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/create-quote"
+          "href": "/hyperliquid/api-reference/quotes/create-quote",
+          "metadata": {
+            "title": "Create quote",
+            "sidebarTitle": "Create quote"
+          }
         }
       }
     },
@@ -1096,7 +1116,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/cancel-quote"
+          "href": "/hyperliquid/api-reference/quotes/cancel-quote",
+          "metadata": {
+            "title": "Cancel quote",
+            "sidebarTitle": "Cancel quote"
+          }
         }
       }
     },
@@ -1281,7 +1305,11 @@
           }
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/accept-quote"
+          "href": "/hyperliquid/api-reference/quotes/accept-quote",
+          "metadata": {
+            "title": "Accept quote",
+            "sidebarTitle": "Accept quote"
+          }
         }
       }
     },
@@ -1461,7 +1489,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/confirm-quote"
+          "href": "/hyperliquid/api-reference/quotes/confirm-quote",
+          "metadata": {
+            "title": "Confirm quote",
+            "sidebarTitle": "Confirm quote"
+          }
         }
       }
     },
@@ -1623,7 +1655,11 @@
           }
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/rfqs/list-rfqs"
+          "href": "/hyperliquid/api-reference/rfqs/list-rfqs",
+          "metadata": {
+            "title": "List RFQs",
+            "sidebarTitle": "List RFQs"
+          }
         }
       },
       "post": {
@@ -1774,7 +1810,11 @@
         },
         "description": "Create an RFQ that asks makers to quote a new position.\n\nRequires a key for your account with `rfq:write`.",
         "x-mint": {
-          "href": "/hyperliquid/api-reference/rfqs/create-rfq"
+          "href": "/hyperliquid/api-reference/rfqs/create-rfq",
+          "metadata": {
+            "title": "Create RFQ",
+            "sidebarTitle": "Create RFQ"
+          }
         }
       }
     },
@@ -1924,7 +1964,11 @@
         },
         "description": "Cash out a position by opening a cash-out RFQ.\n\nRequires a key for your account with `rfq:write`.",
         "x-mint": {
-          "href": "/hyperliquid/api-reference/positions/cash-out-position"
+          "href": "/hyperliquid/api-reference/positions/cash-out-position",
+          "metadata": {
+            "title": "Cash out position",
+            "sidebarTitle": "Cash out position"
+          }
         }
       }
     },
@@ -2067,7 +2111,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/rfqs/cancel-rfq"
+          "href": "/hyperliquid/api-reference/rfqs/cancel-rfq",
+          "metadata": {
+            "title": "Cancel RFQ",
+            "sidebarTitle": "Cancel RFQ"
+          }
         }
       }
     },
@@ -2206,7 +2254,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/get-acceptance"
+          "href": "/hyperliquid/api-reference/quotes/get-acceptance",
+          "metadata": {
+            "title": "Get acceptance",
+            "sidebarTitle": "Get acceptance"
+          }
         }
       }
     },
@@ -2353,7 +2405,11 @@
           }
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/rfqs/get-rfq"
+          "href": "/hyperliquid/api-reference/rfqs/get-rfq",
+          "metadata": {
+            "title": "Get RFQ",
+            "sidebarTitle": "Get RFQ"
+          }
         }
       }
     },
@@ -2515,7 +2571,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/list-operations"
+          "href": "/hyperliquid/api-reference/account/list-operations",
+          "metadata": {
+            "title": "List operations",
+            "sidebarTitle": "List operations"
+          }
         }
       }
     },
@@ -2666,7 +2726,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/get-operation"
+          "href": "/hyperliquid/api-reference/account/get-operation",
+          "metadata": {
+            "title": "Get operation",
+            "sidebarTitle": "Get operation"
+          }
         }
       }
     },
@@ -2816,7 +2880,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/withdrawals/get-withdrawal"
+          "href": "/hyperliquid/api-reference/withdrawals/get-withdrawal",
+          "metadata": {
+            "title": "Get withdrawal",
+            "sidebarTitle": "Get withdrawal"
+          }
         }
       }
     },
@@ -2983,7 +3051,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/list-acceptances"
+          "href": "/hyperliquid/api-reference/quotes/list-acceptances",
+          "metadata": {
+            "title": "List acceptances",
+            "sidebarTitle": "List acceptances"
+          }
         }
       }
     },
@@ -3235,7 +3307,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/positions/list-positions"
+          "href": "/hyperliquid/api-reference/positions/list-positions",
+          "metadata": {
+            "title": "List positions",
+            "sidebarTitle": "List positions"
+          }
         }
       }
     },
@@ -3429,7 +3505,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/positions/get-position"
+          "href": "/hyperliquid/api-reference/positions/get-position",
+          "metadata": {
+            "title": "Get position",
+            "sidebarTitle": "Get position"
+          }
         }
       }
     },
@@ -3590,7 +3670,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/get-p-l"
+          "href": "/hyperliquid/api-reference/account/get-p-l",
+          "metadata": {
+            "title": "Get P&L",
+            "sidebarTitle": "Get P&L"
+          }
         }
       }
     },
@@ -3829,7 +3913,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/list-activity"
+          "href": "/hyperliquid/api-reference/account/list-activity",
+          "metadata": {
+            "title": "List activity",
+            "sidebarTitle": "List activity"
+          }
         }
       }
     },
@@ -3954,7 +4042,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/get-balances"
+          "href": "/hyperliquid/api-reference/account/get-balances",
+          "metadata": {
+            "title": "Get balances",
+            "sidebarTitle": "Get balances"
+          }
         }
       }
     },
@@ -4137,7 +4229,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/withdrawals/create-withdrawal"
+          "href": "/hyperliquid/api-reference/withdrawals/create-withdrawal",
+          "metadata": {
+            "title": "Create withdrawal",
+            "sidebarTitle": "Create withdrawal"
+          }
         }
       }
     },
@@ -4251,7 +4347,11 @@
           }
         ],
         "x-mint": {
-          "href": "/hyperliquid/api-reference/deployment/get-deployment"
+          "href": "/hyperliquid/api-reference/deployment/get-deployment",
+          "metadata": {
+            "title": "Get deployment",
+            "sidebarTitle": "Get deployment"
+          }
         }
       }
     },
@@ -4370,7 +4470,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/account/get-identity"
+          "href": "/hyperliquid/api-reference/account/get-identity",
+          "metadata": {
+            "title": "Get identity",
+            "sidebarTitle": "Get identity"
+          }
         }
       }
     },
@@ -4504,7 +4608,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/streams/open-stream"
+          "href": "/hyperliquid/api-reference/streams/open-stream",
+          "metadata": {
+            "title": "Open stream",
+            "sidebarTitle": "Open stream"
+          }
         }
       }
     },
@@ -4702,7 +4810,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/makers/get-maker-capital"
+          "href": "/hyperliquid/api-reference/makers/get-maker-capital",
+          "metadata": {
+            "title": "Get maker capital",
+            "sidebarTitle": "Get maker capital"
+          }
         }
       }
     },
@@ -4858,7 +4970,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/makers/create-collateral-reduction"
+          "href": "/hyperliquid/api-reference/makers/create-collateral-reduction",
+          "metadata": {
+            "title": "Create collateral reduction",
+            "sidebarTitle": "Create collateral reduction"
+          }
         }
       }
     },
@@ -5017,7 +5133,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/makers/get-collateral-reduction"
+          "href": "/hyperliquid/api-reference/makers/get-collateral-reduction",
+          "metadata": {
+            "title": "Get collateral reduction",
+            "sidebarTitle": "Get collateral reduction"
+          }
         }
       }
     },
@@ -5209,7 +5329,11 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/makers/submit-self-funded-transaction"
+          "href": "/hyperliquid/api-reference/makers/submit-self-funded-transaction",
+          "metadata": {
+            "title": "Submit self-funded transaction",
+            "sidebarTitle": "Submit self-funded transaction"
+          }
         }
       }
     }
