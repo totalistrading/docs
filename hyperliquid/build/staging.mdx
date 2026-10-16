@@ -1,0 +1,72 @@
+---
+title: 'Staging'
+icon: 'flask'
+description: 'The testnet copy of Totalis Hyperliquid: chain 998, its base URL, the SDK environment, staging credentials, testnet USDC, and what staging does not run.'
+---
+
+Staging runs the same API on Hyperliquid testnet: HyperEVM chain `998`. Build and test against it before you
+point at production.
+
+<Note>
+Staging is shared and runs on testnet. It deploys from Totalis's latest code with no stability promise, and it
+can be down. A rebuild wipes it: a new vault address, reissued partner keys, and every account and position gone.
+Never hardcode a staging address.
+</Note>
+
+| | Production | Staging |
+| --- | --- | --- |
+| Chain | HyperEVM `999` | HyperEVM testnet `998` |
+| REST | `https://hip4-api.totalis.trade` | `https://hip4-api-staging.totalis.trade` |
+| SDK `environment` | `"production"` | `"staging"` |
+| API key | `ttk_v1_prd_...` | `ttk_v1_stg_...` |
+| Server key | `tpk_v1_prd_...` | `tpk_v1_stg_...` |
+| Browser key | `tpb_v1_prd_...` | `tpb_v1_stg_...` |
+| Builder codes | `tot_rfq_production_...` | `tot_rfq_staging_...` |
+| Builder message `Environment` | `production` | `staging` |
+| Admission consent `Environment` | `production` | `staging` |
+
+Credentials are per environment. A production key is refused on staging, and the reverse.
+
+## Get access
+
+Email [founders@totalis.trade](mailto:founders@totalis.trade) with your staging origins. You receive staging partner
+keys, your registered staging origins and staging codes. See [Get access](/hyperliquid/build/overview#get-access)
+for the full list to send.
+
+## Point the SDK at staging
+
+```js
+import { createClient, createTotalis } from "@totalistrading/hip4-client";
+import { signInWithWallet } from "@totalistrading/hip4-client/wallet-session";
+
+const { data: deployment } = await createClient("staging").GET("/v1/deployment");
+// deployment.chain_id is "998"; deployment.vault_address and deployment.usdc are staging's current ones.
+
+const session = await signInWithWallet({ environment: "staging", signer: window.ethereum, partnerKey: "tpb_v1_stg_..." });
+const totalis = createTotalis({ environment: "staging", accessToken: session.access_token, signer: window.ethereum, partnerKey: "tpb_v1_stg_..." });
+```
+
+`environment: "staging"` sets both the REST and the WebSocket origin. Staging's streams are on its API host:
+`wss://hip4-api-staging.totalis.trade/v1/stream` and `/v1/market-stream`. Every signature binds to the chain and
+vault in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment), so read it from staging after
+every rebuild.
+
+## Testnet USDC
+
+Staging trades testnet USDC on HyperEVM chain `998`: `usdc.address` in staging's Get deployment, currently
+`0x2b3370ee501b4a559b57d449569354196457d8ab`. Totalis runs no faucet. Bring your own testnet USDC, or email
+[founders@totalis.trade](mailto:founders@totalis.trade) with your wallet address and we can send some.
+
+The wallet needs no HYPE for bets, cash-outs and withdrawals: Totalis pays that gas on staging too. A maker wallet
+pays its own gas in testnet HYPE.
+
+## What staging does not run
+
+| Feature | On staging |
+| --- | --- |
+| Account history: activity, portfolio and P&L, credits, leaderboard | Not available. These read HyperCore history, which Totalis indexes on mainnet only. |
+| Exits to HyperCore | Not available |
+| Referral fees | Not counted |
+| Data across a rebuild | Gone. Re-admit wallets, sign in again, and use the reissued keys. |
+
+Positions, RFQs, quotes, balances, withdrawals, the WebSocket and wallet sign-in run as in production.

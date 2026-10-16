@@ -132,9 +132,10 @@ reference is the *exact* surface.
 
 ## BYOW / partner surface
 
-The headless / sub-account (BYOW) surface and the partner narrative stay gated under `_internal/`.
-Public guides are principal-scoped. Never document `X-Subaccount` or sub-account variants in the
-public tree.
+On Hyperliquid the partner surface is public: partner credentials, users' own wallets (BYOW), builder
+codes and staging live under `hyperliquid/build/`. On Solana the headless / sub-account surface and the
+partner narrative stay gated under `_internal/`. Never document `X-Subaccount` or sub-account variants in
+the public tree.
 
 ## Before you merge
 

@@ -13,6 +13,12 @@ A key authenticates the call. The vault contract only moves funds with a signatu
 sent in the request body. Market reads need no key; an expired or revoked key on them still returns
 `401`.
 
+| Credential | For | Issued by |
+| --- | --- | --- |
+| API key (`ttk_`) | A bot, script or maker acting for one account | The account's wallet: [Create, rotate, revoke](#create-rotate-revoke) |
+| Wallet session | A user signing in with their own wallet on a partner's site | The wallet, by Sign-In with Ethereum: [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions) |
+| Partner keys (`tpk_`, `tpb_`) | A partner's server and pages | Totalis, by email: [Build on Totalis](/hyperliquid/build/overview#get-access) |
+
 ## Keys
 
 There is one kind of key. Each key acts for one account, yours or a maker's, and holds only scopes
@@ -20,14 +26,18 @@ that account can use.
 
 | Account | Approved by | Signs trades | Reads |
 | --- | --- | --- | --- |
-| Yours | Your Totalis wallet | Your Totalis wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
-| A maker (`maker_id`) | Your Totalis wallet | Your Totalis wallet (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
+| Yours | Your account's wallet | Your account's wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
+| A maker (`maker_id`) | The maker wallet | The maker wallet (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
 
 - The key alone selects the account, chain and vault. No header or parameter does.
 - A key for a maker naming another `maker_id` gets `404`.
-- Keys start with `ttk_v1_prd_`.
+- Keys start with `ttk_v1_prd_`, or `ttk_v1_stg_` on [Staging](/hyperliquid/build/staging).
 
 ## Create, rotate, revoke
+
+The account's wallet approves every key. An account created in the Totalis app does it in the app. An account
+whose own wallet signs in on a partner's site does it from its wallet session, with the SDK's
+`totalis.issueApiKey` and `rotateApiKey` ([SDK](/hyperliquid/sdk#external-wallets)), or in the partner's own UI.
 
 In the [Totalis app](https://hip4.totalis.trade/account/api-keys), under Account, then API keys:
 
@@ -41,6 +51,10 @@ Rotating takes the same approval and keeps the name and scopes. The old key can 
 hour or 24 hours. Revoking needs no signature and takes effect at once. A key that reports
 `SECRET_UNAVAILABLE` is lost: revoke it and create another. An API key cannot create, rotate or revoke
 keys.
+
+Outside the app, the approval is three calls: a key approval challenge, the wallet's `personal_sign` of its
+Sign-In with Ethereum message, then the create or rotate call with that proof. They need a wallet session or an
+app session from an allowed origin, never an API key.
 
 ## Scopes
 
@@ -74,7 +88,8 @@ A change of the maker's owner invalidates every key of that maker.
 
 ## Wallet key
 
-To sign from code, export your Totalis wallet's key: Account, then Private key, then **Reveal private
+An account whose own wallet signs in already holds its key. For an account created in the Totalis app, the wallet
+is embedded in the app. To sign from code, export its key: Account, then Private key, then **Reveal private
 key**. Check its address equals `wallet` in `GET /v1/me`.
 
 <Warning>

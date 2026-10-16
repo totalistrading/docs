@@ -207,13 +207,22 @@
                 ]
               },
               {
+                "group": "Build on Totalis",
+                "pages": [
+                  "hyperliquid/build/overview",
+                  "hyperliquid/build/partner-frontend",
+                  "hyperliquid/build/builder-codes",
+                  "hyperliquid/build/staging",
+                  "hyperliquid/sdk"
+                ]
+              },
+              {
                 "group": "Resources",
                 "pages": [
                   "hyperliquid/glossary",
                   "hyperliquid/referrals",
                   "hyperliquid/limits-and-fees",
-                  "hyperliquid/errors",
-                  "hyperliquid/sdk"
+                  "hyperliquid/errors"
                 ]
               }
             ]

@@ -37,6 +37,21 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Key approval message | 5 minutes, single use |
 | Request body | 64 KiB |
 
+## Wallet sign-in and partners
+
+For accounts that sign in with their own wallet ([Your users' own wallets](/hyperliquid/build/partner-frontend)).
+
+| Item | Value |
+| --- | --- |
+| Sign-in message | 5 minutes, single use |
+| Wallet session | At most 30 days. Ends after 7 days unused. |
+| Admission consent `Expires At` | At most 1 day ahead. The SDK default is 1 hour. |
+| `builder_authorization_expiry` | In the future, at most 300 seconds ahead |
+| Sponsored deposit | At least 1 USDC. At most 5 per hour per account. |
+| Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
+| First exit to a new HyperCore account | At least 2 USDC. Hyperliquid takes 1 USDC to activate the account. |
+| Exits to HyperCore in flight | 1 per account |
+
 ## Rate limits
 
 Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. Each route also has a total limit
