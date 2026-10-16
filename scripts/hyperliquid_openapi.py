@@ -328,7 +328,11 @@ def publish(spec: dict) -> dict:
         group, title, section = pages[key]
         operation["tags"] = [group]
         operation["summary"] = title
-        operation["x-mint"] = {"href": f"/hyperliquid/api-reference/{slug(section)}/{slug(title)}"}
+        # Mintlify titles the sidebar entry from the href slug unless metadata names it: "Get P&L" read "Get p l".
+        operation["x-mint"] = {
+            "href": f"/hyperliquid/api-reference/{slug(section)}/{slug(title)}",
+            "metadata": {"title": title, "sidebarTitle": title},
+        }
     return spec
 
 
