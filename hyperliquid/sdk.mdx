@@ -46,7 +46,9 @@ signer.
 | `"production"` | `https://hip4-api.totalis.trade` | `wss://hip4-ws.totalis.trade` |
 | `"staging"` | `https://hip4-api-staging.totalis.trade` | `wss://hip4-api-staging.totalis.trade` |
 
-`baseUrl` replaces the REST origin, and serves the streams too unless you set `streamBaseUrl`. Staging is
+The production API host also serves `/v1/stream` and `/v1/market-stream`
+([Connection](/hyperliquid/api-reference/websocket/connection)). `baseUrl` replaces the REST origin, and serves
+the streams too unless you set `streamBaseUrl`. Staging is
 testnet: see [Staging](/hyperliquid/build/staging).
 
 ## Clients
@@ -250,9 +252,10 @@ stream.start();
 ```
 
 It applies the snapshot or replay, drops duplicates, and reconnects from the last applied cursor. `status` is
-`live` only while caught up. A `REFRESH` close or a `reset` frame emits `reset` and takes a fresh snapshot; a
-`NEVER` close ends it with `StreamClosedError`. `serverNow()` is the venue clock. Browsers authenticate with
-their Origin; Node sends the bearer header.
+`live` only while caught up. It follows each close reason's `retry`: `BACKOFF` resumes, `REFRESH` (or a `reset`
+frame) emits `reset` and takes a fresh snapshot, and `NEVER` ends it with `StreamClosedError`. `serverNow()` is
+the venue clock. In a browser it authenticates with the `auth.<token>` subprotocol and the page's Origin; in Node
+it sends the bearer header ([Connection](/hyperliquid/api-reference/websocket/connection)).
 
 ```ts
 for await (const position of items(

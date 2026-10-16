@@ -41,7 +41,7 @@ Authorization: Bearer ttk_v1_prd_...
 
 Each key acts for one account, yours or a maker's, and holds scopes. A user who signs in with their own
 wallet on a partner's site sends a [wallet session](/hyperliquid/build/partner-frontend#sessions) token the same
-way. Calls that move funds also carry a wallet signature in the body. Keys, scopes and signing are on
+way, with the `Origin` it signed in from on every request. Calls that move funds also carry a wallet signature in the body. Keys, scopes and signing are on
 [Authentication & signing](/hyperliquid/authentication).
 
 ## Requests

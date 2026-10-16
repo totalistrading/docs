@@ -16,12 +16,12 @@ sent in the request body. Market reads need no key; an expired or revoked key on
 | Credential | For | Issued by |
 | --- | --- | --- |
 | API key (`ttk_`) | A bot, script or maker acting for one account | The account's wallet: [Create, rotate, revoke](#create-rotate-revoke) |
-| Wallet session | A user signing in with their own wallet on a partner's site | The wallet, by Sign-In with Ethereum: [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions) |
+| Wallet session | A user signing in with their own wallet on a partner's site | Totalis, once the wallet signs a Sign-In with Ethereum message: [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions) |
 | Partner keys (`tpk_`, `tpb_`) | A partner's server and pages | Totalis, by email: [Build on Totalis](/hyperliquid/build/overview#get-access) |
 
 ## Keys
 
-There is one kind of key. Each key acts for one account, yours or a maker's, and holds only scopes
+This section and the next are about API keys (`ttk_`). There is one kind. Each key acts for one account, yours or a maker's, and holds only scopes
 that account can use.
 
 | Account | Approved by | Signs trades | Reads |
@@ -35,7 +35,7 @@ that account can use.
 
 ## Create, rotate, revoke
 
-The account's wallet approves every key. An account created in the Totalis app does it in the app. An account
+The account's wallet approves every API key. An account created in the Totalis app does it in the app. An account
 whose own wallet signs in on a partner's site does it from its wallet session, with the SDK's
 `totalis.issueApiKey` and `rotateApiKey` ([SDK](/hyperliquid/sdk#external-wallets)), or in the partner's own UI.
 
