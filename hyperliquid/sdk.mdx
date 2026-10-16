@@ -107,6 +107,7 @@ shortfall from the wallet in the same accept, and recovers a lost accept. It ret
 | --- | --- | --- |
 | `choose(quotes, serverNowMs)` | `bestQuote()`: highest payout with 5 seconds left | Returns one quote, or `undefined` to wait |
 | `funding` | `"wallet"` | `"wallet"` signs the exact shortfall; `"none"` never funds; a funding command is sent as is |
+| `core` | | HyperCore spot USDC to bridge to the wallet for what its HyperEVM USDC lacks, as in `signEntry` |
 | `quoteTimeoutMs` | 20,000 | Cancels the RFQ and throws if nothing acceptable arrives in time |
 | `onSigned(record)` | | Receives the signed record before anything is sent, to persist it |
 
@@ -153,7 +154,7 @@ const resumed = await totalis.recoverAcceptance(await load()); // reads the acce
 
 | Function | Does |
 | --- | --- |
-| `signEntry({ quote })` | Plans funding from current balances: free vault cash first, then the wallet. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. |
+| `signEntry({ quote, core })` | Plans funding from current balances: free vault cash first, then the wallet, then a bridge of `core` (HyperCore spot USDC you offer) to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind. `core: null` means your HyperCore read failed; leave `core` out to fund from the wallet alone. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. |
 | `signCashout({ quote })` | Has the owner sign a cash-out quote's `SellBack` or `CashoutTransfer` |
 | `sendAcceptance(signed)` | Sends either record under its acceptance ID. The answer must echo the record's IDs. |
 | `recoverAcceptance(signed, { wait })` | Reads and fences the acceptance. Waits out `PENDING_CONFIRM` unless `wait: false`. |
