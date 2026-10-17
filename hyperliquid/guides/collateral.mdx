@@ -200,7 +200,7 @@ interface ITotalisMakerVault {
 | Call | Sent by | Does |
 | --- | --- | --- |
 | USDC `approve(vault, amount)`, then `depositMaker` | Any wallet | Pulls `amount` from the sender into your maker vault. `expectedController` is your maker wallet (`owner` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)); any other reverts `ControllerMismatch()`. |
-| `requestMakerWithdraw` | Your maker wallet | Starts the [delay](/hyperliquid/limits-and-fees) for `amount` to `to`. One can be pending at a time: a second reverts `WithdrawRequestLive()`. |
+| `requestMakerWithdraw` | Your maker wallet | Starts the [delay](/hyperliquid/limits-and-fees) for `amount` to `to`. One can be pending at a time: a second reverts `WithdrawRequestLive()`. The request doesn't check your free cash; ask for at most the `MAKER_WITHDRAW` action in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). Execution re-checks your free collateral on-chain after the delay. |
 | `executeMakerWithdraw` | Your maker wallet | Pays the pending request to its `to` once `readyAt` (Unix seconds) has passed. Reverts `WithdrawNotReady()` before then, and `InsufficientFree()` or `MakerShort()` if it would leave your positions uncovered. |
 | `cancelMakerWithdraw` | Your maker wallet, or Totalis's guardian | Cancels the pending request. |
 | `resetDiscount` | Your maker wallet, or Totalis's guardian | Sets your collateral discount to zero. |

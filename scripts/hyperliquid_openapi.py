@@ -354,14 +354,17 @@ def titles(node, path: str = ""):
         if isinstance(node.get("title"), str):
             yield node["title"], path
         for key, value in node.items():
-            if key not in ("example", "examples", "default", "const", "enum"):
+            if key == "properties" and isinstance(value, dict):
+                for name, schema in value.items():
+                    yield from titles(schema, f"{path}/properties/{name}")
+            elif key not in ("example", "examples", "default", "const", "enum", "x-mint"):
                 yield from titles(value, f"{path}/{key}")
 
 
 def unique_titles(spec: dict) -> None:
     """Stop on a schema title used twice: generated clients name models by title and drop the clash."""
     seen: dict[str, list[str]] = {}
-    for title, path in titles(spec.get("components", {}).get("schemas", {})):
+    for title, path in titles({"components": spec.get("components", {}).get("schemas", {}), "paths": spec.get("paths", {})}):
         seen.setdefault(title, []).append(path)
     clashes = {title: paths for title, paths in seen.items() if len(paths) > 1}
     if clashes:
