@@ -56,6 +56,13 @@ Outside the app, the approval is three calls: a key approval challenge, the wall
 Sign-In with Ethereum message, then the create or rotate call with that proof. They need a wallet session or an
 app session from an allowed origin, never an API key.
 
+| Step | Your account | A maker |
+| --- | --- | --- |
+| Challenge | [Create API key challenge](/hyperliquid/api-reference/api-keys/create-api-key-challenge) | [Create maker API key challenge](/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge) |
+| Create or rotate | [Create API key](/hyperliquid/api-reference/api-keys/create-api-key), [Rotate API key](/hyperliquid/api-reference/api-keys/rotate-api-key) | [Create maker API key](/hyperliquid/api-reference/api-keys/create-maker-api-key), [Rotate maker API key](/hyperliquid/api-reference/api-keys/rotate-maker-api-key) |
+| List, revoke | [List API keys](/hyperliquid/api-reference/api-keys/list-api-keys), [Revoke API key](/hyperliquid/api-reference/api-keys/revoke-api-key) | [List maker API keys](/hyperliquid/api-reference/api-keys/list-maker-api-keys), [Revoke maker API key](/hyperliquid/api-reference/api-keys/revoke-maker-api-key) |
+| Scopes you can issue | [List API key scopes](/hyperliquid/api-reference/api-keys/list-api-key-scopes) | [List maker API key scopes](/hyperliquid/api-reference/api-keys/list-maker-api-key-scopes) |
+
 ## Scopes
 
 | Scope | Account | Grants |

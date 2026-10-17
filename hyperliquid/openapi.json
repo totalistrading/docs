@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Totalis Hyperliquid API",
-    "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with a fresh wallet signature. It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
+    "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
     "version": "152.0.0-maker-withdrawal"
   },
   "servers": [
@@ -35,6 +35,10 @@
     {
       "name": "Partners & wallet sign-in",
       "description": "A partner admits its users' own wallets, which sign in from the partner's pages."
+    },
+    {
+      "name": "API keys",
+      "description": "Issue, rotate and revoke scoped keys from a wallet session. An API key cannot manage keys."
     },
     {
       "name": "Deployment",
@@ -5627,7 +5631,7 @@
             }
           },
           "403": {
-            "description": "`ACCESS_REQUIRED`: the wallet is not an account's own wallet. It has no Totalis account yet (a partner admits it with `POST /v1/partner/wallet-admissions`), or another account only linked it, such as a Privy login method or a maker controller.\n\n- `ORIGIN_NOT_ALLOWED` (retry `NEVER`): The browser origin is not allowed to call this route.\n- `ACCESS_REQUIRED` (retry `NEVER`): Totalis is invite-only: redeem an invite code before creating an account.",
+            "description": "`ACCESS_REQUIRED`: the wallet is not an account's own wallet. It has no Totalis account yet (a partner admits it with `POST /v1/partner/wallet-admissions`), or another account only linked it, such as a Privy login method or a maker controller.\n\n- `ORIGIN_NOT_ALLOWED` (retry `NEVER`): The browser origin is not allowed to call this route.\n- `ACCESS_REQUIRED` (retry `NEVER`): Totalis is invite-only: redeem an invite code, or have a partner admit the wallet, before creating an account.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5990,6 +5994,2568 @@
           "metadata": {
             "title": "Admit wallet",
             "sidebarTitle": "Admit wallet"
+          }
+        }
+      }
+    },
+    "/v1/me/api-keys": {
+      "get": {
+        "operationId": "listPersonalApiKeys",
+        "summary": "List API keys",
+        "description": "Lists every key of the session's account, oldest first, as metadata without secrets.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`).",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of key metadata, never a secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalKeyList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                      "account": {
+                        "kind": "PARTICIPANT",
+                        "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30"
+                      },
+                      "environment": "production",
+                      "label": "Trading bot",
+                      "scopes": [
+                        "account:read",
+                        "account:stream",
+                        "quote:accept",
+                        "rfq:read",
+                        "rfq:write"
+                      ],
+                      "status": "ROTATING",
+                      "created_at": "2026-10-16T12:00:10Z",
+                      "expires_at": "2026-11-15T12:00:10Z",
+                      "last_used_at": "2026-10-20T08:59:41Z",
+                      "revoked_at": null,
+                      "rotated_from": null,
+                      "overlap_until": "2026-10-20T10:00:00Z"
+                    },
+                    {
+                      "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a35",
+                      "account": {
+                        "kind": "PARTICIPANT",
+                        "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30"
+                      },
+                      "environment": "production",
+                      "label": "Trading bot",
+                      "scopes": [
+                        "account:read",
+                        "account:stream",
+                        "quote:accept",
+                        "rfq:read",
+                        "rfq:write"
+                      ],
+                      "status": "ACTIVE",
+                      "created_at": "2026-10-20T09:00:00Z",
+                      "expires_at": "2026-11-19T09:00:00Z",
+                      "last_used_at": null,
+                      "revoked_at": null,
+                      "rotated_from": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                      "overlap_until": null
+                    }
+                  ],
+                  "next_cursor": null,
+                  "has_more": false
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/list-api-keys",
+          "metadata": {
+            "title": "List API keys",
+            "sidebarTitle": "List API keys"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPersonalApiKey",
+        "summary": "Create API key",
+        "description": "Issues a scoped `ttk_` key for the session's account from a request your account wallet signed, and returns its secret this once.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`).",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The new key and its secret, shown only in this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalCreatedKey"
+                },
+                "example": {
+                  "key": {
+                    "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                    "account": {
+                      "kind": "PARTICIPANT",
+                      "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30"
+                    },
+                    "environment": "production",
+                    "label": "Trading bot",
+                    "scopes": [
+                      "account:read",
+                      "account:stream",
+                      "quote:accept",
+                      "rfq:read",
+                      "rfq:write"
+                    ],
+                    "status": "ACTIVE",
+                    "created_at": "2026-10-16T12:00:10Z",
+                    "expires_at": "2026-11-15T12:00:10Z",
+                    "last_used_at": null,
+                    "revoked_at": null,
+                    "rotated_from": null,
+                    "overlap_until": null
+                  },
+                  "secret": "ttk_v1_prd_0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31.q7Xv2LmP9sKd4RtYwB8nZc1HfGj6UeAo3VpNiMxTl0Q"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a `proof` that is not the owner's signature of an unexpired, unused challenge for exactly this request.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `SECRET_UNAVAILABLE` (retry `NEVER`): The one-time secret was already issued and cannot be shown again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "422": {
+            "description": "- `KEY_LIMIT_REACHED` (retry `NEVER`): The owner already holds the maximum number of API keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKeyRequest"
+              },
+              "example": {
+                "label": "Trading bot",
+                "scopes": [
+                  "account:read",
+                  "account:stream",
+                  "quote:accept",
+                  "rfq:read",
+                  "rfq:write"
+                ],
+                "expires_in_days": 30,
+                "proof": {
+                  "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
+                  "signature": "0x4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a1b"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/create-api-key",
+          "metadata": {
+            "title": "Create API key",
+            "sidebarTitle": "Create API key"
+          }
+        }
+      }
+    },
+    "/v1/me/api-keys/{key_id}": {
+      "delete": {
+        "operationId": "revokePersonalApiKey",
+        "summary": "Revoke API key",
+        "description": "Revokes a key of the session's account at once, with any key it is rotating to or from, and answers 204 again for a key already revoked.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`).",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/KeyId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked or already revoked",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/revoke-api-key",
+          "metadata": {
+            "title": "Revoke API key",
+            "sidebarTitle": "Revoke API key"
+          }
+        }
+      }
+    },
+    "/v1/me/api-keys/{key_id}/rotations": {
+      "post": {
+        "operationId": "rotatePersonalApiKey",
+        "summary": "Rotate API key",
+        "description": "Issues a replacement with the same label and scopes from a freshly signed `ROTATE` challenge, while the old key keeps working until its `overlap_until`.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`).",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/KeyId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The replacement key and its secret, shown only in this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalRotatedKey"
+                },
+                "example": {
+                  "key": {
+                    "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a35",
+                    "account": {
+                      "kind": "PARTICIPANT",
+                      "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30"
+                    },
+                    "environment": "production",
+                    "label": "Trading bot",
+                    "scopes": [
+                      "account:read",
+                      "account:stream",
+                      "quote:accept",
+                      "rfq:read",
+                      "rfq:write"
+                    ],
+                    "status": "ACTIVE",
+                    "created_at": "2026-10-20T09:00:00Z",
+                    "expires_at": "2026-11-19T09:00:00Z",
+                    "last_used_at": null,
+                    "revoked_at": null,
+                    "rotated_from": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                    "overlap_until": null
+                  },
+                  "secret": "ttk_v1_prd_0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a35.q7Xv2LmP9sKd4RtYwB8nZc1HfGj6UeAo3VpNiMxTl0Q"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a `proof` that is not the owner's signature of an unexpired, unused challenge for exactly this request.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `SECRET_UNAVAILABLE` (retry `NEVER`): The one-time secret was already issued and cannot be shown again.\n- `ROTATION_IN_PROGRESS` (retry `REFRESH`): Another rotation of this key is in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "422": {
+            "description": "- `KEY_LIMIT_REACHED` (retry `NEVER`): The owner already holds the maximum number of API keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateKeyRequest"
+              },
+              "example": {
+                "overlap_seconds": 3600,
+                "expires_in_days": 30,
+                "proof": {
+                  "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
+                  "signature": "0x4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a1b"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/rotate-api-key",
+          "metadata": {
+            "title": "Rotate API key",
+            "sidebarTitle": "Rotate API key"
+          }
+        }
+      }
+    },
+    "/v1/me/api-key-challenges": {
+      "post": {
+        "operationId": "createPersonalApiKeyChallenge",
+        "summary": "Create API key challenge",
+        "description": "Returns the EIP-4361 message your account wallet signs with `personal_sign` to create or rotate one key, bound to that exact request and usable once within 5 minutes.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`).",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Five-minute, one-use SIWE challenge (purpose=issue_key) the account owner signs for the exact key request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyChallenge"
+                },
+                "example": {
+                  "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
+                  "owner": "0x1111111111111111111111111111111111111111",
+                  "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x1111111111111111111111111111111111111111\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/me/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:participant:0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30\n- urn:totalis:action:create\n- urn:totalis:request:0xa1b9cf025fe7ed666e08ddd7fe03d7adf02634fb29933a5e85302055f0164567",
+                  "expires_at": "2026-10-16T12:05:00Z"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChallengeRequest"
+              },
+              "example": {
+                "action": "CREATE",
+                "request": {
+                  "label": "Trading bot",
+                  "scopes": [
+                    "account:read",
+                    "account:stream",
+                    "quote:accept",
+                    "rfq:read",
+                    "rfq:write"
+                  ],
+                  "expires_in_days": 30
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/create-api-key-challenge",
+          "metadata": {
+            "title": "Create API key challenge",
+            "sidebarTitle": "Create API key challenge"
+          }
+        }
+      }
+    },
+    "/v1/makers/{maker_id}/api-keys": {
+      "get": {
+        "operationId": "listMakerApiKeys",
+        "summary": "List maker API keys",
+        "description": "Lists every key of the maker, oldest first, as metadata without secrets.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`). The session's wallet must be the maker's current controller.",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerId"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of key metadata, never a secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MakerKeyList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                      "account": {
+                        "kind": "MAKER",
+                        "id": "7",
+                        "chain_id": "999",
+                        "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"
+                      },
+                      "environment": "production",
+                      "label": "Quoter",
+                      "scopes": [
+                        "quote:read",
+                        "quote:write",
+                        "rfq:read",
+                        "vault:read"
+                      ],
+                      "status": "ROTATING",
+                      "created_at": "2026-10-16T12:00:10Z",
+                      "expires_at": "2026-11-15T12:00:10Z",
+                      "last_used_at": "2026-10-20T08:59:41Z",
+                      "revoked_at": null,
+                      "rotated_from": null,
+                      "overlap_until": "2026-10-20T10:00:00Z"
+                    },
+                    {
+                      "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a35",
+                      "account": {
+                        "kind": "MAKER",
+                        "id": "7",
+                        "chain_id": "999",
+                        "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"
+                      },
+                      "environment": "production",
+                      "label": "Quoter",
+                      "scopes": [
+                        "quote:read",
+                        "quote:write",
+                        "rfq:read",
+                        "vault:read"
+                      ],
+                      "status": "ACTIVE",
+                      "created_at": "2026-10-20T09:00:00Z",
+                      "expires_at": "2026-11-19T09:00:00Z",
+                      "last_used_at": null,
+                      "revoked_at": null,
+                      "rotated_from": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                      "overlap_until": null
+                    }
+                  ],
+                  "next_cursor": null,
+                  "has_more": false
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a session whose wallet is not the maker's current controller.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/list-maker-api-keys",
+          "metadata": {
+            "title": "List maker API keys",
+            "sidebarTitle": "List maker API keys"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMakerApiKey",
+        "summary": "Create maker API key",
+        "description": "Issues a scoped `ttk_` key for the maker from a request its controller signed, and returns its secret this once.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`). The session's wallet must be the maker's current controller.",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The new key and its secret, shown only in this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MakerCreatedKey"
+                },
+                "example": {
+                  "key": {
+                    "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                    "account": {
+                      "kind": "MAKER",
+                      "id": "7",
+                      "chain_id": "999",
+                      "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"
+                    },
+                    "environment": "production",
+                    "label": "Quoter",
+                    "scopes": [
+                      "quote:read",
+                      "quote:write",
+                      "rfq:read",
+                      "vault:read"
+                    ],
+                    "status": "ACTIVE",
+                    "created_at": "2026-10-16T12:00:10Z",
+                    "expires_at": "2026-11-15T12:00:10Z",
+                    "last_used_at": null,
+                    "revoked_at": null,
+                    "rotated_from": null,
+                    "overlap_until": null
+                  },
+                  "secret": "ttk_v1_prd_0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31.q7Xv2LmP9sKd4RtYwB8nZc1HfGj6UeAo3VpNiMxTl0Q"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a session whose wallet is not the maker's current controller, or a `proof` that is not the owner's signature of an unexpired, unused challenge for exactly this request.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `SECRET_UNAVAILABLE` (retry `NEVER`): The one-time secret was already issued and cannot be shown again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "422": {
+            "description": "- `KEY_LIMIT_REACHED` (retry `NEVER`): The owner already holds the maximum number of API keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKeyRequest"
+              },
+              "example": {
+                "label": "Quoter",
+                "scopes": [
+                  "quote:read",
+                  "quote:write",
+                  "rfq:read",
+                  "vault:read"
+                ],
+                "expires_in_days": 30,
+                "proof": {
+                  "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
+                  "signature": "0x4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a1b"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/create-maker-api-key",
+          "metadata": {
+            "title": "Create maker API key",
+            "sidebarTitle": "Create maker API key"
+          }
+        }
+      }
+    },
+    "/v1/makers/{maker_id}/api-keys/{key_id}": {
+      "delete": {
+        "operationId": "revokeMakerApiKey",
+        "summary": "Revoke maker API key",
+        "description": "Revokes a key of the maker at once, with any key it is rotating to or from, and answers 204 again for a key already revoked.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`). The session's wallet must be the maker's current controller.",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerId"
+          },
+          {
+            "$ref": "#/components/parameters/KeyId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked or already revoked",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a session whose wallet is not the maker's current controller.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/revoke-maker-api-key",
+          "metadata": {
+            "title": "Revoke maker API key",
+            "sidebarTitle": "Revoke maker API key"
+          }
+        }
+      }
+    },
+    "/v1/makers/{maker_id}/api-keys/{key_id}/rotations": {
+      "post": {
+        "operationId": "rotateMakerApiKey",
+        "summary": "Rotate maker API key",
+        "description": "Issues a replacement with the same label and scopes from a freshly signed `ROTATE` challenge, while the old key keeps working until its `overlap_until`.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`). The session's wallet must be the maker's current controller.",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerId"
+          },
+          {
+            "$ref": "#/components/parameters/KeyId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The replacement key and its secret, shown only in this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MakerRotatedKey"
+                },
+                "example": {
+                  "key": {
+                    "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a35",
+                    "account": {
+                      "kind": "MAKER",
+                      "id": "7",
+                      "chain_id": "999",
+                      "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"
+                    },
+                    "environment": "production",
+                    "label": "Quoter",
+                    "scopes": [
+                      "quote:read",
+                      "quote:write",
+                      "rfq:read",
+                      "vault:read"
+                    ],
+                    "status": "ACTIVE",
+                    "created_at": "2026-10-20T09:00:00Z",
+                    "expires_at": "2026-11-19T09:00:00Z",
+                    "last_used_at": null,
+                    "revoked_at": null,
+                    "rotated_from": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a31",
+                    "overlap_until": null
+                  },
+                  "secret": "ttk_v1_prd_0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a35.q7Xv2LmP9sKd4RtYwB8nZc1HfGj6UeAo3VpNiMxTl0Q"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a session whose wallet is not the maker's current controller, or a `proof` that is not the owner's signature of an unexpired, unused challenge for exactly this request.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `SECRET_UNAVAILABLE` (retry `NEVER`): The one-time secret was already issued and cannot be shown again.\n- `ROTATION_IN_PROGRESS` (retry `REFRESH`): Another rotation of this key is in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "422": {
+            "description": "- `KEY_LIMIT_REACHED` (retry `NEVER`): The owner already holds the maximum number of API keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateKeyRequest"
+              },
+              "example": {
+                "overlap_seconds": 3600,
+                "expires_in_days": 30,
+                "proof": {
+                  "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
+                  "signature": "0x4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a1b"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/rotate-maker-api-key",
+          "metadata": {
+            "title": "Rotate maker API key",
+            "sidebarTitle": "Rotate maker API key"
+          }
+        }
+      }
+    },
+    "/v1/makers/{maker_id}/api-key-challenges": {
+      "post": {
+        "operationId": "createMakerApiKeyChallenge",
+        "summary": "Create maker API key challenge",
+        "description": "Returns the EIP-4361 message the maker's controller signs with `personal_sign` to create or rotate one maker key, bound to that exact request and usable once within 5 minutes.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`). The session's wallet must be the maker's current controller.",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerId"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Five-minute, one-use SIWE challenge (purpose=issue_key) the account owner signs for the exact key request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyChallenge"
+                },
+                "example": {
+                  "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
+                  "owner": "0x7777777777777777777777777777777777777777",
+                  "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x7777777777777777777777777777777777777777\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/makers/7/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:maker:7\n- urn:totalis:owner-version:2\n- urn:totalis:action:create\n- urn:totalis:request:0x40c9c897046dd510eb3f1515c7771fcf731feea2ee945b53477e928f6a689384",
+                  "expires_at": "2026-10-16T12:05:00Z"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a session whose wallet is not the maker's current controller.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChallengeRequest"
+              },
+              "example": {
+                "action": "CREATE",
+                "request": {
+                  "label": "Quoter",
+                  "scopes": [
+                    "quote:read",
+                    "quote:write",
+                    "rfq:read",
+                    "vault:read"
+                  ],
+                  "expires_in_days": 30
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge",
+          "metadata": {
+            "title": "Create maker API key challenge",
+            "sidebarTitle": "Create maker API key challenge"
+          }
+        }
+      }
+    },
+    "/v1/me/api-key-capabilities": {
+      "get": {
+        "operationId": "getPersonalApiKeyCapabilities",
+        "summary": "List API key scopes",
+        "description": "Returns the scopes a new key for the session's account may hold now and the wallet that must sign it, as advice that issuance checks again.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`).",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current key capability snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyCapabilities"
+                },
+                "example": {
+                  "account": {
+                    "kind": "PARTICIPANT",
+                    "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30"
+                  },
+                  "environment": "production",
+                  "owner": "0x1111111111111111111111111111111111111111",
+                  "scopes": [
+                    "identity:read",
+                    "account:read",
+                    "account:stream",
+                    "rfq:read",
+                    "rfq:write",
+                    "quote:read",
+                    "replay:read",
+                    "quote:accept",
+                    "position:cashout",
+                    "funding:deposit",
+                    "funding:withdraw",
+                    "sponsorship:use"
+                  ],
+                  "as_of": "2026-10-16T11:59:58Z"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/list-api-key-scopes",
+          "metadata": {
+            "title": "List API key scopes",
+            "sidebarTitle": "List API key scopes"
+          }
+        }
+      }
+    },
+    "/v1/makers/{maker_id}/api-key-capabilities": {
+      "get": {
+        "operationId": "getMakerApiKeyCapabilities",
+        "summary": "List maker API key scopes",
+        "description": "Returns the scopes a new key for the maker may hold now and the controller that must sign it, as advice that issuance checks again.\n\nRequires a wallet session or the Totalis app's own sign-in session, sent with exactly one allowed `Origin` (otherwise `FORBIDDEN`); an API key cannot call it (`UNAUTHENTICATED`). The session's wallet must be the maker's current controller.",
+        "security": [
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current key capability snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyCapabilities"
+                },
+                "example": {
+                  "account": {
+                    "kind": "MAKER",
+                    "id": "7",
+                    "chain_id": "999",
+                    "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"
+                  },
+                  "environment": "production",
+                  "owner": "0x7777777777777777777777777777777777777777",
+                  "scopes": [
+                    "rfq:read",
+                    "quote:read",
+                    "quote:write",
+                    "replay:read",
+                    "vault:read",
+                    "vault:write",
+                    "operations:submit"
+                  ],
+                  "as_of": "2026-10-16T11:59:58Z"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "description": "No session, or an API key (`ttk_`), which never manages keys.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "403": {
+            "description": "A missing, repeated or unregistered `Origin`, or a session whose wallet is not the maker's current controller.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/ApiKeysRetryAfter"
+              }
+            }
+          }
+        },
+        "tags": [
+          "API keys"
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/api-keys/list-maker-api-key-scopes",
+          "metadata": {
+            "title": "List maker API key scopes",
+            "sidebarTitle": "List maker API key scopes"
           }
         }
       }
@@ -7176,6 +9742,16 @@
         "description": "Lowercase UUIDv7 naming this command, unique per caller and route. A retry with the same key and body returns the original result; the same key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`.",
         "example": "0198a6f6-82a5-7abc-9f2a-4f0fb437493e"
       },
+      "KeyId": {
+        "name": "key_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Uuid"
+        },
+        "description": "ID of a key on this account, from the key list or the create response.",
+        "example": "01995000-0000-7000-8000-000000000001"
+      },
       "Limit": {
         "name": "limit",
         "in": "query",
@@ -7490,6 +10066,82 @@
             "$ref": "#/components/schemas/Acceptance"
           }
         ]
+      },
+      "Account": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "PARTICIPANT",
+                "description": "The account kind: `PARTICIPANT` for a personal account."
+              },
+              "id": {
+                "$ref": "#/components/schemas/Uuid",
+                "description": "The personal account's ID."
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "title": "Participant"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "MAKER",
+                "description": "The account kind: `MAKER` for a maker vault."
+              },
+              "id": {
+                "$ref": "#/components/schemas/NonZeroUInt64String",
+                "description": "The on-chain maker ID, as a decimal string."
+              },
+              "chain_id": {
+                "type": "string",
+                "enum": [
+                  "998",
+                  "999"
+                ],
+                "description": "The HyperEVM chain of the maker's vault: 999 mainnet, 998 testnet."
+              },
+              "vault_address": {
+                "$ref": "#/components/schemas/LowercaseNonZeroAddress",
+                "description": "The Totalis vault contract the maker is registered in."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "chain_id",
+              "vault_address"
+            ],
+            "title": "Maker"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "OPERATOR",
+                "description": "The account kind: `OPERATOR`, never issued."
+              },
+              "id": {
+                "$ref": "#/components/schemas/Uuid",
+                "description": "The operator's ID."
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "title": "Operator"
+          }
+        ],
+        "description": "The one account a key acts for: a personal account or a maker vault. A key never spans accounts."
       },
       "ActionAvailability": {
         "type": "object",
@@ -8791,6 +11443,34 @@
         ],
         "description": "The cash-out RFQ to open on the position in the path. The caller's embedded wallet must be its current owner."
       },
+      "CreateKeyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/KeyLabel",
+            "description": "Your name for the key, 1 to 80 characters."
+          },
+          "scopes": {
+            "$ref": "#/components/schemas/ScopeList",
+            "description": "Permissions the key holds; each must apply to the account, as the capabilities route lists."
+          },
+          "expires_in_days": {
+            "$ref": "#/components/schemas/KeyExpiryDays",
+            "description": "Lifetime in days, 1 to 90, or 0 for no expiry; 30 when omitted."
+          },
+          "proof": {
+            "$ref": "#/components/schemas/OwnerProof",
+            "description": "The account owner's signature over the challenge for exactly this request without `proof`."
+          }
+        },
+        "required": [
+          "label",
+          "scopes",
+          "proof"
+        ],
+        "description": "The same shape for a personal account and a maker. proof is the owner's signature over the issue_key challenge for exactly this request without proof."
+      },
       "CreateQuoteCommand": {
         "oneOf": [
           {
@@ -8903,6 +11583,13 @@
         "required": [
           "stake",
           "legs"
+        ]
+      },
+      "CreatedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IssuedKey"
+          }
         ]
       },
       "DateEvent": {
@@ -9797,6 +12484,300 @@
         "description": "Nonnegative integer value paired with an explicit positive scale."
       },
       "IntentIdentityPair": {},
+      "IssuedKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/KeyMetadata"
+              }
+            ],
+            "description": "The new key's metadata."
+          },
+          "secret": {
+            "type": "string",
+            "pattern": "^ttk_v1_(dev|stg|prd)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{43}$",
+            "description": "The `ttk_` secret, shown only in this response; a retry of the same request answers `SECRET_UNAVAILABLE`, so store it now."
+          }
+        },
+        "required": [
+          "key",
+          "secret"
+        ]
+      },
+      "KeyCapabilities": {
+        "description": "Advisory, no-store snapshot of the scopes a new key for this account may hold and the owner whose signature issues it. Scope dependencies still apply. Issuance revalidates current authority and consumes the owner's proof; discovery is never an authorization lease.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "account",
+          "environment",
+          "owner",
+          "scopes",
+          "as_of"
+        ],
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/Account",
+            "description": "The account a new key would act for."
+          },
+          "environment": {
+            "enum": [
+              "development",
+              "staging",
+              "production"
+            ],
+            "description": "The deployment a new key would work in."
+          },
+          "owner": {
+            "$ref": "#/components/schemas/LowercaseNonZeroAddress",
+            "description": "The address that signs issuance: the account wallet for a personal account, the controller for a maker."
+          },
+          "scopes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "description": "Scopes a new key for this account may hold now."
+          },
+          "as_of": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "When this snapshot was taken."
+          }
+        }
+      },
+      "KeyChallenge": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "Send back as `proof.challenge_id`."
+          },
+          "owner": {
+            "$ref": "#/components/schemas/LowercaseNonZeroAddress",
+            "description": "The address that must sign: the account wallet for a personal account, the controller for a maker."
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "description": "The EIP-4361 message to sign with `personal_sign`, exactly as returned; check its URI, account, action and key before signing."
+          },
+          "expires_at": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "When the challenge stops being accepted, 5 minutes after issue."
+          }
+        },
+        "required": [
+          "challenge_id",
+          "owner",
+          "message",
+          "expires_at"
+        ],
+        "description": "An EIP-4361 (SIWE) message with purpose=issue_key. Its resources bind the environment, vault, account, owner version (makers), action, key (rotation) and the request digest."
+      },
+      "KeyChallengeRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "CREATE",
+                "description": "`CREATE` for a new key."
+              },
+              "request": {
+                "$ref": "#/components/schemas/UnsignedCreateKeyRequest",
+                "description": "The exact create request, without `proof`, that the owner signs."
+              }
+            },
+            "required": [
+              "action",
+              "request"
+            ],
+            "title": "Create"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "ROTATE",
+                "description": "`ROTATE` to replace a key."
+              },
+              "key_id": {
+                "$ref": "#/components/schemas/Uuid",
+                "description": "The key to rotate."
+              },
+              "request": {
+                "$ref": "#/components/schemas/UnsignedRotateKeyRequest",
+                "description": "The exact rotation request, without `proof`, that the owner signs."
+              }
+            },
+            "required": [
+              "action",
+              "key_id",
+              "request"
+            ],
+            "title": "Rotate"
+          }
+        ]
+      },
+      "KeyExpiryDays": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 90,
+        "default": 30,
+        "description": "0 means Forever (no expiry); 1–90 sets a finite lifetime in days. Omission defaults to 30."
+      },
+      "KeyLabel": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "KeyList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/KeyMetadata"
+            },
+            "description": "Keys of the account, oldest first, revoked and expired ones included."
+          },
+          "next_cursor": {
+            "$ref": "#/components/schemas/NextCursor",
+            "description": "Send as `cursor` for the next page; null on the last page."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether another page follows."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "has_more"
+        ]
+      },
+      "KeyMetadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "Key ID; the secret embeds it, and the key routes take it as `key_id`."
+          },
+          "account": {
+            "$ref": "#/components/schemas/Account",
+            "description": "The one account the key acts for."
+          },
+          "environment": {
+            "enum": [
+              "development",
+              "staging",
+              "production"
+            ],
+            "description": "The deployment the key works in; a key never works in another."
+          },
+          "label": {
+            "$ref": "#/components/schemas/KeyLabel",
+            "description": "Your name for the key, 1 to 80 characters."
+          },
+          "scopes": {
+            "$ref": "#/components/schemas/ScopeList",
+            "description": "Permissions the key holds; each operation lists the scopes it requires."
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "ROTATING",
+              "EXPIRED",
+              "REVOKED"
+            ],
+            "description": "`ACTIVE`; `ROTATING` once a rotation replaced it, until `overlap_until`; `EXPIRED` past its deadline; or `REVOKED`."
+          },
+          "created_at": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "When the key was issued."
+          },
+          "expires_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommonTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means no scheduled expiry. Revocation, overlap deadlines and current authority still apply."
+          },
+          "last_used_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommonTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the key last authenticated a request, or null if never."
+          },
+          "revoked_at": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommonTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the key was revoked, or null."
+          },
+          "rotated_from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The key this one replaced in a rotation, or null for a newly created key."
+          },
+          "overlap_until": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommonTimestamp"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While `ROTATING`, when this replaced key stops working; otherwise null."
+          }
+        },
+        "required": [
+          "id",
+          "account",
+          "environment",
+          "label",
+          "scopes",
+          "status",
+          "created_at",
+          "expires_at",
+          "last_used_at",
+          "revoked_at",
+          "rotated_from",
+          "overlap_until"
+        ]
+      },
       "Leg": {
         "type": "object",
         "required": [
@@ -10004,6 +12985,47 @@
           }
         },
         "description": "Maker capital lanes and derived collateral, in atomic USDC (6 decimals, \"1000000\" = 1 USDC). Amounts are null when unavailable; context.status is their freshness."
+      },
+      "MakerCreatedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MakerIssuedKey"
+          },
+          {
+            "$ref": "#/components/schemas/CreatedKey"
+          }
+        ]
+      },
+      "MakerIssuedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IssuedKey"
+          }
+        ]
+      },
+      "MakerKeyList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/KeyList"
+          }
+        ]
+      },
+      "MakerKeyMetadata": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/KeyMetadata"
+          }
+        ]
+      },
+      "MakerRotatedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MakerIssuedKey"
+          },
+          {
+            "$ref": "#/components/schemas/RotatedKey"
+          }
+        ]
       },
       "MakerWithdrawal": {
         "type": "object",
@@ -10739,6 +13761,25 @@
         "pattern": "^https://[^/?#@]+$",
         "maxLength": 255
       },
+      "OwnerProof": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "challenge_id",
+          "signature"
+        ],
+        "description": "The account owner's personal_sign or ERC-1271 signature over the exact challenge message. For a maker the owner is its controller; for a personal account, its account wallet.",
+        "properties": {
+          "challenge_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "The `challenge_id` of the challenge that was signed."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/ContractSignature",
+            "description": "The owner's signature over the challenge's `message`, exactly as returned."
+          }
+        }
+      },
       "PageCursor": {
         "type": "string",
         "minLength": 1,
@@ -10764,6 +13805,47 @@
             "description": "Rendered title and rules of the parent question."
           }
         }
+      },
+      "PersonalCreatedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PersonalIssuedKey"
+          },
+          {
+            "$ref": "#/components/schemas/CreatedKey"
+          }
+        ]
+      },
+      "PersonalIssuedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IssuedKey"
+          }
+        ]
+      },
+      "PersonalKeyList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/KeyList"
+          }
+        ]
+      },
+      "PersonalKeyMetadata": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/KeyMetadata"
+          }
+        ]
+      },
+      "PersonalRotatedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PersonalIssuedKey"
+          },
+          {
+            "$ref": "#/components/schemas/RotatedKey"
+          }
+        ]
       },
       "PnL": {
         "type": "object",
@@ -12064,12 +15146,88 @@
           "EXPIRED_UNEXECUTED"
         ]
       },
+      "RotateKeyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "overlap_seconds": {
+            "$ref": "#/components/schemas/RotationOverlapSeconds",
+            "description": "How long the old key keeps working after the rotation, 0 to 86400 seconds; 3600 when omitted."
+          },
+          "expires_in_days": {
+            "$ref": "#/components/schemas/KeyExpiryDays",
+            "description": "The replacement's lifetime in days, 1 to 90, or 0 for no expiry; 30 when omitted."
+          },
+          "proof": {
+            "$ref": "#/components/schemas/OwnerProof",
+            "description": "The account owner's signature over the challenge for exactly this request without `proof`."
+          }
+        },
+        "required": [
+          "proof"
+        ],
+        "description": "Every rotation needs a fresh owner proof over exactly this request without proof. The replacement inherits the predecessor's account, label and scopes."
+      },
+      "RotatedKey": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IssuedKey"
+          }
+        ]
+      },
+      "RotationOverlapSeconds": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 86400,
+        "default": 3600
+      },
       "Scale": {
         "type": "string",
         "pattern": "^[1-9][0-9]*$",
         "maxLength": 78,
         "format": "uint256-decimal",
         "description": "Positive base-10 scale for an integer value."
+      },
+      "Scope": {
+        "type": "string",
+        "enum": [
+          "identity:read",
+          "account:read",
+          "account:stream",
+          "rfq:read",
+          "rfq:write",
+          "quote:write",
+          "quote:read",
+          "replay:read",
+          "vault:read",
+          "vault:write",
+          "quote:accept",
+          "position:cashout",
+          "funding:deposit",
+          "funding:withdraw",
+          "sponsorship:use",
+          "maker:access:read",
+          "operations:read",
+          "operations:submit"
+        ],
+        "description": "One permission a key can hold. Each operation lists the scopes it requires, and a key holds only scopes that apply to its account, as the capabilities routes list. `operations:read` is reserved and never issued; `maker:access:read` is no longer issued and has no effect on a key that still carries it."
+      },
+      "ScopeList": {
+        "allOf": [
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true
+          },
+          {},
+          {},
+          {}
+        ],
+        "description": "Replay needs a feed the key can read: account:stream or rfq:read for a personal account, vault:read, quote:read or rfq:read for a maker."
       },
       "SelfFundedAccepted": {
         "type": "object",
@@ -12470,6 +15628,29 @@
         "type": "string",
         "pattern": "^(0|[1-9][0-9]{0,77})$"
       },
+      "UnsignedCreateKeyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/KeyLabel",
+            "description": "Your name for the key, 1 to 80 characters."
+          },
+          "scopes": {
+            "$ref": "#/components/schemas/ScopeList",
+            "description": "Permissions the key holds; each must apply to the account, as the capabilities route lists."
+          },
+          "expires_in_days": {
+            "$ref": "#/components/schemas/KeyExpiryDays",
+            "description": "Lifetime in days, 1 to 90, or 0 for no expiry; 30 when omitted."
+          }
+        },
+        "required": [
+          "label",
+          "scopes"
+        ],
+        "description": "The exact key request the account owner signs. Scopes must apply to the account."
+      },
       "UnsignedMetric": {
         "oneOf": [
           {
@@ -12480,6 +15661,22 @@
           }
         ],
         "description": "Non-negative amount in atomic USDC (6 decimals, \"1000000\" = 1 USDC); null when it could not be established, never zero in its place."
+      },
+      "UnsignedRotateKeyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "overlap_seconds": {
+            "$ref": "#/components/schemas/RotationOverlapSeconds",
+            "description": "How long the old key keeps working after the rotation, 0 to 86400 seconds; 3600 when omitted."
+          },
+          "expires_in_days": {
+            "$ref": "#/components/schemas/KeyExpiryDays",
+            "description": "The replacement's lifetime in days, 1 to 90, or 0 for no expiry; 30 when omitted."
+          }
+        },
+        "required": [],
+        "description": "The exact rotation request the account owner signs; the replacement inherits the old key's account, label and scopes."
       },
       "Username": {
         "type": "string",
@@ -12902,9 +16099,25 @@
       }
     },
     "headers": {
+      "ApiKeysRetryAfter": {
+        "description": "Seconds to wait before resending the same request.",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
       "CacheControl": {
         "description": "Always `no-store`; account data must not be cached.",
         "schema": {
+          "const": "no-store"
+        }
+      },
+      "CacheControlNoStore": {
+        "description": "Never cache API-key management responses.",
+        "required": true,
+        "schema": {
+          "type": "string",
           "const": "no-store"
         }
       },
@@ -12927,7 +16140,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "ttk_",
-        "description": "Scoped API key (`ttk_...`), created in the Totalis app or by a wallet-session user with a fresh wallet signature. Each key acts for one account, yours or a maker's, and holds only scopes that account can use. Each operation lists the scopes it requires. Send no `Origin`."
+        "description": "Scoped API key (`ttk_...`), created in the Totalis app or by a wallet-session user through the API keys routes with a fresh wallet signature; those routes never accept a key. Each key acts for one account, yours or a maker's, and holds only scopes that account can use. Each operation lists the scopes it requires. Send no `Origin`."
       },
       "walletSession": {
         "type": "http",

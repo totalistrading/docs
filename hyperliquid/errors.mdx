@@ -118,7 +118,7 @@ closes use the same codes.
 | `UNAUTHENTICATED` | 401 | - | `NEVER` | The credential is missing, invalid, expired or revoked. |
 | `FORBIDDEN` | 403 | - | `NEVER` | The credential is valid but lacks the scope, permission or role this operation needs. |
 | `ORIGIN_NOT_ALLOWED` | 403 | - | `NEVER` | The browser origin is not allowed to call this route. |
-| `ACCESS_REQUIRED` | 403 | - | `NEVER` | Totalis is invite-only: redeem an invite code before creating an account. |
+| `ACCESS_REQUIRED` | 403 | - | `NEVER` | Totalis is invite-only: redeem an invite code, or have a partner admit the wallet, before creating an account. |
 | `NOT_FOUND` | 404 | - | `NEVER` | The resource does not exist or is not visible to this credential. |
 | `IDENTITY_NOT_FOUND` | 404 | - | `NEVER` | The account has no venue identity yet; bind the embedded wallet first. |
 | `QUOTE_NOT_FOUND` | 404 | - | `NEVER` | The quote does not exist. |
@@ -127,6 +127,8 @@ closes use the same codes.
 | `STALE_CURSOR` | 409 | - | `REFRESH` | The cursor belongs to an older catalog or browse generation; restart from the first page. |
 | `CURSOR_EXPIRED` | 409 | - | `REFRESH` | The account-read snapshot behind this cursor expired or its scope changed; restart from the first page. |
 | `CURSOR_RESET` | 409 | 1008 | `REFRESH` | The realtime cursor is no longer replayable; take a fresh snapshot. |
+| `SECRET_UNAVAILABLE` | 409 | - | `NEVER` | The one-time secret was already issued and cannot be shown again. |
+| `ROTATION_IN_PROGRESS` | 409 | - | `REFRESH` | Another rotation of this key is in progress. |
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
@@ -142,6 +144,7 @@ closes use the same codes.
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
 | `WALLET_CONTRACT_UNSUPPORTED` | 422 | - | `NEVER` | Wallet sign-in needs an externally owned account; this address holds contract code. |
 | `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirm. |
+| `KEY_LIMIT_REACHED` | 422 | - | `NEVER` | The owner already holds the maximum number of API keys. |
 | `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |
 | `CONNECTION_LIMIT` | 429 | - | `BACKOFF` | The stream connection limit is reached. |
 | `RFQ_INTENT_LIMIT` | 429 | - | `BACKOFF` | The account has too many open RFQs. |

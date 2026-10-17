@@ -322,6 +322,23 @@
                 ]
               },
               {
+                "group": "API keys",
+                "pages": [
+                  "POST /v1/me/api-key-challenges",
+                  "POST /v1/me/api-keys",
+                  "POST /v1/me/api-keys/{key_id}/rotations",
+                  "GET /v1/me/api-keys",
+                  "DELETE /v1/me/api-keys/{key_id}",
+                  "GET /v1/me/api-key-capabilities",
+                  "POST /v1/makers/{maker_id}/api-key-challenges",
+                  "POST /v1/makers/{maker_id}/api-keys",
+                  "POST /v1/makers/{maker_id}/api-keys/{key_id}/rotations",
+                  "GET /v1/makers/{maker_id}/api-keys",
+                  "DELETE /v1/makers/{maker_id}/api-keys/{key_id}",
+                  "GET /v1/makers/{maker_id}/api-key-capabilities"
+                ]
+              },
+              {
                 "group": "Deployment",
                 "pages": [
                   "GET /v1/deployment"

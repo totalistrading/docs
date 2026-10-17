@@ -5,7 +5,7 @@ The source is hip4-backend's public spec (tools/public_openapi.py), which alread
 app-only routes. This script:
 
 - files every operation under one sidebar group (PAGES), by resource on one axis: Markets,
-  RFQs & Quotes, Positions, Account, Makers, Partners & wallet sign-in, Deployment and WebSocket. The group becomes the
+  RFQs & Quotes, Positions, Account, Makers, Partners & wallet sign-in, API keys, Deployment and WebSocket. The group becomes the
   operation's tag;
 - titles every page with one pattern, verb + resource ("Create RFQ", "Accept quote"), replacing
   the spec's summary;
@@ -111,6 +111,23 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POST /v1/auth/wallet-challenges", "Create wallet challenge", "Wallet sessions"),
             ("POST /v1/auth/wallet-sessions", "Create wallet session", "Wallet sessions"),
             ("DELETE /v1/auth/wallet-sessions/current", "End wallet session", "Wallet sessions"),
+        ],
+    ),
+    "API keys": (
+        "Issue, rotate and revoke scoped keys from a wallet session. An API key cannot manage keys.",
+        [
+            ("POST /v1/me/api-key-challenges", "Create API key challenge", "API keys"),
+            ("POST /v1/me/api-keys", "Create API key", "API keys"),
+            ("POST /v1/me/api-keys/{key_id}/rotations", "Rotate API key", "API keys"),
+            ("GET /v1/me/api-keys", "List API keys", "API keys"),
+            ("DELETE /v1/me/api-keys/{key_id}", "Revoke API key", "API keys"),
+            ("GET /v1/me/api-key-capabilities", "List API key scopes", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-key-challenges", "Create maker API key challenge", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-keys", "Create maker API key", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-keys/{key_id}/rotations", "Rotate maker API key", "API keys"),
+            ("GET /v1/makers/{maker_id}/api-keys", "List maker API keys", "API keys"),
+            ("DELETE /v1/makers/{maker_id}/api-keys/{key_id}", "Revoke maker API key", "API keys"),
+            ("GET /v1/makers/{maker_id}/api-key-capabilities", "List maker API key scopes", "API keys"),
         ],
     ),
     "Deployment": (
