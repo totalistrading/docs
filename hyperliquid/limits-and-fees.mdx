@@ -15,6 +15,7 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Entry RFQ open | 20 seconds |
 | Cash-out RFQ open | 30 seconds |
 | Entry quote `expiry` | At most 30 seconds ahead. Quotes within 2 seconds of expiry are left out. |
+| Bridge from HyperCore into an entry (SDK) | Signed and sent only with more than 4 seconds of quote life left. The accept is posted only with at least 3.5 seconds left. |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
 | Settlement and claim | About every 5 minutes |
