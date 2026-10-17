@@ -207,13 +207,22 @@
                 ]
               },
               {
+                "group": "Build on Totalis",
+                "pages": [
+                  "hyperliquid/build/overview",
+                  "hyperliquid/build/partner-frontend",
+                  "hyperliquid/build/builder-codes",
+                  "hyperliquid/build/staging",
+                  "hyperliquid/sdk"
+                ]
+              },
+              {
                 "group": "Resources",
                 "pages": [
                   "hyperliquid/glossary",
                   "hyperliquid/referrals",
                   "hyperliquid/limits-and-fees",
-                  "hyperliquid/errors",
-                  "hyperliquid/sdk"
+                  "hyperliquid/errors"
                 ]
               }
             ]
@@ -285,7 +294,12 @@
                   "GET /v1/me/operations",
                   "GET /v1/me/operations/{operation_id}",
                   "POST /v1/me/withdrawals",
-                  "GET /v1/me/withdrawals/{withdrawal_id}"
+                  "GET /v1/me/withdrawals/{withdrawal_id}",
+                  "POST /v1/me/deposits",
+                  "POST /v1/core-exits",
+                  "GET /v1/me/core-exits",
+                  "GET /v1/core-exits/{exit_id}",
+                  "POST /v1/core-exits/{exit_id}/abandon"
                 ]
               },
               {
@@ -294,7 +308,34 @@
                   "GET /v1/makers/{maker_id}/capital",
                   "POST /v1/makers/{maker_id}/collateral-reductions",
                   "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",
+                  "GET /v1/makers/{maker_id}/withdrawal",
                   "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction"
+                ]
+              },
+              {
+                "group": "Partners & wallet sign-in",
+                "pages": [
+                  "POST /v1/partner/wallet-admissions",
+                  "POST /v1/auth/wallet-challenges",
+                  "POST /v1/auth/wallet-sessions",
+                  "DELETE /v1/auth/wallet-sessions/current"
+                ]
+              },
+              {
+                "group": "API keys",
+                "pages": [
+                  "POST /v1/me/api-key-challenges",
+                  "POST /v1/me/api-keys",
+                  "POST /v1/me/api-keys/{key_id}/rotations",
+                  "GET /v1/me/api-keys",
+                  "DELETE /v1/me/api-keys/{key_id}",
+                  "GET /v1/me/api-key-capabilities",
+                  "POST /v1/makers/{maker_id}/api-key-challenges",
+                  "POST /v1/makers/{maker_id}/api-keys",
+                  "POST /v1/makers/{maker_id}/api-keys/{key_id}/rotations",
+                  "GET /v1/makers/{maker_id}/api-keys",
+                  "DELETE /v1/makers/{maker_id}/api-keys/{key_id}",
+                  "GET /v1/makers/{maker_id}/api-key-capabilities"
                 ]
               },
               {

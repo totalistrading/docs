@@ -26,6 +26,10 @@ description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptanc
 | Free collateral | What a maker vault can still back: `free_collateral` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
 | Collateral reduction | A job that lowers a maker's requirement to what its open positions can lose together. See [Maker collateral](/hyperliquid/guides/collateral). |
 | Totalis balance | Your wallet's USDC on HyperEVM plus your free vault balance. |
-| Wallet | Your Totalis embedded wallet. It approves your keys and signs your trades. |
+| Wallet | The account's wallet: embedded in the Totalis app, or the user's own on a partner's site. It approves the account's keys and signs its trades. |
+| Wallet session | A bearer token from a wallet's Sign-In with Ethereum on a partner's registered origin. See [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions). |
+| Partner | A builder whose server admits wallets and whose frontend signs them in, with keys Totalis issues. See [Build on Totalis](/hyperliquid/build/overview). |
+| Admission | A partner's server letting a consenting wallet create its account. The first partner to admit a wallet keeps it. |
+| Builder code | A code on an RFQ that attributes it to a partner (`builder_code`). See [Builder codes](/hyperliquid/build/builder-codes). |
 | Deployment | The chain, vault, current fees and USDC domain that quotes and signatures use ([Get deployment](/hyperliquid/api-reference/deployment/get-deployment)). Trade messages sign against the vault; USDC authorizations sign against the USDC domain. |
 | Cursor | Your place in the [WebSocket](/hyperliquid/guides/realtime). Send it back to resume. |

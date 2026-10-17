@@ -11,7 +11,8 @@ Totalis vault on HyperEVM until Totalis settles it and pays you. The app is
 [hip4.totalis.trade](https://hip4.totalis.trade), where parlays are called Combos.
 
 Everything the app does, the API does: open and cash out positions as a taker, or quote and back them
-as a market maker.
+as a market maker. You can also put Totalis in your own frontend, where your users trade with their own
+wallets: [Build on Totalis](/hyperliquid/build/overview).
 
 <CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/hyperliquid/quickstart">
@@ -34,7 +35,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=3"
 ```
 
 Market reads and [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) are public. Every account,
-trading and maker route needs an API key. Start with the [Quickstart](/hyperliquid/quickstart).
+trading and maker route needs an API key or a [wallet session](/hyperliquid/build/partner-frontend#sessions). Start with the [Quickstart](/hyperliquid/quickstart).
 
 ## How it works
 
@@ -77,6 +78,7 @@ signature from their owner. There is no deposit step and no claim step.
 | --- | --- |
 | Base URL | `https://hip4-api.totalis.trade`, on HyperEVM (chain ID `999`) |
 | Auth | `Authorization: Bearer <key>` ([Authentication](/hyperliquid/authentication)). Market reads and the deployment need no key. |
+| Staging | `https://hip4-api-staging.totalis.trade`, on HyperEVM testnet (chain ID `998`): [Staging](/hyperliquid/build/staging) |
 | Amounts | Strings in USDC atomic units: `"25000000"` is 25 USDC |
 | Gas | Totalis pays it for takers. Makers pay their own, in HYPE. |
 | Separate from Solana | The [Solana API](/solana/quickstart) has its own keys and endpoints |
@@ -108,7 +110,7 @@ signature from their owner. There is no deposit step and no claim step.
 
 <CardGroup cols={2}>
   <Card title="Email the founders" icon="envelope" href="mailto:founders@totalis.trade">
-    Integration questions, SDK access and liquidity.
+    Partner access, SDK access, staging and liquidity.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/hyperliquid/errors#codes">
     Every code, and which to retry.

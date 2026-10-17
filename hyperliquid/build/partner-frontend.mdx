@@ -1,0 +1,232 @@
+---
+title: 'Your users'' own wallets'
+icon: 'wallet'
+description: 'Put Totalis in your own frontend. Your users sign in with their own wallet, which is their Totalis account, and trade through the SDK. Admission, sign-in, sessions, funding, withdrawals, attribution and errors.'
+---
+
+Your users trade with their own wallet. The wallet is the Totalis account: it signs in once, then signs its own
+bets, cash-outs and withdrawals. Totalis never holds the key, and you never hold the funds.
+
+```bash
+npm install @totalistrading/hip4-client
+```
+
+The SDK is private: see [Get access](/hyperliquid/build/overview#get-access). You need a server key, a browser
+key, your registered origins and your partner slug, all from the same page.
+
+| Credential | Looks like | Where it lives | Does |
+| --- | --- | --- | --- |
+| Server key | `tpk_v1_prd_...` | Your server only. Secret. | Admits new wallets |
+| Browser key | `tpb_v1_prd_...` | Your pages. Public. | Sent as `X-Totalis-Partner`. Selects your share of rate limits. Honoured only from your registered origins. |
+| Registered origins | `https://app.example.com` | Totalis's records | The origins your users sign in from |
+| Account code | `tot_rfq_production_...` | Totalis's records | Recorded on every RFQ from an account you admitted |
+
+The SDK refuses to send a server key from a browser, and refuses a server key as the browser key. The API
+refuses an admission that carries an `Origin` header.
+
+## Onboard a user
+
+<Steps>
+  <Step title="The wallet consents to you, in your frontend">
+    ```js
+    import { createClient } from "@totalistrading/hip4-client";
+    import { signAdmissionConsent } from "@totalistrading/hip4-client/partner";
+
+    const { data: deployment } = await createClient("production").GET("/v1/deployment");
+    const { address, consent } = await signAdmissionConsent({
+      signer: window.ethereum, partner: "your-slug", environment: "production", chainId: deployment.chain_id,
+    });
+    // Send { address, consent } to your server.
+    ```
+
+    The wallet signs a `personal_sign` message naming your slug, the wallet, the environment, the chain and an
+    expiry. It authorizes no financial action:
+
+    ```text
+    Allow your-slug to open a Totalis account for this wallet.
+    This does not authorize a financial action.
+
+    Wallet: 0x1111111111111111111111111111111111111111
+    Partner: your-slug
+    Environment: production
+    Chain ID: 999
+    Expires At: 2026-10-16T13:00:00Z
+    ```
+
+    The SDK sets the expiry an hour ahead; `lifetimeSeconds` changes it, within the
+    [limit](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners).
+  </Step>
+  <Step title="Your server admits the wallet">
+    ```js
+    import { createPartnerServer } from "@totalistrading/hip4-client/partner";
+
+    const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY });
+    await partner.admitWallet(address, consent); // { address, admitted_at }
+    ```
+
+    | Case | Result |
+    | --- | --- |
+    | First admission | `200`, with `admitted_at` |
+    | You admit the same wallet again | `200`, the first admission |
+    | Another partner admitted it first | `409 STATE_CONFLICT`. The first partner keeps the wallet. |
+    | The consent is for another partner, wallet, environment or chain, expired, or too far ahead | `422 INVALID_SIGNATURE` |
+    | The request carries an `Origin` header | `403 FORBIDDEN`. Admit from your server. |
+    | Your server key is revoked | `401 UNAUTHENTICATED` |
+    | Too many admissions | `429 RATE_LIMITED`, with `Retry-After` |
+
+    The call is [Admit wallet](/hyperliquid/api-reference/partners/admit-wallet).
+  </Step>
+  <Step title="The wallet signs in">
+    ```js
+    import { createTotalis } from "@totalistrading/hip4-client";
+    import { signInWithWallet, signOutWallet } from "@totalistrading/hip4-client/wallet-session";
+
+    const partnerKey = "tpb_v1_prd_...";
+    const session = await signInWithWallet({ environment: "production", signer: window.ethereum, partnerKey });
+    const totalis = createTotalis({ environment: "production", accessToken: session.access_token, signer: window.ethereum, partnerKey });
+    ```
+
+    The wallet signs a Sign-In with Ethereum message for this page's origin. It authorizes no financial action.
+    The SDK checks the message names this origin, wallet and request before the wallet signs it. The first sign-in
+    after admission creates the account.
+  </Step>
+  <Step title="The wallet trades">
+    `totalis` has the same flows as any account: `openPosition`, `cashOut`, `withdraw`. See
+    [Trading](/hyperliquid/guides/trading), [Withdrawals](/hyperliquid/guides/withdrawals) and the
+    [SDK](/hyperliquid/sdk).
+  </Step>
+</Steps>
+
+## Which wallets can sign in
+
+| Wallet | Signs in |
+| --- | --- |
+| An EOA in an extension, such as `window.ethereum` | Yes. Your user sees a signature request for sign-in and for each signed action. |
+| An embedded wallet you run | Yes. It signs without a popup. |
+| A contract wallet: Safe, smart account | No: `WALLET_CONTRACT_UNSUPPORTED`. Sign in with the EOA that controls it. |
+| A wallet no partner admitted and with no account | No: `ACCESS_REQUIRED`, during the invite-only launch. Admit it first. |
+
+The `signer` is any EIP-1193 provider, viem account or wallet client, or ethers signer. Trade signatures accept
+ERC-1271, but sign-in does not.
+
+A Totalis app user's wallet is an embedded wallet inside the Totalis app, so they have no wallet to sign in with
+on your site. To trade through your product they create an API key in the
+[Totalis app](https://hip4.totalis.trade/account/api-keys), or export their wallet key
+([Wallet key](/hyperliquid/authentication#wallet-key)). An account created in the Totalis app is not admitted by
+you, so its RFQs are attributed to you only with an [origin builder code](/hyperliquid/build/builder-codes).
+
+## Sessions
+
+The SDK calls [Create wallet challenge](/hyperliquid/api-reference/wallet-sessions/create-wallet-challenge),
+[Create wallet session](/hyperliquid/api-reference/wallet-sessions/create-wallet-session) and
+[End wallet session](/hyperliquid/api-reference/wallet-sessions/end-wallet-session).
+
+| | |
+| --- | --- |
+| Token | `access_token`, a bearer token. Send it as `accessToken`. |
+| Bound to | The origin it signed in from. Every request with it must carry that `Origin`. |
+| Lifetime | Fixed maximum and idle limit on [Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) |
+| Refresh | None. Sign in again. |
+| End | `signOutWallet`. Any later request with the token is `UNAUTHENTICATED`. |
+| API keys | A session can issue, rotate and revoke the account's own `ttk_` keys with `totalis.issueApiKey`, for a bot that trades the same account. |
+
+A browser sets `Origin` itself. Outside a browser, pass `origin`, one of your registered origins, to
+`signInWithWallet` and `signOutWallet`, and send it as the `Origin` header on every later call and stream
+(`headers` on `createTotalis`).
+
+```js
+const origin = "https://app.example.com";
+const session = await signInWithWallet({ environment: "production", signer: account, partnerKey, origin });
+const totalis = createTotalis({
+  environment: "production", accessToken: session.access_token, signer: account, partnerKey, headers: { Origin: origin },
+});
+```
+
+## Origins and CORS
+
+The API answers CORS from your registered origins. Preflights allow `Authorization`, `Content-Type`,
+`Idempotency-Key`, `traceparent` and `X-Totalis-Partner`, and expose `Idempotency-Replayed`, `Retry-After` and
+`X-Request-ID`.
+
+| You send | Result |
+| --- | --- |
+| A request from a registered origin | Answered with `Access-Control-Allow-Origin` set to it |
+| Sign-in or a preflight from an origin Totalis has not registered | `403 ORIGIN_NOT_ALLOWED` |
+| A session token from another origin, or with no `Origin` | `401 UNAUTHENTICATED` |
+| A browser key from an origin that is not yours | The request names no partner |
+
+To add or remove an origin, email [founders@totalis.trade](mailto:founders@totalis.trade).
+
+## Funding
+
+| From | How | Who pays gas |
+| --- | --- | --- |
+| The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
+| The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address, then the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
+| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) apply. | Totalis |
+| The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
+
+```js
+const calls = await totalis.directDepositCalls(10_000_000n); // 10 USDC
+for (const call of calls) await walletClient.sendTransaction(call);
+```
+
+## Moving cash to HyperCore
+
+An external wallet's vault cash is not swept to HyperCore in the background. Before a native HyperCore order,
+move it:
+
+```js
+const exit = await totalis.exitToCore({ amount: 5_000_000n });
+await totalis.waitForCoreExit(exit.exit_id); // resolves once HyperCore credits it
+```
+
+The wallet signs an `Exit`, and Totalis pays the gas ([Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit),
+[Get HyperCore exit](/hyperliquid/api-reference/core-exits/get-hypercore-exit)). One move at a time per account: another is
+`CORE_MOVE_IN_FLIGHT`. `returnToCore()` moves the wallet's USDC and its free vault cash back together.
+
+The first credit to a HyperCore account that does not exist yet pays Hyperliquid's activation fee, so it has a
+higher minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)).
+
+## Withdrawals
+
+Withdrawals and exits to HyperCore are sponsored. For an account that signs in with an external wallet they share
+one minimum and one hourly count ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)).
+
+| Over the limit | Result |
+| --- | --- |
+| Below the minimum | `400 INVALID_REQUEST`, naming the amount field |
+| Over the hourly count | `429 RATE_LIMITED`, with `Retry-After` |
+
+## Attribution and revenue share
+
+An account you admit is yours for good. The partner is fixed when the account is created, so a copied browser key
+cannot move it to another partner. Every RFQ from the account records your account code, whatever credential it
+uses: its session, or an API key it issued. Its requests spend your share of rate limits.
+
+Payouts, reports and other accounts are on [Builder codes](/hyperliquid/build/builder-codes).
+
+## If something is switched off
+
+| Switched off | What your users see | What still works |
+| --- | --- | --- |
+| External wallets, during an incident | Sign-in, sessions and the API keys of wallet-only accounts get `AUTHORIZATION_UNAVAILABLE`, retry `BACKOFF`. Open streams close. | Signing out. Sessions work again once it is back on. |
+| Your partner credentials | Your server keys, browser keys and origins stop working, and admissions stop. Your codes are revoked; Totalis reissues them when you are reinstated. | Your users' funds stay in their own wallets and vault balances. |
+
+Accounts in the Totalis app are never affected.
+
+## Errors
+
+Every code is on [Errors](/hyperliquid/errors#codes). These come from sign-in, sessions and admission.
+
+| Code | HTTP | Retry | Meaning |
+| --- | ---: | --- | --- |
+| `ACCESS_REQUIRED` | 403 | `NEVER` | The wallet has no account and no partner admitted it. Admit it, then sign in again. |
+| `WALLET_CONTRACT_UNSUPPORTED` | 422 | `NEVER` | The address holds contract code. Sign in with the EOA that controls it. |
+| `ORIGIN_NOT_ALLOWED` | 403 | `NEVER` | The origin is not one Totalis registered for you. |
+| `ORIGIN_REQUIRED` | 400 | `NEVER` | A sign-in or session command needs exactly one `Origin` header. |
+| `INVALID_SIGNATURE` | 422 | `NEVER` | The sign-in signature is wrong, expired, for another origin or chain, or already used. Or the admission consent does not verify. |
+| `STATE_CONFLICT` | 409 | `REFRESH` | Admission: another partner admitted the wallet. Sign-in: request a new challenge. |
+| `UNAUTHENTICATED` | 401 | `NEVER` | The session ended, expired or idled out. Sign in again. |
+| `AUTHORIZATION_UNAVAILABLE` | 503 | `BACKOFF` | Sign-in is unavailable, or external wallets are switched off. |
+| `RATE_LIMITED` | 429 | `BACKOFF` | Wait `Retry-After` seconds. |

@@ -5,7 +5,7 @@ The source is hip4-backend's public spec (tools/public_openapi.py), which alread
 app-only routes. This script:
 
 - files every operation under one sidebar group (PAGES), by resource on one axis: Markets,
-  RFQs & Quotes, Positions, Account, Makers, Deployment and WebSocket. The group becomes the
+  RFQs & Quotes, Positions, Account, Makers, Partners & wallet sign-in, API keys, Deployment and WebSocket. The group becomes the
   operation's tag;
 - titles every page with one pattern, verb + resource ("Create RFQ", "Accept quote"), replacing
   the spec's summary;
@@ -73,7 +73,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "Account": (
-        "The account a key acts for: identity, balances, activity, operations and withdrawals.",
+        "The account a key acts for: identity, balances, activity, operations, withdrawals, deposits and HyperCore exits.",
         [
             ("GET /v1/me", "Get identity", "Account"),
             ("GET /v1/me/balances", "Get balances", "Account"),
@@ -83,6 +83,11 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/me/operations/{operation_id}", "Get operation", "Account"),
             ("POST /v1/me/withdrawals", "Create withdrawal", "Withdrawals"),
             ("GET /v1/me/withdrawals/{withdrawal_id}", "Get withdrawal", "Withdrawals"),
+            ("POST /v1/me/deposits", "Create deposit", "Deposits"),
+            ("POST /v1/core-exits", "Create HyperCore exit", "Core exits"),
+            ("GET /v1/me/core-exits", "List HyperCore exits", "Core exits"),
+            ("GET /v1/core-exits/{exit_id}", "Get HyperCore exit", "Core exits"),
+            ("POST /v1/core-exits/{exit_id}/abandon", "Abandon HyperCore exit", "Core exits"),
         ],
     ),
     "Makers": (
@@ -91,11 +96,38 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/makers/{maker_id}/capital", "Get maker capital", "Makers"),
             ("POST /v1/makers/{maker_id}/collateral-reductions", "Create collateral reduction", "Makers"),
             ("GET /v1/makers/{maker_id}/collateral-reductions/{job_id}", "Get collateral reduction", "Makers"),
+            ("GET /v1/makers/{maker_id}/withdrawal", "Get maker withdrawal", "Makers"),
             (
                 "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
                 "Submit self-funded transaction",
                 "Makers",
             ),
+        ],
+    ),
+    "Partners & wallet sign-in": (
+        "A partner admits its users' own wallets, which sign in from the partner's pages.",
+        [
+            ("POST /v1/partner/wallet-admissions", "Admit wallet", "Partners"),
+            ("POST /v1/auth/wallet-challenges", "Create wallet challenge", "Wallet sessions"),
+            ("POST /v1/auth/wallet-sessions", "Create wallet session", "Wallet sessions"),
+            ("DELETE /v1/auth/wallet-sessions/current", "End wallet session", "Wallet sessions"),
+        ],
+    ),
+    "API keys": (
+        "Issue, rotate and revoke scoped keys from a wallet session. An API key cannot manage keys.",
+        [
+            ("POST /v1/me/api-key-challenges", "Create API key challenge", "API keys"),
+            ("POST /v1/me/api-keys", "Create API key", "API keys"),
+            ("POST /v1/me/api-keys/{key_id}/rotations", "Rotate API key", "API keys"),
+            ("GET /v1/me/api-keys", "List API keys", "API keys"),
+            ("DELETE /v1/me/api-keys/{key_id}", "Revoke API key", "API keys"),
+            ("GET /v1/me/api-key-capabilities", "List API key scopes", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-key-challenges", "Create maker API key challenge", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-keys", "Create maker API key", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-keys/{key_id}/rotations", "Rotate maker API key", "API keys"),
+            ("GET /v1/makers/{maker_id}/api-keys", "List maker API keys", "API keys"),
+            ("DELETE /v1/makers/{maker_id}/api-keys/{key_id}", "Revoke maker API key", "API keys"),
+            ("GET /v1/makers/{maker_id}/api-key-capabilities", "List maker API key scopes", "API keys"),
         ],
     ),
     "Deployment": (

@@ -20,7 +20,8 @@ https://hip4-api.totalis.trade
 | WebSocket | `wss://hip4-api.totalis.trade/v1/stream` |
 | Market data | `wss://hip4-api.totalis.trade/v1/market-stream` |
 
-Every route runs on HyperEVM, chain ID `999`.
+Every route runs on HyperEVM, chain ID `999`. [Staging](/hyperliquid/build/staging) runs the same API on
+testnet, chain ID `998`.
 
 ## Try it without a key
 
@@ -38,8 +39,9 @@ Send your API key as a bearer token on every authenticated request:
 Authorization: Bearer ttk_v1_prd_...
 ```
 
-Each key acts for one account, yours or a maker's, and holds scopes. Calls that move funds also carry
-a wallet signature in the body. Keys, scopes and signing are on
+Each key acts for one account, yours or a maker's, and holds scopes. A user who signs in with their own
+wallet on a partner's site sends a [wallet session](/hyperliquid/build/partner-frontend#sessions) token the same
+way, with the `Origin` it signed in from on every request. Calls that move funds also carry a wallet signature in the body. Keys, scopes and signing are on
 [Authentication & signing](/hyperliquid/authentication).
 
 ## Requests
