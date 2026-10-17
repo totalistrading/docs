@@ -173,14 +173,43 @@ open position locks in full again. It can only raise your requirement, never low
 
 ## Move maker funds
 
-Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these.
+Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these. The
+vault is `vault_address` and USDC is `usdc.address` in
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Every `amount` is atomic USDC
+(6 decimals).
 
-| Vault call | Does |
-| --- | --- |
-| USDC `approve(vault, amount)`, then `depositMaker` | Deposits into the maker vault. Anyone can deposit for your maker. |
-| `requestMakerWithdraw`, then `executeMakerWithdraw` | Withdraws after the [delay](/hyperliquid/limits-and-fees). The execute fails if it would leave your positions uncovered. |
-| `cancelMakerWithdraw` | Cancels a pending withdrawal. One can be pending at a time. |
-| `resetDiscount` | Sets your collateral discount to zero. |
+```solidity
+interface ITotalisMakerVault {
+    function depositMaker(uint64 makerId, address expectedController, uint128 amount) external;
+    function requestMakerWithdraw(uint64 makerId, uint128 amount, address to) external;
+    function executeMakerWithdraw(uint64 makerId) external;
+    function cancelMakerWithdraw(uint64 makerId) external;
+    function resetDiscount(uint64 makerId) external;
+
+    function makerOf(address controller) external view returns (uint64 makerId);
+    function makerWithdrawals(uint64 makerId) external view returns (uint128 amount, address to, uint64 readyAt);
+
+    event MakerDeposited(uint64 indexed makerId, address payer, uint128 amount);
+    event MakerWithdrawRequested(uint64 indexed makerId, uint128 amount, address to, uint64 readyAt);
+    // phase: 0 EXECUTED, 1 CANCELLED
+    event MakerWithdrawResolved(uint64 indexed makerId, uint8 phase, address by, uint128 amount, address to);
+    event DiscountReset(uint64 indexed makerId, address by);
+}
+```
+
+| Call | Sent by | Does |
+| --- | --- | --- |
+| USDC `approve(vault, amount)`, then `depositMaker` | Any wallet | Pulls `amount` from the sender into your maker vault. `expectedController` is your maker wallet (`owner` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)); any other reverts `ControllerMismatch()`. |
+| `requestMakerWithdraw` | Your maker wallet | Starts the [delay](/hyperliquid/limits-and-fees) for `amount` to `to`. One can be pending at a time: a second reverts `WithdrawRequestLive()`. |
+| `executeMakerWithdraw` | Your maker wallet | Pays the pending request to its `to` once `readyAt` (Unix seconds) has passed. Reverts `WithdrawNotReady()` before then, and `InsufficientFree()` or `MakerShort()` if it would leave your positions uncovered. |
+| `cancelMakerWithdraw` | Your maker wallet, or Totalis's guardian | Cancels the pending request. |
+| `resetDiscount` | Your maker wallet, or Totalis's guardian | Sets your collateral discount to zero. |
+| `makerOf`, `makerWithdrawals` | Anyone, as a view call | Your maker ID, and your pending request (`readyAt` is `0` when none is pending). |
+
+A call from a wallet the table doesn't list reverts `Unauthorized()`. Every call that changes state
+reverts `NoMaker()` for an unknown `makerId`; the view calls return zeros.
+While the vault is paused, `depositMaker` and `executeMakerWithdraw` revert `Paused()`; the other calls
+still work.
 
 The [SDK](/hyperliquid/sdk#make-markets)'s `maker.controller()` builds each call for your wallet to
 send.

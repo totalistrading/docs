@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "152.0.0-maker-withdrawal"
+    "version": "155.0.0-strict-public-queries"
   },
   "servers": [
     {
@@ -95,6 +95,13 @@
                       "eligibility": {
                         "state": "ENABLED"
                       },
+                      "combo": {
+                        "state": "OPEN"
+                      },
+                      "deployer": {
+                        "name": "Hyperliquid",
+                        "address": null
+                      },
                       "category": "Crypto",
                       "subcategory": "other",
                       "sides": [
@@ -158,6 +165,13 @@
                       "metadata_revision": "6100",
                       "eligibility": {
                         "state": "ENABLED"
+                      },
+                      "combo": {
+                        "state": "OPEN"
+                      },
+                      "deployer": {
+                        "name": "Hyperliquid",
+                        "address": null
                       },
                       "category": "Crypto",
                       "subcategory": "btc",
@@ -319,6 +333,13 @@
                     "eligibility": {
                       "state": "ENABLED"
                     },
+                    "combo": {
+                      "state": "OPEN"
+                    },
+                    "deployer": {
+                      "name": "Hyperliquid",
+                      "address": null
+                    },
                     "category": "Crypto",
                     "subcategory": "other",
                     "sides": [
@@ -400,7 +421,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2331,7 +2352,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.",
+            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields.\n- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5188,6 +5209,20 @@
                       "verifying_contract": "0xb88339cb7199b77e23db6e890353e22632ba630f"
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
                 }
               }
             }
@@ -10656,6 +10691,7 @@
               "Crypto",
               "Economics",
               "Entertainment",
+              "Esports",
               "Finance",
               "Politics",
               "Sports",
@@ -10674,6 +10710,7 @@
           "crypto",
           "economics",
           "entertainment",
+          "esports",
           "finance",
           "politics",
           "sports",
@@ -10921,6 +10958,62 @@
             "pattern": "^/v1/makers/[1-9][0-9]{0,19}/collateral-reductions/[0-9a-f-]{36}$"
           }
         }
+      },
+      "Combo": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "const": "OPEN",
+                "description": "OPEN: an RFQ may include this market as a leg."
+              }
+            },
+            "title": "Open"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "reason",
+              "opens_at"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "const": "CLOSED",
+                "description": "CLOSED: an RFQ that includes this market is refused; reason says why."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "EXCLUDED",
+                  "UNLISTED_DEPLOYER",
+                  "OUTSIDE_WINDOW"
+                ],
+                "description": "EXCLUDED: Totalis keeps this market out of Combos. UNLISTED_DEPLOYER: its deployer is not one Totalis lists. OUTSIDE_WINDOW: its event is unknown or more than 7 days away."
+              },
+              "opens_at": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PositiveInt64"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When the market enters the 7-day window, in Unix seconds: its best-known event time minus 7 days. Set only for OUTSIDE_WINDOW with a known event time; approximate."
+              }
+            },
+            "title": "Closed"
+          }
+        ]
       },
       "CommonAmount": {
         "type": "string",
@@ -11611,6 +11704,41 @@
           "at": {
             "$ref": "#/components/schemas/PositiveInt64",
             "description": "When the event happens, in Unix seconds."
+          }
+        }
+      },
+      "Deployer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "address"
+        ],
+        "properties": {
+          "name": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Display name: Hyperliquid for its own markets, the listed deployer's name, or null for a deployer Totalis does not list."
+          },
+          "address": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^0x[0-9a-f]{40}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deployer address, lowercase hex; null for Hyperliquid's own markets."
           }
         }
       },
@@ -13132,6 +13260,8 @@
           "result",
           "metadata_revision",
           "eligibility",
+          "combo",
+          "deployer",
           "category",
           "subcategory",
           "sides",
@@ -13174,6 +13304,14 @@
           "eligibility": {
             "$ref": "#/components/schemas/Eligibility",
             "description": "Whether Totalis currently accepts new positions on this market, with the reason when it does not."
+          },
+          "combo": {
+            "$ref": "#/components/schemas/Combo",
+            "description": "Whether a Combo may take this market as a leg, decided at read time. Independent of eligibility: a market can trade alone while Combos are closed to it."
+          },
+          "deployer": {
+            "$ref": "#/components/schemas/Deployer",
+            "description": "Who deployed the market on Hyperliquid."
           },
           "category": {
             "$ref": "#/components/schemas/Category",
@@ -14900,7 +15038,7 @@
             "description": "Last update time of the market record this state was derived from, RFC 3339 UTC; 1970-01-01T00:00:00Z in cached catalog copies."
           }
         },
-        "title": "Unavailable"
+        "title": "Reference unavailable"
       },
       "Reservation": {
         "type": "object",
@@ -15057,7 +15195,7 @@
             "description": "NOT_QUERIED: not read yet; NATIVE_READ_FAILED: the on-chain read failed; RPC_UNAVAILABLE: no RPC provider answered; MALFORMED_RETURN: the contract returned an unexpected shape; PROVIDER_DISAGREEMENT: providers returned different results; UNSUPPORTED_PROTOCOL_VERSION: the outcome uses an unsupported protocol version."
           }
         },
-        "title": "Unavailable"
+        "title": "Result unavailable"
       },
       "ResultUnresolved": {
         "type": "object",

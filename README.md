@@ -33,7 +33,8 @@ Account, Makers, Partners & wallet sign-in, API keys, Deployment, WebSocket) and
 WebSocket channel pages ahead of Open stream. A route the spec has and `PAGES` does not place stops the
 script. Edit the tables at the top of the script, not the generated files.
 
-`--check` on either script fails when the committed files are stale.
+`--check` on either script fails when the committed files are stale. `scripts/hyperliquid_openapi.py` also stops
+on a schema title used twice, since generated clients name models by title and drop the clash.
 
 ## Publishing changes
 

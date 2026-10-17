@@ -94,7 +94,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJh
 | `400` | Malformed request |
 | `401` | Missing, invalid, expired or revoked key |
 | `403` | Missing scope or permission |
-| `404` | Not found, or not visible to this key |
+| `404` | Not found, not visible to this key, or no route matches the path (such as `/v1/markets/abc`) |
 | `409` | Conflicts with current state |
 | `422` | A business or signature rule rejects it |
 | `429` | Rate limited. Always `BACKOFF`. |
