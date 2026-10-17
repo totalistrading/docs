@@ -47,8 +47,8 @@ their own Hyperliquid feed and read the market catalog over
   </Step>
   <Step title="Resume">
     After a drop, reconnect and subscribe with your saved cursor. On `REPLAY` you get only the
-    events you missed. Resuming needs the `replay:read` scope, which the taker scopes do not include,
-    so add it to the key.
+    events you missed. Resuming with an API key needs the `replay:read` scope: without it the
+    reconnect closes with `SUBSCRIPTION_DENIED`, including the SDK's automatic one.
   </Step>
 </Steps>
 

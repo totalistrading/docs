@@ -24,7 +24,7 @@ share. Codes look like `tot_rfq_production_` followed by 32 hex characters, with
 | Admitted by another partner | Any of yours | Refused. The account is theirs. |
 | Admitted by no partner | None | Nothing |
 | Admitted by no partner | Your origin code, signed, from that origin | That code |
-| Admitted by no partner | Your origin code without a signature, from another origin, or from an API key | Refused |
+| Admitted by no partner | Your origin code without a signature, from another origin, or from an API key | Refused. Such an account's API key RFQs cannot be attributed. |
 
 A refused code is `400 INVALID_REQUEST` with a field violation on `/builder_code`, and no RFQ is created. A code is
 recorded once, when the RFQ is created, and never changes. Cash-out RFQs take no builder fields: a position keeps
@@ -34,8 +34,9 @@ An admitted account needs nothing from you on each RFQ. Signing is only for acco
 
 ## Sign an origin code
 
-An origin code works only on a browser request from its origin: a wallet session that signed in on your page. An
-API key request carries no origin, so a signed code is refused there.
+For an account no partner admitted, an origin code works only on a browser request from its origin: a wallet
+session that signed in on your page. An API key request carries no origin, so a signed code is refused there.
+An account you admitted needs no origin code: its API key RFQs record your account code.
 
 [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) takes three extra fields:
 
@@ -82,8 +83,9 @@ them, then `stake`, `legs`, `builder_code` and `origin`. Each leg is `{"outcome_
 {"stake":"5000000","legs":[{"outcome_id":"1209","side":"YES"}],"builder_code":"tot_rfq_production_0198a6f682a57abc9f2a4f0fb4374941","origin":"https://app.example.com"}
 ```
 
-Sign on your server, where the builder signer's key lives. Your page sends the RFQ terms, its chosen
-`Idempotency-Key` and the `account_id`; your server checks them and returns the two fields.
+Sign on your server, where the builder signer's key lives. Your page sends the RFQ terms (with `intent_id` and
+`intent_generation` when the RFQ carries them), its chosen `Idempotency-Key` and the `account_id`; your server
+checks them and returns the two fields.
 
 ```js
 import { createHash } from "node:crypto";
@@ -91,9 +93,11 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const builder = privateKeyToAccount(process.env.TOTALIS_BUILDER_SIGNER_KEY);
 
-export async function authorizeRfq({ accountId, idempotencyKey, stake, legs, builderCode, origin, environment = "production" }) {
+export async function authorizeRfq({ accountId, idempotencyKey, intentId, intentGeneration, stake, legs, builderCode, origin, environment = "production" }) {
   const expiry = String(Math.floor(Date.now() / 1000) + 120);
   const request = JSON.stringify({
+    ...(intentId === undefined ? {} : { intent_id: intentId }),
+    ...(intentGeneration === undefined ? {} : { intent_generation: intentGeneration }),
     stake,
     legs: legs.map(({ outcome_id, side }) => ({ outcome_id, side })),
     builder_code: builderCode,

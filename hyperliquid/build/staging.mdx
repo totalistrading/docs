@@ -60,6 +60,20 @@ certificate.
 
 A script with no browser passes the registered origin itself: see [Sessions](/hyperliquid/build/partner-frontend#sessions).
 
+## Local development
+
+Wallet sign-in works only from a registered origin, and every origin is `https://`, `localhost` included.
+`http://localhost:3000` cannot sign in.
+
+| Step | Do |
+| --- | --- |
+| Serve over HTTPS | Run your dev server with a locally trusted certificate, for example from `mkcert`, or your framework's HTTPS dev mode. |
+| Register the origin | Email [founders@totalis.trade](mailto:founders@totalis.trade) the exact origin, port included: `https://localhost:5173`. You can have several origins, each registered on request. |
+| Keep it exact | Scheme, host and port must match what the browser sends in `Origin`. `https://127.0.0.1:5173` is a different origin. |
+
+Each origin belongs to one partner ([Get access](/hyperliquid/build/overview#get-access)). A script outside a
+browser sends a registered origin itself ([Sessions](/hyperliquid/build/partner-frontend#sessions)).
+
 ## Point the SDK at staging
 
 ```js

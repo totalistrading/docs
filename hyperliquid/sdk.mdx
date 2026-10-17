@@ -203,7 +203,7 @@ await signOutWallet({ environment: "production", accessToken: session.access_tok
 | `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself |
 | `totalis.signDeposit`, `sendDeposit` | A deposit from the wallet that Totalis relays and pays gas for |
 | `totalis.exitToCore({ amount })`, `waitForCoreExit(exitId)` | Moves vault cash to HyperCore. `signCoreExit` and `sendCoreExit` split it. |
-| `totalis.returnToCore()` | Moves free vault cash and the wallet's available USDC (`WALLET_USDC` less `pending.wallet_reserved`) back to HyperCore. Takes no amount. Available wallet USDC under the sponsored deposit minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)) stays in the wallet. Throws for an embedded wallet (`wallet_kind` on `GET /v1/me`), and on staging, which runs no exits to HyperCore. `signReturnToCore` and `sendReturnToCore` split it. |
+| `totalis.returnToCore()` | Moves free vault cash and the wallet's available USDC (`WALLET_USDC` less `pending.wallet_reserved`) back to HyperCore. Takes no amount. Available wallet USDC under the sponsored deposit minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)) stays in the wallet. Throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`), and on staging, which runs no exits to HyperCore. A wallet embedded in your own app is `EXTERNAL` and can use it. `signReturnToCore` and `sendReturnToCore` split it. |
 | `totalis.issueApiKey({ label, scopes })`, `rotateApiKey` | Issues the account's own `ttk_` key from a session, with the wallet's approval |
 
 ## Make markets

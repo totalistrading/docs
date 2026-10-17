@@ -9,16 +9,16 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Trading | Value |
 | --- | --- |
 | Legs per RFQ | 1 to 50, strictly ascending `outcome_id` |
-| Minimum stake | Net stake (after the entry fee) of at least 1 USDC |
-| Maximum payout | 100,000 USDC |
-| Fees | `taker_fee_bps` on the stake at accept, `fee_bps` on profit at claim. Read the current values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
+| Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
+| Maximum payout | 1,000,000 USDC per position |
+| Fees | `taker_fee_bps` on the stake at accept. `fee_bps` on profit at claim, and on a `SELL_BACK` on the `price` above the position's net stake. A transfer to another maker pays no fee. A position keeps the `fee_bps` it opened with. Read the current values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
 | Entry RFQ open | 20 seconds |
 | Cash-out RFQ open | 30 seconds |
 | Entry quote `expiry` | At most 30 seconds ahead. Quotes within 2 seconds of expiry are left out. |
 | Bridge from HyperCore into an entry (SDK) | Signed and sent only with more than 4 seconds of quote life left. The accept is posted only with at least 3.5 seconds left. |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
-| Settlement and claim | About every 5 minutes |
+| Settlement and claim | Automatic. Starts within about 10 seconds of the deciding leg resolving on HyperCore. |
 
 | Signing | Window |
 | --- | --- |
@@ -62,7 +62,8 @@ across all callers, so it can arrive below these figures.
 | --- | --- |
 | [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq), [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) | 30, shared |
 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | 30 |
-| [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote), [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | 120 each |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | 3,600 each |
+| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | 1,800 |
 | [List quotes](/hyperliquid/api-reference/quotes/list-quotes), [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | 600 each |
 | Position and capital reads | 120, shared |
 | [List activity](/hyperliquid/api-reference/account/list-activity) | 120 |
