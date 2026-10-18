@@ -200,9 +200,9 @@ VARIANT_TITLES = {
     "ResultUnresolved": "Unresolved",
     "ResultNumeric": "Numeric result",
     "ResultNonnumeric": "Named result",
-    "ResultUnavailable": "Unavailable",
+    "ResultUnavailable": "Result unavailable",
     "ReferenceAvailable": "Available",
-    "ReferenceUnavailable": "Unavailable",
+    "ReferenceUnavailable": "Reference unavailable",
     "EligibilityEnabled": "Enabled",
     "EligibilityDisabled": "Disabled",
 }
@@ -345,6 +345,32 @@ def readable(spec: dict) -> dict:
     return spec
 
 
+def titles(node, path: str = ""):
+    """Every schema title under node with where it is, skipping example data."""
+    if isinstance(node, list):
+        for index, item in enumerate(node):
+            yield from titles(item, f"{path}/{index}")
+    elif isinstance(node, dict):
+        if isinstance(node.get("title"), str):
+            yield node["title"], path
+        for key, value in node.items():
+            if key == "properties" and isinstance(value, dict):
+                for name, schema in value.items():
+                    yield from titles(schema, f"{path}/properties/{name}")
+            elif key not in ("example", "examples", "default", "const", "enum", "x-mint"):
+                yield from titles(value, f"{path}/{key}")
+
+
+def unique_titles(spec: dict) -> None:
+    """Stop on a schema title used twice: generated clients name models by title and drop the clash."""
+    seen: dict[str, list[str]] = {}
+    for title, path in titles({"components": spec.get("components", {}).get("schemas", {}), "paths": spec.get("paths", {})}):
+        seen.setdefault(title, []).append(path)
+    clashes = {title: paths for title, paths in seen.items() if len(paths) > 1}
+    if clashes:
+        raise SystemExit(f"Duplicate schema titles: {clashes}. Give each a unique title in VARIANT_TITLES.")
+
+
 def publish(spec: dict) -> dict:
     """File each operation under its resource, title it, and set its URL."""
     pages = placed()
@@ -408,7 +434,9 @@ def main() -> int:
     else:
         spec = json.loads((args.spec or SPEC).read_text())
 
-    spec_text = dump(readable(publish(spec)))
+    spec = readable(publish(spec))
+    unique_titles(spec)
+    spec_text = dump(spec)
     docs_text = dump(with_tab(json.loads(DOCS.read_text())))
     if args.check:
         stale = [p.relative_to(ROOT) for p, text in ((SPEC, spec_text), (DOCS, docs_text)) if p.read_text() != text]

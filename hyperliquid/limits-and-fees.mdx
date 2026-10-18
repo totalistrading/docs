@@ -67,3 +67,15 @@ across all callers, so it can arrive below these figures.
 | [List activity](/hyperliquid/api-reference/account/list-activity) | 120 |
 
 Too many open RFQs on one account returns `429 RFQ_INTENT_LIMIT`.
+
+### Without a credential
+
+Reads that send no credential, such as market reads and
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment), have no per-account quota.
+They are best effort. On a `429` or `503`, wait `Retry-After` seconds before you resend, and back off
+exponentially when a response has no `Retry-After`.
+
+| Limit | Value |
+| --- | --- |
+| [Create wallet challenge](/hyperliquid/api-reference/wallet-sessions/create-wallet-challenge), [Create wallet session](/hyperliquid/api-reference/wallet-sessions/create-wallet-session) | 5 per 10 seconds per IP address, shared. Over it, the edge answers `429` for 10 seconds, without the JSON error body. |
+| [Market stream](/hyperliquid/api-reference/websocket/market-data) connections | One ceiling shared by every client. At it, the upgrade returns `429 CONNECTION_LIMIT` with `Retry-After`. A browser can't read a failed upgrade's headers, so reconnect with exponential backoff. |
