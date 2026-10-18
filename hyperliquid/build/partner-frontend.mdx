@@ -211,6 +211,8 @@ When the accept does not execute, nothing trades and the vault takes nothing. A 
 landed: its USDC is now in the wallet on HyperEVM, not in the user's HyperCore balance. Get balances shows it as
 `WALLET_USDC`. This happens when the acceptance ends `DECLINED`, `TIMED_OUT`, `CANCELLED` or `NOT_ADMITTED`, when
 the operation ends `REVERTED` or `EXPIRED_UNEXECUTED`, or when the SDK throws `EntryError` `BRIDGE_LATE`.
+The SDK (0.59.0 and later) names the amount as `bridged` on the result, on a `BRIDGE_LATE` error and on an
+accept refused after the bridge, so show it as wallet cash rather than as gone.
 
 | You want | Do |
 | --- | --- |

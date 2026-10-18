@@ -1,10 +1,10 @@
 ---
 title: 'TypeScript SDK'
 icon: 'code'
-description: 'The @totalistrading/hip4-client SDK 0.58.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
+description: 'The @totalistrading/hip4-client SDK 0.59.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
 ---
 
-`@totalistrading/hip4-client` 0.58.0 wraps every route, the taker and maker flows, wallet sign-in, partner
+`@totalistrading/hip4-client` 0.59.0 wraps every route, the taker and maker flows, wallet sign-in, partner
 admission, every signed message and the WebSocket. It never stores a key: every signature goes to the signer you
 pass in.
 
@@ -19,7 +19,7 @@ GitHub account that should read it. Then, with a GitHub token that has `read:pac
 ```
 
 ```bash
-npm install @totalistrading/hip4-client@0.58.0 viem
+npm install @totalistrading/hip4-client@0.59.0 viem
 ```
 
 ESM, Node 22 or later, and browsers. It has no wallet dependency: `viem` or ethers only turns a private key into a
@@ -175,8 +175,11 @@ const resumed = await totalis.recoverAcceptance(await load()); // reads the acce
 | `recoverAcceptance(signed, { wait })` | Reads and fences the acceptance. Waits out `PENDING_CONFIRM` unless `wait: false`. Never sends the bridge again. |
 
 The bridge runs on HyperCore on its own, before the accept. If the accept then does not execute, the bridged
-USDC stays in the wallet on HyperEVM. A bridge whose answer never arrived can still land after the SDK stops
-resending it, so read the balances rather than assume it failed. See
+USDC stays in the wallet on HyperEVM. The result's `bridged` (`{ amount, landed }`, amount in USDC base units)
+reports it on any entry that bridged, and an accept refused after the bridge (an `ApiError` such as
+`QUOTE_EXPIRED`) or a `BRIDGE_LATE` `EntryError` carries the same `bridged`, as does `normalizeError`'s result.
+`landed` is `"yes"` only when Hyperliquid answered `ok`. A bridge whose answer never arrived can still land after
+the SDK stops resending it, so `"unknown"` means read the balances rather than assume it failed. See
 [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
 
 ## External wallets
