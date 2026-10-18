@@ -241,6 +241,7 @@
                 "group": "Markets",
                 "pages": [
                   "GET /v1/markets",
+                  "GET /v1/discovery",
                   "GET /v1/markets/{outcome_id}",
                   "GET /v1/markets/{outcome_id}/history"
                 ]
@@ -263,7 +264,9 @@
                       "POST /v1/rfqs/{rfq_id}/quotes",
                       "DELETE /v1/quotes/{quote_id}",
                       "POST /v1/quotes/{quote_id}/confirm",
-                      "GET /v1/makers/{maker_id}/acceptances"
+                      "GET /v1/makers/{maker_id}/acceptances",
+                      "PUT /v1/makers/{maker_id}/quote-lease",
+                      "DELETE /v1/makers/{maker_id}/quote-lease"
                     ]
                   },
                   {
@@ -305,6 +308,9 @@
               {
                 "group": "Makers",
                 "pages": [
+                  "GET /v1/me/maker",
+                  "POST /v1/me/maker",
+                  "GET /v1/makers/{maker_id}/quote-history",
                   "GET /v1/makers/{maker_id}/capital",
                   "POST /v1/makers/{maker_id}/collateral-reductions",
                   "GET /v1/makers/{maker_id}/collateral-reductions/{job_id}",

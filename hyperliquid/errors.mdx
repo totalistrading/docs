@@ -109,7 +109,7 @@ closes use the same codes.
 
 | Code | HTTP | Stream close | Retry | Meaning |
 | --- | ---: | ---: | --- | --- |
-| `INVALID_REQUEST` | 400 | - | `NEVER` | The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. |
+| `INVALID_REQUEST` | 400 | - | `NEVER` | The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. That reason can be temporary: the market's `eligibility` and `combo` show when it clears. |
 | `INVALID_QUERY` | 400 | - | `NEVER` | A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it. |
 | `INVALID_CURSOR` | 400 | - | `NEVER` | The cursor is malformed or was issued for a different query. |
 | `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none. |
@@ -154,6 +154,7 @@ closes use the same codes.
 | `SOURCE_UNAVAILABLE` | 503 | 1013 | `BACKOFF` | The account-read or stream source is unavailable. |
 | `CONTRACT_UNAVAILABLE` | 503 | - | `BACKOFF` | This producer is disabled in this environment. |
 | `MARKET_DATA_UNAVAILABLE` | 503 | - | `BACKOFF` | No complete market catalog is available. |
+| `BROWSE_UNAVAILABLE` | 503 | - | `BACKOFF` | The published browse view is unavailable. |
 | `FINANCIAL_ACTIONS_DISABLED` | 503 | - | `BACKOFF` | Financial actions are disabled for this deployment. |
 | `CORE_EXIT_UNAVAILABLE` | 503 | - | `BACKOFF` | Core exits cannot be admitted now. |
 | `COLLATERAL_REDUCTION_UNAVAILABLE` | 503 | - | `BACKOFF` | This vault does not serve collateral reductions now. |
