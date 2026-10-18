@@ -44,9 +44,9 @@ signer.
 | `environment` | REST | WebSocket |
 | --- | --- | --- |
 | `"production"` | `https://hip4-api.totalis.trade` | `wss://hip4-ws.totalis.trade` |
-| `"staging"` | `https://hip4-api-staging.totalis.trade` | `wss://hip4-api-staging.totalis.trade` |
+| `"staging"` | `https://hip4-api-staging.totalis.trade` | `wss://hip4-ws-staging.totalis.trade` |
 
-The production API host also serves `/v1/stream` and `/v1/market-stream`
+Each API host also serves `/v1/stream` and `/v1/market-stream`
 ([Connection](/hyperliquid/api-reference/websocket/connection)). `baseUrl` replaces the REST origin, and serves
 the streams too unless you set `streamBaseUrl`. Staging is
 testnet: see [Staging](/hyperliquid/build/staging).
@@ -117,6 +117,21 @@ shortfall from the wallet in the same accept, and recovers a lost accept. It ret
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded |
 | `NOT_ADMITTED` | Every response was lost, the venue had no acceptance, and the SDK cancelled the RFQ. Nothing traded. |
 
+Before the accept is posted, an entry can throw `EntryError`. `openPosition` then cancels the RFQ.
+
+| `code` | Meaning |
+| --- | --- |
+| `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
+| `INSUFFICIENT_FUNDS` | Vault cash, wallet USDC and `core` less 0.05 USDC do not cover the stake |
+| `QUOTE_SHORT` | Too little quote life was left to sign or send the bridge. Nothing was bridged. |
+| `BRIDGE_REFUSED` | Hyperliquid refused the bridge (`hyperliquidError`). Nothing was bridged or posted. |
+| `BRIDGE_LATE` | The bridge left too little quote life to post the accept. Nothing was posted; cash the bridge moved stays in the wallet. |
+
+Both thresholds are on [Limits](/hyperliquid/limits-and-fees). They are the points where the SDK gives up, not a
+promise that an entry with more life executes. An entry's
+signatures and how to choose a quote with enough life are on
+[Signatures and quote life](/hyperliquid/build/partner-frontend#signatures-and-quote-life).
+
 `watchQuotes(rfqId, listener)` reports an RFQ's live quotes for a UI, and `[]` while the stream is down. Drop a
 quote at its `expiry` yourself.
 
@@ -157,7 +172,12 @@ const resumed = await totalis.recoverAcceptance(await load()); // reads the acce
 | `signEntry({ quote, core })` | Plans funding from current balances: free vault cash first, then the wallet, then a bridge of `core` (HyperCore spot USDC you offer) to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind. `core: null` means your HyperCore read failed; leave `core` out to fund from the wallet alone. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. |
 | `signCashout({ quote })` | Has the owner sign a cash-out quote's `SellBack` or `CashoutTransfer` |
 | `sendAcceptance(signed)` | Sends either record under its acceptance ID. The answer must echo the record's IDs. |
-| `recoverAcceptance(signed, { wait })` | Reads and fences the acceptance. Waits out `PENDING_CONFIRM` unless `wait: false`. |
+| `recoverAcceptance(signed, { wait })` | Reads and fences the acceptance. Waits out `PENDING_CONFIRM` unless `wait: false`. Never sends the bridge again. |
+
+The bridge runs on HyperCore on its own, before the accept. If the accept then does not execute, the bridged
+USDC stays in the wallet on HyperEVM. A bridge whose answer never arrived can still land after the SDK stops
+resending it, so read the balances rather than assume it failed. See
+[If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
 
 ## External wallets
 
@@ -183,7 +203,7 @@ await signOutWallet({ environment: "production", accessToken: session.access_tok
 | `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself |
 | `totalis.signDeposit`, `sendDeposit` | A deposit from the wallet that Totalis relays and pays gas for |
 | `totalis.exitToCore({ amount })`, `waitForCoreExit(exitId)` | Moves vault cash to HyperCore. `signCoreExit` and `sendCoreExit` split it. |
-| `totalis.returnToCore()` | Moves the wallet's USDC and free vault cash back to HyperCore. Throws for an embedded wallet (`wallet_kind` on `GET /v1/me`). |
+| `totalis.returnToCore()` | Moves free vault cash and the wallet's available USDC (`WALLET_USDC` less `pending.wallet_reserved`) back to HyperCore. Takes no amount. Available wallet USDC under the sponsored deposit minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)) stays in the wallet. Throws for an embedded wallet (`wallet_kind` on `GET /v1/me`), and on staging, which runs no exits to HyperCore. `signReturnToCore` and `sendReturnToCore` split it. |
 | `totalis.issueApiKey({ label, scopes })`, `rotateApiKey` | Issues the account's own `ttk_` key from a session, with the wallet's approval |
 
 ## Make markets

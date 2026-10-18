@@ -145,6 +145,7 @@ fees before each quote.
 | --- | --- |
 | `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit` | `{ name: "TotalisParlay", version: "1", chainId: chain_id, verifyingContract: vault_address }` |
 | `ReceiveWithAuthorization`, `TransferWithAuthorization` | `usdc.eip712_domain` |
+| `HyperliquidTransaction:SendAsset`, the HyperCore bridge into an entry | `{ name: "HyperliquidSignTransaction", version: "1", chainId: chain_id, verifyingContract: "0x0000000000000000000000000000000000000000" }` |
 
 ## Types
 
@@ -157,6 +158,7 @@ CashoutTransfer(bytes32 ticketId,uint128 price,address seller,address buyer,uint
 Exit(address account,address to,uint128 amount,uint64 expiry,uint256 salt)
 ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
 TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
+HyperliquidTransaction:SendAsset(string hyperliquidChain,string destination,string sourceDex,string destinationDex,string token,string amount,string fromSubAccount,uint64 nonce)
 ```
 
 ## API names and signed names

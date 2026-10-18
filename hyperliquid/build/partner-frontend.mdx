@@ -171,6 +171,54 @@ const calls = await totalis.directDepositCalls(10_000_000n); // 10 USDC
 for (const call of calls) await walletClient.sendTransaction(call);
 ```
 
+## Signatures and quote life
+
+An entry takes one to three signatures, depending on where the stake comes from.
+
+| The stake comes from | The wallet signs, in order | Prompts |
+| --- | --- | --- |
+| Free vault cash | `TakerAccept` | 1 |
+| The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, USDC `ReceiveWithAuthorization` | 2 |
+| The wallet's HyperCore USDC, for what HyperEVM lacks (`core`) | `TakerAccept`, Hyperliquid `SendAsset`, USDC `ReceiveWithAuthorization` | 3 |
+
+Every one of them, the Hyperliquid bridge included, names the deployment's chain: `chain_id` in
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment), `999` in production and `998` on staging.
+Some extension wallets refuse to sign for a chain other than the one they are on. Switch the wallet to HyperEVM
+before the first prompt.
+
+An entry quote lives only seconds, and every prompt spends that life. The SDK refuses to bridge, or to post the
+accept after a bridge, when too little is left ([SDK](/hyperliquid/sdk#open-a-position)). Both limits are on
+[Limits](/hyperliquid/limits-and-fees). For an entry that bridges, or a wallet that shows prompts, choose a quote
+with more life left and sign it at once:
+
+```js
+import { bestQuote } from "@totalistrading/hip4-client";
+
+await totalis.openPosition({ legs, stake, core, choose: bestQuote(15) }); // 15 seconds left at least
+```
+
+`bestQuote(seconds)` keeps the highest payout with at least that much life left on the venue's clock. The 15 is
+an example, not a guarantee that the entry executes. To pick from your own list, pass the venue's clock:
+`bestQuote(15)(quotes, totalis.stream.serverNow())`, or the `serverNowMs` that `watchQuotes` gives you.
+
+### If an entry fails after its bridge
+
+The bridge and the accept are separate. The bridge is a HyperCore action that moves USDC from the user's
+HyperCore spot balance to their wallet on HyperEVM. The accept is the HyperEVM transaction that takes the stake.
+
+When the accept does not execute, nothing trades and the vault takes nothing. A bridge that already landed stays
+landed: its USDC is now in the wallet on HyperEVM, not in the user's HyperCore balance. Get balances shows it as
+`WALLET_USDC`. This happens when the acceptance ends `DECLINED`, `TIMED_OUT`, `CANCELLED` or `NOT_ADMITTED`, when
+the operation ends `REVERTED` or `EXPIRED_UNEXECUTED`, or when the SDK throws `EntryError` `BRIDGE_LATE`.
+
+| You want | Do |
+| --- | --- |
+| The user to bet again | Nothing. The next entry funds from that wallet USDC first. |
+| The cash back on HyperCore | `returnToCore()` ([Moving cash to HyperCore](#moving-cash-to-hypercore)) |
+
+A bridge whose answer never arrived can still land after the SDK stops resending it. `recoverAcceptance` never
+sends a bridge again. Read the balances to learn where the cash is; never infer it from a missing answer.
+
 ## Moving cash to HyperCore
 
 An external wallet's vault cash is not swept to HyperCore in the background. Before a native HyperCore order,
@@ -183,7 +231,18 @@ await totalis.waitForCoreExit(exit.exit_id); // resolves once HyperCore credits 
 
 The wallet signs an `Exit`, and Totalis pays the gas ([Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit),
 [Get HyperCore exit](/hyperliquid/api-reference/core-exits/get-hypercore-exit)). One move at a time per account: another is
-`CORE_MOVE_IN_FLIGHT`. `returnToCore()` moves the wallet's USDC and its free vault cash back together.
+`CORE_MOVE_IN_FLIGHT`.
+
+`returnToCore()` moves all of the account's available cash back together: free vault cash, plus the wallet's
+available USDC on HyperEVM. Available wallet USDC is `WALLET_USDC` less `pending.wallet_reserved`
+([Get balances](/hyperliquid/api-reference/account/get-balances)); USDC reserved for work in flight stays in the
+wallet. It takes no amount. The wallet signs a USDC `ReceiveWithAuthorization` that deposits its available USDC
+into the vault, then one `Exit` of that plus the free vault cash. Totalis pays the gas for both, so the wallet
+needs no HYPE. When the available wallet USDC is under the
+[sponsored deposit minimum](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners), it stays in the wallet and
+only the free vault cash moves. To move a chosen amount, use `exitToCore`.
+Staging runs no exits to HyperCore, so `exitToCore` and `returnToCore` fail there
+([Staging](/hyperliquid/build/staging#what-staging-does-not-run)).
 
 The first credit to a HyperCore account that does not exist yet pays Hyperliquid's activation fee, so it has a
 higher minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)).
@@ -197,6 +256,62 @@ one minimum and one hourly count ([Limits](/hyperliquid/limits-and-fees#wallet-s
 | --- | --- |
 | Below the minimum | `400 INVALID_REQUEST`, naming the amount field |
 | Over the hourly count | `429 RATE_LIMITED`, with `Retry-After` |
+
+## Every signature
+
+Each action the wallet signs, and what it signs. Typed data is `eth_signTypedData_v4`; the full domains and types
+are on [Domain](/hyperliquid/authentication#domain) and [Types](/hyperliquid/authentication#types). Read the
+values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
+
+| Action | SDK | Message | `chainId` | `verifyingContract` |
+| --- | --- | --- | --- | --- |
+| Consent to your partner slug | `signAdmissionConsent` | `personal_sign` | In the text | |
+| Sign in | `signInWithWallet` | `personal_sign` (Sign-In with Ethereum) | In the text | |
+| Issue an API key | `issueApiKey`, `rotateApiKey` | `personal_sign` (Sign-In with Ethereum) | In the text | |
+| Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | `chain_id` | `vault_address` |
+| Fund an entry from the wallet | `openPosition`, `signEntry` | `ReceiveWithAuthorization` | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | `chain_id` | `0x0000000000000000000000000000000000000000` |
+| Cash out | `cashOut`, `signCashout` | `SellBack` or `CashoutTransfer` | `chain_id` | `vault_address` |
+| Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | `chain_id` | `vault_address` |
+| Withdraw: payout | `withdraw`, `signWithdrawal` | `TransferWithAuthorization` | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Deposit, sponsored | `signDeposit` | `ReceiveWithAuthorization` | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Exit to HyperCore | `exitToCore`, `signCoreExit` | `Exit` | `chain_id` | `vault_address` |
+| Return to HyperCore | `returnToCore`, `signReturnToCore` | `ReceiveWithAuthorization`, then `Exit` | As above | As above |
+| Deposit, self-sent | `directDepositCalls` | Two transactions: `approve` to `usdc.address`, `depositUser` to `vault_address` | `chain_id` | |
+
+The bridge's domain is Hyperliquid's: its `verifyingContract` is the zero address. If your signing policy
+allowlists verifying contracts, add the zero address on `chain_id` for `HyperliquidTransaction:SendAsset` only.
+
+### Signing on your server
+
+If your server signs for your users, for example through a server wallet API such as Privy's, your server is
+the only thing between a user's click and their money. A policy that allows a primary type allows every message
+of that type: an allowed `TransferWithAuthorization` pays anyone.
+
+- **Sign only the message you built.** For each request, build the expected typed data on your server, for the
+  authenticated user and the action they confirmed in your UI, with the SDK's [builders](/hyperliquid/sdk#signing).
+  Sign only when the request equals it in full: domain, primary type and every field, the nonce included.
+  Comparing the two `hashTypedData` digests checks all of it at once. Checking a few fields is not enough: a
+  deposit names the account it credits only inside its nonce.
+
+  | Message | Build it from |
+  | --- | --- |
+  | `TakerAccept` | The `entry` terms of the quote the user chose, with `taker` the user's wallet |
+  | `ReceiveWithAuthorization` | `from` the user's wallet, `to` `vault_address`, and the `value` the user approved. The `nonce` is `depositNonce`, derived from `vault`, `chainId`, `from`, `salt` and `account` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)). `account` is the vault balance the deposit credits and appears nowhere else in the message. Derive the nonce yourself with the user's wallet as both `from` and `account`; never sign a nonce you did not derive. |
+  | `SendAsset` | `bridgeAction` for the amount the user approved. Its `destination`, `0x2000000000000000000000000000000000000000`, credits the signer's own HyperEVM address. |
+  | `SellBack`, `CashoutTransfer` | The terms of the bid the user chose, with the owner or seller the user's wallet |
+  | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
+  | `TransferWithAuthorization` | `from` the user's wallet, and the `to` and `value` the user entered. The `nonce` is `payoutNonce`, derived from the user's wallet and the withdrawal's `Idempotency-Key`, which binds the payout to that one withdrawal. Derive it yourself. |
+
+- **One user, one signer.** Resolve the wallet from the user's own authenticated request every time. Never fall
+  back to a shared or default wallet. Each user signs in with their own wallet and keeps their own Totalis session
+  token.
+- **Policies are a backstop, not the check.** Restrict `chainId` and `verifyingContract` per message as in the
+  table above. A policy that compares message fields against a `types` map needs that map exactly as your signer
+  sends it.
+
+The SDK passes each message to the `signer` you give it, so a server signer is any viem account, viem wallet
+client or ethers signer that calls your wallet API.
 
 ## Attribution and revenue share
 
