@@ -1,10 +1,10 @@
 ---
 title: 'TypeScript SDK'
 icon: 'code'
-description: 'The @totalistrading/hip4-client SDK 0.51.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
+description: 'The @totalistrading/hip4-client SDK 0.58.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
 ---
 
-`@totalistrading/hip4-client` 0.51.0 wraps every route, the taker and maker flows, wallet sign-in, partner
+`@totalistrading/hip4-client` 0.58.0 wraps every route, the taker and maker flows, wallet sign-in, partner
 admission, every signed message and the WebSocket. It never stores a key: every signature goes to the signer you
 pass in.
 
@@ -19,7 +19,7 @@ GitHub account that should read it. Then, with a GitHub token that has `read:pac
 ```
 
 ```bash
-npm install @totalistrading/hip4-client@0.51.0 viem
+npm install @totalistrading/hip4-client@0.58.0 viem
 ```
 
 ESM, Node 22 or later, and browsers. It has no wallet dependency: `viem` or ethers only turns a private key into a
@@ -27,7 +27,7 @@ signer.
 
 | Import | Holds |
 | --- | --- |
-| `@totalistrading/hip4-client` | `createTotalis`, `createClient`, `bestQuote`, `bestBid`, `EntryError`, `follow`, `ApiError`, `NetworkError`, `unwrap`, `pages`, `items`, `uuidv7`, `toTotalisSigner`, `TotalisStream`, `StreamClosedError`, `publicServers`, `publicStreamServers`, the HyperCore helpers |
+| `@totalistrading/hip4-client` | `createTotalis`, `createClient`, `bestQuote`, `bestBid`, `EntryError`, `follow`, `ApiError`, `NetworkError`, `BalanceUnknownError`, `ExitUnavailableError`, `normalizeError`, `unwrap`, `pages`, `items`, `uuidv7`, `toTotalisSigner`, `TotalisStream`, `StreamClosedError`, `spendableCash`, `netPayout`, `netCashout`, `netOfProfitFee`, `netStake`, `createUiAdapter`, `publicServers`, `publicStreamServers`, the HyperCore helpers |
 | `.../maker` | `createMaker`, `createMakerClient`, `controllerTransactions`, `openMakerVaultTransaction`, `memoryPublished` |
 | `.../wallet-session` | `signInWithWallet`, `signOutWallet`, `checkSignInChallenge` |
 | `.../partner` | `signAdmissionConsent`, `admissionConsentMessage`, `createPartnerServer` |
@@ -227,13 +227,15 @@ maker.onAcceptance((acceptance) => (Date.parse(acceptance.deadline) > Date.now()
 
 | Function | Does |
 | --- | --- |
-| `onRfq(handler)` | Runs once per open RFQ, from events and the snapshot |
+| `onRfq(handler)` | Runs once per open RFQ per subscription, from events and the snapshot. A restart or a new subscription delivers the still-open RFQs again; quoting again replaces the earlier quote, so it cannot double-fill. |
 | `quote(rfq, { payout })` | Publishes `entry` terms with the deployment's fees. Returns its `quoteId`. |
 | `bid(rfq, { price })` | Publishes `sell_back` terms when this maker wrote the position, otherwise `transfer` terms |
 | `cancelQuote(quoteId)` | Removes a quote. `ACCEPTED` means a taker already has it. |
 | `onAcceptance(handler)` | Answers every pending acceptance once. Signs only terms this maker published and that have not expired, and resends a lost answer byte for byte. |
 | `published` option | Stores the `quote_id`s this maker published. Back it with durable storage so a restarted process can confirm them. |
 | `stream: { cursor }` option | Resumes after a saved `maker.stream.cursor` |
+| `keepQuoteLease(leaseMs, onError?)` | Opt-in quote lease (1 to 60 s). Renews every third of `leaseMs` until stopped. If renewals stop, the venue cancels this maker's open quotes that no taker is accepting, so takers don't wait on a dead maker. `renewQuoteLease` and `releaseQuoteLease` do one step each. |
+| `makerReadiness(client)`, `waitForMaker(client)` | From `/maker`, with a signed-in client: reads and admits the session's maker, answering `NOT_INDEXED` instead of a 404 until its open transaction is indexed |
 | `controller()` | Vault transactions for the maker wallet to send: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`, `resetDiscount` |
 | `withdrawal()` | The pending maker vault withdrawal, and what blocks executing it |
 | `reduceCollateral({ signTransaction })` | Requests a collateral reduction, follows it, and submits the attestation from your gas wallet |
@@ -285,6 +287,15 @@ for await (const position of items(
 )) console.log(position.position_id);
 ```
 
+## Money and UI helpers
+
+| Helper | Gives |
+| --- | --- |
+| `totalis.spendableCash()`, `spendableCash(balance)` | `{ vault, wallet, total }` the SDK plans with, net of reserved cash. Each is `null` while unknown, never 0. |
+| `netPayout(quote)` | What a full win pays the user after the profit fee. A 3 USDC stake quoted at 9.18 USDC nets 9.118140 USDC. |
+| `netCashout(bid, position)` | What a cash-out pays the user: a sell-back after the profit fee, a transfer in full |
+| `createUiAdapter(totalis, { onInvalidate, onCatalogStale })` | Live quotes with the best one, the venue clock (`serverNow`, `secondsLeft`), account invalidations for a query cache, and a catalog refresh only when `catalog_generation` moves. No framework dependency. |
+
 ## Retries and errors
 
 Each command is built once with its `Idempotency-Key` and resent byte for byte after a network failure or a
@@ -311,6 +322,11 @@ try {
 
 `NetworkError` means the outcome is unknown. Call `resend()`, never a new command.
 
+`normalizeError(error)` turns any SDK failure into `{ code, message, retryable, retry, requestId, status,
+mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have reached the venue. A withdrawal
+or return to HyperCore with an unread balance throws `BalanceUnknownError`. Staging has no exits to HyperCore,
+so `exitToCore` and `returnToCore` throw `ExitUnavailableError` there before anything is signed.
+
 ## Examples
 
 The package repository ships these examples.
@@ -328,6 +344,9 @@ The package ships `CHANGELOG.md`. Recent breaking changes:
 
 | Version | Change |
 | --- | --- |
+| 0.57.0 | A resumed account stream is `live` only after its replay is applied. Withdrawals and returns to HyperCore throw `BalanceUnknownError` and `ExitUnavailableError` instead of plain `Error`s. |
+| 0.55.0 | Cash-out RFQs carry `net_stake` and `payout`. |
+| 0.54.0 | Anonymous reads refuse query parameters they do not take (400 `INVALID_QUERY`). |
 | 0.50.0 | `getVolumeLeaderboard` needs a signed-in session. API keys are refused. |
 | 0.47.0 | A maker is one wallet. `controller()` no longer builds `setQuoteSigner`. |
 | 0.45.0 | The native HyperCore withdrawal routes are gone. |
