@@ -41,8 +41,9 @@ Content-Type: application/json
 | Route | Key |
 | --- | --- |
 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | Required. It becomes the `acceptance_id`, unique across all your quotes. |
-| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | None. Sending one returns `INVALID_IDEMPOTENCY_KEY`. |
-| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. |
+| [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | None. Sending one returns `INVALID_IDEMPOTENCY_KEY`. The quote is the key: resend the same body to retry, and a repeat returns the stored answer with `Idempotency-Replayed: true`. |
+| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. Safe to repeat: it returns the quote's status. On a quote you already confirmed it returns `409` with `{ "status": "ACCEPTED" }`, not an error body. |
+| [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | Required. A resend with the same key and body returns the withdrawal as it is now, still `202`, however long ago it was signed. |
 
 ## Pagination
 
@@ -60,6 +61,17 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJh
 | `cursor` | Omit for the first page, then send `next_cursor` unchanged. Never parse it. |
 | `next_cursor` | `null` exactly when `has_more` is `false`. |
 | `has_more` | Keep paging until `false`. A page may hold fewer than `limit` items, even none. |
+
+A few lists name their rows after the resource instead of `items`:
+
+| Route | Rows in |
+| --- | --- |
+| [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) | `rfqs` |
+| [List quotes](/hyperliquid/api-reference/quotes/list-quotes) | `quotes`, with no cursor |
+| [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `acceptances` |
+| [List operations](/hyperliquid/api-reference/account/list-operations) | `operations` |
+| [List HyperCore exits](/hyperliquid/api-reference/core-exits/list-hypercore-exits) | `exits`, with no cursor |
+| [Get market history](/hyperliquid/api-reference/markets/get-market-history) | `bars` |
 
 ## Errors
 
@@ -86,7 +98,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJh
 | `retry` | Do |
 | --- | --- |
 | `NEVER` | Stop. |
-| `BACKOFF` | Resend the same request, same `Idempotency-Key`, after `Retry-After`. |
+| `BACKOFF` | Resend the same request, same `Idempotency-Key` (if the route takes one), after `Retry-After`. |
 | `REFRESH` | Re-read the state, then send a new request with a new key. |
 
 | HTTP | Meaning |

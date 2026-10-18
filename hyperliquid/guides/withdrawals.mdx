@@ -43,8 +43,10 @@ The payout always leaves from your wallet.
 | `vault_withdrawal` | Your wallet holds less than `amount`. Moves exactly the shortfall from the vault to your wallet. | `Exit`, with your wallet as `account` and `to` |
 | `payout_authorization` | Always. Pays `amount` from your wallet to `destination`. | USDC `TransferWithAuthorization` |
 
-The shortfall is `amount` minus `WALLET_USDC` minus `pending.wallet_reserved` in
-[Get balances](/hyperliquid/api-reference/account/get-balances), never below zero. The payout nonce
+The shortfall is `max(0, amount - max(0, WALLET_USDC - pending.wallet_reserved))`, from
+[Get balances](/hyperliquid/api-reference/account/get-balances). Reserved wallet USDC is already spoken
+for, so it raises the shortfall: a 10 USDC withdrawal from a wallet holding 5 USDC with 3 reserved needs
+an `Exit` of 8 USDC. The payout nonce
 derives from the `Idempotency-Key` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)), so choose the
 key before you sign.
 

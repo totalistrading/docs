@@ -180,8 +180,13 @@ Quotes arrive as `QUOTE_CREATED`. `kind` is `SELL_BACK` or `TRANSFER` and names 
 | `TRANSFER` | `transfer` | Another maker | Moves to the buyer |
 
 Sign `sell_back` as `SellBack` or `transfer` as `CashoutTransfer`, then accept it like an entry quote,
-with no `funding`. On `COMMITTED` you receive `POSITION_CLOSED` or `POSITION_TRANSFERRED`, and the price
-lands in your vault balance.
+with no `funding`. On `COMMITTED` you receive `POSITION_CLOSED` or `POSITION_TRANSFERRED`, and the
+proceeds land in your vault balance:
+
+| `kind` | You receive |
+| --- | --- |
+| `SELL_BACK` | `price` less the profit fee on the part above the position's `net_stake`: `floor((price - net_stake) * fee_bps / 10000)`, nothing when `price` is at or below `net_stake` ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it. |
+| `TRANSFER` | `price`, with no fee |
 
 ## Settlement
 

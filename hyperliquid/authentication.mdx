@@ -86,7 +86,7 @@ app session from an allowed origin, never an API key.
 
 | Integration | Account | Scopes |
 | --- | --- | --- |
-| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `replay:read`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
 | Taker that withdraws | Yours | The taker scopes plus `funding:withdraw` |
 | Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 | Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |

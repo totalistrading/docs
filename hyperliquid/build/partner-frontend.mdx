@@ -102,18 +102,19 @@ refuses an admission that carries an `Origin` header.
 | Wallet | Signs in |
 | --- | --- |
 | An EOA in an extension, such as `window.ethereum` | Yes. Your user sees a signature request for sign-in and for each signed action. |
-| An embedded wallet you run | Yes. It signs without a popup. |
+| An embedded wallet you run, such as your own Privy app's | Yes. It signs without a popup. Totalis treats it as an external wallet: `wallet_kind: EXTERNAL`. |
 | A contract wallet: Safe, smart account | No: `WALLET_CONTRACT_UNSUPPORTED`. Sign in with the EOA that controls it. |
 | A wallet no partner admitted and with no account | No: `ACCESS_REQUIRED`, during the invite-only launch. Admit it first. |
 
 The `signer` is any EIP-1193 provider, viem account or wallet client, or ethers signer. Trade signatures accept
 ERC-1271, but sign-in does not.
 
-A Totalis app user's wallet is an embedded wallet inside the Totalis app, so they have no wallet to sign in with
+A Totalis app user's wallet is embedded inside the Totalis app (`wallet_kind: EMBEDDED`), so they have no wallet to sign in with
 on your site. To trade through your product they create an API key in the
 [Totalis app](https://hip4.totalis.trade/account/api-keys), or export their wallet key
 ([Wallet key](/hyperliquid/authentication#wallet-key)). An account created in the Totalis app is not admitted by
-you, so its RFQs are attributed to you only with an [origin builder code](/hyperliquid/build/builder-codes).
+you, so its RFQs are attributed to you only with a signed [origin builder code](/hyperliquid/build/builder-codes),
+which works only from a wallet session on your page. RFQs it sends with an API key cannot be attributed to you.
 
 ## Sessions
 
@@ -221,7 +222,7 @@ sends a bridge again. Read the balances to learn where the cash is; never infer 
 
 ## Moving cash to HyperCore
 
-An external wallet's vault cash is not swept to HyperCore in the background. Before a native HyperCore order,
+An external wallet's vault cash, including a wallet embedded in your own app, is not swept to HyperCore in the background. Before a native HyperCore order,
 move it:
 
 ```js

@@ -44,6 +44,11 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=1"
 }
 ```
 
+The list is flat: one row per market, with no question title. Markets of one question share
+`native_question_id`. For a market in a question, [Get market](/hyperliquid/api-reference/markets/get-market)
+returns its `question`, with the `title` and all its markets. A standalone market has
+`native_question_id: null` and `question: null`.
+
 Your identity checks the key:
 
 ```bash
