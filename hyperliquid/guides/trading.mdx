@@ -185,7 +185,7 @@ proceeds land in your vault balance:
 
 | `kind` | You receive |
 | --- | --- |
-| `SELL_BACK` | `price` less the profit fee on a sell-back ([Limits and fees](/hyperliquid/limits-and-fees)) |
+| `SELL_BACK` | `price` less the profit fee on the part above the position's `net_stake`: `floor((price - net_stake) * fee_bps / 10000)`, nothing when `price` is at or below `net_stake` ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it. |
 | `TRANSFER` | `price`, with no fee |
 
 ## Settlement

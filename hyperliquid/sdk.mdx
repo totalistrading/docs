@@ -344,7 +344,7 @@ The package ships `CHANGELOG.md`. Recent breaking changes:
 
 | Version | Change |
 | --- | --- |
-| 0.57.0 | A resumed account stream is `live` only after its replay is applied. Withdrawals and returns to HyperCore throw `BalanceUnknownError` and `ExitUnavailableError` instead of plain `Error`s. |
+| 0.57.0 | A resumed account stream is `live` only after its replay is applied. A withdrawal or return to HyperCore with an unread balance throws `BalanceUnknownError`, and Core exits on a deployment without them (staging) throw `ExitUnavailableError`, before anything is signed. Both used to be plain `Error`s. |
 | 0.55.0 | Cash-out RFQs carry `net_stake` and `payout`. |
 | 0.54.0 | Anonymous reads refuse query parameters they do not take (400 `INVALID_QUERY`). |
 | 0.50.0 | `getVolumeLeaderboard` needs a signed-in session. API keys are refused. |
