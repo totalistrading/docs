@@ -215,17 +215,22 @@ VARIANT_TITLES = {
 UNIONS = ("oneOf", "anyOf")
 
 
+def is_object(member: dict) -> bool:
+    """An object shape, typed or not: it lists its own fields."""
+    return member.get("type") in (None, "object") and isinstance(member.get("properties"), dict)
+
+
 def real_variants(members: list) -> bool:
     """Inline members that are shapes of their own: a scalar or array type, or objects over different fields."""
     if any(member.get("type") not in (None, "object") for member in members):
         return True
-    shapes = [frozenset(member.get("properties") or {}) for member in members if member.get("type") == "object"]
+    shapes = [frozenset(member["properties"]) for member in members if is_object(member)]
     return len(shapes) > 1 and len(set(shapes)) > 1
 
 
 def name_variants(members: list) -> None:
     """Title each object variant by its constant (`CONFIRM`) or the field only it has (`entry`)."""
-    shapes = [member for member in members if member.get("type") == "object"]
+    shapes = [member for member in members if is_object(member)]
     for member in shapes:
         fields = member.get("properties") or {}
         const = next((rule["const"] for rule in fields.values() if isinstance(rule, dict) and isinstance(rule.get("const"), str)), None)
