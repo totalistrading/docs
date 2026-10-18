@@ -19,6 +19,7 @@ description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptanc
 | Position | A filled trade on-chain: legs, stake, payout, owner and backing maker. An entry position's `position_id` is its `quote_id`. |
 | Stake, payout | What the taker pays, before the entry fee; what the position pays if every leg wins, before the profit fee. |
 | Cash-out | Selling an open position: a `sell_back` to its maker, or a `transfer` to another maker. |
+| Leg state | A cash-out RFQ's hash of every leg's on-chain state (`leg_state`). A cash-out lands only while it still matches. See [Price a cash-out](/hyperliquid/guides/market-making#price-a-cash-out). |
 | Settlement, claim | Grading a resolved position, then paying its winnings into the owner's vault balance. Totalis runs both. |
 | Operation | One on-chain action Totalis relays for you, with a `status` (`operation_id`, `OPERATION_UPDATED`). |
 | Vault | The Totalis contract on HyperEVM that holds USDC and every position (`vault_address`). |

@@ -29,7 +29,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 {
   "context": { "as_of": "2026-09-26T12:00:02Z", "status": "CURRENT" },
   "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "signer": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "signer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "vault_gross": "5250000000",
   "stake_escrow": "150000000",
   "payable_owed": "40000000",
@@ -37,9 +37,18 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
   "discount": "0",
   "requirement": "300000000",
   "free_collateral": "4760000000",
+  "capital_net_of_senior_liabilities": "5060000000",
   "floor_bps": 0,
   "pending_commitments": "25000000",
-  "free_after_pending": "4735000000"
+  "free_after_pending": "4735000000",
+  "deployment_digest": "0x40452ed111ecbd2a2c5bc4200002747a19eb0f8d62e602c38e34204d3f609910",
+  "actions": [
+    { "action": "MAKER_WITHDRAW", "route": "MAKER_VAULT", "available": "4735000000", "blockers": [] },
+    { "action": "MAKER_QUOTE", "route": "MAKER_VAULT", "available": null, "blockers": ["PRIVATE_QUOTE_CAPACITY_UNAVAILABLE"] }
+  ],
+  "reservations": [
+    { "reservation_id": "entry:0xb2f6...f013", "operation_ids": ["0x1ba1...9c8c"], "value": "25000000", "status": "ACTIVE" }
+  ]
 }
 ```
 
@@ -53,9 +62,15 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 | `requirement` | What must stay locked for your open positions: `max(gross_open - min(discount, gross_open), ceil(gross_open * floor_bps / 10000))`. With a `floor_bps` of 0 that is `gross_open - discount`. `null` when `floor_bps` is `null`. |
 | `floor_bps` | The share of `gross_open` that stays locked whatever the discount. `null` when it cannot be read. |
 | `free_collateral` | `vault_gross - stake_escrow - payable_owed - requirement`, never below zero. What can back new fills, or be withdrawn. |
-| `pending_commitments` | Fills accepted but not yet on-chain. |
+| `capital_net_of_senior_liabilities` | `vault_gross - stake_escrow - payable_owed`, signed. It does not value your open positions. |
+| `pending_commitments` | Fills you confirmed that are not yet on-chain: the sum of `reservations`. |
 | `free_after_pending` | `free_collateral - pending_commitments`, never below zero. Size new quotes from this. |
+| `reservations` | One row per confirmed fill not yet on-chain. `status` `UNKNOWN` means its outcome is not known yet; it still counts. |
+| `actions` | `MAKER_WITHDRAW`: the most a new [withdrawal request](#move-maker-funds) may ask for, or `null` with a blocker such as `MAKER_WITHDRAW_PENDING`. `MAKER_QUOTE` is always `null`: only your bot knows its other live quotes. |
+| `deployment_digest` | The hash of the deployment this read is bound to. |
 | `context.status` | `CURRENT`, or `STALE` or `UNAVAILABLE` when a source lags. A stale read never authorizes an action. |
+
+Every amount is `null` when it cannot be read, never `0` in its place.
 
 Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperliquid/api-reference/websocket/maker).
 
@@ -66,8 +81,9 @@ Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperli
 | You confirm a fill | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`. `discount` does not change, so the new position locks in full. |
 | A position loses | You keep the stake: it leaves `stake_escrow` and stays in `vault_gross`. `gross_open` falls by the position's worst case. |
 | A position wins | The taker's stake goes back to them. You owe the profit, held in `payable_owed` until Totalis claims it for the taker. `gross_open` falls. |
+| A position pays part (`PARTIAL`) | What it pays leaves `vault_gross` for the owner, and you keep the rest of the stake. It leaves `stake_escrow`. `gross_open` falls. |
 | A position closes either way | `discount` falls by the part of the closed position's worst case you did not pay, so the credit it earned leaves with it. |
-| You buy a position back (`SELL_BACK`) | The price comes out of `vault_gross`. The position closes as above. |
+| You buy a position back (`SELL_BACK`) | The price comes out of `vault_gross`. The net stake leaves `stake_escrow`, so it is yours again. The position closes as above. |
 | Another maker buys it (`TRANSFER`) | Nothing changes for you. You still back it, for its new owner. |
 | You deposit or withdraw | `vault_gross` moves. A withdrawal must leave `free_collateral` covered. |
 
@@ -78,8 +94,12 @@ taker's stake before it reaches you. Rates are on [Limits](/hyperliquid/limits-a
 
 Creating a quote reserves nothing. Your capacity is checked when you confirm a fill, against
 `free_collateral` less every fill not yet on-chain. If several of your quotes are accepted at once,
-a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`. The contract checks again when the trade
-lands. Quote only what `free_after_pending` covers.
+a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and nothing fills. The contract checks again when the
+trade lands: a fill it refuses ends `FAILED`. Quote only what `free_after_pending` covers.
+
+A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the
+withdrawal then reverts. While one is pending, subtract its `pending.amount`
+([Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal)) from what you quote with.
 
 ## Reduce collateral
 
@@ -116,7 +136,8 @@ it does not pay their gas.
     for one call to the vault.
   </Step>
   <Step title="Sign and submit it">
-    Sign that call as an EIP-1559 transaction from any wallet that holds HYPE for gas. Send it to
+    Sign that call as an EIP-1559 transaction from any wallet that holds HYPE for gas. Your maker wallet
+    works. Send it to
     [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction)
     with the job's `operation_id` and the same `Idempotency-Key` that created the job, before the
     job's `expiry`. Totalis checks the transaction matches the job and broadcasts it. It never holds

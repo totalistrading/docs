@@ -19210,7 +19210,6 @@
         "oneOf": [
           {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "PARTICIPANT",
@@ -19229,7 +19228,6 @@
           },
           {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "MAKER",
@@ -19262,7 +19260,6 @@
           },
           {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "OPERATOR",
@@ -19284,7 +19281,6 @@
       },
       "ActionAvailability": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "action",
           "route",
@@ -19337,7 +19333,6 @@
       },
       "Activity": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "activity_id",
           "revision",
@@ -19606,7 +19601,6 @@
       },
       "ActivityList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "context",
           "items",
@@ -19646,7 +19640,6 @@
       },
       "Asset": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "asset_id",
           "symbol",
@@ -19681,7 +19674,6 @@
       "Balance": {
         "description": "The account's spendable Totalis balance in atomic USDC (6 decimals, \"1000000\" = 1 USDC): embedded wallet USDC plus free vault cash. HyperCore balances are read from Hyperliquid directly or through GET /v1/hypercore/portfolio.",
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "amount",
           "state",
@@ -19721,7 +19713,6 @@
           "pending": {
             "description": "In-flight amounts behind the balance, in atomic USDC (6 decimals).",
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "wallet_reserved",
               "vault_deposits",
@@ -19760,7 +19751,6 @@
       },
       "BalanceComponent": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "kind",
           "amount",
@@ -19801,7 +19791,6 @@
       },
       "CashoutRfq": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "rfq_id",
           "kind",
@@ -19983,7 +19972,6 @@
       },
       "Checkpoint": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "block_number",
           "projection_state"
@@ -20004,7 +19992,6 @@
       },
       "CollateralReduction": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "job_id",
           "maker_id",
@@ -20189,7 +20176,6 @@
       },
       "CollateralReductionAccepted": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "job_id",
           "status",
@@ -20226,7 +20212,6 @@
         "oneOf": [
           {
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "state"
             ],
@@ -20241,7 +20226,6 @@
           },
           {
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "state",
               "reason",
@@ -20364,7 +20348,6 @@
       },
       "Content": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "title",
           "rules"
@@ -20402,7 +20385,6 @@
       },
       "CoreExit": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "exit_id",
           "status",
@@ -20506,7 +20488,6 @@
             "oneOf": [
               {
                 "type": "object",
-                "additionalProperties": false,
                 "required": [
                   "operation_id",
                   "status",
@@ -20545,7 +20526,6 @@
             "oneOf": [
               {
                 "type": "object",
-                "additionalProperties": false,
                 "required": [
                   "transaction_hash",
                   "block_number",
@@ -20591,7 +20571,6 @@
             "oneOf": [
               {
                 "type": "object",
-                "additionalProperties": false,
                 "required": [
                   "event_id",
                   "credited_at"
@@ -20628,7 +20607,6 @@
       },
       "CoreExitDeployment": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "network",
           "chain_id",
@@ -20744,7 +20722,6 @@
       },
       "CoreExitList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "deployment",
           "exits"
@@ -20968,7 +20945,6 @@
       },
       "DateEvent": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "kind",
           "at"
@@ -20990,7 +20966,6 @@
       },
       "Deployer": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "name",
           "address"
@@ -21025,7 +21000,6 @@
       },
       "Deployment": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "chain_id",
           "vault_address",
@@ -21076,7 +21050,6 @@
           },
           "usdc": {
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "address",
               "eip712_domain"
@@ -21089,7 +21062,6 @@
               },
               "eip712_domain": {
                 "type": "object",
-                "additionalProperties": false,
                 "required": [
                   "name",
                   "version",
@@ -21123,7 +21095,6 @@
       },
       "DepositAccepted": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "operation_id",
           "state",
@@ -21256,7 +21227,6 @@
       },
       "DiscoveryList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "items",
           "catalog_generation",
@@ -21372,7 +21342,6 @@
       },
       "Effect": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "asset",
           "bucket",
@@ -21432,7 +21401,6 @@
       },
       "EligibilityDisabled": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "state",
           "reason"
@@ -21467,7 +21435,6 @@
       },
       "EligibilityEnabled": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "state"
         ],
@@ -21482,7 +21449,6 @@
       },
       "EntryMakerAcceptance": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -21517,7 +21483,6 @@
       },
       "EntryQuote": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -21558,7 +21523,6 @@
           }
         ],
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "rfq_id",
           "kind",
@@ -21663,7 +21627,6 @@
         "title": "Entry RFQ"
       },
       "Error": {
-        "additionalProperties": false,
         "properties": {
           "error": {
             "$ref": "#/components/schemas/ErrorDetail",
@@ -21747,7 +21710,6 @@
         "type": "string"
       },
       "ErrorDetail": {
-        "additionalProperties": false,
         "properties": {
           "code": {
             "$ref": "#/components/schemas/ErrorCode",
@@ -21792,7 +21754,6 @@
         "description": "Native result numerator in the inclusive range zero through Q = 100000000."
       },
       "FieldViolation": {
-        "additionalProperties": false,
         "properties": {
           "code": {
             "description": "REQUIRED: the input is missing. INVALID: it is present but malformed or out of range. UNEXPECTED: the input is not accepted here.",
@@ -21817,7 +21778,6 @@
       },
       "Fill": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "outcome_id",
           "side",
@@ -21867,7 +21827,6 @@
       },
       "Game": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "sport",
           "scheduled_start",
@@ -21933,7 +21892,6 @@
       },
       "HistoryBar": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "minute",
           "open",
@@ -21991,7 +21949,6 @@
       },
       "HistoryGap": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "outcome_id",
           "source",
@@ -22074,7 +22031,6 @@
       },
       "IssuedKey": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "key": {
             "allOf": [
@@ -22118,7 +22074,6 @@
       "KeyCapabilities": {
         "description": "Advisory, no-store snapshot of the scopes a new key for this account may hold and the owner whose signature issues it. Scope dependencies still apply. Issuance revalidates current authority and consumes the owner's proof; discovery is never an authorization lease.",
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "account",
           "environment",
@@ -22159,7 +22114,6 @@
       },
       "KeyChallenge": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "challenge_id": {
             "$ref": "#/components/schemas/Uuid",
@@ -22249,7 +22203,6 @@
       },
       "KeyList": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "items": {
             "type": "array",
@@ -22276,7 +22229,6 @@
       },
       "KeyMetadata": {
         "type": "object",
-        "additionalProperties": false,
         "properties": {
           "id": {
             "$ref": "#/components/schemas/Uuid",
@@ -22544,7 +22496,6 @@
         "oneOf": [
           {
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "outcome_id",
               "side",
@@ -22582,7 +22533,6 @@
           },
           {
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "outcome_id",
               "side",
@@ -22645,7 +22595,6 @@
       },
       "MakerAcceptanceList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "acceptances",
           "next_cursor",
@@ -22672,7 +22621,6 @@
       },
       "MakerAccess": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "maker_id",
           "owner",
@@ -22711,7 +22659,6 @@
       },
       "MakerCapital": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "context",
           "owner",
@@ -22908,7 +22855,6 @@
       },
       "MakerWithdrawal": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "maker_id",
           "controller",
@@ -22951,7 +22897,6 @@
       },
       "MakerWithdrawalRequest": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "amount",
           "destination",
@@ -23007,7 +22952,6 @@
       },
       "Market": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "outcome_id",
           "native_question_id",
@@ -23101,7 +23045,6 @@
       },
       "MarketDates": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "event",
           "result_by",
@@ -23184,7 +23127,6 @@
       },
       "MarketDetail": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "catalog_generation",
           "market",
@@ -23271,7 +23213,6 @@
       },
       "MarketDetailStats": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "volume_24h",
           "open_interest"
@@ -23332,7 +23273,6 @@
       },
       "MarketHistory": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "outcome_id",
           "side",
@@ -23617,7 +23557,6 @@
       },
       "MarketList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "items",
           "catalog_generation",
@@ -23649,7 +23588,6 @@
       },
       "MarketSide": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "side",
           "coin",
@@ -23738,7 +23676,6 @@
       },
       "Operation": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "operation_id",
           "kind",
@@ -23795,7 +23732,6 @@
       },
       "OperationList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "operations",
           "next_cursor",
@@ -23827,7 +23763,6 @@
       },
       "OperationResult": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "operation",
           "checkpoint"
@@ -23862,7 +23797,6 @@
       },
       "OwnMaker": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "contract_version",
           "chain_id",
@@ -23891,7 +23825,6 @@
           },
           "ownership": {
             "type": "object",
-            "additionalProperties": false,
             "required": [
               "state",
               "maker"
@@ -23964,7 +23897,6 @@
       },
       "Parent": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "content"
         ],
@@ -24059,7 +23991,6 @@
       },
       "PnL": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "range",
           "tracked_since",
@@ -24095,7 +24026,6 @@
             "description": "Ascending instants: the window start (never before tracked_since), every round UTC step boundary inside it (1D every 15 minutes, 1W every hour, 1M every 6 hours, ALL an adaptive step of at most 200 points), then the read time valued at live marks.",
             "items": {
               "type": "object",
-              "additionalProperties": false,
               "required": [
                 "at",
                 "pnl"
@@ -24127,7 +24057,6 @@
       },
       "Position": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "position_id",
           "maker_id",
@@ -24460,7 +24389,6 @@
       },
       "PositionDetail": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "context",
           "position"
@@ -24478,7 +24406,6 @@
       },
       "PositionList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "context",
           "items",
@@ -24528,7 +24455,6 @@
       },
       "ProductMetadata": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "content",
           "parent",
@@ -24572,7 +24498,6 @@
       },
       "Question": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "native_question_id",
           "catalog_generation",
@@ -24640,7 +24565,6 @@
       },
       "QuestionRelationship": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "kind",
           "outcome_ids"
@@ -24684,7 +24608,6 @@
       },
       "QuoteCancellation": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "status"
         ],
@@ -24701,7 +24624,6 @@
       },
       "QuoteCreated": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id"
         ],
@@ -24715,7 +24637,6 @@
       },
       "QuoteFillRate": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "submitted_count",
           "filled_count",
@@ -24749,7 +24670,6 @@
       },
       "QuoteHistory": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "context",
           "from",
@@ -24805,7 +24725,6 @@
       },
       "QuoteHistoryItem": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -24918,7 +24837,6 @@
                 "maxItems": 100,
                 "items": {
                   "type": "object",
-                  "additionalProperties": false,
                   "required": [
                     "outcome_id",
                     "side"
@@ -25127,7 +25045,6 @@
       },
       "QuoteLease": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "lease_ms",
           "expires_at"
@@ -25164,7 +25081,6 @@
       },
       "QuoteLeaseRelease": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "released"
         ],
@@ -25178,7 +25094,6 @@
       },
       "QuoteList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quotes",
           "server_time"
@@ -25264,7 +25179,6 @@
       },
       "ReadContext": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "as_of",
           "status"
@@ -25314,7 +25228,6 @@
       },
       "RecurringRound": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "expiry",
           "target_price",
@@ -25387,7 +25300,6 @@
       },
       "RecurringRoundContext": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "series",
           "current",
@@ -25449,7 +25361,6 @@
       },
       "RecurringRoundMarket": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "outcome_id",
           "role",
@@ -25486,7 +25397,6 @@
       },
       "RecurringSeries": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "network",
           "class",
@@ -25533,7 +25443,6 @@
       },
       "RecurringStream": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "stream_id",
           "venue",
@@ -25606,7 +25515,6 @@
       },
       "ReferenceAvailable": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "availability",
           "quality",
@@ -25731,7 +25639,6 @@
       },
       "ReferenceUnavailable": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "availability",
           "reason",
@@ -25769,7 +25676,6 @@
       },
       "Reservation": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "reservation_id",
           "operation_ids",
@@ -25825,7 +25731,6 @@
       },
       "ResultNonnumeric": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "availability",
           "result_state",
@@ -25856,7 +25761,6 @@
       },
       "ResultNumeric": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "availability",
           "result_state",
@@ -25898,7 +25802,6 @@
       },
       "ResultUnavailable": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "availability",
           "reason"
@@ -25926,7 +25829,6 @@
       },
       "ResultUnresolved": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "availability",
           "result_state"
@@ -25966,7 +25868,6 @@
       },
       "RfqCreated": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "rfq_id"
         ],
@@ -25980,7 +25881,6 @@
       },
       "RfqList": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "rfqs",
           "next_cursor",
@@ -26155,7 +26055,6 @@
       },
       "SelfFundedAccepted": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "operation_id",
           "status",
@@ -26193,7 +26092,6 @@
       },
       "SellBackMakerAcceptance": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -26228,7 +26126,6 @@
       },
       "SellBackQuote": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -26331,7 +26228,6 @@
       },
       "SideLabel": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "side",
           "label"
@@ -26394,7 +26290,6 @@
       },
       "TransactionCall": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "chain_id",
           "to",
@@ -26426,7 +26321,6 @@
       },
       "TransferMakerAcceptance": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -26461,7 +26355,6 @@
       },
       "TransferQuote": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "quote_id",
           "rfq_id",
@@ -26651,7 +26544,6 @@
       },
       "VenueIdentity": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "account_id",
           "status",
@@ -26701,7 +26593,6 @@
       },
       "WalletAdmission": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "address",
           "admitted_at"
@@ -26752,7 +26643,6 @@
       },
       "WalletChallenge": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "challenge_id",
           "message",
@@ -26840,7 +26730,6 @@
       "WalletSession": {
         "description": "A bearer session for the wallet's account. It lasts at most 30 days and ends after 7 days without an API request, or at logout. It authenticates the account; every bet, cash-out and withdrawal still needs the wallet's own signature.",
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "token_type",
           "access_token",
@@ -26899,7 +26788,6 @@
       },
       "Withdrawal": {
         "type": "object",
-        "additionalProperties": false,
         "required": [
           "withdrawal_id",
           "account",
