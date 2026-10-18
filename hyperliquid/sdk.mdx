@@ -326,7 +326,8 @@ try {
 `NetworkError` means the outcome is unknown. Call `resend()`, never a new command.
 
 `normalizeError(error)` turns any SDK failure into `{ code, message, retryable, retry, requestId, status,
-mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have reached the venue. A withdrawal
+mayStillRun, resend, bridged, cause }`. `mayStillRun` is true when the command may have reached the venue.
+`bridged` is set when an entry failed after bridging from HyperCore: the cash now in its HyperEVM wallet. A withdrawal
 or return to HyperCore with an unread balance throws `BalanceUnknownError`. Staging has no exits to HyperCore,
 so `exitToCore` and `returnToCore` throw `ExitUnavailableError` there before anything is signed.
 
