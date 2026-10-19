@@ -99,6 +99,12 @@ resume: each step skips what is already done, and it deposits only while the mak
 TOTALIS_WALLET_KEY=0x... TOTALIS_DEPOSIT=1000000000 node examples/onboard.mjs
 ```
 
+<Note>
+On [staging](/hyperliquid/build/staging), sign up at [hip4-staging.totalis.trade](https://hip4-staging.totalis.trade)
+with the staging invite code, and run with `TOTALIS_ENVIRONMENT=staging`. The steps below then use
+`environment: "staging"` and the staging app's origin, `https://hip4-staging.totalis.trade`.
+</Note>
+
 <Steps>
   <Step title="Sign in">
     Sign in with the wallet key and the Totalis app's origin, `https://hip4.totalis.trade`. Send the same origin
@@ -184,6 +190,18 @@ is `walletClient.sendTransaction`, then waiting for the receipt.
 | `RESTRICTED` | It cannot quote. Email [founders@totalis.trade](mailto:founders@totalis.trade). |
 | `WALLET_REQUIRED`, `OWNERSHIP_CONFLICT` | Your account has no single wallet that controls the maker. Email us before you open another maker. |
 
+### Partner-admitted wallet
+
+A [partner](/hyperliquid/build/overview) can run its maker from a wallet it admits
+([Onboard a user](/hyperliquid/build/partner-frontend#onboard-a-user)) instead of a Totalis app account. There is no
+browser step: admit the wallet, then follow the headless steps above, signing in with one of your registered
+origins instead of the Totalis app's. With the example, call its exported `onboard` with that `origin`.
+
+- Use a wallet of its own, not your builder signer. A wallet opens one maker.
+- It signs in again whenever it needs a session, to manage its keys.
+- It holds no vault balance of its own, like an app wallet that controls a maker
+  ([Cash-outs](#cash-outs)).
+
 ## Manage keys
 
 Your wallet manages your maker's keys from a session ([Sign in](#set-up)). An API key cannot create, rotate or
@@ -223,10 +241,10 @@ has every vault call and its reverts.
 | `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 | `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
 
-Your maker is one wallet: your Totalis account's embedded wallet. Totalis admits a maker only from the account's
-own wallet, so you run your bot with its exported key. A wallet that signs in on a partner's site cannot run a
-maker: once it controls one, it can no longer sign in to manage it. Nothing fills without your confirmation signature, so to
-stop filling, stop confirming.
+Your maker is one wallet: your Totalis account's own wallet. Totalis admits a maker only from that wallet, so your
+bot holds its key: the exported embedded wallet for an account created in the app, or your own key for a wallet a
+partner admitted ([Partner-admitted wallet](#partner-admitted-wallet)). Nothing fills without your confirmation
+signature, so to stop filling, stop confirming.
 
 The vault cannot move a maker to another wallet.
 
@@ -483,9 +501,9 @@ and `payout`, and the leg state to price against.
 | Back the position (`maker_id` is yours) | `sell_back` terms, a `price` | Your maker vault | Closes |
 | Do not back it | `transfer` terms, a `price` | Your maker wallet's own vault balance, not the maker vault | Moves to your wallet's account. Its original maker still backs it. |
 
-If your maker wallet was created in the app, bid only on positions you back: it cannot hold its own vault balance. Totalis
-moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background, and
-[Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker. A
+Bid only on positions you back: your maker wallet cannot hold its own vault balance.
+[Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker, and
+Totalis moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background. A
 `transfer` your wallet's free vault balance cannot cover is refused when you publish it (`400 INVALID_REQUEST`
 naming `transfer.price`). While Totalis's view of the vault lags the chain, publishing skips that check;
 confirm then answers `QUOTE_CAPACITY_EXCEEDED` once the view is current, or the vault refuses the transfer
