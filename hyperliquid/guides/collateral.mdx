@@ -93,15 +93,23 @@ taker's stake before it reaches you. Rates are on [Limits](/hyperliquid/limits-a
 ## When collateral is checked
 
 A quote reserves nothing until you confirm it. From your confirm until the fill lands on-chain or its
-`expiry` passes, an entry fill holds its worst case, `payout - net stake`, against your capacity.
+`expiry` passes, the fill holds what it can cost you against your capacity.
 
-Each entry confirm is checked against `free_collateral` less the entry fills you confirmed that are not yet
-on-chain. If several of your quotes are accepted at once, a later confirm can fail with
-`QUOTE_CAPACITY_EXCEEDED`, and nothing fills. Quote only what `free_after_pending` covers.
+| Confirm | Holds |
+| --- | --- |
+| Entry | Its worst case, `payout - net stake`. |
+| `SELL_BACK` | Its `price`, less the position's net stake and the worst case it releases. Never below zero: a buyback that frees capital holds nothing. |
+| `TRANSFER` | Its `price`, against your wallet's own vault balance, not the maker vault. |
+
+Each confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. If
+several of your quotes are accepted at once, a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and
+nothing fills. Quote only what `free_after_pending` covers. A maker whose free capital is short of its
+requirement, but whose vault still covers stakes and owed winnings, can still buy back a position whose close
+restores its coverage.
 
 The contract checks again when the trade lands, and a fill it refuses ends `FAILED`. That can still happen
 after `ACCEPTED`: on an RFQ the app did not open, the confirm check is skipped while Totalis's view of the chain
-lags, and cash-out confirms (`sell_back`, `transfer`) there are not checked against your capital yet.
+lags, and the vault decides.
 
 A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the
 withdrawal then reverts. While one is pending, subtract its `pending.amount`

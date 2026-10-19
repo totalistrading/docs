@@ -281,12 +281,10 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
-lands. An `ACCEPTED` fill can still revert:
-
-- An entry confirm is checked against your capacity. On an RFQ the app did not open, the check is skipped while
-  Totalis's view of the chain lags, and the vault decides.
-- A cash-out confirm (`sell_back` or `transfer`) on an RFQ the app did not open is not checked against your
-  capital yet. A `transfer` needs your wallet's own vault balance to cover its `price`.
+lands. Every confirm is checked against your capacity first
+([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ the app did
+not open, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
+fill can still revert. Keep following `OPERATION_UPDATED`.
 
 - `{ "decision": "DECLINE" }` needs no signature. Decline when your price or your capital moved.
 - The confirm deadline is on [Limits](/hyperliquid/limits-and-fees). It is short, so sign on a hot
@@ -295,7 +293,7 @@ lands. An `ACCEPTED` fill can still revert:
 
 | Error | Means | Do |
 | --- | --- | --- |
-| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed entry fills not yet on-chain, does not cover this fill's `payout - net stake`. | Nothing filled. Quote smaller, or add capital. |
+| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed fills not yet on-chain, does not cover this fill. For a `transfer`, your wallet's own vault balance does not cover its `price`. | Nothing filled. Quote smaller, or add capital. |
 | `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
 | `409 RFQ_GENERATION_STALE` | App RFQs only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
 | `409 STATE_CONFLICT` | The deadline passed, or the trade can no longer open, for example because a leg resolved. | Nothing filled. |
@@ -358,8 +356,8 @@ and `payout`, and the leg state to price against.
 Bid only on positions you back. A maker wallet created in the app cannot hold its own vault balance: Totalis
 moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background, and
 [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker. A
-`transfer` you cannot pay for is accepted at confirm and reverts on-chain, and the owner's cash-out fails
-with it. A position you buy by
+`transfer` your wallet's balance cannot cover fails at confirm with `QUOTE_CAPACITY_EXCEEDED`, and the
+owner's cash-out fails with it. A position you buy by
 transfer belongs to your wallet's account, not your maker: read it and its settlement with a key for
 [your account](/hyperliquid/authentication#keys).
 
