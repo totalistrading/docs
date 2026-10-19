@@ -8,7 +8,7 @@ description: 'Open a position, find out why an entry did not trade, cash out and
 the stake, and follows the trade to the end.
 
 ```ts
-import { createTotalis } from "@totalistrading/hip4-client";
+import { createTotalis } from "@totalis/hip4-client";
 import { privateKeyToAccount } from "viem/accounts";
 
 const totalis = createTotalis({
@@ -96,7 +96,7 @@ An entry can fail before it is sent, or after it is accepted.
 `entryFailure` names the message to show:
 
 ```ts
-import { entryFailure } from "@totalistrading/hip4-client";
+import { entryFailure } from "@totalis/hip4-client";
 
 const operation = await totalis.waitForOperation(opened.operationId!);
 if (operation.status !== "COMMITTED") {

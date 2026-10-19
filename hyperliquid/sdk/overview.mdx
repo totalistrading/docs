@@ -2,25 +2,26 @@
 title: 'TypeScript SDK'
 sidebarTitle: 'Overview'
 icon: 'code'
-description: 'Install @totalistrading/hip4-client from npm, make a first call, and pick the client for what you are building.'
+description: 'Install @totalis/hip4-client from npm, make a first call, and pick the client for what you are building.'
 ---
 
-`@totalistrading/hip4-client` is the official TypeScript SDK for Totalis on Hyperliquid. It wraps every route
+`@totalis/hip4-client` is the official TypeScript SDK for Totalis on Hyperliquid. It wraps every route
 with typed requests and responses, runs the taker and maker flows end to end, builds every signed message, and
 keeps a WebSocket in sync. It never holds a key: every signature goes to the signer you pass in.
 
 ## Install
 
 ```bash
-npm install @totalistrading/hip4-client viem
+npm install @totalis/hip4-client viem
 ```
 
 The package is public on npm under Apache-2.0. It is ESM, runs in Node 22 or later and in browsers, and has no
 wallet dependency. `viem` (or ethers) is only there to turn a private key into a signer.
 
 <Note>
-Versions up to 0.65.0 were published to GitHub Packages. If your `.npmrc` has an
-`@totalistrading:registry=https://npm.pkg.github.com` line, remove it.
+The package used to be `@totalistrading/hip4-client`, and versions up to 0.65.0 were published to GitHub
+Packages under that name. Change your imports to `@totalis/hip4-client`, and remove any
+`@totalistrading:registry=https://npm.pkg.github.com` line from your `.npmrc`.
 </Note>
 
 ## Make a first call
@@ -29,7 +30,7 @@ Create a `ttk_` API key for your account ([Create, rotate, revoke](/hyperliquid/
 then read your account:
 
 ```ts
-import { createClient, unwrap } from "@totalistrading/hip4-client";
+import { createClient, unwrap } from "@totalis/hip4-client";
 
 const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY! });
 
@@ -92,7 +93,7 @@ signer. `toTotalisSigner`, from `.../signer`, converts any of them yourself when
 
 | Import | Holds |
 | --- | --- |
-| `@totalistrading/hip4-client` | `createClient`, `createTotalis`, the money and UI helpers, errors, pagination, `TotalisStream`, the HyperCore helpers |
+| `@totalis/hip4-client` | `createClient`, `createTotalis`, the money and UI helpers, errors, pagination, `TotalisStream`, the HyperCore helpers |
 | `.../maker` | `createMaker`, `createMakerClient`, maker onboarding and vault transactions |
 | `.../wallet-session` | `signInWithWallet`, `signOutWallet`, `checkSignInChallenge` |
 | `.../partner` | `signAdmissionConsent`, `admissionConsentMessage`, `createPartnerServer` |
@@ -106,7 +107,7 @@ signer. `toTotalisSigner`, from `.../signer`, converts any of them yourself when
 
 ## Examples
 
-The package ships runnable examples in `node_modules/@totalistrading/hip4-client/examples`.
+The package ships runnable examples in `node_modules/@totalis/hip4-client/examples`.
 
 | File | Shows |
 | --- | --- |

@@ -1,7 +1,7 @@
 ---
 title: 'Changelog'
 icon: 'clock-rotate-left'
-description: 'What changed in each release of @totalistrading/hip4-client, with the breaking changes called out.'
+description: 'What changed in each release of @totalis/hip4-client, with the breaking changes called out.'
 ---
 
 The SDK follows [semantic versioning](https://semver.org). Every release, with its additions and fixes, is in
@@ -10,7 +10,7 @@ something called out.
 
 | Version | Change |
 | --- | --- |
-| 0.65.1 | The first release on public npm, under Apache-2.0. Install with `npm install @totalistrading/hip4-client` and no registry setup. Same code as 0.65.0. |
+| 0.65.2 | The first release on public npm, under Apache-2.0, and under the new name `@totalis/hip4-client`. Install with `npm install @totalis/hip4-client` and no registry setup, and change your imports from `@totalistrading/hip4-client`. Same code as 0.65.0. |
 | 0.65.0 | Additive. `Operation` carries `failure_reason`, and `entryFailure(record, operation)` names why an entry did not trade: `INSUFFICIENT_CASH` or `CORE_MOVE_MISSED` ([Why an entry did not trade](/hyperliquid/sdk/trading#why-an-entry-did-not-trade)). `openPosition` returns the entry `record`. Published to GitHub Packages only. |
 | 0.64.0 | Needs the venue's `accept_before`, `fund_by` and `server_time`. `sendAcceptance` posts the accept first and sends an entry's bridge only once it is `ACCEPTED`, before `fund_by`; the result's `bridge` is replaced by the `bridging` promise. `signEntry` signs everything at once and takes `cash`. Records carry `version: 2` and `bridgeState`, persisted through `onRecord`; `sendAcceptance` refuses older records. `bestQuote()` takes no argument and cuts quotes off at `accept_before`. Removes `EntryError` `QUOTE_SHORT`, `BRIDGE_LATE` and `BRIDGE_REFUSED`, and `bridged` on `ApiError` and `normalizeError`. |
 | 0.63.0 | `openPosition` and `cashOut` collect quotes for `collectMs` (1 s) before choosing; pass `collectMs: 0` for the old first-quote behaviour. `signEntry` and `openPosition` without `core` throw `INSUFFICIENT_FUNDS` when the wallet is known to fall short, instead of signing an entry the venue refuses. `issueApiKey` refuses a challenge whose scopes differ from the request. |

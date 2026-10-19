@@ -89,7 +89,7 @@ resends it byte for byte, up to five sends. Change that with `retry: { attempts 
 new command, so it cannot run twice.
 
 ```ts
-import { ApiError, NetworkError } from "@totalistrading/hip4-client";
+import { ApiError, NetworkError } from "@totalis/hip4-client";
 
 try {
   await totalis.withdraw({ destination, amount: 15_000_000n });

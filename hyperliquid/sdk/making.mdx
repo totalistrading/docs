@@ -11,7 +11,7 @@ HYPE. Set up your maker first ([Market making](/hyperliquid/guides/market-making
 ## A minimal bot
 
 ```ts
-import { createMaker, type MakerAcceptance } from "@totalistrading/hip4-client/maker";
+import { createMaker, type MakerAcceptance } from "@totalis/hip4-client/maker";
 import { privateKeyToAccount } from "viem/accounts";
 
 const makerId = process.env.TOTALIS_MAKER_ID!;
@@ -145,8 +145,8 @@ Both take a client signed in as the account (a wallet session), not a maker key.
 ### Issue the maker's keys
 
 ```ts
-import { createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalistrading/hip4-client/api-keys";
-import { toTotalisSigner } from "@totalistrading/hip4-client/signer";
+import { createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalis/hip4-client/api-keys";
+import { toTotalisSigner } from "@totalis/hip4-client/signer";
 
 const keys = createApiKeyClient("production", {
   accessToken: session.access_token,

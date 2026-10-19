@@ -10,7 +10,7 @@ description: 'Keep an account or maker in sync with TotalisStream, page through 
 `TotalisStream` directly:
 
 ```ts
-import { TotalisStream } from "@totalistrading/hip4-client/realtime";
+import { TotalisStream } from "@totalis/hip4-client/realtime";
 
 const stream = new TotalisStream({
   environment: "production",
@@ -38,7 +38,7 @@ What each event means is on [Real time](/hyperliquid/guides/realtime).
 `items` walks every page of a list route and yields one item at a time. `pages` yields whole pages.
 
 ```ts
-import { createClient, items, unwrap } from "@totalistrading/hip4-client";
+import { createClient, items, unwrap } from "@totalis/hip4-client";
 
 const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
 

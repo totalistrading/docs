@@ -65,8 +65,8 @@ A script with no browser passes the registered origin itself: see [Sessions](/hy
 ## Point the SDK at staging
 
 ```js
-import { createClient, createTotalis } from "@totalistrading/hip4-client";
-import { signInWithWallet } from "@totalistrading/hip4-client/wallet-session";
+import { createClient, createTotalis } from "@totalis/hip4-client";
+import { signInWithWallet } from "@totalis/hip4-client/wallet-session";
 
 const { data: deployment } = await createClient("staging").GET("/v1/deployment");
 // deployment.chain_id is "998"; deployment.vault_address and deployment.usdc are staging's current ones.

@@ -11,8 +11,8 @@ plus the wallet is all `createTotalis` needs. How the pieces fit is on
 ## Sign in with a wallet
 
 ```ts
-import { createTotalis } from "@totalistrading/hip4-client";
-import { signInWithWallet, signOutWallet } from "@totalistrading/hip4-client/wallet-session";
+import { createTotalis } from "@totalis/hip4-client";
+import { signInWithWallet, signOutWallet } from "@totalis/hip4-client/wallet-session";
 
 const partnerKey = "tpb_v1_prd_...";
 
@@ -46,7 +46,7 @@ admits it with your `tpk_` key.
 
 ```ts
 // Browser
-import { signAdmissionConsent } from "@totalistrading/hip4-client/partner";
+import { signAdmissionConsent } from "@totalis/hip4-client/partner";
 
 // chain_id comes from GET /v1/deployment.
 const { address, consent } = await signAdmissionConsent({
@@ -59,7 +59,7 @@ const { address, consent } = await signAdmissionConsent({
 
 ```ts
 // Server, with the address and consent the browser sent
-import { createPartnerServer } from "@totalistrading/hip4-client/partner";
+import { createPartnerServer } from "@totalis/hip4-client/partner";
 
 const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY! });
 await partner.admitWallet(address, consent);
