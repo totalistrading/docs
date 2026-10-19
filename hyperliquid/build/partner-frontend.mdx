@@ -221,15 +221,15 @@ The SDK signs both at the press and saves them, posts the accept first, and deci
 | `DECLINED`, `TIMED_OUT`, `CANCELLED`, `NOT_ADMITTED`, or refused | Discarded. Nothing moved. |
 
 `fund_by` is on [Limits](/hyperliquid/limits-and-fees). The SDK judges it on the venue's clock, never the device's.
-If the wallet still lacks the funding when the trade is sent, nothing trades: the operation ends
+If the venue finds the wallet short before it sends the trade, nothing trades: the operation ends
 `EXPIRED_UNEXECUTED` with `failure_reason` `INSUFFICIENT_CASH`, and the RFQ ends `FAILED` with `terminal_reason`
 `INSUFFICIENT_CASH`.
 
 An accepted entry can also fail after its bridge landed: the operation ends `REVERTED` or `EXPIRED_UNEXECUTED`.
 Nothing trades and the vault takes nothing, but the bridged USDC is now in the wallet on HyperEVM, not on
 HyperCore. Get balances shows it as `WALLET_USDC`, and `bridged` on the result names the amount. Show it as wallet
-cash rather than as gone. When Hyperliquid did not confirm the bridge in time, the trade fails for want of cash
-with the USDC on HyperCore or in the wallet; read balances to know which. `entryFailure` tells that apart from
+cash rather than as gone. When the operation fails with `INSUFFICIENT_CASH` and Hyperliquid never confirmed the
+bridge, the USDC is on HyperCore or in the wallet; read balances to know which. `entryFailure` tells that apart from
 plain not enough cash ([Open a position](/hyperliquid/sdk#open-a-position)).
 
 | You want | Do |
