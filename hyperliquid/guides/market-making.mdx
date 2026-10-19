@@ -377,8 +377,10 @@ and `payout`, and the leg state to price against.
 If your maker wallet was created in the app, bid only on positions you back: it cannot hold its own vault balance. Totalis
 moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background, and
 [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker. A
-`transfer` your wallet's balance cannot cover fails at confirm with `QUOTE_CAPACITY_EXCEEDED`, and the
-owner's cash-out fails with it. A position you buy by
+`transfer` your wallet's free vault balance cannot cover is refused when you publish it (`400 INVALID_REQUEST`
+naming `transfer.price`). While Totalis's view of the vault lags the chain, publishing skips that check;
+confirm then answers `QUOTE_CAPACITY_EXCEEDED` once the view is current, or the vault refuses the transfer
+on-chain. A position you buy by
 transfer belongs to your wallet's account, not your maker: read it and its settlement with a key for
 [your account](/hyperliquid/authentication#keys).
 
