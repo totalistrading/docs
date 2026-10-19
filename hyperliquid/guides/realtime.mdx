@@ -16,9 +16,9 @@ where it stopped.
 
 | You are | Open | Subscription | Key |
 | --- | --- | --- | --- |
-| A taker, or an app for one account | `wss://hip4-api.totalis.trade/v1/stream` | [`account`](/hyperliquid/api-reference/websocket/account) | A key for your account with `account:stream` |
-| A market maker | `wss://hip4-api.totalis.trade/v1/stream` | [`maker`](/hyperliquid/api-reference/websocket/maker) | A key for the maker with the [maker scopes](/hyperliquid/authentication#scopes) |
-| A browser showing live prices | `wss://hip4-api.totalis.trade/v1/market-stream` | [`market`](/hyperliquid/api-reference/websocket/market-data) | None. Browser origins only. |
+| A taker, or an app for one account | `wss://hip4-ws.totalis.trade/v1/stream` | [`account`](/hyperliquid/api-reference/websocket/account) | A key for your account with `account:stream` |
+| A market maker | `wss://hip4-ws.totalis.trade/v1/stream` | [`maker`](/hyperliquid/api-reference/websocket/maker) | A key for the maker with the [maker scopes](/hyperliquid/authentication#scopes) |
+| A browser showing live prices | `wss://hip4-ws.totalis.trade/v1/market-stream` | [`market`](/hyperliquid/api-reference/websocket/market-data) | None. Browser origins only. |
 
 A maker that also trades as a taker opens two connections, one per key. Server integrations price from
 their own Hyperliquid feed and read the market catalog over
@@ -30,7 +30,8 @@ their own Hyperliquid feed and read the market catalog over
   <Step title="Connect">
     Open the socket with the `totalis.realtime.v2` subprotocol and your key as
     `Authorization: Bearer <key>` on the upgrade. A browser cannot set that header, so it sends a
-    second subprotocol, `auth.<base64url of the key>`, instead.
+    second subprotocol, `auth.<token in base64url without = padding>`, instead, from an allowed origin. The token is
+    your API key or wallet session token.
   </Step>
   <Step title="Subscribe">
     Send one `subscribe` frame. Include your saved `cursor` if you have one. The server answers with
@@ -47,8 +48,8 @@ their own Hyperliquid feed and read the market catalog over
   </Step>
   <Step title="Resume">
     After a drop, reconnect and subscribe with your saved cursor. On `REPLAY` you get only the
-    events you missed. Resuming needs the `replay:read` scope, which the taker scopes do not include,
-    so add it to the key.
+    events you missed. Resuming with an API key needs the `replay:read` scope: without it the
+    reconnect closes with `SUBSCRIPTION_DENIED`, including the SDK's automatic one.
   </Step>
 </Steps>
 
@@ -66,12 +67,13 @@ The same trade, seen from each side:
 | A quote leaves | `QUOTE_REMOVED` | | Taker: drop it |
 | The taker accepts | The accept response holds the maker's answer | `QUOTE_ACCEPTED`, with a `deadline` | Maker: [confirm](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline` |
 | The RFQ ends | `RFQ_ACCEPTED`, `RFQ_CANCELLED` or `RFQ_FAILED` | The same | Maker: stop quoting it |
+| A funded accept is confirmed | `WALLET_FUNDING_UPDATED` with `fund_by` | | Taker: send any HyperCore bridge before `fund_by` |
 | The trade lands | `OPERATION_UPDATED` to `COMMITTED` | | Taker: the position is on-chain |
 | The position opens | `POSITION_OPENED` | `POSITION_OPENED` | Read the position |
 | Capital moves | `VAULT_BALANCE_CHANGED`, `WALLET_BALANCE_CHANGED` | `MAKER_CAPITAL_UPDATED` | Re-read balances or [capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 | It settles or closes | `POSITION_SETTLED`, `POSITION_CLOSED` | The same | Read the position |
 
-An RFQ that reaches `expires_at`, and a quote that reaches `expiry`, send no event. Track both
+An RFQ that reaches `expires_at`, and an entry quote that reaches `accept_before`, send no event. Track both
 timestamps yourself.
 
 Position, capital and wallet balance events are pointers. They name what changed and the block it
@@ -91,8 +93,10 @@ Every close carries an error code as its reason. Its `retry` says what to do.
 | `drain` frame | Open a new connection and resume from your cursor. The server closes the old one by `deadline`. |
 | `reset` frame, then `CURSOR_RESET` | Discard local state. Reconnect without a cursor and load the fresh snapshot. |
 | `SLOW_CONSUMER` | You fell behind. Reconnect with backoff and resume. Apply events off the socket's read loop. |
-| `CONNECTION_DRAIN`, `SOURCE_UNAVAILABLE`, `DEPENDENCY_STALE` | Reconnect with backoff and resume. |
+| `CONNECTION_DRAIN`, `SOURCE_UNAVAILABLE`, `DEPENDENCY_STALE`, `SNAPSHOT_TOO_LARGE` | Reconnect with backoff and resume. |
+| `SUBPROTOCOL_REQUIRED` | Stop. Open the socket with the `totalis.realtime.v2` subprotocol. |
 | `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED`, `INVALID_SUBSCRIPTION` | Stop. Fix the key, its scopes or the subscribe frame. |
+| `STREAM_REPLACED` | Stop. A newer stream for this wallet session replaced it. Reconnecting replaces your oldest stream. |
 | No reason (the network dropped) | Reconnect with backoff and resume. |
 
 The replay window and the heartbeat interval are on [Limits](/hyperliquid/limits-and-fees). A cursor
@@ -112,7 +116,7 @@ let cursor = loadCursor(); // your last applied cursor, or undefined
 let attempt = 0;
 
 function connect() {
-  const ws = new WebSocket("wss://hip4-api.totalis.trade/v1/stream", "totalis.realtime.v2", {
+  const ws = new WebSocket("wss://hip4-ws.totalis.trade/v1/stream", "totalis.realtime.v2", {
     headers: { Authorization: `Bearer ${process.env.TOTALIS_API_KEY}` },
   });
   let replaced = false;

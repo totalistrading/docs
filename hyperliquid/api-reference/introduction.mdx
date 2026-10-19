@@ -17,10 +17,11 @@ https://hip4-api.totalis.trade
 | Surface | URL |
 | --- | --- |
 | REST | `https://hip4-api.totalis.trade/v1/...` |
-| WebSocket | `wss://hip4-api.totalis.trade/v1/stream` |
-| Market data | `wss://hip4-api.totalis.trade/v1/market-stream` |
+| WebSocket | `wss://hip4-ws.totalis.trade/v1/stream` |
+| Market data | `wss://hip4-ws.totalis.trade/v1/market-stream` |
 
-Every route runs on HyperEVM, chain ID `999`.
+Every route runs on HyperEVM, chain ID `999`. [Staging](/hyperliquid/build/staging) runs the same API on
+testnet, chain ID `998`.
 
 ## Try it without a key
 
@@ -38,8 +39,9 @@ Send your API key as a bearer token on every authenticated request:
 Authorization: Bearer ttk_v1_prd_...
 ```
 
-Each key acts for one account, yours or a maker's, and holds scopes. Calls that move funds also carry
-a wallet signature in the body. Keys, scopes and signing are on
+Each key acts for one account, yours or a maker's, and holds scopes. A user who signs in with their own
+wallet on a partner's site sends a [wallet session](/hyperliquid/build/partner-frontend#sessions) token the same
+way, with the `Origin` it signed in from on every request. Calls that move funds also carry a wallet signature in the body. Keys, scopes and signing are on
 [Authentication & signing](/hyperliquid/authentication).
 
 ## Requests
@@ -54,8 +56,9 @@ The full encoding table and the idempotency exceptions are on
 
 ## Responses
 
-A successful response is the resource itself, with no envelope. A `204` has no body. A list returns its
-rows in `items` and pages by cursor:
+A successful response is the resource itself, with no envelope. A `204` has no body. Most lists return
+their rows in `items`; a few name them after the resource (`rfqs`, `operations`, `acceptances`, `bars`). Two lists
+are not paged: an RFQ's quotes (`quotes`) and your exits to HyperCore (`exits`). Every other list pages by cursor:
 
 ```json
 { "items": [], "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjYwLCJrIjoibWFya2V0In0", "has_more": true }
@@ -63,6 +66,14 @@ rows in `items` and pages by cursor:
 
 Send `next_cursor` back as `?cursor=` until `has_more` is `false`. Cursors are opaque, so do not parse
 or build them. Page size rules are on [Pagination](/hyperliquid/errors#pagination).
+
+### Compatibility
+
+Responses and WebSocket events gain fields, and enums gain values, as the API grows. Ignore fields you don't
+know, and treat an unknown enum value as a state you can't act on. Requests stay strict: an unknown request
+field is refused. Response schemas in this reference allow extra fields, so a client generated from them keeps
+working. The signed terms (`entry`, `sell_back`, `transfer`) and legs stay exact, since you sign them field for
+field. Breaking changes are listed in the [SDK changelog](/hyperliquid/sdk#changelog).
 
 ## Errors
 
@@ -114,10 +125,12 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | Receive RFQs | [`GET /v1/stream`](/hyperliquid/api-reference/websocket/maker), `maker` subscription, `RFQ_CREATED` |
 | Quote, or replace a quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
+| Pull your quotes if your bot stops | [`PUT /v1/makers/{maker_id}/quote-lease`](/hyperliquid/api-reference/quotes/keep-quote-lease) |
 | Receive acceptances | `QUOTE_ACCEPTED`. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
 | Read backed positions | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with a maker key |
+| Read fills and settlements | [`GET /v1/me/activity`](/hyperliquid/api-reference/account/list-activity) with a maker key |
 | Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/api-reference/makers/create-collateral-reduction) |
 
 The full maker loop is on [Market making](/hyperliquid/guides/market-making).

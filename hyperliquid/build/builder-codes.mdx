@@ -1,0 +1,148 @@
+---
+title: 'Builder codes'
+icon: 'tag'
+description: 'How Totalis attributes RFQs to you: automatically for accounts you admitted, and with a signed builder code for any other account on your page. The signed message, reports, payouts and revocation.'
+---
+
+A builder code names you on an RFQ. The positions it opens, and the fees they pay, count toward your revenue
+share. Codes look like `tot_rfq_production_` followed by 32 hex characters, with `staging` in place of
+`production` on [Staging](/hyperliquid/build/staging). Totalis issues them: see
+[Get access](/hyperliquid/build/overview#get-access).
+
+| Code | Scope | Signature |
+| --- | --- | --- |
+| Account code | Every account you admitted. One per environment. | None |
+| Origin code | One of your registered origins | Your builder signer, per RFQ |
+
+## Which code an RFQ records
+
+| The account | `builder_code` you send | Recorded |
+| --- | --- | --- |
+| Admitted by you | None | Your account code |
+| Admitted by you | One of your active codes for this environment | That code. A signature is optional; one you send must be your builder signer's. |
+| Admitted by you | Another partner's code, or a revoked one | Refused |
+| Admitted by another partner | Any of yours | Refused. The account is theirs. |
+| Admitted by no partner | None | Nothing |
+| Admitted by no partner | Your origin code, signed, from that origin | That code |
+| Admitted by no partner | Your origin code without a signature, from another origin, or from an API key | Refused. Such an account's API key RFQs cannot be attributed. |
+
+A refused code is `400 INVALID_REQUEST` with a field violation on `/builder_code`, and no RFQ is created. A code is
+recorded once, when the RFQ is created, and never changes. Cash-out RFQs take no builder fields: a position keeps
+the attribution of the RFQ that opened it.
+
+An admitted account needs nothing from you on each RFQ. Signing is only for accounts you did not admit.
+
+## Sign an origin code
+
+For an account no partner admitted, an origin code works only on a browser request from its origin: a wallet
+session that signed in on your page. An API key request carries no origin, so a signed code is refused there.
+An account you admitted needs no origin code: its API key RFQs record your account code.
+
+[Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) takes three extra fields:
+
+```json
+{
+  "stake": "5000000",
+  "legs": [{ "outcome_id": "1209", "side": "YES" }],
+  "builder_code": "tot_rfq_production_0198a6f682a57abc9f2a4f0fb4374941",
+  "builder_authorization_expiry": "1792152000",
+  "builder_signature": "0x9e9e...9e1b"
+}
+```
+
+| Field | Value |
+| --- | --- |
+| `builder_code` | Your origin code for the page's origin |
+| `builder_authorization_expiry` | Unix seconds, in the future and within the [window](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) |
+| `builder_signature` | Your builder signer's `personal_sign` of the message below, as lowercase hex |
+
+The message is six lines joined by `\n`, with no trailing newline:
+
+```text
+Authorize Totalis RFQ builder attribution.
+Environment: production
+Participant: 0198a6f6-82a5-7abc-9f2a-4f0fb4374941
+Idempotency key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771
+Request digest: 0x<SHA-256 hex>
+Expiry: 1792152000
+```
+
+| Line | Value |
+| --- | --- |
+| `Environment` | `production`, or `staging` on staging |
+| `Participant` | The account's `account_id`, from [Get identity](/hyperliquid/api-reference/account/get-identity) or the sign-in response |
+| `Idempotency key` | The `Idempotency-Key` header of this Create RFQ request |
+| `Request digest` | Lowercase hex SHA-256 of the request JSON below |
+| `Expiry` | `builder_authorization_expiry`, as sent |
+
+The request JSON is minified, with the keys in this order: `intent_id` and `intent_generation` only when you send
+them, then `stake`, `legs`, `builder_code` and `origin`. Each leg is `{"outcome_id","side"}` in that order.
+`origin` is the page's origin, exactly as the browser sends it in `Origin`. `intent_generation` is a decimal string.
+Send the legs in strictly increasing `outcome_id` order, as Create RFQ requires.
+
+```json
+{"stake":"5000000","legs":[{"outcome_id":"1209","side":"YES"}],"builder_code":"tot_rfq_production_0198a6f682a57abc9f2a4f0fb4374941","origin":"https://app.example.com"}
+```
+
+Sign on your server, where the builder signer's key lives. Your page sends the RFQ terms (with `intent_id` and
+`intent_generation` when the RFQ carries them), its chosen `Idempotency-Key` and the `account_id`; your server
+checks them and returns the two fields.
+
+```js
+import { createHash } from "node:crypto";
+import { privateKeyToAccount } from "viem/accounts";
+
+const builder = privateKeyToAccount(process.env.TOTALIS_BUILDER_SIGNER_KEY);
+
+export async function authorizeRfq({ accountId, idempotencyKey, intentId, intentGeneration, stake, legs, builderCode, origin, environment = "production" }) {
+  const expiry = String(Math.floor(Date.now() / 1000) + 120);
+  const request = JSON.stringify({
+    ...(intentId === undefined ? {} : { intent_id: intentId }),
+    ...(intentGeneration === undefined ? {} : { intent_generation: intentGeneration }),
+    stake,
+    legs: legs.map(({ outcome_id, side }) => ({ outcome_id, side })),
+    builder_code: builderCode,
+    origin,
+  });
+  const digest = createHash("sha256").update(request).digest("hex");
+  const message = [
+    "Authorize Totalis RFQ builder attribution.",
+    `Environment: ${environment}`,
+    `Participant: ${accountId}`,
+    `Idempotency key: ${idempotencyKey}`,
+    `Request digest: 0x${digest}`,
+    `Expiry: ${expiry}`,
+  ].join("\n");
+  return { builder_authorization_expiry: expiry, builder_signature: (await builder.signMessage({ message })).toLowerCase() };
+}
+```
+
+The SDK's `openPosition` does not send builder fields. Create the RFQ with `totalis.client.POST("/v1/rfqs")`
+under the signed `Idempotency-Key`, then take a quote from `watchQuotes`, and sign and send it with `signEntry` and
+`sendAcceptance` ([SDK](/hyperliquid/sdk#resumable-entries-and-cash-outs)).
+
+## Reports and payouts
+
+Totalis pays you an agreed share of the fees on positions your codes opened, in USDC on HyperEVM, to the payout
+address you registered. Terms are agreed with Totalis and are not stored in the API.
+
+| Report | Contents |
+| --- | --- |
+| Totals for a period | Positions opened, their stake, and the entry, winnings and cash-out fees collected |
+| Per position | Every fee, with its transaction hash |
+| Payouts | Each transfer to your payout address, its period and its transaction hash, checked on-chain |
+
+Reports and payouts are by email: ask [founders@totalis.trade](mailto:founders@totalis.trade). To change your
+payout address, email us from your registered contact.
+
+## Rotation and revocation
+
+| Change | Effect |
+| --- | --- |
+| A code is rotated | A new code replaces it. Send the new one; the old one is refused on new RFQs. |
+| A code is revoked | Refused on new RFQs. RFQs and positions already created keep it. |
+| Your builder signer is rotated | Signatures from the old signer are refused. |
+| Your partner credentials are suspended | Every code of yours is revoked. Totalis reissues them when you are reinstated. |
+
+To rotate a code or your signer, or to revoke a code, email
+[founders@totalis.trade](mailto:founders@totalis.trade).

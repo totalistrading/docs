@@ -29,11 +29,12 @@ python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonsc
 
 `scripts/hyperliquid_openapi.py` writes `hyperliquid/openapi.json` and the Hyperliquid API reference tab in
 `docs.json`. Its `PAGES` table files every operation under one resource (Markets, RFQs & Quotes, Positions,
-Account, Makers, Deployment, WebSocket) and titles its page verb + resource; `LEADS` puts the hand-written
+Account, Makers, Partners & wallet sign-in, API keys, Deployment, WebSocket) and titles its page verb + resource; `LEADS` puts the hand-written
 WebSocket channel pages ahead of Open stream. A route the spec has and `PAGES` does not place stops the
 script. Edit the tables at the top of the script, not the generated files.
 
-`--check` on either script fails when the committed files are stale.
+`--check` on either script fails when the committed files are stale. `scripts/hyperliquid_openapi.py` also stops
+on a schema title used twice, since generated clients name models by title and drop the clash.
 
 ## Publishing changes
 

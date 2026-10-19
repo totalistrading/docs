@@ -43,8 +43,10 @@ The payout always leaves from your wallet.
 | `vault_withdrawal` | Your wallet holds less than `amount`. Moves exactly the shortfall from the vault to your wallet. | `Exit`, with your wallet as `account` and `to` |
 | `payout_authorization` | Always. Pays `amount` from your wallet to `destination`. | USDC `TransferWithAuthorization` |
 
-The shortfall is `amount` minus `WALLET_USDC` minus `pending.wallet_reserved` in
-[Get balances](/hyperliquid/api-reference/account/get-balances), never below zero. The payout nonce
+The shortfall is `max(0, amount - max(0, WALLET_USDC - pending.wallet_reserved))`, from
+[Get balances](/hyperliquid/api-reference/account/get-balances). Reserved wallet USDC is already spoken
+for, so it raises the shortfall: a 10 USDC withdrawal from a wallet holding 5 USDC with 3 reserved needs
+an `Exit` of 8 USDC. The payout nonce
 derives from the `Idempotency-Key` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)), so choose the
 key before you sign.
 
@@ -59,6 +61,9 @@ key before you sign.
 | `PAYOUT_SUBMITTED` | The payout is queued or relayed. |
 | `PAYOUT_COMMITTED` | Done. `payout_transaction_hash` is set. |
 | `FAILED` | Nothing left your Totalis balance. USDC already moved from the vault stays in your wallet. |
+
+An account that signs in with its own wallet withdraws at least 1 USDC each time. Withdrawals and exits to HyperCore share a limit of 10 an hour per
+account ([Limits](/hyperliquid/limits-and-fees)).
 
 A resend with the same key and body returns the same withdrawal. A `409 STATE_CONFLICT` means your
 balance changed: re-read it and sign again under a new key.

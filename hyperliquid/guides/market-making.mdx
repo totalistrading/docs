@@ -1,7 +1,7 @@
 ---
 title: 'Market making'
 icon: 'chart-candlestick'
-description: 'Quote every RFQ, confirm accepted quotes before the deadline, back the positions from your maker vault, and bid on cash-outs.'
+description: 'Quote every RFQ, confirm accepted quotes before the deadline, back the positions from your maker vault, and buy back cash-outs.'
 ---
 
 Any Totalis account can make markets. You need a maker account opened from your Totalis wallet, USDC
@@ -38,31 +38,260 @@ want, and earn the difference between what you quote and what the outcomes are w
 
 ## Endpoints
 
+Every keyed route below takes your quoting key, except Lower your collateral, which takes your collateral key.
+Get deployment needs no key.
+
 | Step | Endpoint or event |
 | --- | --- |
 | Check your capital | [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/makers/get-maker-capital) |
 | Receive RFQs | `RFQ_CREATED` on the [maker channel](/hyperliquid/api-reference/websocket/maker) |
-| Read fees and the signing domain | [`GET /v1/deployment`](/hyperliquid/api-reference/deployment/get-deployment) |
+| Read fees and the signing domain | [`GET /v1/deployment`](/hyperliquid/api-reference/deployment/get-deployment), no key |
 | Quote, or replace your quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
+| Pull every quote if your bot stops | [`PUT /v1/makers/{maker_id}/quote-lease`](/hyperliquid/api-reference/quotes/keep-quote-lease), [`DELETE`](/hyperliquid/api-reference/quotes/release-quote-lease) to release |
 | Receive acceptances | `QUOTE_ACCEPTED` on the maker channel. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
-| Read the positions you back | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with your maker key |
+| Follow a fill on-chain | `OPERATION_UPDATED`, or [`GET /v1/me/operations`](/hyperliquid/api-reference/account/list-operations) |
+| Read the positions you back | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) |
+| Read your fills and settlements | [`GET /v1/me/activity`](/hyperliquid/api-reference/account/list-activity) |
+| Read your quotes and their outcomes | [`GET /v1/makers/{maker_id}/quote-history`](/hyperliquid/api-reference/makers/list-quote-history) |
 | Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/guides/collateral#reduce-collateral) |
+| Check a pending vault withdrawal | [`GET /v1/makers/{maker_id}/withdrawal`](/hyperliquid/api-reference/makers/get-maker-withdrawal) |
+
+[/mm](https://hip4.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
+pending withdrawal, positions, quotes and performance. It has no buttons that act. Its position, exposure
+and performance pages read routes that only the app's session can call; a bot reads the same facts from the
+routes above. Every write runs headless through the [SDK](/hyperliquid/sdk#make-markets) or the API:
+
+| Credential | Signs or authenticates |
+| --- | --- |
+| Your wallet key | Sign-in, key approvals, every vault transaction, and the signature in every confirm |
+| Your quoting key (`ttk_`) | Quotes, cancels, the quote lease, confirms and maker reads |
+| Your collateral key (`ttk_`) | Collateral reductions and their self-funded transaction |
 
 ## Set up
 
-At [hip4.totalis.trade/mm](https://hip4.totalis.trade/mm):
+You sign up once in a browser. Everything after that runs headless.
 
-1. Under **Your wallet**, add a little HYPE for gas and the USDC you will quote with.
-2. Choose **Create maker account**: one transaction from your wallet. Your `maker_id` is assigned
-   then. A wallet opens one maker.
-3. Choose **Fund vault** to move USDC into the maker vault.
-4. Create a key for the maker with the [maker scopes](/hyperliquid/authentication#scopes).
-5. Run your bot with that key, your `maker_id` and your [wallet key](/hyperliquid/authentication#wallet-key).
+### In a browser, once
 
-Makers are never sponsored. Your wallet pays the gas for every maker vault call, in HYPE.
+<Steps>
+  <Step title="Get access">
+    Totalis is invite-only for now. Email [founders@totalis.trade](mailto:founders@totalis.trade) for access and
+    an invite code. Sign up at [hip4.totalis.trade](https://hip4.totalis.trade) with Google or email. Your
+    account gets a wallet embedded in the app: that wallet is your maker wallet.
+  </Step>
+  <Step title="Export the wallet key">
+    In Account, under Private key, choose **Export private key**. Keep it only where your bot runs, as
+    `TOTALIS_WALLET_KEY`. It signs your sign-ins, your keys' approvals, your vault transactions and every confirm.
+  </Step>
+</Steps>
+
+<Warning>
+The wallet key controls your maker's funds. Anyone who has it can withdraw them. Never paste it into a website.
+</Warning>
+
+### Headless
+
+Fund your wallet first (step 2). Then `examples/onboard.mjs` in the [SDK](/hyperliquid/sdk#examples) signs in, opens
+and admits your maker, issues the quoting key, makes the first deposit and starts a bot. It does not issue the
+collateral key. It prints the quoting key once: store it as `TOTALIS_MAKER_KEY`. Run it again with that set to resume:
+each step skips what is already done, and it deposits only while the maker vault is empty.
+
+```bash
+TOTALIS_WALLET_KEY=0x... TOTALIS_DEPOSIT=1000000000 node examples/onboard.mjs
+```
+
+<Note>
+On [staging](/hyperliquid/build/staging), sign up at [hip4-staging.totalis.trade](https://hip4-staging.totalis.trade)
+with the staging invite code, and run with `TOTALIS_ENVIRONMENT=staging`. In the steps below, set `environment` to `"staging"`: the sign-in
+then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
+</Note>
+
+<Steps>
+  <Step title="Sign in">
+    Sign in with the wallet key and the Totalis app's origin, `https://hip4.totalis.trade`. Send the same origin
+    as the `Origin` header with every request on the session.
+
+    ```ts
+    import { createClient, unwrap } from "@totalistrading/hip4-client";
+    import { signInWithWallet } from "@totalistrading/hip4-client/wallet-session";
+    import { privateKeyToAccount } from "viem/accounts";
+
+    const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
+    const environment = "production"; // or "staging"
+    const origin = environment === "staging" ? "https://hip4-staging.totalis.trade" : "https://hip4.totalis.trade";
+    const session = await signInWithWallet({ environment, signer: wallet, origin });
+    const onSession = { accessToken: session.access_token, headers: { Origin: origin } };
+    const client = createClient(environment, onSession);
+    const deployment = unwrap(await client.GET("/v1/deployment"));
+    ```
+
+    A session lasts at most 30 days and ends after 7 days unused
+    ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)). Then sign in again the same way. You need a
+    session only to open and admit your maker and to manage its keys. Your bot runs on its maker key.
+  </Step>
+  <Step title="Fund your wallet">
+    Send HYPE for gas and the USDC you will quote with to your maker wallet on HyperEVM. Makers are never
+    sponsored: your wallet pays the gas for every vault transaction.
+  </Step>
+  <Step title="Open and admit your maker">
+    Send `openMakerVaultTransaction(deployment, wallet.address)` from your wallet. A wallet opens one maker.
+    `waitForMaker` waits until Totalis has indexed it, admits it ([Admit maker](/hyperliquid/api-reference/makers/admit-own-maker))
+    and returns its `makerId`.
+
+    `send` is your own: the SDK builds each `{ chain_id, to, data, value }` and never sends a transaction. With
+    viem it is `walletClient.sendTransaction`, then waiting for the receipt.
+
+    ```ts
+    import { openMakerVaultTransaction, waitForMaker } from "@totalistrading/hip4-client/maker";
+
+    await send(openMakerVaultTransaction(deployment, wallet.address)); // your wallet signs and sends it
+    const readiness = await waitForMaker(client);
+    if (readiness.state !== "READY") throw new Error(readiness.state); // see the table below
+    const makerId = readiness.makerId;
+    ```
+  </Step>
+  <Step title="Create your keys">
+    Issue the quoting bot's key, approved by your wallet's signature. Its scopes cannot move vault money.
+    Copy the secret: it is shown once.
+
+    ```ts
+    import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalistrading/hip4-client/api-keys";
+    import { toTotalisSigner } from "@totalistrading/hip4-client/signer";
+
+    const keys = createApiKeyClient(environment, onSession);
+    const owner = toTotalisSigner(wallet);
+    const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", scopes: [...QUOTING_BOT_SCOPES], expires_in_days: 90 });
+    // Only to lower your collateral; keep it apart from the quoting bot's.
+    const collateral = await issueApiKey(keys, owner, { maker: makerId, label: "Collateral", scopes: [...COLLATERAL_SCOPES], expires_in_days: 90 });
+    ```
+
+    A key stops working at its expiry. Rotate it before then ([Manage keys](#manage-keys)), or pass
+    `expires_in_days: 0` for a key that lasts until you revoke it.
+  </Step>
+  <Step title="Fund the maker vault">
+    Approve USDC for the vault, then deposit it. Both come from your wallet.
+
+    ```ts
+    import { controllerTransactions } from "@totalistrading/hip4-client/maker";
+
+    const vault = controllerTransactions(deployment, makerId, wallet.address);
+    await send(vault.approveUsdc(1_000_000_000n)); // 1,000 USDC in atomic units
+    await send(vault.deposit(1_000_000_000n));
+    ```
+  </Step>
+  <Step title="Quote">
+    Run your bot on the quoting key with `createMaker`, signing confirms with your wallet key
+    ([SDK](/hyperliquid/sdk#make-markets)). [Quote](#quote) and [Confirm](#confirm) below have the rules.
+  </Step>
+</Steps>
+
+| `waitForMaker` returns | Do |
+| --- | --- |
+| `READY` | Create your keys and start quoting. |
+| `PENDING` | Your maker is admitted and awaiting activation. Read again later. If it stays, email us. |
+| `RESTRICTED` | It cannot quote. Email [founders@totalis.trade](mailto:founders@totalis.trade). |
+| `WALLET_REQUIRED`, `OWNERSHIP_CONFLICT` | Your account has no single wallet that controls the maker. Email us before you open another maker. |
+
+### Partner-admitted wallet
+
+A [partner](/hyperliquid/build/overview) can run its maker from a wallet it admits
+([Onboard a user](/hyperliquid/build/partner-frontend#onboard-a-user)) instead of a Totalis app account. There is no
+browser step: admit the wallet, then follow the headless steps above, signing in with one of your registered
+origins instead of the Totalis app's. With the example, call its exported `onboard` with that `origin`.
+
+- Use a wallet of its own, not your builder signer. A wallet opens one maker.
+- It signs in again whenever it needs a session, to manage its keys.
+- It holds no vault balance of its own, like an app wallet that controls a maker
+  ([Cash-outs](#cash-outs)).
+
+## Manage keys
+
+Your wallet manages your maker's keys from a wallet session ([Headless](#headless), step 1). An API key cannot create, rotate or
+revoke keys. /mm lists them with their status, read-only.
+
+| Do | SDK (`.../api-keys`) | API |
+| --- | --- | --- |
+| Create | `issueApiKey(keys, owner, { maker, label, scopes })` | [Create maker API key challenge](/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge), then [Create maker API key](/hyperliquid/api-reference/api-keys/create-maker-api-key) |
+| Rotate | `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | The challenge, then [Rotate maker API key](/hyperliquid/api-reference/api-keys/rotate-maker-api-key) |
+| List | `listApiKeys(keys, { maker })` | [List maker API keys](/hyperliquid/api-reference/api-keys/list-maker-api-keys) |
+| Revoke | `revokeApiKey(keys, keyId, { maker })` | [Revoke maker API key](/hyperliquid/api-reference/api-keys/revoke-maker-api-key) |
+
+[Create, rotate, revoke](/hyperliquid/authentication#create-rotate-revoke) has the approval and the overlap rules,
+and [Scopes](/hyperliquid/authentication#scopes) the two maker scope sets.
+
+## Fund and withdraw
+
+Your wallet sends every vault transaction and pays its gas in HYPE. `maker.controller()` builds each one on a
+maker key, or `controllerTransactions(deployment, makerId, wallet.address)` without one.
+
+| Do | Transaction | Then |
+| --- | --- | --- |
+| Deposit | `approveUsdc(amount)`, then `deposit(amount)` | `vault_gross` grows ([Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)). |
+| Request a withdrawal | `requestWithdraw(amount, to)` | Ask for at most the `MAKER_WITHDRAW` action in your capital. It waits the [withdrawal delay](/hyperliquid/limits-and-fees), during which Totalis can cancel it. |
+| Cancel it | `cancelWithdraw()` | Nothing moves. |
+| Complete it | `executeWithdraw()` once `maker.withdrawal()` says it is executable | USDC goes to `to`. |
+| Lower your collateral | `maker.reduceCollateral({ signTransaction })` on the collateral key | [Reduce collateral](/hyperliquid/guides/collateral#reduce-collateral) |
+
+/mm shows a pending withdrawal and its countdown, read-only. [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds)
+has every vault call and its reverts.
+
+## Your maker wallet
+
+| Name | What it is | Where to read it |
+| --- | --- | --- |
+| `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | `waitForMaker`'s `makerId`, or the vault's `makerOf(wallet)` |
+| `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
+| `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
+
+Your maker is one wallet: your Totalis account's own wallet. Totalis admits a maker only from that wallet, so your
+bot holds its key: the exported embedded wallet for an account created in the app, or your own key for a wallet a
+partner admitted ([Partner-admitted wallet](#partner-admitted-wallet)). Nothing fills without your confirmation
+signature, so to stop filling, stop confirming.
+
+The vault cannot move a maker to another wallet.
+
+- If the key leaks, email [founders@totalis.trade](mailto:founders@totalis.trade) at once. Totalis can cancel a
+  pending maker withdrawal during its [delay](/hyperliquid/limits-and-fees). Then withdraw, and open a new maker
+  from a new account.
+- If the key is lost, the maker's funds cannot be withdrawn.
+- Never call the vault's `setQuoteSigner`. A maker whose signer is not its own wallet stops being served.
+
+## Price entries
+
+Each market's sides carry a Hyperliquid `coin`, such as `#12090` for `YES` of outcome `1209`
+([List markets](/hyperliquid/api-reference/markets/list-markets)). Read their books from Hyperliquid's info API
+or WebSocket by that `coin`. Books update many times a second: keep the latest book per `coin` and price from
+it, rather than processing every update.
+
+Before you quote:
+
+- Read [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) for the current fees. A
+  quote with other fees is refused.
+- Read your capital. If `context.status` is not `CURRENT`, stop quoting until it is.
+
+### Hedge on Hyperliquid
+
+A Combo leg is a Hyperliquid outcome side, so you can hedge it on that outcome's HyperCore book.
+
+| Combo leg | Hyperliquid |
+| --- | --- |
+| `side` | Side index: `0` for `YES`, `1` for `NO` |
+| `outcome_id` and `side` | Encoding `10 * outcome_id + side` |
+| Coin, for books and orders by name | `#` and the encoding: `YES` of outcome `1209` is `#12090` |
+| Asset ID, for orders on the exchange endpoint | `100000000 + encoding`: `100012090` |
+| Quote token | `quoteToken` in Hyperliquid's `outcomeMeta`. Every outcome on mainnet and testnet quotes in `USDC`. |
+
+- Hyperliquid refuses an order worth under $10 (`Order must have minimum value of $10.`). Size hedges in
+  steps of at least that, or net several Combos into one order.
+- A leg and its outcome token settle on the same HyperCore result. Hyperliquid pays `settleFraction` per
+  `YES` token and `1 - settleFraction` per `NO` token, and the Combo leg's result is the same fraction
+  ([Settlement](/hyperliquid/guides/trading#settlement)).
+
+Hyperliquid documents the encoding on [Asset IDs](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/asset-ids)
+and settlement on [HIP-4](https://hyperliquid.gitbook.io/hyperliquid-docs/hyperliquid-improvement-proposals-hips/hip-4-outcome-markets).
 
 ## Quote
 
@@ -88,29 +317,54 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 ```
 
 ```json
-{ "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e" }
+{
+  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+  "accept_before": "2026-09-26T20:01:01Z"
+}
 ```
 
 | Field | Rule |
 | --- | --- |
-| `legs`, `stake`, `taker` | Copied from the RFQ. |
-| `payout` | What you pay if every leg wins, gross of the profit fee. |
-| `fee_bps`, `taker_fee_bps` | The current values in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
-| `expiry` | Unix seconds. |
+| `legs`, `stake`, `taker` | Copied from the RFQ, unchanged. |
+| `maker_id` | Your maker. |
+| `payout` | What you pay if every leg wins, gross of the profit fee. More than `stake`, and at most the maximum payout on [Limits](/hyperliquid/limits-and-fees). |
+| `fee_bps`, `taker_fee_bps` | Exactly the current values in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
+| `expiry` | Unix seconds, more than 14 and at most 30 seconds ahead ([Limits](/hyperliquid/limits-and-fees)). Takers can accept until the response's `accept_before`, 14 seconds before it. |
 | `salt` | A random uint256. |
 | `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
+
+An entry quote that could never fill is refused when you send it: `400 INVALID_REQUEST`, with
+`field_violations` naming the field.
+
+| `field_violations` | Why |
+| --- | --- |
+| `/quote_id` | Not the EIP-712 digest of `entry` as `Quote`. |
+| `/entry/maker_id` | Not your key's maker. |
+| `/entry/legs`, `/entry/stake`, `/entry/taker` | Differ from the RFQ. |
+| `/entry/stake` | The RFQ's net stake is under the minimum. |
+| `/entry/payout` | Not above `stake`, or over the maximum payout. |
+| `/entry/fee_bps`, `/entry/taker_fee_bps` | Differ from Get deployment now. |
+| `/entry/expiry` | 14 seconds or less ahead, or more than 30. |
+
+A leg that has already settled returns `409 RFQ_NOT_OPEN`. The minimum, the maximum payout and the window
+are on [Limits](/hyperliquid/limits-and-fees).
 
 ### Quoting rules
 
 - Price the net stake. The taker fee comes off `stake` before it reaches you, so you risk
   `payout - net stake`.
 - Your newest quote on an RFQ replaces your last one. The taker sees `QUOTE_REMOVED` for the old one.
-- A quote leaves the RFQ at its `expiry`, and the RFQ closes at `expires_at`. Neither sends an event.
-  The windows, and how close to `expiry` a quote stops being shown, are on [Limits](/hyperliquid/limits-and-fees).
+- An entry quote can be accepted until its `accept_before`. Quote again before it passes to stay on the RFQ. The
+  RFQ stops taking new quotes at `expires_at`, but a live quote stays acceptable until its `accept_before`. Neither
+  sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
   `free_after_pending` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
-- A `409` with `RFQ_NOT_OPEN` or `RFQ_GENERATION_STALE` means the RFQ moved on. Drop it, or
-  re-read it and quote again.
+- A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.
+- While a taker's acceptance of your live quote on an RFQ waits for your answer and its `deadline` has not
+  passed, a new quote on that RFQ (entry or cash-out) returns `409 STATE_CONFLICT`. Nothing changes: the
+  acceptance still waits for you. Confirm or decline it first, or wait for its `deadline`. Past the `deadline`
+  it no longer blocks, and your new quote marks it `TIMED_OUT`.
+- An exact retry of a quote that already went through returns the original `quote_id`.
 
 ### Cancel a quote
 
@@ -123,14 +377,40 @@ curl -X DELETE https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID \
 { "status": "CANCELLED" }
 ```
 
-`CANCELLED` or `REPLACED` means it is off the RFQ. `409` with `ACCEPTED` means a taker already
-accepted it: answer the acceptance.
+`CANCELLED` or `REPLACED` means it is off the RFQ. A `409` with `{ "status": "ACCEPTED" }` means you already
+confirmed it: it is filling, and cannot be cancelled.
+
+While a taker's acceptance of the quote waits for your answer, cancel returns `409 STATE_CONFLICT` (an error
+body) and changes nothing. To refuse the fill, [confirm](#confirm) with `{ "decision": "DECLINE" }`. Once the
+acceptance is answered or past its `deadline`, the cancel goes through, so repeating it is safe. Past the
+`deadline`, cancelling marks the acceptance `TIMED_OUT`.
+
+### Quote lease
+
+A lease pulls your quotes if your bot goes quiet, so takers don't accept quotes no one will confirm. Arm it,
+and renew it well inside `lease_ms`, for example every third of it:
+
+```bash
+curl -X PUT https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/quote-lease \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "lease_ms": 15000 }'
+```
+
+```json
+{ "lease_ms": 15000, "expires_at": "2026-09-26T20:00:21.000Z" }
+```
+
+If a renewal does not arrive before `expires_at`, Totalis cancels each of your open quotes no taker is
+accepting, and every quote you publish after, until you renew or release it. The lease covers the whole maker,
+whichever key renews it. It takes no `Idempotency-Key`. Release it with `DELETE` on the same path. The range
+is on [Limits](/hyperliquid/limits-and-fees).
 
 ## Confirm
 
-`QUOTE_ACCEPTED` carries the exact terms, named by `kind`. Check them against what you quoted, then
-sign them (`entry` as `Quote`, `sell_back` as `SellBack`, `transfer` as `CashoutTransfer`) and answer
-with no `Idempotency-Key`:
+`QUOTE_ACCEPTED` carries the exact terms, named by `kind`. Check them against what you quoted, and check your
+price and your capital still hold. Then sign them (`entry` as `Quote`, `sell_back` as `SellBack`, `transfer`
+as `CashoutTransfer`) and answer with no `Idempotency-Key`:
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
@@ -151,35 +431,67 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 
 | `status` | Meaning |
 | --- | --- |
-| `ACCEPTED` | Queued as `operation_id`. `POSITION_OPENED` follows when it lands. |
+| `ACCEPTED` | Queued as `operation_id`, not yet on-chain. |
+| `FILLED` | The trade landed. `POSITION_OPENED` follows an entry, `POSITION_CLOSED` a `sell_back`, and `POSITION_TRANSFERRED` a `transfer`. |
+| `FAILED` | The trade reverted on-chain, or expired before it was sent. Nothing filled. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing filled. |
+
+Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
+`EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
+lands, and an entry with taker `funding` also expires unsent when that funding does not arrive in time. Every confirm is checked against your capacity first
+([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ without
+`intent_id`, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
+fill can still revert. Keep following `OPERATION_UPDATED`.
 
 - `{ "decision": "DECLINE" }` needs no signature. Decline when your price or your capital moved.
 - The confirm deadline is on [Limits](/hyperliquid/limits-and-fees). It is short, so sign on a hot
   path: keep the deployment and your signer loaded, and answer before any slow work.
 - A lost response: resend the same answer. Until you know the outcome, treat the quote as filled.
-- `QUOTE_CAPACITY_EXCEEDED` means your capital cannot cover this fill now. Nothing filled.
+
+| Error | Means | Do |
+| --- | --- | --- |
+| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed fills not yet on-chain, does not cover this fill. For a `transfer`, your wallet's own vault balance does not cover its `price`. | Nothing filled. Quote smaller, or add capital. |
+| `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
+| `409 RFQ_GENERATION_STALE` | RFQs with `intent_id` only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
+| `409 STATE_CONFLICT` | The deadline passed, or the trade can no longer open, for example because a leg resolved. | Nothing filled. |
+| `422 INVALID_SIGNATURE`, `WRONG_AUTHORITY` | The signature is not your maker wallet's, over these exact terms. | Fix the signer, and resend before the deadline. |
+| `429 QUOTE_EXPOSURE_LIMIT` | RFQs with `intent_id` only: too many fills are pending for your maker, or on this RFQ. | Nothing filled. |
+| `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED` | RFQs with `intent_id` only: Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
+| `503 DEPENDENCY_STALE` | Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
+
+Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any RFQ a taker opens with one
+([Maker channel](/hyperliquid/api-reference/websocket/maker#event)). Every code is on
+[Errors](/hyperliquid/errors#codes).
 
 ### After a restart
 
-Subscribe from your saved cursor. The maker snapshot's `acceptances` holds every acceptance still
-waiting for you, earliest deadline first, and
-[List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) pages the rest. Answer each
-one before its `deadline`. Keep the `quote_id`s you created in durable storage, so a restarted bot
-confirms only terms it published.
+Subscribe from your saved cursor. On `REPLAY`, the replayed `QUOTE_ACCEPTED` events carry what arrived while you
+were away. On `SNAPSHOT` or `RESET`, the snapshot's `acceptances` holds the acceptances still waiting for you,
+earliest deadline first; if `truncated` lists it, page the rest. Either way,
+[List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) returns every one still waiting: follow
+`next_cursor` until `has_more` is false. Answer each
+one before its `deadline`, and don't quote those RFQs again first. Keep the `quote_id`s you created in durable
+storage, so a restarted bot confirms only terms it published.
 
 ## Profit and loss
 
+A position pays `effective = payout * r1 * r2 * ...`, rounded down, where each `r` is a leg's result: `1` for a
+win, `0` for a loss, or a fraction ([Settlement](/hyperliquid/guides/trading#settlement)).
+
 | Outcome | You |
 | --- | --- |
-| Any leg loses | Keep the taker's net stake |
-| Every leg wins | Pay `payout - net stake`. The profit fee comes out of the taker's winnings, not your vault. |
-| A leg pays part (a `PARTIAL` result) | Keep the part of the net stake the position does not pay back |
-| You buy it back | Pay the `sell_back` price. The position closes. |
+| Any leg loses | Keep the taker's net stake. |
+| Every leg wins | Pay `payout - net stake`. |
+| A leg resolves to a fraction | Pay `effective - net stake` if `effective` is at least the net stake (`WIN`). Otherwise keep `net stake - effective` (`PARTIAL`). |
+| You buy it back | Pay the `sell_back` price, and the net stake you held is freed. Net, you pay `price - net stake`. The position closes. |
 | Another maker buys it | Nothing. You still back it, for the new owner. |
 
+The profit fee comes out of the owner's winnings, and a sell-back's fee out of the owner's proceeds
+([Cash out](/hyperliquid/guides/trading#cash-out)). Neither comes from your vault.
+
 Read the positions you back with [List positions](/hyperliquid/api-reference/positions/list-positions)
-and your maker key. `settlement_kind` and each leg's result are on
+and your fills and settlements with [List activity](/hyperliquid/api-reference/account/list-activity), both with
+your maker key. `settlement_kind` and each leg's result are on
 [Trading](/hyperliquid/guides/trading#settlement).
 
 ## Collateral
@@ -192,27 +504,73 @@ to reduce it.
 ## Cash-outs
 
 A taker can sell an open position before it settles. Totalis opens a cash-out RFQ to every maker:
-`RFQ_CREATED` with `kind: CASHOUT`, the `position_id`, its `owner` and the backing `maker_id`.
+`RFQ_CREATED` with `kind: CASHOUT`, the `position_id`, its `owner`, the backing `maker_id`, its `net_stake`
+and `payout`, and the leg state to price against.
 
 | You | Quote | You pay from | The position |
 | --- | --- | --- | --- |
-| Back the position | `sell_back` terms, a `price` | Your maker vault | Closes |
-| Do not back it | `transfer` terms, a `price` | Your own vault balance, not the maker vault | Moves to you. Its original maker still backs it. |
+| Back the position (`maker_id` is yours) | `sell_back` terms, a `price` | Your maker vault | Closes |
+| Do not back it | `transfer` terms, a `price` | Your maker wallet's own vault balance, not the maker vault | Moves to your wallet's account. Its original maker still backs it. |
 
-Price the position at the RFQ's `decision_block` and sign its `leg_state` unchanged. Keep your own
-vault balance at zero to sell back only. A cash-out quote's `expiry` window is on
-[Limits](/hyperliquid/limits-and-fees).
+Bid only on positions you back: your maker wallet cannot hold its own vault balance.
+[Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker, and
+Totalis moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background. A
+`transfer` your wallet's free vault balance cannot cover is refused when you publish it (`400 INVALID_REQUEST`
+naming `transfer.price`). While Totalis's view of the vault lags the chain, publishing skips that check;
+confirm then answers `QUOTE_CAPACITY_EXCEEDED` once the view is current, or the vault refuses the transfer
+on-chain. A position you buy by
+transfer belongs to your wallet's account, not your maker: read it and its settlement with a key for
+[your account](/hyperliquid/authentication#keys).
 
-## Your identity
+```bash
+curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
+  -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+  -H "Idempotency-Key: 01a0df4e-6a20-7c11-8d4e-5f6a7b8c9d0e" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quote_id": "0x7c7c...7c7c",
+    "sell_back": {
+      "position_id": "0x5e5e...5e5e",
+      "price": "18000000",
+      "owner": "0x1111111111111111111111111111111111111111",
+      "expiry": "1790452915",
+      "salt": "93841120577316",
+      "leg_state": "0x3d3d...3d3d"
+    }
+  }'
+```
 
-| Name | What it is | Where to read it |
-| --- | --- | --- |
-| `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | The maker page in the app |
-| `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
-| `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
+`position_id`, `owner` and `leg_state` are copied from the RFQ. `quote_id` is the EIP-712 digest of
+`sell_back` as `SellBack`. A `transfer` body has `seller` (the owner) and `buyer` (your maker wallet) in place
+of `owner`, and is signed as `CashoutTransfer`. The `expiry` window is on [Limits](/hyperliquid/limits-and-fees).
 
-Your maker is one wallet, so `owner` and `signer` are the same address. Run your bot with that wallet's
-key. Nothing fills without your confirmation signature, so to stop filling, stop confirming.
+### Price a cash-out
+
+| RFQ field | What it is |
+| --- | --- |
+| `legs`, `legs_hash` | The position's legs. `legs_hash` is the EIP-712 hash of `legs` as `Leg[]`: check it matches before you price. |
+| `leg_state` | Each leg's on-chain state when Totalis opened the RFQ, hashed. Sign it unchanged. |
+| `decision_block`, `decision_read_gas` | The HyperEVM block Totalis read `leg_state` at, and the read gas it used. |
+| `net_stake`, `payout` | What the position holds and pays if every leg wins. |
+
+`leg_state` is `keccak256(abi.encode(states))`, with one `uint256` per leg in order:
+`(code << 64) | value`. `code` is `0` for an open leg, `1` for a resolved leg and `2` for a pruned leg.
+For a resolved leg, `value` is the outcome's resolved value out of `100000000`, the same for either side: a
+`YES` leg's result is `value / 100000000`, and a `NO` leg's is `(100000000 - value) / 100000000`. It is `0`
+otherwise. To check it, call the vault's view `legStateOf(Leg[] legs, uint256 readGas)` with `legs` and
+`decision_read_gas` at `decision_block`.
+
+- Price from current books, not from `decision_block`. Drop legs already resolved as wins.
+- A position with a lost leg is worth nothing. Bid on a leg resolved to a fraction, or pruned, only if you can
+  value it.
+- The sale lands only while every leg's state still equals `leg_state`. If a leg moves first, the trade
+  reverts and nothing moves.
+
+## Compatibility
+
+RFQs, acceptances, capital and events gain fields and enum values as the API grows. A bot that rejects an
+unknown field stops quoting the day one ships. Ignore fields you don't know, and treat an unknown enum value as
+a state you can't act on ([Compatibility](/hyperliquid/api-reference/introduction#compatibility)).
 
 <CardGroup cols={2}>
   <Card title="Maker collateral" icon="vault" href="/hyperliquid/guides/collateral">

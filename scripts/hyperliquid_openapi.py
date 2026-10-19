@@ -5,12 +5,14 @@ The source is hip4-backend's public spec (tools/public_openapi.py), which alread
 app-only routes. This script:
 
 - files every operation under one sidebar group (PAGES), by resource on one axis: Markets,
-  RFQs & Quotes, Positions, Account, Makers, Deployment and WebSocket. The group becomes the
+  RFQs & Quotes, Positions, Account, Makers, Partners & wallet sign-in, API keys, Deployment and WebSocket. The group becomes the
   operation's tag;
 - titles every page with one pattern, verb + resource ("Create RFQ", "Accept quote"), replacing
   the spec's summary;
 - gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, kept by resource so
   regrouping never breaks a link (x-mint);
+- drops `additionalProperties: false` from response-only schemas, so a client generated from the spec
+  accepts fields added later (requests stay strict);
 - writes the API reference tab: an Overview group (OVERVIEW), then one group per PAGES entry, led
   by its hand-written pages (LEADS).
 
@@ -41,9 +43,10 @@ METHODS = ("get", "put", "post", "delete", "patch")
 # section); URL sections stay by resource so regrouping never breaks a link.
 PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
     "Markets": (
-        "HIP-4 markets, their sides and price history. No API key needed.",
+        "HIP-4 questions and markets, their sides and price history. No API key needed.",
         [
             ("GET /v1/markets", "List markets", "Markets"),
+            ("GET /v1/discovery", "List questions", "Markets"),
             ("GET /v1/markets/{outcome_id}", "Get market", "Markets"),
             ("GET /v1/markets/{outcome_id}/history", "Get market history", "Markets"),
         ],
@@ -59,6 +62,8 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
             ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
+            ("PUT /v1/makers/{maker_id}/quote-lease", "Keep quote lease", "Quotes"),
+            ("DELETE /v1/makers/{maker_id}/quote-lease", "Release quote lease", "Quotes"),
             ("GET /v1/rfqs", "List RFQs", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}", "Get RFQ", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes", "Quotes"),
@@ -73,7 +78,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "Account": (
-        "The account a key acts for: identity, balances, activity, operations and withdrawals.",
+        "The account a key acts for: identity, balances, activity, operations, withdrawals, deposits and HyperCore exits.",
         [
             ("GET /v1/me", "Get identity", "Account"),
             ("GET /v1/me/balances", "Get balances", "Account"),
@@ -83,19 +88,54 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/me/operations/{operation_id}", "Get operation", "Account"),
             ("POST /v1/me/withdrawals", "Create withdrawal", "Withdrawals"),
             ("GET /v1/me/withdrawals/{withdrawal_id}", "Get withdrawal", "Withdrawals"),
+            ("POST /v1/me/deposits", "Create deposit", "Deposits"),
+            ("POST /v1/core-exits", "Create HyperCore exit", "Core exits"),
+            ("GET /v1/me/core-exits", "List HyperCore exits", "Core exits"),
+            ("GET /v1/core-exits/{exit_id}", "Get HyperCore exit", "Core exits"),
+            ("POST /v1/core-exits/{exit_id}/abandon", "Abandon HyperCore exit", "Core exits"),
         ],
     ),
     "Makers": (
-        "The rest of a maker's setup after Making: capital and collateral.",
+        "The rest of a maker's setup after Making: admission, quote history, capital and collateral.",
         [
+            ("GET /v1/me/maker", "Get own maker", "Makers"),
+            ("POST /v1/me/maker", "Admit own maker", "Makers"),
+            ("GET /v1/makers/{maker_id}/quote-history", "List quote history", "Makers"),
             ("GET /v1/makers/{maker_id}/capital", "Get maker capital", "Makers"),
             ("POST /v1/makers/{maker_id}/collateral-reductions", "Create collateral reduction", "Makers"),
             ("GET /v1/makers/{maker_id}/collateral-reductions/{job_id}", "Get collateral reduction", "Makers"),
+            ("GET /v1/makers/{maker_id}/withdrawal", "Get maker withdrawal", "Makers"),
             (
                 "POST /v1/makers/{maker_id}/operations/{operation_id}/self-funded-transaction",
                 "Submit self-funded transaction",
                 "Makers",
             ),
+        ],
+    ),
+    "Partners & wallet sign-in": (
+        "A partner admits its users' own wallets, which sign in from the partner's pages.",
+        [
+            ("POST /v1/partner/wallet-admissions", "Admit wallet", "Partners"),
+            ("POST /v1/auth/wallet-challenges", "Create wallet challenge", "Wallet sessions"),
+            ("POST /v1/auth/wallet-sessions", "Create wallet session", "Wallet sessions"),
+            ("DELETE /v1/auth/wallet-sessions/current", "End wallet session", "Wallet sessions"),
+        ],
+    ),
+    "API keys": (
+        "Issue, rotate and revoke scoped keys from a wallet session. An API key cannot manage keys.",
+        [
+            ("POST /v1/me/api-key-challenges", "Create API key challenge", "API keys"),
+            ("POST /v1/me/api-keys", "Create API key", "API keys"),
+            ("POST /v1/me/api-keys/{key_id}/rotations", "Rotate API key", "API keys"),
+            ("GET /v1/me/api-keys", "List API keys", "API keys"),
+            ("DELETE /v1/me/api-keys/{key_id}", "Revoke API key", "API keys"),
+            ("GET /v1/me/api-key-capabilities", "List API key scopes", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-key-challenges", "Create maker API key challenge", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-keys", "Create maker API key", "API keys"),
+            ("POST /v1/makers/{maker_id}/api-keys/{key_id}/rotations", "Rotate maker API key", "API keys"),
+            ("GET /v1/makers/{maker_id}/api-keys", "List maker API keys", "API keys"),
+            ("DELETE /v1/makers/{maker_id}/api-keys/{key_id}", "Revoke maker API key", "API keys"),
+            ("GET /v1/makers/{maker_id}/api-key-capabilities", "List maker API key scopes", "API keys"),
         ],
     ),
     "Deployment": (
@@ -134,7 +174,7 @@ def operations(spec: dict):
 
 # The one group both sides use, split so a taker and a maker each find their calls together.
 SUBGROUPS: dict[str, list[tuple[str, int]]] = {
-    "RFQs & Quotes": [("Taking", 4), ("Making", 4), ("Reads", 4)],
+    "RFQs & Quotes": [("Taking", 4), ("Making", 6), ("Reads", 4)],
 }
 
 
@@ -168,51 +208,31 @@ VARIANT_TITLES = {
     "ResultUnresolved": "Unresolved",
     "ResultNumeric": "Numeric result",
     "ResultNonnumeric": "Named result",
-    "ResultUnavailable": "Unavailable",
+    "ResultUnavailable": "Result unavailable",
     "ReferenceAvailable": "Available",
-    "ReferenceUnavailable": "Unavailable",
+    "ReferenceUnavailable": "Reference unavailable",
     "EligibilityEnabled": "Enabled",
     "EligibilityDisabled": "Disabled",
 }
-COMPOSITIONS = ("oneOf", "anyOf", "allOf")
+UNIONS = ("oneOf", "anyOf")
 
 
-def condition(branch: dict) -> str:
-    """The discriminator a validation branch applies to, as prose, or "" if it has none."""
-    for key in ("status", "kind", "series_type", "close_reason"):
-        rule = (branch.get("properties") or {}).get(key)
-        if isinstance(rule, dict) and "const" in rule:
-            return f"`{key}` is `{rule['const']}`"
-        if isinstance(rule, dict) and rule.get("enum"):
-            return f"`{key}` is " + " or ".join(f"`{value}`" for value in rule["enum"] if value is not None)
-    return ""
-
-
-def plain(text: str) -> str:
-    return text.replace("`", "").replace(" only when ", " when ").lower()
-
-
-def note(prop: dict, text: str) -> None:
-    if text and plain(text) not in plain(prop.get("description", "")):
-        prop["description"] = (prop.get("description", "").rstrip() + " " + text).strip()
+def is_object(member: dict) -> bool:
+    """An object shape, typed or not: it lists its own fields."""
+    return member.get("type") in (None, "object") and isinstance(member.get("properties"), dict)
 
 
 def real_variants(members: list) -> bool:
-    """Inline members that are shapes of their own, not rules on a parent's fields.
-
-    A scalar or array member is a real type (`string` or `null`), and object members whose
-    field sets differ are real variants (`entry`, `sell_back` or `transfer` terms). Object
-    members over the same fields only restate one shape per status, so they fold into notes.
-    """
+    """Inline members that are shapes of their own: a scalar or array type, or objects over different fields."""
     if any(member.get("type") not in (None, "object") for member in members):
         return True
-    shapes = [frozenset(member.get("properties") or {}) for member in members if member.get("type") == "object"]
+    shapes = [frozenset(member["properties"]) for member in members if is_object(member)]
     return len(shapes) > 1 and len(set(shapes)) > 1
 
 
 def name_variants(members: list) -> None:
     """Title each object variant by its constant (`CONFIRM`) or the field only it has (`entry`)."""
-    shapes = [member for member in members if member.get("type") == "object"]
+    shapes = [member for member in members if is_object(member)]
     for member in shapes:
         fields = member.get("properties") or {}
         const = next((rule["const"] for rule in fields.values() if isinstance(rule, dict) and isinstance(rule.get("const"), str)), None)
@@ -222,95 +242,108 @@ def name_variants(members: list) -> None:
             member["title"] = label.replace("_", " ").capitalize()
 
 
-def merge_field(a, b):
-    """One field restated by two status shapes: every value and description either allows."""
-    if a == b or not isinstance(a, dict) or not isinstance(b, dict):
-        return a
-    values = lambda rule: rule["enum"] if "enum" in rule else [rule["const"]] if "const" in rule else None
-    merged = {key: value for key, value in a.items() if key not in ("const", "enum", "description")}
-    if values(a) is not None and values(b) is not None:
-        merged["enum"] = values(a) + [value for value in values(b) if value not in values(a)]
-    elif a.get("type") != b.get("type"):
-        merged = {"oneOf": [{k: v for k, v in rule.items() if k != "description"} for rule in (a, b)]}
-    descriptions = [rule["description"] for rule in (a, b) if rule.get("description")]
-    if descriptions:
-        merged["description"] = " ".join(dict.fromkeys(descriptions))
-    return merged
-
-
-def simplify(node):
-    """Docs view of a schema: fold validation-only branches into field descriptions.
-
-    The published contract stays strict for clients that validate (hip4-mm does). Here each
-    status- or kind-conditional branch, if/then rule and `false` property becomes a note on the
-    field it constrains, so a page shows one object per real variant instead of every rule as an
-    option. Unions of named schemas are real variants and stay.
-    """
+def title_variants(node) -> None:
+    """Label the options of every real union; titles are annotations, so every constraint stays."""
     if isinstance(node, list):
-        return [simplify(item) for item in node]
+        for item in node:
+            title_variants(item)
+        return
     if not isinstance(node, dict):
-        return node
-    node = {key: simplify(value) for key, value in node.items()}
-    props = node.get("properties") if isinstance(node.get("properties"), dict) else None
-    branches = []
-    for key in COMPOSITIONS:
+        return
+    for key in UNIONS:
         members = node.get(key)
-        if not isinstance(members, list):
-            continue
-        inline = [member for member in members if isinstance(member, dict) and "$ref" not in member]
-        if real_variants(inline):
-            name_variants(inline)
-            continue
-        inline = [member for member in inline if "type" not in member or member.get("type") == "object"]
-        if key == "allOf":
-            for member in inline:
-                if not member.get("properties") and member.get("description"):
-                    note(node, member["description"])
-        shapes = [member for member in inline if member.get("type") == "object" and member.get("properties")]
-        if props is None and shapes:
-            # One shape restated per status: show it once, the differences as notes.
-            props = {}
-            for member in shapes:
-                for name, rule in member["properties"].items():
-                    props[name] = merge_field(props[name], rule) if name in props else rule
-            node["type"] = "object"
-            node["required"] = [name for name in shapes[0].get("required", []) if all(name in member.get("required", []) for member in shapes)]
-        branches += inline
-        kept = [member for member in members if member not in inline]
-        if kept:
-            node[key] = kept
-        else:
-            node.pop(key)
-    if isinstance(node.get("then"), dict):
-        branches.append({**node["then"], "properties": {**(node.get("if") or {}).get("properties", {}), **node["then"].get("properties", {})}})
-    banned = node.get("not") if isinstance(node.get("not"), dict) else {}
-    banned = [banned["const"]] if "const" in banned else banned.get("enum", [])
-    if banned:
-        note(node, "Never " + " or ".join(f"`{value}`" for value in banned) + ".")
-    for key in ("if", "then", "else", "not"):
-        node.pop(key, None)
-    if props is not None:
-        for branch in branches:
-            when = condition(branch)
-            for name in branch.get("required", []):
-                if name in props and name not in node.get("required", []) and when:
-                    note(props[name], f"Present when {when}.")
-            for name, rule in (branch.get("properties") or {}).items():
-                if name in props and isinstance(rule, dict) and rule.get("description") and name not in ("status", "kind"):
-                    note(props[name], rule["description"])
-        node["properties"] = {name: value for name, value in props.items() if value is not False}
-        if "required" in node:
-            node["required"] = [name for name in node["required"] if name in node["properties"]]
-    return node
+        if isinstance(members, list):
+            inline = [member for member in members if isinstance(member, dict) and "$ref" not in member]
+            if real_variants(inline):
+                name_variants(inline)
+    for value in node.values():
+        title_variants(value)
 
 
 def readable(spec: dict) -> dict:
-    """Simplify every schema for reading and title the variants of real unions."""
-    spec = simplify(spec)
+    """Title the variants of real unions."""
+    title_variants(spec)
     for name, title in VARIANT_TITLES.items():
         if name in spec.get("components", {}).get("schemas", {}):
             spec["components"]["schemas"][name]["title"] = title
     return spec
+
+
+def schema_refs(spec: dict, node, found: set[str]) -> set[str]:
+    """Every component schema node reaches, through $ref, skipping example data."""
+    if isinstance(node, list):
+        for item in node:
+            schema_refs(spec, item, found)
+    elif isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+            name = ref.rsplit("/", 1)[1]
+            if name not in found:
+                found.add(name)
+                schema_refs(spec, spec["components"]["schemas"][name], found)
+        for key, value in node.items():
+            if key not in ("example", "examples"):
+                schema_refs(spec, value, found)
+    return found
+
+
+def open_object(node) -> None:
+    """Drop `additionalProperties: false` from node and every inline schema under it."""
+    if isinstance(node, list):
+        for item in node:
+            open_object(item)
+    elif isinstance(node, dict):
+        if node.get("additionalProperties") is False:
+            del node["additionalProperties"]
+        for key, value in node.items():
+            if key not in ("example", "examples", "$ref"):
+                open_object(value)
+
+
+def open_responses(spec: dict) -> dict:
+    """Responses can gain fields, so their schemas must not promise `additionalProperties: false`.
+
+    Requests stay strict: the API refuses unknown request fields. A schema a request also uses (legs and the
+    signed terms) stays strict in both directions, since a new field there would be a new signed type.
+    """
+    requests: set[str] = set()
+    responses: set[str] = set()
+    for _, operation in operations(spec):
+        schema_refs(spec, [operation.get("requestBody", {}), operation.get("parameters", [])], requests)
+        schema_refs(spec, operation.get("responses", {}), responses)
+        for response in operation.get("responses", {}).values():
+            for media in response.get("content", {}).values():
+                if "$ref" not in media.get("schema", {"$ref": ""}):
+                    open_object(media["schema"])
+    for name in responses - requests:
+        open_object(spec["components"]["schemas"][name])
+    return spec
+
+
+def titles(node, path: str = ""):
+    """Every schema title under node with where it is, skipping example data."""
+    if isinstance(node, list):
+        for index, item in enumerate(node):
+            yield from titles(item, f"{path}/{index}")
+    elif isinstance(node, dict):
+        if isinstance(node.get("title"), str):
+            yield node["title"], path
+        for key, value in node.items():
+            if key == "properties" and isinstance(value, dict):
+                for name, schema in value.items():
+                    yield from titles(schema, f"{path}/properties/{name}")
+            elif key not in ("example", "examples", "default", "const", "enum", "x-mint"):
+                yield from titles(value, f"{path}/{key}")
+
+
+def unique_titles(spec: dict) -> None:
+    """Stop on a schema title used twice: generated clients name models by title and drop the clash."""
+    seen: dict[str, list[str]] = {}
+    for title, path in titles({"components": spec.get("components", {}).get("schemas", {}), "paths": spec.get("paths", {})}):
+        seen.setdefault(title, []).append(path)
+    clashes = {title: paths for title, paths in seen.items() if len(paths) > 1}
+    if clashes:
+        raise SystemExit(f"Duplicate schema titles: {clashes}. Give each a unique title in VARIANT_TITLES.")
 
 
 def publish(spec: dict) -> dict:
@@ -322,7 +355,6 @@ def publish(spec: dict) -> dict:
             f"PAGES does not match the spec. Unplaced: {sorted(routes - set(pages))}. "
             f"Not in the spec: {sorted(set(pages) - routes)}"
         )
-    spec["servers"] = [server for server in spec["servers"] if "staging" not in server["url"]]
     spec["tags"] = [{"name": group, "description": description} for group, (description, _) in PAGES.items()]
     for key, operation in operations(spec):
         group, title, section = pages[key]
@@ -376,7 +408,9 @@ def main() -> int:
     else:
         spec = json.loads((args.spec or SPEC).read_text())
 
-    spec_text = dump(readable(publish(spec)))
+    spec = open_responses(readable(publish(spec)))
+    unique_titles(spec)
+    spec_text = dump(spec)
     docs_text = dump(with_tab(json.loads(DOCS.read_text())))
     if args.check:
         stale = [p.relative_to(ROOT) for p, text in ((SPEC, spec_text), (DOCS, docs_text)) if p.read_text() != text]

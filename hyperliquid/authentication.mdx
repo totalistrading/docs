@@ -9,38 +9,81 @@ curl https://hip4-api.totalis.trade/v1/me \
   -H "Authorization: Bearer $TOTALIS_API_KEY"
 ```
 
-A key authenticates the call. The vault contract only moves funds with a signature from their owner,
-sent in the request body. Market reads need no key; an expired or revoked key on them still returns
-`401`.
+A key authenticates the call. The vault contract only moves funds with a signature from the funds' owner,
+sent in the request body. Market reads need no key and ignore one. Get deployment and the RFQ reads need no key
+either, but an invalid, expired or revoked key on them returns `401`.
+
+| Credential | For | Issued by |
+| --- | --- | --- |
+| API key (`ttk_`) | A bot, script or maker acting for one account | The account's wallet: [Create, rotate, revoke](#create-rotate-revoke) |
+| Wallet session | A maker managing its maker and keys headless. A user signing in with their own wallet on a partner's site. | Totalis, when the account's wallet signs a Sign-In with Ethereum message: [Sign in](/hyperliquid/guides/market-making#set-up) for a maker, [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions) for a partner's user (a new account needs the partner's admission first) |
+| Partner keys (`tpk_`, `tpb_`) | A partner's server and pages | Totalis, by email: [Build on Totalis](/hyperliquid/build/overview#get-access) |
 
 ## Keys
 
-There is one kind of key. Each key acts for one account, yours or a maker's, and holds only scopes
+This section and the next are about API keys (`ttk_`). There is one kind. Each key acts for one account, yours or a maker's, and holds only scopes
 that account can use.
 
 | Account | Approved by | Signs trades | Reads |
 | --- | --- | --- | --- |
-| Yours | Your Totalis wallet | Your Totalis wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
-| A maker (`maker_id`) | Your Totalis wallet | Your Totalis wallet (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/...` for the maker, plus `/v1/makers/{maker_id}/...` |
+| Yours | Your account's wallet | Your account's wallet (`wallet` in [Get identity](/hyperliquid/api-reference/account/get-identity)) | `/v1/me/...` |
+| A maker (`maker_id`) | The maker wallet | The maker wallet (`signer` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)) | `/v1/me/positions`, `/v1/me/activity` and `/v1/me/operations` for the maker, plus the [maker routes](#maker-routes) |
 
 - The key alone selects the account, chain and vault. No header or parameter does.
 - A key for a maker naming another `maker_id` gets `404`.
-- Keys start with `ttk_v1_prd_`.
+- Keys start with `ttk_v1_prd_`, or `ttk_v1_stg_` on [Staging](/hyperliquid/build/staging).
+
+### Maker routes
+
+A maker key calls these, each with the scope in [Scopes](#scopes):
+
+| Route | Scope |
+| --- | --- |
+| [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital), [Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal), [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction), [List quote history](/hyperliquid/api-reference/makers/list-quote-history) | `vault:read` |
+| [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `quote:read` |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote), [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote), [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | `quote:write` |
+| [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `vault:write` |
+| [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) | `operations:submit` |
+
+A maker key reads `/v1/me/positions`, `/v1/me/activity`, `/v1/me/operations` and its capital only if it holds
+`vault:read`. Totalis grants nothing else.
+
+The maker's position, exposure, performance and activity pages in the app read `/v1/makers/{maker_id}/...`
+routes that only the app's session can call. A maker key gets `403` on them.
 
 ## Create, rotate, revoke
 
+The account's wallet approves every API key.
+
+| Keys for | Managed |
+| --- | --- |
+| Your account, created in the Totalis app | In the app, or headless like a maker's |
+| A maker | Headless only, from a wallet session with the SDK or the API: [Manage keys](/hyperliquid/guides/market-making#manage-keys). The app lists them read-only. |
+| An account whose own wallet signs in on a partner's site | From its wallet session with the SDK's `totalis.issueApiKey` and `rotateApiKey` ([SDK](/hyperliquid/sdk#external-wallets)), or in the partner's own UI |
+
 In the [Totalis app](https://hip4.totalis.trade/account/api-keys), under Account, then API keys:
 
-1. Under **Keys act for**, choose **Your account** or a maker.
-2. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only the
+1. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only your
    account's scopes are offered.
-3. Your wallet approves with a Sign-In with Ethereum message.
-4. Copy the key. It is shown once.
+2. Your wallet approves with a Sign-In with Ethereum message.
+3. Copy the key. It is shown once.
 
 Rotating takes the same approval and keeps the name and scopes. The old key can overlap for none, one
-hour or 24 hours. Revoking needs no signature and takes effect at once. A key that reports
-`SECRET_UNAVAILABLE` is lost: revoke it and create another. An API key cannot create, rotate or revoke
+hour or 24 hours. Revoking needs no signature and takes effect at once. If a create or rotate retry
+returns `SECRET_UNAVAILABLE`, the secret was issued and cannot be shown again: revoke that key and create another. An API key cannot create, rotate or revoke
 keys.
+
+Outside the app, the approval is three calls: a key approval challenge, the wallet's `personal_sign` of its
+Sign-In with Ethereum message, then the create or rotate call with that proof. They need a wallet session or an
+app session from an allowed origin, never an API key. Through the API, `expires_in_days` is 1 to 90, or 0 for no
+expiry (30 when omitted), and `overlap_seconds` is 0 to 86400 (3600 when omitted).
+
+| Step | Your account | A maker |
+| --- | --- | --- |
+| Challenge | [Create API key challenge](/hyperliquid/api-reference/api-keys/create-api-key-challenge) | [Create maker API key challenge](/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge) |
+| Create or rotate | [Create API key](/hyperliquid/api-reference/api-keys/create-api-key), [Rotate API key](/hyperliquid/api-reference/api-keys/rotate-api-key) | [Create maker API key](/hyperliquid/api-reference/api-keys/create-maker-api-key), [Rotate maker API key](/hyperliquid/api-reference/api-keys/rotate-maker-api-key) |
+| List, revoke | [List API keys](/hyperliquid/api-reference/api-keys/list-api-keys), [Revoke API key](/hyperliquid/api-reference/api-keys/revoke-api-key) | [List maker API keys](/hyperliquid/api-reference/api-keys/list-maker-api-keys), [Revoke maker API key](/hyperliquid/api-reference/api-keys/revoke-maker-api-key) |
+| Scopes you can issue | [List API key scopes](/hyperliquid/api-reference/api-keys/list-api-key-scopes) | [List maker API key scopes](/hyperliquid/api-reference/api-keys/list-maker-api-key-scopes) |
 
 ## Scopes
 
@@ -56,7 +99,7 @@ keys.
 | `position:cashout` | Yours | Accept a cash-out quote |
 | `funding:deposit` | Yours | Fund an accept's shortfall from your wallet |
 | `funding:withdraw` | Yours | Withdraw |
-| `sponsorship:use` | Yours | Let Totalis pay the gas: accepts, cash-outs, withdrawals |
+| `sponsorship:use` | Yours | Required on every accept and cash-out made with an API key, and on withdrawals. Totalis relays them and pays the gas. |
 | `quote:write` | Maker | Create, cancel and confirm quotes |
 | `replay:read` | Either | Resume the WebSocket from a cursor |
 | `vault:read` | Maker | Capital, positions, activity, operations, collateral reductions |
@@ -65,17 +108,20 @@ keys.
 
 | Integration | Account | Scopes |
 | --- | --- | --- |
-| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `replay:read`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
 | Taker that withdraws | Yours | The taker scopes plus `funding:withdraw` |
 | Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 | Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
 
-A change of the maker's owner invalidates every key of that maker.
+Any active maker can issue both maker scope sets from its wallet session: `QUOTING_BOT_SCOPES` and `COLLATERAL_SCOPES`
+in the SDK ([Manage keys](/hyperliquid/guides/market-making#manage-keys)).
 
 ## Wallet key
 
-To sign from code, export your Totalis wallet's key: Account, then Private key, then **Reveal private
-key**. Check its address equals `wallet` in `GET /v1/me`.
+If your account signs in with its own wallet, you already hold that wallet's private key. For an account created in the Totalis app, the wallet
+is embedded in the app. To sign from code, export its key once in a browser: Account, then Private key, then
+**Export private key**. A maker needs it for everything after signup. Check its address equals `wallet` in `GET /v1/me`, or for a maker, `signer` in
+[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). A maker key cannot call `GET /v1/me`.
 
 <Warning>
 The exported key also signs withdrawals. Anyone who has it can withdraw everything the account holds.
@@ -84,7 +130,8 @@ Keep only the balance your bot needs.
 
 A maker is one wallet too. Its bot signs confirmations with that wallet's key, the same key that funds
 and withdraws the maker. Anyone who has it controls the maker, so keep only the collateral your bot needs.
-See [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
+A maker cannot move to another wallet: see [Your maker wallet](/hyperliquid/guides/market-making#your-maker-wallet)
+and [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 
 ## Who signs what
 
@@ -92,9 +139,11 @@ See [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 | --- | --- | --- | --- |
 | Accept an entry quote | Your wallet | `TakerAccept` | `taker_signature` |
 | Accept a cash-out quote | The owner | `SellBack` or `CashoutTransfer` | `taker_signature` |
-| Confirm an entry quote | Your wallet | `Quote` | `maker_signature` |
-| Confirm a cash-out quote | Your wallet | `SellBack` or `CashoutTransfer` | `maker_signature` |
+| Confirm an entry quote | The maker wallet | `Quote` | `maker_signature` |
+| Confirm a cash-out quote | The maker wallet | `SellBack` or `CashoutTransfer` | `maker_signature` |
 | Fund an accept | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
+| Bridge USDC from HyperCore into an entry | Your wallet | `HyperliquidTransaction:SendAsset` | None. Sent to Hyperliquid after the maker confirms, before the acceptance's `fund_by`. |
+| Deposit | Your wallet | USDC `ReceiveWithAuthorization` | [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) body (wallet session only) |
 | Withdraw: vault shortfall | Your wallet | `Exit` | `vault_withdrawal.signature` |
 | Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |
 
@@ -123,6 +172,7 @@ fees before each quote.
 | --- | --- |
 | `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit` | `{ name: "TotalisParlay", version: "1", chainId: chain_id, verifyingContract: vault_address }` |
 | `ReceiveWithAuthorization`, `TransferWithAuthorization` | `usdc.eip712_domain` |
+| `HyperliquidTransaction:SendAsset`, the HyperCore bridge into an entry | `{ name: "HyperliquidSignTransaction", version: "1", chainId: chain_id, verifyingContract: "0x0000000000000000000000000000000000000000" }` |
 
 ## Types
 
@@ -135,6 +185,7 @@ CashoutTransfer(bytes32 ticketId,uint128 price,address seller,address buyer,uint
 Exit(address account,address to,uint128 amount,uint64 expiry,uint256 salt)
 ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
 TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
+HyperliquidTransaction:SendAsset(string hyperliquidChain,string destination,string sourceDex,string destinationDex,string token,string amount,string fromSubAccount,uint64 nonce)
 ```
 
 ## API names and signed names

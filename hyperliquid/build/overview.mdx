@@ -1,0 +1,84 @@
+---
+title: 'Build on Totalis'
+icon: 'hammer'
+description: 'Run a bot on your own account, put Totalis in your own frontend with your users'' own wallets, and earn on the volume you bring. What each path needs, and how to get access.'
+---
+
+Totalis is open to builders. Pick the path that matches what you ship.
+
+| You build | Who trades | The account | Credentials | Guide |
+| --- | --- | --- | --- | --- |
+| A bot or script | You | Your own Totalis account | An API key (`ttk_`) and your wallet key | [Quickstart](/hyperliquid/quickstart) |
+| A market maker | Your maker | Your maker | A maker API key (`ttk_`) and the maker wallet | [Market making](/hyperliquid/guides/market-making) |
+| A frontend | Your users | Each user's own wallet | Partner credentials: server key, browser key, registered origins and a builder signer | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
+| Attribution on accounts you did not admit | Users of your page | Any account no partner admitted | A builder code for your origin and a builder signer | [Builder codes](/hyperliquid/build/builder-codes) |
+
+Every path uses the same API and the [TypeScript SDK](/hyperliquid/sdk). Totalis never holds a user's key:
+every bet, cash-out and withdrawal is signed by the account's own wallet.
+
+## Credentials
+
+| Credential | Looks like | Who issues it | Where it lives | Used for |
+| --- | --- | --- | --- | --- |
+| API key | `ttk_v1_prd_...` | The account's own wallet, in the [Totalis app](https://hip4.totalis.trade/account/api-keys) or with the SDK from a wallet session | Your server or bot. Secret. | Acting for one account: [Authentication](/hyperliquid/authentication) |
+| Server key | `tpk_v1_prd_...` | Totalis | Your server only. Secret, shown once. | Admitting new wallets |
+| Browser key | `tpb_v1_prd_...` | Totalis | Your pages. Public. | Sent as `X-Totalis-Partner`. Honoured only from your registered origins. |
+| Registered origins | `https://app.example.com` | Totalis | Totalis's records | The pages your users sign in from |
+| Partner slug | `acme` | Totalis, from your request | Your frontend | Named in the consent each new wallet signs |
+| Account code | `tot_rfq_production_...` | Totalis | Totalis's records | Recorded on every RFQ from an account you admitted |
+| Origin builder code | `tot_rfq_production_...` | Totalis | Your frontend | Attributing RFQs from accounts you did not admit |
+| Builder signer | Your `0x` address | You | Your server holds its key | Signing origin builder codes per RFQ |
+
+Staging keys carry `stg` instead of `prd`: see [Staging](/hyperliquid/build/staging).
+
+## Get access
+
+Email [founders@totalis.trade](mailto:founders@totalis.trade). There is no self-serve signup for partner
+credentials or the SDK.
+
+<Steps>
+  <Step title="Send us">
+    | Item | Example | Needed for |
+    | --- | --- | --- |
+    | Company or app name | Acme Markets | Everything |
+    | Partner slug you want | `acme`: lowercase letters, digits and hyphens, up to 63 characters, starting with a letter or digit | Partner credentials |
+    | Production origins | `https://app.acme.com` | Partner credentials |
+    | Staging origins | `https://staging.acme.com` | Staging credentials |
+    | Builder signer address | `0x...`, a key your server holds | Partner credentials. Required to register you; used to sign origin builder codes. |
+    | Payout address on HyperEVM | `0x...` | Revenue share |
+    | GitHub account | `acme-bot` | SDK access |
+    | Expected volume | Users, RFQs per day, typical stake | Sizing your rate limits |
+  </Step>
+  <Step title="You receive">
+    | Item | Over |
+    | --- | --- |
+    | Server key (`tpk_`) for production, staging or both | A secure channel. It is shown once. |
+    | Browser key (`tpb_`) for each environment | Email |
+    | Your origins registered | Confirmed by email |
+    | Your account code, and origin builder codes on request | Email |
+    | Read access to `@totalistrading/hip4-client` on GitHub Packages | GitHub |
+    | Staging access | See [Staging](/hyperliquid/build/staging) |
+  </Step>
+</Steps>
+
+Origins are `https://` with a host and an optional port, and no path. Each origin belongs to one partner.
+
+A bot on your own account needs none of this. Create an API key in the
+[Totalis app](https://hip4.totalis.trade/account/api-keys) and email us only for SDK access.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Your users' own wallets" icon="wallet" href="/hyperliquid/build/partner-frontend">
+    Admission, sign-in, funding, withdrawals and the switches.
+  </Card>
+  <Card title="Builder codes" icon="tag" href="/hyperliquid/build/builder-codes">
+    How RFQs are attributed to you, and how you are paid.
+  </Card>
+  <Card title="Staging" icon="flask" href="/hyperliquid/build/staging">
+    The testnet copy of Totalis, for building against.
+  </Card>
+  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk">
+    Every route, flow, signed message and stream.
+  </Card>
+</CardGroup>

@@ -7,12 +7,16 @@ description: 'Get a Hyperliquid API key, make your first reads, and request your
 ## 1. Get a key
 
 In the [Totalis app](https://hip4.totalis.trade/account/api-keys), go to Account, then API keys,
-choose **Your account** under **Keys act for**, pick the [taker scopes](/hyperliquid/authentication#scopes), and approve
-with your wallet. The key is shown once.
+pick the [taker scopes](/hyperliquid/authentication#scopes), and approve with your wallet. The key is shown once.
+A market maker issues its keys headless instead: [Market making](/hyperliquid/guides/market-making#set-up).
 
 ```bash
 export TOTALIS_API_KEY="ttk_v1_prd_..."
 ```
+
+An account whose own wallet signs in on a partner's site issues its key from its wallet session instead
+([Create, rotate, revoke](/hyperliquid/authentication#create-rotate-revoke)). For a frontend for your own users,
+or to test on testnet first, see [Build on Totalis](/hyperliquid/build/overview).
 
 ## 2. Read
 
@@ -27,6 +31,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=1"
   "items": [
     {
       "outcome_id": "1209",
+      "native_question_id": null,
       "title": "HYPE touches 100 by 20261001-0000",
       "state": "ACTIVE",
       "sides": [
@@ -39,6 +44,12 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=1"
   "has_more": true
 }
 ```
+
+The list is flat: one row per market, with no question title. Markets of one question share
+`native_question_id`. For a market in a question, [Get market](/hyperliquid/api-reference/markets/get-market)
+returns its `question`, with the `title` and all its markets. A standalone market has
+`native_question_id: null` and `question: null`. [List questions](/hyperliquid/api-reference/markets/list-questions)
+(`GET /v1/discovery`) groups markets under their question titles, and lists standalone markets separately.
 
 Your identity checks the key:
 
@@ -62,7 +73,7 @@ curl https://hip4-api.totalis.trade/v1/me \
 Subscribe to your account first, so no quote is missed:
 
 ```bash
-wscat -c wss://hip4-api.totalis.trade/v1/stream -s totalis.realtime.v2 \
+wscat -c wss://hip4-ws.totalis.trade/v1/stream -s totalis.realtime.v2 \
   -H "Authorization: Bearer $TOTALIS_API_KEY"
 > {"method":"subscribe","subscription":{"type":"account"}}
 ```
@@ -86,4 +97,4 @@ Quotes arrive on the socket as `QUOTE_CREATED`, each with a `payout`. Generate a
 
 ## 4. Accept
 
-Sign a quote and accept it: [Trading](/hyperliquid/guides/trading#accept).
+Sign a quote and accept it before its `accept_before`: [Trading](/hyperliquid/guides/trading#accept).

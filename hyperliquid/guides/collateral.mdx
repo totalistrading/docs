@@ -17,8 +17,8 @@ one by one they lock 13,000 USDC. After a reduction they lock 8,000, the larger 
 
 ## Your capital
 
-[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) reads the maker vault
-exactly as the contract sees it. All amounts are atomic USDC.
+[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) reads your maker vault's
+lanes from the chain, plus the fills Totalis holds for you that are not yet on-chain. All amounts are atomic USDC.
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
@@ -29,7 +29,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 {
   "context": { "as_of": "2026-09-26T12:00:02Z", "status": "CURRENT" },
   "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "signer": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "signer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "vault_gross": "5250000000",
   "stake_escrow": "150000000",
   "payable_owed": "40000000",
@@ -37,9 +37,18 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
   "discount": "0",
   "requirement": "300000000",
   "free_collateral": "4760000000",
+  "capital_net_of_senior_liabilities": "5060000000",
   "floor_bps": 0,
   "pending_commitments": "25000000",
-  "free_after_pending": "4735000000"
+  "free_after_pending": "4735000000",
+  "deployment_digest": "0x40452ed111ecbd2a2c5bc4200002747a19eb0f8d62e602c38e34204d3f609910",
+  "actions": [
+    { "action": "MAKER_WITHDRAW", "route": "MAKER_VAULT", "available": "4735000000", "blockers": [] },
+    { "action": "MAKER_QUOTE", "route": "MAKER_VAULT", "available": null, "blockers": ["PRIVATE_QUOTE_CAPACITY_UNAVAILABLE"] }
+  ],
+  "reservations": [
+    { "reservation_id": "entry:0xb2f6...f013", "operation_ids": ["0x1ba1...9c8c"], "value": "25000000", "status": "ACTIVE" }
+  ]
 }
 ```
 
@@ -53,9 +62,16 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 | `requirement` | What must stay locked for your open positions: `max(gross_open - min(discount, gross_open), ceil(gross_open * floor_bps / 10000))`. With a `floor_bps` of 0 that is `gross_open - discount`. `null` when `floor_bps` is `null`. |
 | `floor_bps` | The share of `gross_open` that stays locked whatever the discount. `null` when it cannot be read. |
 | `free_collateral` | `vault_gross - stake_escrow - payable_owed - requirement`, never below zero. What can back new fills, or be withdrawn. |
-| `pending_commitments` | Fills accepted but not yet on-chain. |
+| `capital_net_of_senior_liabilities` | `vault_gross - stake_escrow - payable_owed`, signed. It does not value your open positions. |
+| `pending_commitments` | Fills you confirmed that are not yet on-chain: the sum of `reservations`. |
 | `free_after_pending` | `free_collateral - pending_commitments`, never below zero. Size new quotes from this. |
+| `reservations` | One row per confirmed fill not yet on-chain. `status` `UNKNOWN` means its outcome is not known yet; it still counts. |
+| `actions` | `MAKER_WITHDRAW`: the most a new [withdrawal request](#move-maker-funds) may ask for, or `null` with a blocker such as `MAKER_WITHDRAW_PENDING`. `MAKER_QUOTE` is always `null`: only your bot knows its other live quotes. |
+| `deployment_digest` | The hash of the deployment this read is bound to. |
+| `signer` | Your maker's quote signer. It equals `owner`: a maker is one wallet. The zero address means the maker cannot quote. |
 | `context.status` | `CURRENT`, or `STALE` or `UNAVAILABLE` when a source lags. A stale read never authorizes an action. |
+
+Every amount is `null` when it cannot be read, never `0` in its place.
 
 Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperliquid/api-reference/websocket/maker).
 
@@ -63,30 +79,75 @@ Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperli
 
 | When | What changes |
 | --- | --- |
-| You confirm a fill | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`. `discount` does not change, so the new position locks in full. |
+| You confirm an entry | Its worst case joins `pending_commitments` ([When collateral is checked](#when-collateral-is-checked)). |
+| The entry lands on-chain | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`, and its reservation leaves `pending_commitments`. `discount` does not change, so the new position locks in full. |
 | A position loses | You keep the stake: it leaves `stake_escrow` and stays in `vault_gross`. `gross_open` falls by the position's worst case. |
 | A position wins | The taker's stake goes back to them. You owe the profit, held in `payable_owed` until Totalis claims it for the taker. `gross_open` falls. |
+| A position pays part (`PARTIAL`) | What it pays leaves `vault_gross` for the owner, and you keep the rest of the stake. It leaves `stake_escrow`. `gross_open` falls. |
 | A position closes either way | `discount` falls by the part of the closed position's worst case you did not pay, so the credit it earned leaves with it. |
-| You buy a position back (`SELL_BACK`) | The price comes out of `vault_gross`. The position closes as above. |
+| You buy a position back (`SELL_BACK`) | The price comes out of `vault_gross`. The net stake leaves `stake_escrow`, so it is yours again. The position closes as above. |
 | Another maker buys it (`TRANSFER`) | Nothing changes for you. You still back it, for its new owner. |
-| You deposit or withdraw | `vault_gross` moves. A withdrawal must leave `free_collateral` covered. |
+| You deposit or withdraw | `vault_gross` moves. A withdrawal executes only if its amount is within `free_collateral` at that time. |
 
 The profit fee comes out of the taker's winnings, not your vault. The entry fee comes out of the
 taker's stake before it reaches you. Rates are on [Limits](/hyperliquid/limits-and-fees).
 
 ## When collateral is checked
 
-Creating a quote reserves nothing. Your capacity is checked when you confirm a fill, against
-`free_collateral` less every fill not yet on-chain. If several of your quotes are accepted at once,
-a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`. The contract checks again when the trade
-lands. Quote only what `free_after_pending` covers.
+A quote reserves nothing until you confirm it. From your confirm until the fill lands on-chain or its
+`expiry` passes, the fill holds what it can cost you against your capacity.
+
+| Confirm | Holds |
+| --- | --- |
+| Entry | Its worst case, `payout - net stake`. |
+| `SELL_BACK` | Its `price`, less the position's net stake and the worst case it releases. Never below zero: a buyback that frees capital holds nothing. |
+| `TRANSFER` | Its `price`, against your wallet's own vault balance, not the maker vault. |
+
+Each entry and `SELL_BACK` confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. A `TRANSFER` confirm is checked against your wallet's own vault balance instead. If
+several of your quotes are accepted at once, a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and
+nothing fills. Quote only what `free_after_pending` covers. A maker whose free capital is short of its
+requirement, but whose vault still covers stakes and owed winnings, can still buy back a position whose close
+restores its coverage.
+
+The contract checks again when the trade lands, and a fill it refuses ends `FAILED`. That can still happen
+after `ACCEPTED`: on an RFQ without `intent_id`, the confirm check is skipped while Totalis's view of the chain
+lags, and the vault decides.
+
+A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the
+withdrawal then reverts. While one is pending, subtract its `pending.amount`
+([Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal)) from what you quote with.
 
 ## Reduce collateral
 
 A reduction looks at every open position you back, finds the most your book can lose under any way
 the markets can resolve, and certifies the difference as your `discount`. You submit that
 certificate on-chain from a wallet that pays the gas. Totalis does not run reductions for you, and
-it does not pay their gas.
+it does not pay their gas. It runs headless: the API calls use a maker key with the
+[maker collateral scopes](/hyperliquid/authentication#scopes) (`COLLATERAL_SCOPES` in the SDK), and a wallet that
+holds HYPE signs the certificate transaction. Your maker wallet works.
+
+```ts
+import { createMaker } from "@totalistrading/hip4-client/maker";
+import { createWalletClient, defineChain, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
+const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
+const hyperEvm = defineChain({
+  id: 999, name: "HyperEVM", nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.hyperliquid.xyz/evm"] } },
+});
+const walletClient = createWalletClient({ account: wallet, chain: hyperEvm, transport: http() });
+const maker = createMaker({
+  environment: "production", apiKey: process.env.TOTALIS_COLLATERAL_KEY!, makerId: process.env.TOTALIS_MAKER_ID!, signer: wallet,
+});
+const { job, submitted } = await maker.reduceCollateral({
+  signTransaction: async (call) =>
+    walletClient.signTransaction(await walletClient.prepareTransactionRequest({ to: call.to, data: call.data, value: 0n })),
+});
+```
+
+`id` is `chain_id` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Use your collateral key,
+not the quoting bot's: it holds `vault:write` and `operations:submit`. The steps below are the same flow over the API.
 
 <Steps>
   <Step title="Start a job">
@@ -96,7 +157,7 @@ it does not pay their gas.
 
     ```bash
     curl -X POST https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/collateral-reductions \
-      -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+      -H "Authorization: Bearer $TOTALIS_COLLATERAL_KEY" \
       -H "Idempotency-Key: 01998713-2f4a-7c3e-9b1d-6a0e4f5c8d20"
     ```
 
@@ -116,7 +177,8 @@ it does not pay their gas.
     for one call to the vault.
   </Step>
   <Step title="Sign and submit it">
-    Sign that call as an EIP-1559 transaction from any wallet that holds HYPE for gas. Send it to
+    Sign that call as an EIP-1559 (type 2) transaction to the vault on this chain, with zero value and
+    exactly the job's calldata. Any wallet that holds HYPE for gas can send it; your maker wallet works. Send it to
     [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction)
     with the job's `operation_id` and the same `Idempotency-Key` that created the job, before the
     job's `expiry`. Totalis checks the transaction matches the job and broadcasts it. It never holds
@@ -124,7 +186,7 @@ it does not pay their gas.
 
     ```bash
     curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/operations/$OPERATION_ID/self-funded-transaction \
-      -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+      -H "Authorization: Bearer $TOTALIS_COLLATERAL_KEY" \
       -H "Idempotency-Key: 01998713-2f4a-7c3e-9b1d-6a0e4f5c8d20" \
       -H "Content-Type: application/json" \
       -d '{ "signed_transaction": "0x02f8d4..." }'
@@ -173,14 +235,45 @@ open position locks in full again. It can only raise your requirement, never low
 
 ## Move maker funds
 
-Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these.
+Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these. /mm
+only shows a pending withdrawal. [Fund and withdraw](/hyperliquid/guides/market-making#fund-and-withdraw)
+runs each call headless with the SDK. The
+vault is `vault_address` and USDC is `usdc.address` in
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Every `amount` is atomic USDC
+(6 decimals).
 
-| Vault call | Does |
-| --- | --- |
-| USDC `approve(vault, amount)`, then `depositMaker` | Deposits into the maker vault. Anyone can deposit for your maker. |
-| `requestMakerWithdraw`, then `executeMakerWithdraw` | Withdraws after the [delay](/hyperliquid/limits-and-fees). The execute fails if it would leave your positions uncovered. |
-| `cancelMakerWithdraw` | Cancels a pending withdrawal. One can be pending at a time. |
-| `resetDiscount` | Sets your collateral discount to zero. |
+```solidity
+interface ITotalisMakerVault {
+    function depositMaker(uint64 makerId, address expectedController, uint128 amount) external;
+    function requestMakerWithdraw(uint64 makerId, uint128 amount, address to) external;
+    function executeMakerWithdraw(uint64 makerId) external;
+    function cancelMakerWithdraw(uint64 makerId) external;
+    function resetDiscount(uint64 makerId) external;
+
+    function makerOf(address controller) external view returns (uint64 makerId);
+    function makerWithdrawals(uint64 makerId) external view returns (uint128 amount, address to, uint64 readyAt);
+
+    event MakerDeposited(uint64 indexed makerId, address payer, uint128 amount);
+    event MakerWithdrawRequested(uint64 indexed makerId, uint128 amount, address to, uint64 readyAt);
+    // phase: 0 EXECUTED, 1 CANCELLED
+    event MakerWithdrawResolved(uint64 indexed makerId, uint8 phase, address by, uint128 amount, address to);
+    event DiscountReset(uint64 indexed makerId, address by);
+}
+```
+
+| Call | Sent by | Does |
+| --- | --- | --- |
+| USDC `approve(vault, amount)`, then `depositMaker` | Any wallet | Pulls `amount` from the sender into your maker vault. `expectedController` is your maker wallet (`owner` in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)); any other reverts `ControllerMismatch()`. |
+| `requestMakerWithdraw` | Your maker wallet | Starts the [delay](/hyperliquid/limits-and-fees) for `amount` to `to`. One can be pending at a time: a second reverts `WithdrawRequestLive()`. The request doesn't check your free cash; ask for at most the `MAKER_WITHDRAW` action in [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). Execution re-checks your free collateral on-chain after the delay. |
+| `executeMakerWithdraw` | Your maker wallet | Pays the pending request to its `to` once `readyAt` (Unix seconds) has passed. Reverts `WithdrawNotReady()` before then, and `InsufficientFree()` or `MakerShort()` if it would leave your positions uncovered. |
+| `cancelMakerWithdraw` | Your maker wallet, or Totalis's guardian | Cancels the pending request. |
+| `resetDiscount` | Your maker wallet, or Totalis's guardian | Sets your collateral discount to zero. |
+| `makerOf`, `makerWithdrawals` | Anyone, as a view call | Your maker ID, and your pending request (`readyAt` is `0` when none is pending). |
+
+A call from a wallet the table doesn't list reverts `Unauthorized()`. Every call that changes state
+reverts `NoMaker()` for an unknown `makerId`; the view calls return zeros.
+While the vault is paused, `depositMaker` and `executeMakerWithdraw` revert `Paused()`; the other calls
+still work.
 
 The [SDK](/hyperliquid/sdk#make-markets)'s `maker.controller()` builds each call for your wallet to
 send.

@@ -6,7 +6,7 @@ description: 'The public market data WebSocket: catalog entries and reference pr
 
 | | Value |
 | --- | --- |
-| URL | `wss://hip4-api.totalis.trade/v1/market-stream` |
+| URL | `wss://hip4-ws.totalis.trade/v1/market-stream` |
 | Subprotocol | `totalis.market.v2` |
 | Auth | None. The upgrade needs an allowed browser `Origin`, or it is refused with `ORIGIN_NOT_ALLOWED`. |
 
@@ -45,7 +45,9 @@ Response:
 
 ## Snapshot
 
-Sent at once, and again after the server repairs a source outage. Replace all local state with it.
+Sent at once, and again after the server repairs a source outage. Replace every catalog entry and
+reference you hold from this stream with it. Keep your [Get market](/hyperliquid/api-reference/markets/get-market)
+reads: see [Merge with REST](#merge-with-rest).
 
 ```json
 {
@@ -61,8 +63,15 @@ Sent at once, and again after the server repairs a source outage. Replace all lo
       {
         "outcome_id": "1209",
         "native_question_id": "166",
+        "relationship_kind": "NAMED",
+        "support_state": "SUPPORTED",
         "title": "HYPE touches 100 by 20261001-0000",
         "state": "ACTIVE",
+        "result": { "availability": "AVAILABLE", "result_state": "UNRESOLVED" },
+        "metadata_revision": "7",
+        "eligibility": { "state": "ENABLED" },
+        "deadline": { "timing": null, "availability": "UNAVAILABLE", "reason": "UNQUALIFIED_MARKET_CLASS" },
+        "venue": "",
         "sides": [
           { "side": "YES", "coin": "#12090", "asset_id": "100012090" },
           { "side": "NO", "coin": "#12091", "asset_id": "100012091" }
@@ -76,6 +85,12 @@ Sent at once, and again after the server repairs a source outage. Replace all lo
         "side": "YES",
         "reference": { "availability": "UNAVAILABLE", "source": "HYPERLIQUID_ALL_MIDS", "reason": "NOT_OBSERVED", "freshness": "UNKNOWN", "received_at": "2026-08-07T20:00:00Z" },
         "version": "44"
+      },
+      {
+        "outcome_id": "1209",
+        "side": "NO",
+        "reference": { "availability": "UNAVAILABLE", "source": "HYPERLIQUID_ALL_MIDS", "reason": "NOT_OBSERVED", "freshness": "UNKNOWN", "received_at": "2026-08-07T20:00:00Z" },
+        "version": "44"
       }
     ]
   }
@@ -85,11 +100,44 @@ Sent at once, and again after the server repairs a source outage. Replace all lo
 | Field | Meaning |
 | --- | --- |
 | `version` | This state's version. The next delta's `previous_version` equals it. |
-| `catalog` | Each selected outcome's catalog entry, trimmed above. The full shape is [Get market](/hyperliquid/api-reference/markets/get-market). |
-| `references` | The reference price of each side, with its source and `freshness`. |
+| `catalog` | Each selected outcome's [catalog entry](#catalog-entry). Not the Get market shape. |
+| `references` | The reference price of each side of each selected outcome, with its source and `freshness`. Divide `value` by `scale` for a price between 0 and 1. |
 | `catalog_generation`, `producer_id` | A change to either resets the stream. |
 | `feed_generation` | The reference-price feed generation. |
-| `complete` | `true` when every selected outcome is covered. |
+| `complete` | Always `true`. |
+
+## Catalog entry
+
+| Field | Meaning |
+| --- | --- |
+| `outcome_id` | The market's HIP-4 outcome ID. |
+| `native_question_id` | Its question ID, or `"4294967295"` for a market with no question (Get market sends `null`). |
+| `relationship_kind` | `STANDALONE` (no question), `NAMED` (a named outcome of a question) or `FALLBACK` (a question's fallback outcome). |
+| `support_state` | `SUPPORTED`, or why Totalis cannot support the market: `UNSUPPORTED_PROTOCOL_VERSION`, `UNSUPPORTED_QUOTE_ASSET` or `IDENTITY_CONFLICT`. |
+| `title`, `state`, `result`, `eligibility` | As in Get market. |
+| `metadata_revision` | Rises when the market's metadata changes. |
+| `venue` | The Hyperliquid deployer's venue code, `""` for Hyperliquid's own markets. |
+| `sides` | `YES` then `NO`, each with its `coin` and the `asset_id` you trade it with. |
+| `version` | The stream `version` at which this entry last changed. |
+| `deadline` | Internal. Ignore it, and read the market's dates from Get market. |
+
+An entry has no `category`, `subcategory`, `dates`, `combo` or `deployer`. Read those from
+[Get market](/hyperliquid/api-reference/markets/get-market).
+
+### Merge with REST
+
+Keep each Get market response as the market's record, and never replace it with a stream entry. From
+the stream, overlay only `state`, `result`, `eligibility` and the side references, matched by
+`outcome_id` and, for references, `side`.
+
+| When | Do |
+| --- | --- |
+| `metadata_revision` rises, or `catalog_generation` changes | Read Get market again. |
+| An outcome is in `catalog_removals` | Drop it, and read your market lists again. |
+| `combo` is `CLOSED` with an `opens_at` | Read Get market again after `opens_at`. |
+
+The stream never pushes `combo`. Read it from Get market before you build a Combo. A Create RFQ that
+includes a market closed to Combos is refused, whatever your cached `combo` says.
 
 ## Delta
 
