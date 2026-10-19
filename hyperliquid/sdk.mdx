@@ -1,10 +1,10 @@
 ---
 title: 'TypeScript SDK'
 icon: 'code'
-description: 'The @totalistrading/hip4-client SDK 0.60.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
+description: 'The @totalistrading/hip4-client SDK 0.60.1: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
 ---
 
-`@totalistrading/hip4-client` 0.60.0 wraps every route, the taker and maker flows, wallet sign-in, partner
+`@totalistrading/hip4-client` 0.60.1 wraps every route, the taker and maker flows, wallet sign-in, partner
 admission, every signed message and the WebSocket. It never stores a key: every signature goes to the signer you
 pass in.
 
@@ -19,7 +19,7 @@ GitHub account that should read it. Then, with a GitHub token that has `read:pac
 ```
 
 ```bash
-npm install @totalistrading/hip4-client@0.60.0 viem
+npm install @totalistrading/hip4-client@0.60.1 viem
 ```
 
 ESM, Node 22 or later, and browsers. It has no wallet dependency: `viem` or ethers only turns a private key into a
@@ -240,7 +240,7 @@ maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFI
 | `onRfq(handler)` | Runs once per open RFQ per subscription, from events and the snapshot. A restart or a new subscription delivers the still-open RFQs again; quoting again replaces the earlier quote, so it cannot double-fill. An RFQ with an acceptance waiting for you is held, and offered again once you decline it or its `deadline` passes on the venue clock. One you filled, or that ended, is never offered again. |
 | `quote(rfq, { payout })` | Publishes `entry` terms with the deployment's fees. Returns its `quoteId`. Starts the stream and waits until it is live. After a truncated snapshot or a cursor resume, it first pages [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances), which needs `quote:read`. |
 | `bid(rfq, { price })` | Publishes `sell_back` terms when this maker backs the position, otherwise `transfer` terms paid from the maker wallet's own vault balance ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)) |
-| `cancelQuote(quoteId)` | Removes a quote. `ACCEPTED` means you already confirmed it. Cancelling a quote whose acceptance is waiting for you withdraws that acceptance: answer it with `confirm(acceptance, "DECLINE")` instead. |
+| `cancelQuote(quoteId)` | Removes a quote. `ACCEPTED` means you already confirmed it. While an acceptance of it waits for you, the venue refuses with `STATE_CONFLICT`: answer it with `confirm(acceptance, "DECLINE")` instead. |
 | `onAcceptance(handler)` | Answers every pending acceptance once with the handler's `CONFIRM` or `DECLINE`. Signs only terms this maker published and that have not expired, and resends a lost answer byte for byte. |
 | `confirm(acceptance, decision)` | Answers one acceptance yourself |
 | `deployment()` | The cached [deployment](/hyperliquid/api-reference/deployment/get-deployment) every quote signs against |
@@ -255,9 +255,10 @@ maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFI
 | `openMakerVaultTransaction(deployment, wallet)` | The transaction that opens a maker for `wallet`, for an account whose own wallet signs in. An app account uses **Create maker account** on /mm. |
 
 `quote` and `bid` throw `AcceptancePendingError` (`code` `ACCEPTANCE_PENDING`, with `rfqId`, `quoteId` and
-`deadline`), and publish nothing, while this maker has an unanswered acceptance on that RFQ. A new quote would
-withdraw it. The check covers acceptances the SDK has already received. One the venue records while a replacing
-quote is on its way can still be withdrawn.
+`deadline`), and send nothing, while this maker has an unanswered acceptance on that RFQ that the SDK has
+already received. If the venue records an acceptance while a `quote`, `bid` or `cancelQuote` request is on its
+way, the venue refuses that request with `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`). Either way the
+acceptance still waits: answer it in `onAcceptance`.
 
 The maker wallet sends its own vault transactions and pays the gas in HYPE. The SDK never sends a transaction.
 See [Market making](/hyperliquid/guides/market-making) and [Maker collateral](/hyperliquid/guides/collateral).
@@ -363,7 +364,8 @@ The package ships `CHANGELOG.md`. Recent breaking changes:
 
 | Version | Change |
 | --- | --- |
-| 0.60.0 | `quote` and `bid` throw `AcceptancePendingError` instead of withdrawing an acceptance waiting for you, and `onRfq` holds that RFQ until it is answered. `reduceCollateral` returns the job's `idempotencyKey`. |
+| 0.60.1 | Docs only. `quote`, `bid` and `cancelQuote` can throw `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`) when the venue records an acceptance while the request is on its way. Answer it in `onAcceptance`. |
+| 0.60.0 | `quote` and `bid` throw `AcceptancePendingError` when an acceptance is waiting for you, and `onRfq` holds that RFQ until it is answered. `reduceCollateral` returns the job's `idempotencyKey`. |
 | 0.57.0 | A resumed account stream is `live` only after its replay is applied. A withdrawal or return to HyperCore with an unread balance throws `BalanceUnknownError`, and Core exits on a deployment without them (staging) throw `ExitUnavailableError`, before anything is signed. Both used to be plain `Error`s. |
 | 0.55.0 | Cash-out RFQs carry `net_stake` and `payout`. |
 | 0.54.0 | Anonymous reads refuse query parameters they do not take (400 `INVALID_QUERY`). |

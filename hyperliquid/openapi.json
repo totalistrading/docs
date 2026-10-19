@@ -1737,7 +1737,7 @@
             }
           },
           "409": {
-            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "description": "`RFQ_NOT_OPEN`: the RFQ is no longer open, or a leg already settled. `STATE_CONFLICT`: a taker's acceptance of your live quote on this RFQ awaits your answer, which replacing the quote would withdraw; answer it with Confirm quote first, or wait for its deadline. Also the taker cannot trade, or this `quote_id` was already signed.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2075,7 +2075,7 @@
             }
           },
           "409": {
-            "description": "The quote is `ACCEPTED`: you already confirmed it, so it cannot be cancelled. The body is then the quote's status; any other conflict with the quote's state returns an error.\n\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "description": "The quote is `ACCEPTED`: you already confirmed it, so it cannot be cancelled. The body is then the quote's status; any other conflict with the quote's state returns an error: `STATE_CONFLICT` while a taker's acceptance of the quote awaits your answer, so decline it with Confirm quote instead. Once it is answered or its deadline passes, the cancel proceeds.\n\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
             "content": {
               "application/json": {
                 "schema": {

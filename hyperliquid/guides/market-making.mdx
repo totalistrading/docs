@@ -203,9 +203,11 @@ are on [Limits](/hyperliquid/limits-and-fees).
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
   `free_after_pending` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
 - A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.
-- Never quote again, or cancel, while an acceptance of your quote is waiting for you. Either one withdraws the
-  acceptance, and the taker sees it `CANCELLED`. Answer it instead: confirm, or decline. The
-  [SDK](/hyperliquid/sdk#make-markets) refuses to quote an RFQ while it holds an acceptance on it.
+- While a taker's acceptance of your live quote on an RFQ waits for your answer and its `deadline` has not
+  passed, a new quote on that RFQ (entry or cash-out) returns `409 STATE_CONFLICT`. Nothing changes: the
+  acceptance still waits for you. Confirm or decline it first, or wait for its `deadline`. Past the `deadline`
+  it no longer blocks, and your new quote marks it `TIMED_OUT`.
+- An exact retry of a quote that already went through returns the original `quote_id`.
 
 ### Cancel a quote
 
@@ -220,6 +222,11 @@ curl -X DELETE https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID \
 
 `CANCELLED` or `REPLACED` means it is off the RFQ. A `409` with `{ "status": "ACCEPTED" }` means you already
 confirmed it: it is filling, and cannot be cancelled.
+
+While a taker's acceptance of the quote waits for your answer, cancel returns `409 STATE_CONFLICT` (an error
+body) and changes nothing. To refuse the fill, [confirm](#confirm) with `{ "decision": "DECLINE" }`. Once the
+acceptance is answered or past its `deadline`, the cancel goes through, so repeating it is safe. Past the
+`deadline`, cancelling marks the acceptance `TIMED_OUT`.
 
 ### Quote lease
 
