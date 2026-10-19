@@ -50,7 +50,7 @@ other account, trading and maker route needs an API key or a [wallet session](/h
   </Step>
   <Step title="Accept and fill">
     Sign the quote you want and [accept it](/hyperliquid/api-reference/quotes/accept-quote). The maker
-    confirms within 2 seconds. Totalis puts the trade on-chain and pays the gas.
+    has 2 seconds to confirm or decline. Totalis puts the trade on-chain and pays the gas.
   </Step>
   <Step title="Settle, or cash out first">
     When the markets resolve, Totalis settles the position and pays a win into your vault balance.
@@ -70,8 +70,8 @@ other account, trading and maker route needs an API key or a [wallet session](/h
 | 5 | Holds the position. | Backs it from the maker vault. |
 
 Your USDC sits in your Totalis wallet and the vault contract. The vault moves funds only with a
-signature from the funds' owner. You do not need to deposit before you trade: an accept pulls any shortfall from your
-wallet. Winnings are claimed for you.
+signature from the funds' owner. You do not need to deposit before you trade: an accept with signed `funding` pulls any shortfall from your
+wallet, and the SDK adds it for you. Winnings are claimed for you.
 
 ## The essentials
 

@@ -30,7 +30,8 @@ their own Hyperliquid feed and read the market catalog over
   <Step title="Connect">
     Open the socket with the `totalis.realtime.v2` subprotocol and your key as
     `Authorization: Bearer <key>` on the upgrade. A browser cannot set that header, so it sends a
-    second subprotocol, `auth.<key in base64url without = padding>`, instead, from an allowed origin.
+    second subprotocol, `auth.<token in base64url without = padding>`, instead, from an allowed origin. The token is
+    your API key or wallet session token.
   </Step>
   <Step title="Subscribe">
     Send one `subscribe` frame. Include your saved `cursor` if you have one. The server answers with
@@ -93,7 +94,8 @@ Every close carries an error code as its reason. Its `retry` says what to do.
 | `reset` frame, then `CURSOR_RESET` | Discard local state. Reconnect without a cursor and load the fresh snapshot. |
 | `SLOW_CONSUMER` | You fell behind. Reconnect with backoff and resume. Apply events off the socket's read loop. |
 | `CONNECTION_DRAIN`, `SOURCE_UNAVAILABLE`, `DEPENDENCY_STALE`, `SNAPSHOT_TOO_LARGE` | Reconnect with backoff and resume. |
-| `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED`, `INVALID_SUBSCRIPTION`, `SUBPROTOCOL_REQUIRED` | Stop. Fix the key, its scopes or the subscribe frame. |
+| `SUBPROTOCOL_REQUIRED` | Stop. Open the socket with the `totalis.realtime.v2` subprotocol. |
+| `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED`, `INVALID_SUBSCRIPTION` | Stop. Fix the key, its scopes or the subscribe frame. |
 | `STREAM_REPLACED` | Stop. A newer stream for this wallet session replaced it. Reconnecting replaces your oldest stream. |
 | No reason (the network dropped) | Reconnect with backoff and resume. |
 

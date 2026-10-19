@@ -38,7 +38,8 @@ want, and earn the difference between what you quote and what the outcomes are w
 
 ## Endpoints
 
-Every route below takes your quoting key, except Lower your collateral, which takes your collateral key.
+Every keyed route below takes your quoting key, except Lower your collateral, which takes your collateral key.
+Get deployment needs no key.
 
 | Step | Endpoint or event |
 | --- | --- |
@@ -437,7 +438,7 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
-lands, and an entry also expires unsent when the taker's funding does not arrive in time. Every confirm is checked against your capacity first
+lands, and an entry with taker `funding` also expires unsent when that funding does not arrive in time. Every confirm is checked against your capacity first
 ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ without
 `intent_id`, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
 fill can still revert. Keep following `OPERATION_UPDATED`.
@@ -465,9 +466,10 @@ Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any RFQ a
 ### After a restart
 
 Subscribe from your saved cursor. On `REPLAY`, the replayed `QUOTE_ACCEPTED` events carry what arrived while you
-were away. On `SNAPSHOT` or `RESET`, the snapshot's `acceptances` holds every acceptance still waiting for you,
-earliest deadline first. Either way, [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) returns
-every one still waiting. Answer each
+were away. On `SNAPSHOT` or `RESET`, the snapshot's `acceptances` holds the acceptances still waiting for you,
+earliest deadline first; if `truncated` lists it, page the rest. Either way,
+[List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) returns every one still waiting: follow
+`next_cursor` until `has_more` is false. Answer each
 one before its `deadline`, and don't quote those RFQs again first. Keep the `quote_id`s you created in durable
 storage, so a restarted bot confirms only terms it published.
 

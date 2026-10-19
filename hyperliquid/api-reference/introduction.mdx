@@ -57,8 +57,8 @@ The full encoding table and the idempotency exceptions are on
 ## Responses
 
 A successful response is the resource itself, with no envelope. A `204` has no body. Most lists return
-their rows in `items`; a few name them after the resource (`rfqs`, `operations`, `acceptances`). Every list pages by
-cursor:
+their rows in `items`; a few name them after the resource (`rfqs`, `operations`, `acceptances`, `bars`). Two lists
+are not paged: an RFQ's quotes (`quotes`) and your exits to HyperCore (`exits`). Every other list pages by cursor:
 
 ```json
 { "items": [], "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjYwLCJrIjoibWFya2V0In0", "has_more": true }

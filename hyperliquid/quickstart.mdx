@@ -49,7 +49,7 @@ The list is flat: one row per market, with no question title. Markets of one que
 `native_question_id`. For a market in a question, [Get market](/hyperliquid/api-reference/markets/get-market)
 returns its `question`, with the `title` and all its markets. A standalone market has
 `native_question_id: null` and `question: null`. [List questions](/hyperliquid/api-reference/markets/list-questions)
-(`GET /v1/discovery`) groups markets under their question titles.
+(`GET /v1/discovery`) groups markets under their question titles, and lists standalone markets separately.
 
 Your identity checks the key:
 

@@ -79,8 +79,8 @@ Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperli
 
 | When | What changes |
 | --- | --- |
-| You confirm a fill | Its worst case joins `pending_commitments` ([When collateral is checked](#when-collateral-is-checked)). |
-| The fill lands on-chain | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`, and its reservation leaves `pending_commitments`. `discount` does not change, so the new position locks in full. |
+| You confirm an entry | Its worst case joins `pending_commitments` ([When collateral is checked](#when-collateral-is-checked)). |
+| The entry lands on-chain | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`, and its reservation leaves `pending_commitments`. `discount` does not change, so the new position locks in full. |
 | A position loses | You keep the stake: it leaves `stake_escrow` and stays in `vault_gross`. `gross_open` falls by the position's worst case. |
 | A position wins | The taker's stake goes back to them. You owe the profit, held in `payable_owed` until Totalis claims it for the taker. `gross_open` falls. |
 | A position pays part (`PARTIAL`) | What it pays leaves `vault_gross` for the owner, and you keep the rest of the stake. It leaves `stake_escrow`. `gross_open` falls. |
