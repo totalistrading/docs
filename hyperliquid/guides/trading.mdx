@@ -14,8 +14,9 @@ the gas.
 1. Subscribe to the [account channel](/hyperliquid/api-reference/websocket/account) and wait for the snapshot.
 2. [Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq).
 3. Collect `QUOTE_CREATED` events.
-4. Sign one quote and [accept](/hyperliquid/api-reference/quotes/accept-quote) it.
-5. Follow `OPERATION_UPDATED` until `COMMITTED`.
+4. Sign everything the entry needs, save it, and [accept](/hyperliquid/api-reference/quotes/accept-quote) one
+   quote before its `accept_before`.
+5. Follow `OPERATION_UPDATED` until it is terminal. Only `COMMITTED` opened the position.
 
 ### Create RFQ
 
@@ -76,15 +77,19 @@ Each `QUOTE_CREATED` carries one quote:
 }
 ```
 
-`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. An entry quote
-stops being acceptable at `accept_before`, 14 seconds before `expiry` (unix seconds), which sends no event. A
-cash-out quote leaves the list 22 seconds before its `expiry`.
+`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left.
+
+Accept a quote before its `accept_before`. From then on the accept returns `409 QUOTE_EXPIRED`, and the quote
+leaves the list with no event. The gap to the signed `expiry` (unix seconds) is the maker's time to confirm and
+the trade's time to land ([Limits](/hyperliquid/limits-and-fees)). The RFQ's `expires_at` only stops new quotes.
+A cash-out quote leaves the list 22 seconds before its `expiry`.
 
 ### Accept
 
 Sign the quote's `entry` terms as `TakerAccept` ([Signing](/hyperliquid/authentication#who-signs-what)).
 The `Idempotency-Key` becomes the `acceptance_id`: choose it before the first send and reuse it on every
-retry.
+retry. Sign everything the entry needs, including any [funding](#funding), when the user presses, and save it
+before you send anything.
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/accept \
@@ -110,11 +115,11 @@ The response waits for the maker's answer:
 
 | `status` | Meaning |
 | --- | --- |
-| `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. |
+| `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. It has not traded yet. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded. Create a new RFQ. |
 
-Read later, an acceptance can also be `FILLED` or `FAILED`. With `funding`, an `ACCEPTED` acceptance also carries
-`fund_by`, 2 seconds after the confirm. Judge `deadline` and `fund_by` against `server_time`, not your clock.
+Read later, an acceptance can also be `FILLED` or `FAILED`. `server_time` is the venue's clock when it read the
+acceptance. Judge `deadline` and `fund_by` against it, not your clock.
 
 ### Funding
 
@@ -136,10 +141,52 @@ the shortfall in the same transaction as the trade. It needs `funding:deposit`.
 ```
 
 `value` is the stake minus `VAULT_FREE` in [Get balances](/hyperliquid/api-reference/account/get-balances),
-signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`. Sign
-`valid_after` at or before now and `valid_before` no earlier than the quote's `expiry`, at most 900 seconds apart. If
-you bridge USDC from HyperCore to fund it, send the bridge only after the accept returns `ACCEPTED` and before
-`fund_by`. `WALLET_FUNDING_UPDATED` reports the funding's progress.
+signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`. The
+authorization must be valid now and stay valid through the quote's `expiry`; the window is on
+[Limits](/hyperliquid/limits-and-fees).
+
+The accept does not read your wallet's balance. The trade checks it when it executes. A confirmed accept with
+`funding` carries `fund_by`:
+
+```json
+{
+  "acceptance_id": "01a0df4e-6269-78d2-a4f6-a1b3c5d7e9f8",
+  "status": "ACCEPTED",
+  "fund_by": "2026-09-26T20:00:53.690Z",
+  "server_time": "2026-09-26T20:00:51.791Z"
+}
+```
+
+If the venue finds the USDC missing from your wallet before it sends the trade, the operation ends
+`EXPIRED_UNEXECUTED` with `failure_reason` `INSUFFICIENT_CASH`. If the USDC leaves after that, the trade can end
+`REVERTED` with no reason. Either way, nothing traded.
+
+### Funding from HyperCore
+
+If the USDC sits on HyperCore, move it to your HyperEVM wallet with a Hyperliquid `sendAsset` to
+`0x2000000000000000000000000000000000000000`, but only once the maker has confirmed. A transfer sent before the
+accept is answered stays in the wallet when the entry does not trade.
+
+1. When the user presses, sign `TakerAccept`, the `ReceiveWithAuthorization` and the `sendAsset`. Save all three.
+2. Post the accept. Send [List quotes](/hyperliquid/api-reference/quotes/list-quotes) for the RFQ at the same
+   time. As each request leaves, note both a monotonic clock and the wall clock.
+3. If the answer is `ACCEPTED` with `fund_by`, send the saved `sendAsset` while `fund_by` is still ahead. Resend
+   the same bytes while Hyperliquid has not answered, until `fund_by`. Check `fund_by` again right before every
+   send and resend, including after each save.
+4. On any other answer, or once `fund_by` passed, discard the `sendAsset`. Never send it later.
+
+Judge `fund_by` against the latest time the venue clock can show: a response's `server_time` plus the time since
+its request left. Measure that time on both clocks and take the larger: a monotonic clock can pause while the
+device sleeps, and the wall clock can step back. Take the smallest such value over the responses you have. The
+accept's own `server_time` is read after the maker answered, so the List quotes read sent beside it gives the
+tighter value. With no `server_time` to judge by, discard the `sendAsset`. Never compare `fund_by` with the device's
+own time of day, and never treat `server_time` as the moment the response arrived.
+
+Persist each step. After a crash or reload, read [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance),
+which carries `fund_by` and `server_time`. Send a never-sent `sendAsset` only if the acceptance is `ACCEPTED`
+and `fund_by` is still ahead by that read. Resend a sent but unanswered one with the same bytes until `fund_by`.
+Discard the rest. The SDK does all of this
+([Funding from HyperCore](/hyperliquid/build/partner-frontend#funding-from-hypercore)).
 
 ### Lost response
 
@@ -154,7 +201,21 @@ is final. Never accept the same quote under a second key.
 | --- | --- |
 | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
 | `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
-| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. USDC moved from HyperCore stays in your wallet on HyperEVM. |
+
+A terminal operation is not a success. Check for `COMMITTED` before you show a trade. A failed operation carries
+`failure_reason` `INSUFFICIENT_CASH` when the venue found your cash short before it sent the trade, on
+`OPERATION_UPDATED` and on [Get operation](/hyperliquid/api-reference/account/get-operation). It is absent when
+the venue names no reason, as for a trade that reverted on-chain.
+
+If the entry planned a [move from HyperCore](#funding-from-hypercore), tell the two causes apart with your own
+record of the `sendAsset`:
+
+| `failure_reason` | Your `sendAsset` | Show |
+| --- | --- | --- |
+| `INSUFFICIENT_CASH` | None planned, or Hyperliquid answered `ok` | Not enough cash |
+| `INSUFFICIENT_CASH` | Anything else: discarded, refused, or no `ok` from Hyperliquid | The move from HyperCore did not happen in time. The USDC may still be on HyperCore. |
+| Absent | Any | The entry failed. Nothing traded. |
 
 The position's ID is the `quote_id` you accepted:
 

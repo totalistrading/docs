@@ -60,9 +60,9 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | --- | --- | --- |
 | `RFQ_CREATED` | You created an RFQ, or any RFQ opened (with `open_rfqs`) | The open RFQ, as [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq), without `status` |
 | `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at`, and `intent_id` and `intent_generation` for any RFQ opened with an intent. `terminal_reason` is set only on `RFQ_FAILED`: `REVERTED`, `EXPIRED_UNEXECUTED` or `INSUFFICIENT_CASH`. |
-| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, `accept_before` (entry quotes: accept before it, 14 seconds before `entry.expiry`), and `entry`, `sell_back` or `transfer` |
-| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. An entry quote stops being acceptable at its `accept_before`, which sends no event. |
-| `OPERATION_UPDATED` | An operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
+| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, an entry quote's `accept_before`, and `entry`, `sell_back` or `transfer` |
+| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. An entry quote passing its `accept_before`, or any quote expiring, sends no event. |
+| `OPERATION_UPDATED` | An operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at`, and `failure_reason` only when the venue names why it ended without executing: `INSUFFICIENT_CASH` on an `EXPIRED_UNEXECUTED` accept whose Cash fell short |
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position changed on-chain | `position_id`, `block_number`, `log_index`. Read the position. |
 | `VAULT_BALANCE_CHANGED` | Your vault balance changed | `address`, `amount` (the new balance), `transaction_hash`, `status` |
 | `WALLET_BALANCE_CHANGED` | A USDC transfer touched your wallet | `address`, `transaction_hash`, `block_number` |
