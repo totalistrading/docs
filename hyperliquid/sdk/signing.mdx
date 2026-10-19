@@ -5,9 +5,10 @@ description: 'Build and hash every message a Totalis flow signs: the EIP-712 bui
 ---
 
 The flows on the other pages build and sign these for you. Use the builders directly when you sign with your own
-stack, or to check what a wallet is asked to sign. Each builder below comes from `.../typed-data`, takes the
-[deployment](/hyperliquid/api-reference/deployment/get-deployment) and returns EIP-712 typed data, except the
-Hyperliquid `SendAsset` row, which is built from the root export `bridgeAction`.
+stack, or to check what a wallet is asked to sign. The builders come from `.../typed-data`. Each EIP-712 builder takes the
+[deployment](/hyperliquid/api-reference/deployment/get-deployment) and returns typed data. Two rows differ: the
+key approval is a Sign-In with Ethereum text message, not typed data, and Hyperliquid's `SendAsset` is built from
+the root exports `bridgeAction` and `hyperliquidNetwork`.
 
 | Builder | Message |
 | --- | --- |
