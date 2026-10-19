@@ -31,7 +31,7 @@ then read your account:
 ```ts
 import { createClient, unwrap } from "@totalistrading/hip4-client";
 
-const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
+const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY! });
 
 const me = unwrap(await client.GET("/v1/me"));
 console.log(me.wallet);
