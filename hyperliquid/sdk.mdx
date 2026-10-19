@@ -212,7 +212,7 @@ await signOutWallet({ environment: "production", accessToken: session.access_tok
 ## Make markets
 
 ```ts
-import { createMaker } from "@totalistrading/hip4-client/maker";
+import { createMaker, type MakerAcceptance } from "@totalistrading/hip4-client/maker";
 import { privateKeyToAccount } from "viem/accounts";
 
 const makerId = process.env.TOTALIS_MAKER_ID!;
@@ -223,16 +223,19 @@ const maker = createMaker({
   signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
 });
 
+// Your own checks: replace these.
+const stillGood = async (acceptance: MakerAcceptance) => Date.parse(acceptance.deadline) > Date.now();
+
 maker.onRfq(async (rfq) => {
   if (rfq.kind === "ENTRY") await maker.quote(rfq, { payout: (BigInt(rfq.stake) * 18n) / 10n });
   // Buy back only positions this maker backs; a transfer bid needs the wallet's own vault balance.
   else if (rfq.maker_id === makerId) await maker.bid(rfq, { price: 18_000_000n });
-});
+}, (error) => console.error(error)); // AcceptancePendingError or STATE_CONFLICT: answer it in onAcceptance
 // Re-check your price and free capital here, and decline when either moved.
 maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFIRM" : "DECLINE"));
 ```
 
-`stillGood` is yours. The prices above are placeholders: price from your own market data
+`stillGood` is yours: re-check your price and capital there. The prices above are placeholders: price from your own market data
 ([Price entries](/hyperliquid/guides/market-making#price-entries)).
 
 | Function | Does |

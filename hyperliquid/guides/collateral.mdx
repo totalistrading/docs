@@ -68,6 +68,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 | `reservations` | One row per confirmed fill not yet on-chain. `status` `UNKNOWN` means its outcome is not known yet; it still counts. |
 | `actions` | `MAKER_WITHDRAW`: the most a new [withdrawal request](#move-maker-funds) may ask for, or `null` with a blocker such as `MAKER_WITHDRAW_PENDING`. `MAKER_QUOTE` is always `null`: only your bot knows its other live quotes. |
 | `deployment_digest` | The hash of the deployment this read is bound to. |
+| `signer` | Your maker's quote signer. For a maker opened in the app it equals `owner`. The zero address means the maker cannot quote. |
 | `context.status` | `CURRENT`, or `STALE` or `UNAVAILABLE` when a source lags. A stale read never authorizes an action. |
 
 Every amount is `null` when it cannot be read, never `0` in its place.
@@ -101,14 +102,14 @@ A quote reserves nothing until you confirm it. From your confirm until the fill 
 | `SELL_BACK` | Its `price`, less the position's net stake and the worst case it releases. Never below zero: a buyback that frees capital holds nothing. |
 | `TRANSFER` | Its `price`, against your wallet's own vault balance, not the maker vault. |
 
-Each confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. If
+Each entry and `SELL_BACK` confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. A `TRANSFER` confirm is checked against your wallet's own vault balance instead. If
 several of your quotes are accepted at once, a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and
 nothing fills. Quote only what `free_after_pending` covers. A maker whose free capital is short of its
 requirement, but whose vault still covers stakes and owed winnings, can still buy back a position whose close
 restores its coverage.
 
 The contract checks again when the trade lands, and a fill it refuses ends `FAILED`. That can still happen
-after `ACCEPTED`: on an RFQ the app did not open, the confirm check is skipped while Totalis's view of the chain
+after `ACCEPTED`: on an RFQ without `intent_id`, the confirm check is skipped while Totalis's view of the chain
 lags, and the vault decides.
 
 A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the

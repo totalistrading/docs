@@ -275,15 +275,15 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 | `status` | Meaning |
 | --- | --- |
 | `ACCEPTED` | Queued as `operation_id`, not yet on-chain. |
-| `FILLED` | The trade landed. `POSITION_OPENED` follows. |
+| `FILLED` | The trade landed. `POSITION_OPENED` follows an entry, `POSITION_CLOSED` a `sell_back`, and `POSITION_TRANSFERRED` a `transfer`. |
 | `FAILED` | The trade reverted or expired on-chain. Nothing filled. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing filled. |
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
 lands. Every confirm is checked against your capacity first
-([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ the app did
-not open, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
+([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ without
+`intent_id`, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
 fill can still revert. Keep following `OPERATION_UPDATED`.
 
 - `{ "decision": "DECLINE" }` needs no signature. Decline when your price or your capital moved.
@@ -295,14 +295,14 @@ fill can still revert. Keep following `OPERATION_UPDATED`.
 | --- | --- | --- |
 | `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed fills not yet on-chain, does not cover this fill. For a `transfer`, your wallet's own vault balance does not cover its `price`. | Nothing filled. Quote smaller, or add capital. |
 | `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
-| `409 RFQ_GENERATION_STALE` | App RFQs only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
+| `409 RFQ_GENERATION_STALE` | RFQs with `intent_id` only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
 | `409 STATE_CONFLICT` | The deadline passed, or the trade can no longer open, for example because a leg resolved. | Nothing filled. |
 | `422 INVALID_SIGNATURE`, `WRONG_AUTHORITY` | The signature is not your maker wallet's, over these exact terms. | Fix the signer, and resend before the deadline. |
-| `429 QUOTE_EXPOSURE_LIMIT` | App RFQs only: too many fills are pending for your maker, or on this RFQ. | Nothing filled. |
-| `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED` | App RFQs only: Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
+| `429 QUOTE_EXPOSURE_LIMIT` | RFQs with `intent_id` only: too many fills are pending for your maker, or on this RFQ. | Nothing filled. |
+| `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED` | RFQs with `intent_id` only: Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 | `503 DEPENDENCY_STALE` | Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 
-App RFQs, the ones the Totalis app opens, carry `intent_id`
+Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any a taker opens with one
 ([Maker channel](/hyperliquid/api-reference/websocket/maker#event)). Every code is on
 [Errors](/hyperliquid/errors#codes).
 
@@ -327,8 +327,8 @@ win, `0` for a loss, or a fraction ([Settlement](/hyperliquid/guides/trading#set
 | You buy it back | Pay the `sell_back` price, and the net stake you held is freed. Net, you pay `price - net stake`. The position closes. |
 | Another maker buys it | Nothing. You still back it, for the new owner. |
 
-The profit fee comes out of the owner's winnings, and a sell-back's fee out of the owner's proceeds. Neither
-comes from your vault.
+The profit fee comes out of the owner's winnings, and a sell-back's fee out of the owner's proceeds
+([Cash out](/hyperliquid/guides/trading#cash-out)). Neither comes from your vault.
 
 Read the positions you back with [List positions](/hyperliquid/api-reference/positions/list-positions)
 and your fills and settlements with [List activity](/hyperliquid/api-reference/account/list-activity), both with
@@ -353,7 +353,7 @@ and `payout`, and the leg state to price against.
 | Back the position (`maker_id` is yours) | `sell_back` terms, a `price` | Your maker vault | Closes |
 | Do not back it | `transfer` terms, a `price` | Your maker wallet's own vault balance, not the maker vault | Moves to your wallet's account. Its original maker still backs it. |
 
-Bid only on positions you back. A maker wallet created in the app cannot hold its own vault balance: Totalis
+If your maker wallet was created in the app, bid only on positions you back: it cannot hold its own vault balance. Totalis
 moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background, and
 [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker. A
 `transfer` your wallet's balance cannot cover fails at confirm with `QUOTE_CAPACITY_EXCEEDED`, and the
