@@ -11,6 +11,8 @@ app-only routes. This script:
   the spec's summary;
 - gives every page a stable URL, /hyperliquid/api-reference/<resource>/<title>, kept by resource so
   regrouping never breaks a link (x-mint);
+- drops `additionalProperties: false` from response-only schemas, so a client generated from the spec
+  accepts fields added later (requests stay strict);
 - writes the API reference tab: an Overview group (OVERVIEW), then one group per PAGES entry, led
   by its hand-written pages (LEADS).
 
@@ -259,11 +261,62 @@ def title_variants(node) -> None:
 
 
 def readable(spec: dict) -> dict:
-    """Title the variants of real unions. The schemas stay as strict as the backend publishes them."""
+    """Title the variants of real unions."""
     title_variants(spec)
     for name, title in VARIANT_TITLES.items():
         if name in spec.get("components", {}).get("schemas", {}):
             spec["components"]["schemas"][name]["title"] = title
+    return spec
+
+
+def schema_refs(spec: dict, node, found: set[str]) -> set[str]:
+    """Every component schema node reaches, through $ref, skipping example data."""
+    if isinstance(node, list):
+        for item in node:
+            schema_refs(spec, item, found)
+    elif isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+            name = ref.rsplit("/", 1)[1]
+            if name not in found:
+                found.add(name)
+                schema_refs(spec, spec["components"]["schemas"][name], found)
+        for key, value in node.items():
+            if key not in ("example", "examples"):
+                schema_refs(spec, value, found)
+    return found
+
+
+def open_object(node) -> None:
+    """Drop `additionalProperties: false` from node and every inline schema under it."""
+    if isinstance(node, list):
+        for item in node:
+            open_object(item)
+    elif isinstance(node, dict):
+        if node.get("additionalProperties") is False:
+            del node["additionalProperties"]
+        for key, value in node.items():
+            if key not in ("example", "examples", "$ref"):
+                open_object(value)
+
+
+def open_responses(spec: dict) -> dict:
+    """Responses can gain fields, so their schemas must not promise `additionalProperties: false`.
+
+    Requests stay strict: the API refuses unknown request fields. A schema a request also uses (legs and the
+    signed terms) stays strict in both directions, since a new field there would be a new signed type.
+    """
+    requests: set[str] = set()
+    responses: set[str] = set()
+    for _, operation in operations(spec):
+        schema_refs(spec, [operation.get("requestBody", {}), operation.get("parameters", [])], requests)
+        schema_refs(spec, operation.get("responses", {}), responses)
+        for response in operation.get("responses", {}).values():
+            for media in response.get("content", {}).values():
+                if "$ref" not in media.get("schema", {"$ref": ""}):
+                    open_object(media["schema"])
+    for name in responses - requests:
+        open_object(spec["components"]["schemas"][name])
     return spec
 
 
@@ -355,7 +408,7 @@ def main() -> int:
     else:
         spec = json.loads((args.spec or SPEC).read_text())
 
-    spec = readable(publish(spec))
+    spec = open_responses(readable(publish(spec)))
     unique_titles(spec)
     spec_text = dump(spec)
     docs_text = dump(with_tab(json.loads(DOCS.read_text())))

@@ -66,6 +66,14 @@ rows in `items` and pages by cursor:
 Send `next_cursor` back as `?cursor=` until `has_more` is `false`. Cursors are opaque, so do not parse
 or build them. Page size rules are on [Pagination](/hyperliquid/errors#pagination).
 
+### Compatibility
+
+Responses and WebSocket events gain fields, and enums gain values, as the API grows. Ignore fields you don't
+know, and treat an unknown enum value as a state you can't act on. Requests stay strict: an unknown request
+field is refused. Response schemas in this reference allow extra fields, so a client generated from them keeps
+working. The signed terms (`entry`, `sell_back`, `transfer`) and legs stay exact, since you sign them field for
+field. Breaking changes are listed in the [SDK changelog](/hyperliquid/sdk#changelog).
+
 ## Errors
 
 Every HTTP error has the same shape:
@@ -116,10 +124,12 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | Receive RFQs | [`GET /v1/stream`](/hyperliquid/api-reference/websocket/maker), `maker` subscription, `RFQ_CREATED` |
 | Quote, or replace a quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
+| Pull your quotes if your bot stops | [`PUT /v1/makers/{maker_id}/quote-lease`](/hyperliquid/api-reference/quotes/keep-quote-lease) |
 | Receive acceptances | `QUOTE_ACCEPTED`. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
 | Read backed positions | [`GET /v1/me/positions`](/hyperliquid/api-reference/positions/list-positions) with a maker key |
+| Read fills and settlements | [`GET /v1/me/activity`](/hyperliquid/api-reference/account/list-activity) with a maker key |
 | Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/api-reference/makers/create-collateral-reduction) |
 
 The full maker loop is on [Market making](/hyperliquid/guides/market-making).

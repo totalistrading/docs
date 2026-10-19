@@ -42,7 +42,9 @@ Content-Type: application/json
 | --- | --- |
 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | Required. It becomes the `acceptance_id`, unique across all your quotes. |
 | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | None. Sending one returns `INVALID_IDEMPOTENCY_KEY`. The quote is the key: resend the same body to retry, and a repeat returns the stored answer with `Idempotency-Replayed: true`. |
-| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. Safe to repeat: it returns the quote's status. On a quote you already confirmed it returns `409` with `{ "status": "ACCEPTED" }`, not an error body. |
+| [Create quote](/hyperliquid/api-reference/quotes/create-quote) | Required. An exact retry returns the original `quote_id`. `409 STATE_CONFLICT`: an acceptance of your quote on the RFQ awaits your answer, this `quote_id` was already signed, or the taker cannot trade. |
+| [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. Safe to repeat: it returns the quote's status. On a quote you already confirmed it returns `409` with `{ "status": "ACCEPTED" }`, not an error body. `409 STATE_CONFLICT`: an acceptance of your quote awaits your answer. |
+| [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | None. A repeated keep renews again. A repeated release is safe and returns `released: false` once none is armed. |
 | [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | Required. A resend with the same key and body returns the withdrawal as it is now, still `202`, however long ago it was signed. |
 
 ## Pagination
@@ -144,7 +146,6 @@ closes use the same codes.
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
-| `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
 | `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote expired. |
 | `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
