@@ -34,8 +34,8 @@ Market data is public. This call needs no key and no signup:
 curl "https://hip4-api.totalis.trade/v1/markets?limit=3"
 ```
 
-Market reads and [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) are public. Every account,
-trading and maker route needs an API key or a [wallet session](/hyperliquid/build/partner-frontend#sessions). Start with the [Quickstart](/hyperliquid/quickstart).
+Market reads, RFQ reads and [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) are public. Every
+other account, trading and maker route needs an API key or a [wallet session](/hyperliquid/build/partner-frontend#sessions). Start with the [Quickstart](/hyperliquid/quickstart).
 
 ## How it works
 
@@ -50,7 +50,7 @@ trading and maker route needs an API key or a [wallet session](/hyperliquid/buil
   </Step>
   <Step title="Accept and fill">
     Sign the quote you want and [accept it](/hyperliquid/api-reference/quotes/accept-quote). The maker
-    confirms within seconds. Totalis puts the trade on-chain and pays the gas.
+    confirms within 2 seconds. Totalis puts the trade on-chain and pays the gas.
   </Step>
   <Step title="Settle, or cash out first">
     When the markets resolve, Totalis settles the position and pays a win into your vault balance.
@@ -70,7 +70,8 @@ trading and maker route needs an API key or a [wallet session](/hyperliquid/buil
 | 5 | Holds the position. | Backs it from the maker vault. |
 
 Your USDC sits in your Totalis wallet and the vault contract. The vault moves funds only with a
-signature from their owner. There is no deposit step and no claim step.
+signature from the funds' owner. You do not need to deposit before you trade: an accept pulls any shortfall from your
+wallet. Winnings are claimed for you.
 
 ## The essentials
 
@@ -102,7 +103,7 @@ signature from their owner. There is no deposit step and no claim step.
     Fees, timings, sizes and rate limits.
   </Card>
   <Card title="Glossary" icon="book" href="/hyperliquid/glossary">
-    Every term and field name.
+    The terms the API uses.
   </Card>
 </CardGroup>
 

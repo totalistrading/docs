@@ -62,5 +62,8 @@ key before you sign.
 | `PAYOUT_COMMITTED` | Done. `payout_transaction_hash` is set. |
 | `FAILED` | Nothing left your Totalis balance. USDC already moved from the vault stays in your wallet. |
 
+An account that signs in with its own wallet withdraws at least 1 USDC each time, at most 10 times an hour
+([Limits](/hyperliquid/limits-and-fees)).
+
 A resend with the same key and body returns the same withdrawal. A `409 STATE_CONFLICT` means your
 balance changed: re-read it and sign again under a new key.

@@ -24,6 +24,9 @@ Needs a key for this `maker_id`. Connecting and resuming are on
 | `account_reads` | No | `true` for `readInvalidated` frames. |
 | `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. |
 
+Don't send `open_rfqs`: the maker snapshot always carries it, and a maker subscribe that sets it closes with
+`INVALID_SUBSCRIPTION`.
+
 A key receives only the frames its scopes allow:
 
 | Frames | Needs |
@@ -55,7 +58,7 @@ A key receives only the frames its scopes allow:
         "fee_bps": 100,
         "taker_fee_bps": 150,
         "taker": "0x1111111111111111111111111111111111111111",
-        "expiry": "1790193625",
+        "expiry": "1790452825",
         "salt": "73100245913027741890236401853207113049"
       }
     }
@@ -75,8 +78,8 @@ A key receives only the frames its scopes allow:
 
 An RFQ stops taking quotes at `expires_at`, which sends no event.
 
-An automatic RFQ also carries `intent_id` and `intent_generation` on its `RFQ_*` events: every RFQ the Totalis
-app opens, and any RFQ a taker opens with them. An RFQ with a higher `intent_generation` replaces the same intent's
+An RFQ opened with an intent, an automatic RFQ, carries `intent_id` and `intent_generation` on its `RFQ_*` events.
+The Totalis app opens its RFQs this way, and a taker can too. A newer `intent_generation` replaces the same intent's
 earlier RFQs. Other RFQs carry neither.
 
 ## Snapshot
@@ -95,4 +98,4 @@ earlier RFQs. Other RFQs carry neither.
 | --- | --- | --- |
 | `open_rfqs` | Every open RFQ | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |
 | `acceptances` | Acceptances waiting for your confirm, earliest deadline first | [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) |
-| `operations` | Your maker's operations | [List operations](/hyperliquid/api-reference/account/list-operations) |
+| `operations` | Your maker's operations still in progress | [List operations](/hyperliquid/api-reference/account/list-operations) |

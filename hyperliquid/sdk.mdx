@@ -32,11 +32,11 @@ signer.
 | `.../wallet-session` | `signInWithWallet`, `signOutWallet`, `checkSignInChallenge` |
 | `.../partner` | `signAdmissionConsent`, `admissionConsentMessage`, `createPartnerServer` |
 | `.../api-keys` | `issueApiKey`, `rotateApiKey`, `listApiKeys`, `revokeApiKey`, `QUOTING_BOT_SCOPES`, `COLLATERAL_SCOPES`, `createApiKeyClient`, `checkKeyChallenge` |
-| `.../typed-data` | Builders and hashing for every signed message, the USDC nonces, the key approval message |
+| `.../typed-data` | Builders and hashing for every Totalis and USDC signed message, the USDC nonces, the key approval message. The Hyperliquid `SendAsset` builders are root exports. |
 | `.../signer` | `toTotalisSigner` for viem accounts and wallet clients, EIP-1193 providers and ethers signers |
 | `.../realtime` | `TotalisStream` and the frame types |
 | `.../errors` | The error registry, `ApiError`, `NetworkError` |
-| `.../version` | `sdkVersion`, the API contract the types come from |
+| `.../version` | `sdkVersion`, the API contract version the types come from (not the package version) |
 | `.../browse`, `.../account-read` | Types only |
 
 ## Environments
@@ -71,10 +71,12 @@ const me = unwrap(await client.GET("/v1/me"));
 | Option | Does |
 | --- | --- |
 | `accessToken` | A `ttk_` key, a wallet session token, or a function that returns the current one |
-| `signer` | `GET /v1/me` `wallet`. Needed for flows that sign. Never stored. |
+| `signer` | The account's wallet (`wallet` on `GET /v1/me`). Needed for flows that sign. Never stored. |
 | `partnerKey` | Your `tpb_` browser key, sent as `X-Totalis-Partner`. A `tpk_` key is refused. |
 | `headers` | Extra headers on every request and stream, such as `Origin` outside a browser |
 | `retry` | Resend policy, or `false` to send once |
+
+`createMaker` takes `apiKey` (its `ttk_` key) and `makerId` in place of `accessToken`.
 
 Money is atomic USDC as a `bigint` or decimal string. Call `close()` on `createTotalis` and `createMaker` when
 done.
@@ -101,7 +103,8 @@ if (opened.operationId) await totalis.waitForOperation(opened.operationId);
 
 `openPosition` waits for the account stream, creates the RFQ, picks a quote, signs `TakerAccept`, funds any vault
 shortfall from the wallet in the same accept, and recovers a lost accept. It returns `rfqId`, `acceptanceId`,
-`quoteId`, `positionId`, `entry`, `status` and `operationId`.
+`quoteId`, `positionId`, `entry`, `status`, `operationId`, `outcome`, and `bridged` and `bridging` for an entry that
+bridged.
 
 | Option | Default | Does |
 | --- | --- | --- |
@@ -115,22 +118,25 @@ shortfall from the wallet in the same accept, and recovers a lost accept. It ret
 
 | `status` | Meaning |
 | --- | --- |
-| `ACCEPTED` | The maker confirmed. Follow `operationId` to `COMMITTED`. |
+| `ACCEPTED` | The maker confirmed. `waitForOperation(operationId)` ends `COMMITTED`, or `REVERTED` or `EXPIRED_UNEXECUTED` when nothing traded, for example when the wallet still lacked the funding at `fund_by`. |
+| `FILLED`, `FAILED` | Seen only after a lost answer is recovered: the trade already committed, or it already failed. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded |
 | `NOT_ADMITTED` | Every response was lost, the venue had no acceptance, and the SDK cancelled the RFQ. Nothing traded. |
 
-While it plans the funding, before anything is signed or sent, an entry can throw `EntryError`. `openPosition` then
+While it plans the funding, before anything is sent, an entry can throw `EntryError`. `openPosition` then
 cancels the RFQ.
 
 | `code` | Meaning |
 | --- | --- |
 | `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
 | `INSUFFICIENT_FUNDS` | With `funding: "wallet"` (the default): current vault cash, wallet USDC and `core` less 0.05 USDC do not cover the stake. Without `core`, vault cash and wallet USDC alone. The message names the shortfall. |
+
 An entry's signatures and when its bridge moves are on
 [Signatures and quote life](/hyperliquid/build/partner-frontend#signatures-and-quote-life).
 
-`watchQuotes(rfqId, listener)` reports an RFQ's live quotes for a UI, and `[]` while the stream is down. Drop an
-entry quote at its `accept_before` yourself.
+`watchQuotes(rfqId, listener)` calls `listener(quotes, serverNowMs)` with an RFQ's acceptable quotes, oldest first,
+and with `[]` while the stream is down. It drops an entry quote at its `accept_before` and calls the listener again
+then.
 
 Once a position is decided, Totalis settles it and pays the winnings into the owner's vault balance. There is
 nothing to call.
@@ -166,7 +172,7 @@ const resumed = await totalis.recoverAcceptance(await load(), { onRecord: save }
 
 | Function | Does |
 | --- | --- |
-| `signEntry({ quote, core, cash })` | Asks the wallet for every signature at once. Plans funding from `cash` (a `spendableCash` read), or from current balances without it: free vault cash first, then the wallet, then a bridge of `core` (HyperCore spot USDC you offer) to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind. `core: null` means your HyperCore read failed; leave `core` out to fund from the wallet alone. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. |
+| `signEntry({ quote, core, cash })` | Asks the wallet for every signature at once. Plans funding from `cash` (a `spendableCash` read), or from current balances without it: free vault cash first, then the wallet, then a bridge of `core` (HyperCore spot USDC you offer) to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind. `core: null` means your HyperCore read failed; leave `core` out to fund from the wallet alone. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. Pass `cash` to plan before any prompt: without it, the wallet is asked for `TakerAccept` while the balances are read, so a plan that fails throws after that prompt. |
 | `signCashout({ quote })` | Has the owner sign a cash-out quote's `SellBack` or `CashoutTransfer` |
 | `sendAcceptance(signed, { onRecord })` | Sends either record under its acceptance ID. The answer must echo the record's IDs. An entry's bridge goes only after the accept answers `ACCEPTED` with its `fund_by` still ahead; any other answer discards it. |
 | `recoverAcceptance(signed, { wait, onRecord })` | Reads and fences the acceptance, signing nothing. Sends a never-sent bridge only if the acceptance is `ACCEPTED` before its `fund_by`, and resends a sent one without an answer, the same bytes, within that window. Waits out `PENDING_CONFIRM` unless `wait: false`. |
@@ -199,14 +205,14 @@ await signOutWallet({ environment: "production", accessToken: session.access_tok
 
 | Function | Does |
 | --- | --- |
-| `signInWithWallet({ environment, signer, partnerKey, origin })` | Asks for a challenge, checks it is the Totalis sign-in for this origin, wallet and request, has the wallet sign it, and returns the session. `origin` is required outside a browser: a partner's registered origin, or for a maker the Totalis app's, `https://hip4.totalis.trade`. Send it as the `Origin` header with every request on the session. |
+| `signInWithWallet({ environment, signer, partnerKey, origin })` | Asks for a challenge, checks it is the Totalis sign-in for this origin, wallet and request, has the wallet sign it, and returns the session. `origin` is required outside a browser: a partner's registered origin, or for a maker the Totalis app's, `https://hip4.totalis.trade` (`https://hip4-staging.totalis.trade` on staging). Send it as the `Origin` header with every request on the session. |
 | `signOutWallet(options)` | Ends the session |
 | `signAdmissionConsent({ signer, partner, environment, chainId, lifetimeSeconds })` | The wallet's consent to your partner slug, for your server |
 | `createPartnerServer({ environment, serverKey }).admitWallet(address, consent)` | Admits the wallet. Refuses to run in a browser. |
 | `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself |
 | `totalis.signDeposit`, `sendDeposit` | A deposit from the wallet that Totalis relays and pays gas for |
 | `totalis.exitToCore({ amount })`, `waitForCoreExit(exitId)` | Moves vault cash to HyperCore. `signCoreExit` and `sendCoreExit` split it. |
-| `totalis.returnToCore()` | Moves free vault cash and the wallet's available USDC (`WALLET_USDC` less `pending.wallet_reserved`) back to HyperCore. Takes no amount. Available wallet USDC under the sponsored deposit minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)) stays in the wallet. Throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`), and on staging, which runs no exits to HyperCore. A wallet embedded in your own app is `EXTERNAL` and can use it. `signReturnToCore` and `sendReturnToCore` split it. |
+| `totalis.returnToCore()` | Moves free vault cash and the wallet's available USDC (`WALLET_USDC` less `pending.wallet_reserved`) back to HyperCore. Takes no amount. Available wallet USDC under the sponsored deposit minimum ([Limits](/hyperliquid/limits-and-fees#deposits-and-exits)) stays in the wallet. Throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`), and on staging, which runs no exits to HyperCore. A wallet embedded in your own app is `EXTERNAL` and can use it. `signReturnToCore` and `sendReturnToCore` split it. |
 | `totalis.issueApiKey({ label, scopes })`, `rotateApiKey` | Issues the account's own `ttk_` key from a session, with the wallet's approval |
 
 ## Make markets
@@ -231,7 +237,6 @@ maker.onRfq(async (rfq) => {
   // Buy back only positions this maker backs; a transfer bid needs the wallet's own vault balance.
   else if (rfq.maker_id === makerId) await maker.bid(rfq, { price: 18_000_000n });
 }, (error) => console.error(error)); // AcceptancePendingError or STATE_CONFLICT: answer it in onAcceptance
-// Re-check your price and free capital here, and decline when either moved.
 maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFIRM" : "DECLINE"));
 ```
 
@@ -244,7 +249,7 @@ maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFI
 | `quote(rfq, { payout })` | Publishes `entry` terms with the deployment's fees. Returns its `quoteId`. Starts the stream and waits until it is live. After a truncated snapshot or a cursor resume, it first pages [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances), which needs `quote:read`. |
 | `bid(rfq, { price })` | Publishes `sell_back` terms when this maker backs the position, otherwise `transfer` terms paid from the maker wallet's own vault balance ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)) |
 | `cancelQuote(quoteId)` | Removes a quote. `ACCEPTED` means you already confirmed it. While an acceptance of it waits for you, the venue refuses with `STATE_CONFLICT`: answer it with `confirm(acceptance, "DECLINE")` instead. |
-| `onAcceptance(handler)` | Answers every pending acceptance once with the handler's `CONFIRM` or `DECLINE`. Signs only terms this maker published and that have not expired, and resends a lost answer byte for byte. |
+| `onAcceptance(handler, onError?)` | Answers every pending acceptance once with the handler's `CONFIRM` or `DECLINE`. Signs only terms this maker published and that have not expired, and resends a lost answer byte for byte. `onError` receives what fails, with the acceptance. |
 | `confirm(acceptance, decision)` | Answers one acceptance yourself |
 | `deployment()` | The cached [deployment](/hyperliquid/api-reference/deployment/get-deployment) every quote signs against |
 | `published` option | Stores the `quote_id`s this maker published. Back it with durable storage so a restarted process can confirm them. |
@@ -252,7 +257,7 @@ maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFI
 | `keepQuoteLease(leaseMs, onError?)` | Arms the [quote lease](/hyperliquid/guides/market-making#quote-lease) and renews it every third of `leaseMs` until stopped. If renewals stop, the venue cancels this maker's open quotes that no taker is accepting. |
 | `renewQuoteLease(leaseMs)`, `releaseQuoteLease()` | One renewal, or release the lease |
 | `makerReadiness(client)`, `waitForMaker(client)` | Take a client signed in as the account (a wallet session), not a maker key. Read and admit the account's maker (`GET` and `POST /v1/me/maker`), answering `NOT_INDEXED` until its open transaction is indexed. `waitForMaker` polls until it is. |
-| `controller()` | Vault transactions for the maker wallet to send: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`, `resetDiscount` |
+| `controller()` | Vault transactions: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`, `resetDiscount`. `approveUsdc` and `deposit` can come from any wallet that funds the deposit; the maker wallet sends the rest. |
 | `withdrawal()` | The pending maker vault withdrawal, and what blocks executing it |
 | `reduceCollateral({ signTransaction })` | Requests a [collateral reduction](/hyperliquid/guides/collateral#reduce-collateral) and follows it. Returns `{ job, idempotencyKey, submitted }`. With `signTransaction`, signs the certificate transaction and submits it (`submitted`). Without it, sign `job.transaction` yourself and send it to [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) under that same `idempotencyKey`. Any wallet with HYPE can sign; the maker wallet works. Needs a key with the maker collateral scopes. |
 | `openMakerVaultTransaction(deployment, wallet)` | The transaction that opens a maker for `wallet`. Send it from that wallet, your account's wallet ([Set up](/hyperliquid/guides/market-making#set-up)). |
@@ -266,9 +271,10 @@ acceptance still waits: answer it in `onAcceptance`.
 The maker wallet sends its own vault transactions and pays the gas in HYPE. The SDK never sends a transaction.
 See [Market making](/hyperliquid/guides/market-making) and [Maker collateral](/hyperliquid/guides/collateral).
 
-A maker onboards and manages its keys headless, from a wallet session that its Totalis account's exported embedded wallet
-signs in with the Totalis app's origin ([Set up](/hyperliquid/guides/market-making#set-up)), or that a partner-admitted
-wallet signs in with the partner's registered origin ([Partner-admitted wallet](/hyperliquid/guides/market-making#partner-admitted-wallet)). The `.../api-keys` helpers take the maker in `{ maker }`:
+A maker onboards and manages its keys headless, from a wallet session. Sign in with your Totalis account's exported
+wallet and the Totalis app's origin ([Set up](/hyperliquid/guides/market-making#set-up)). A partner-admitted wallet signs
+in with its partner's registered origin instead ([Partner-admitted wallet](/hyperliquid/guides/market-making#partner-admitted-wallet)).
+The `.../api-keys` helpers take the maker in `{ maker }`:
 
 | Function | Does |
 | --- | --- |
@@ -293,6 +299,7 @@ wallet signs in with the partner's registered origin ([Partner-admitted wallet](
 | `receiveWithAuthorizationTypedData(deployment, authorization)` | USDC `ReceiveWithAuthorization` |
 | `transferWithAuthorizationTypedData(deployment, payout)` | USDC `TransferWithAuthorization` |
 | `issueKeyMessage`, `parseIssueKeyMessage` | The Sign-In with Ethereum key approval |
+| `sendAssetTypedData(bridgeAction(hyperliquidNetwork(chain_id), amount))`, root import | Hyperliquid `SendAsset` |
 
 `hashTypedData` gives a digest (a quote's is its `quote_id`), `canonicalSignature` the form the API accepts, and
 `depositNonce` and `payoutNonce` the [USDC nonces](/hyperliquid/authentication#usdc-nonces).
@@ -329,7 +336,7 @@ for await (const position of items(
 | Helper | Gives |
 | --- | --- |
 | `totalis.spendableCash()`, `spendableCash(balance)` | `{ vault, wallet, total }` the SDK plans with, net of reserved cash. Each is `null` while unknown, never 0. |
-| `netPayout(quote)` | What a full win pays the user after the profit fee. A 3 USDC stake quoted at 9.18 USDC nets 9.118140 USDC. |
+| `netPayout(quote)` | What a full win pays the user after the profit fee. A 3 USDC stake quoted at 9.18 USDC, at a 20 bps entry fee and a 100 bps profit fee, nets 9.118140 USDC. |
 | `netCashout(bid, position)` | What a cash-out pays the user: a sell-back after the profit fee, a transfer in full |
 | `createUiAdapter(totalis, { onInvalidate, onCatalogStale })` | Live quotes with the best one, the venue clock (`serverNow`, `secondsLeft`), account invalidations for a query cache, and a catalog refresh only when `catalog_generation` moves. No framework dependency. |
 
@@ -349,7 +356,7 @@ Each command is built once with its `Idempotency-Key` and resent byte for byte a
 import { ApiError, NetworkError } from "@totalistrading/hip4-client";
 
 try {
-  await totalis.openPosition({ legs: [{ outcome_id: "1209", side: "YES" }], stake: 25_000_000n });
+  await totalis.withdraw({ destination: "0x2222222222222222222222222222222222222222", amount: 15_000_000n });
 } catch (error) {
   if (error instanceof NetworkError || (error instanceof ApiError && error.retry === "BACKOFF")) {
     await error.resend?.(); // same bytes, same key

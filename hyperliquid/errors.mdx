@@ -9,7 +9,7 @@ description: 'Request conventions, idempotency, pagination, and every error code
 | Kind | Encoding | Example |
 | --- | --- | --- |
 | Amount | String, USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
-| Large number | Decimal string: outcome, chain, block, sequence | `"1209"` |
+| Large number | Decimal string: outcome, chain, block, stream cursor sequence | `"1209"` |
 | Leg | `outcome_id` and `side` | `{ "outcome_id": "1209", "side": "YES" }` |
 | Address | Lowercase `0x` hex. Input may be checksummed. | `"0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"` |
 | `quote_id`, `position_id`, hash, signature | Lowercase `0x` hex. Opaque. | `"0x5e5e...5e5e"` |
@@ -21,8 +21,8 @@ An omitted optional field and `null` are not interchangeable unless the field sa
 
 ### Idempotency
 
-A command `POST` sends an `Idempotency-Key`: a lowercase UUIDv7, new for every command. The routes in the
-table below are the exceptions.
+A command `POST` sends an `Idempotency-Key`: a lowercase UUIDv7, new for every command. The table below lists
+routes with their own rules.
 
 ```http
 POST /v1/rfqs HTTP/1.1
@@ -45,6 +45,7 @@ Content-Type: application/json
 | [Create quote](/hyperliquid/api-reference/quotes/create-quote) | Required. An exact retry returns the original `quote_id`. `409 STATE_CONFLICT`: an acceptance of your quote on the RFQ awaits your answer, this `quote_id` was already signed, or the taker cannot trade. |
 | [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. Safe to repeat: it returns the quote's status. On a quote you already confirmed it returns `409` with `{ "status": "ACCEPTED" }`, not an error body. `409 STATE_CONFLICT`: an acceptance of your quote awaits your answer. |
 | [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | None. A repeated keep renews again. A repeated release is safe and returns `released: false` once none is armed. |
+| [Admit own maker](/hyperliquid/api-reference/makers/admit-own-maker) | None. A repeat returns the current ownership unchanged. |
 | [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | Required. A resend with the same key and body returns the withdrawal as it is now, still `202`, however long ago it was signed. |
 
 ## Pagination
