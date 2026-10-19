@@ -201,7 +201,7 @@ is final. Never accept the same quote under a second key.
 | --- | --- |
 | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
 | `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
-| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. USDC moved from HyperCore stays in your wallet on HyperEVM. |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the venue finds the wallet short before it sends the trade, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. Cash that leaves after the send can end it `REVERTED` with no reason. USDC moved from HyperCore stays in your wallet on HyperEVM. |
 
 A terminal operation is not a success. Check for `COMMITTED` before you show a trade. A failed operation carries
 `failure_reason` `INSUFFICIENT_CASH` when the venue found your cash short before it sent the trade, on

@@ -229,7 +229,7 @@ An accepted entry can also fail after its bridge landed: the operation ends `REV
 Nothing trades and the vault takes nothing, but the bridged USDC is now in the wallet on HyperEVM, not on
 HyperCore. Get balances shows it as `WALLET_USDC`, and `bridged` on the result names the amount. Show it as wallet
 cash rather than as gone. When Hyperliquid did not confirm the bridge in time, the trade fails for want of cash
-with the USDC still on HyperCore, or in the wallet if `bridged` names it. `entryFailure` tells that apart from
+with the USDC on HyperCore or in the wallet; read balances to know which. `entryFailure` tells that apart from
 plain not enough cash ([Open a position](/hyperliquid/sdk#open-a-position)).
 
 | You want | Do |

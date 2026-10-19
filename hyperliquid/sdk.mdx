@@ -208,8 +208,8 @@ since its request left (the larger of monotonic and wall-clock time), and discar
 
 Only an accepted entry sends its bridge, so a declined, timed-out or refused entry moves nothing. An accepted entry
 can still fail after its bridge landed. That cash is then in the wallet on HyperEVM, and `bridged`
-(`{ amount, landed }`, amount in USDC base units) on the result names it. `bridged` is set only once a bridge was
-sent, and never for one Hyperliquid refused. `landed: "unknown"` means read the balances. A refused bridge leaves
+(`{ amount, landed }`, amount in USDC base units) on the result names it. `bridged` names a bridge that was sent; it
+does not prove the cash reached the wallet. `landed: "unknown"` means read the balances. A refused bridge leaves
 the acceptance `ACCEPTED`. If the cash then falls short, the operation fails and `entryFailure` returns
 `CORE_MOVE_MISSED`. See
 [Funding from HyperCore](/hyperliquid/build/partner-frontend#funding-from-hypercore).
