@@ -163,7 +163,7 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 | From | How | Who pays gas |
 | --- | --- | --- |
 | The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
-| The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address, then the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
+| The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the maker confirms, and the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
 | The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
 
@@ -174,9 +174,10 @@ for (const call of calls) await walletClient.sendTransaction(call);
 
 ## Signatures and quote life
 
-An entry takes one to three signatures, depending on where the stake comes from.
+An entry takes one to three signatures, depending on where the stake comes from. `signEntry` asks for them all at
+once, before anything is sent.
 
-| The stake comes from | The wallet signs, in order | Prompts |
+| The stake comes from | The wallet signs | Prompts |
 | --- | --- | --- |
 | Free vault cash | `TakerAccept` | 1 |
 | The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, USDC `ReceiveWithAuthorization` | 2 |
@@ -187,40 +188,36 @@ Every one of them, the Hyperliquid bridge included, names the deployment's chain
 Some extension wallets refuse to sign for a chain other than the one they are on. Switch the wallet to HyperEVM
 before the first prompt.
 
-An entry quote lives only seconds, and every prompt spends that life. The SDK refuses to bridge, or to post the
-accept after a bridge, when too little is left ([SDK](/hyperliquid/sdk#open-a-position)). Both limits are on
-[Limits](/hyperliquid/limits-and-fees). For an entry that bridges, or a wallet that shows prompts, choose a quote
-with more life left and sign it at once:
+An entry quote can be accepted until its `accept_before`, 14 seconds before its `expiry`, which leaves time for the
+maker to confirm and the trade to land. Every prompt spends that time, so sign at once. `bestQuote()` keeps the
+highest payout whose `accept_before` is still ahead on the venue's clock. To pick from your own list, pass that
+clock: `bestQuote()(quotes, totalis.stream.serverNow())`, or the `serverNowMs` that `watchQuotes` gives you.
 
-```js
-import { bestQuote } from "@totalistrading/hip4-client";
-
-await totalis.openPosition({ legs, stake, core, choose: bestQuote(15) }); // 15 seconds left at least
-```
-
-`bestQuote(seconds)` keeps the highest payout with at least that much life left on the venue's clock. The 15 is
-an example, not a guarantee that the entry executes. To pick from your own list, pass the venue's clock:
-`bestQuote(15)(quotes, totalis.stream.serverNow())`, or the `serverNowMs` that `watchQuotes` gives you.
+The accept goes first. The bridge from HyperCore goes only after the maker confirms, and only before the
+acceptance's `fund_by`, two seconds after the confirm. An accept the maker declines, or that times out, moves
+nothing. If the wallet still lacks the funding when the trade is sent, nothing trades: the operation ends
+`EXPIRED_UNEXECUTED` and the RFQ `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. Pass `cash`, a `spendableCash` read you already hold, to skip a balances read
+on the press.
 
 ### If an entry fails after its bridge
 
 The bridge and the accept are separate. The bridge is a HyperCore action that moves USDC from the user's
 HyperCore spot balance to their wallet on HyperEVM. The accept is the HyperEVM transaction that takes the stake.
 
-When the accept does not execute, nothing trades and the vault takes nothing. A bridge that already landed stays
-landed: its USDC is now in the wallet on HyperEVM, not in the user's HyperCore balance. Get balances shows it as
-`WALLET_USDC`. This happens when the acceptance ends `DECLINED`, `TIMED_OUT`, `CANCELLED` or `NOT_ADMITTED`, when
-the operation ends `REVERTED` or `EXPIRED_UNEXECUTED`, or when the SDK throws `EntryError` `BRIDGE_LATE`.
-The SDK (0.59.0 and later) names the amount as `bridged` on the result, on a `BRIDGE_LATE` error and on an
-accept refused after the bridge, so show it as wallet cash rather than as gone.
+The bridge moves only after the maker confirms, so a declined, timed-out or refused accept moves nothing. When the
+maker confirmed but the trade does not execute, nothing trades and the vault takes nothing, and a bridge that
+already landed stays landed: its USDC is now in the wallet on HyperEVM, not in the user's HyperCore balance. Get
+balances shows it as `WALLET_USDC`. This happens when the operation ends `REVERTED` or `EXPIRED_UNEXECUTED`. The SDK
+names the amount as `bridged` on the result, so show it as wallet cash rather than as gone.
 
 | You want | Do |
 | --- | --- |
 | The user to bet again | Nothing. The next entry funds from that wallet USDC first. |
 | The cash back on HyperCore | `returnToCore()` ([Moving cash to HyperCore](#moving-cash-to-hypercore)) |
 
-A bridge whose answer never arrived can still land after the SDK stops resending it. `recoverAcceptance` never
-sends a bridge again. Read the balances to learn where the cash is; never infer it from a missing answer.
+A bridge whose answer never arrived can still land after the SDK stops resending it at `fund_by`.
+`recoverAcceptance` resends only the same bytes, only before `fund_by`. Read the balances to learn where the cash is;
+never infer it from a missing answer.
 
 ## Moving cash to HyperCore
 

@@ -12,10 +12,10 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
 | Maximum payout | 1,000,000 USDC per position |
 | Fees | `taker_fee_bps` on the stake at accept. `fee_bps` on profit at claim, and on a `SELL_BACK` on the `price` above the position's net stake. A transfer to another maker pays no fee. A position keeps the `fee_bps` it opened with. Read the current values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
-| Entry RFQ open | 20 seconds |
+| Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
 | Cash-out RFQ open | 30 seconds |
-| Entry quote `expiry` | At most 30 seconds ahead. Quotes within 2 seconds of expiry are left out. |
-| Bridge from HyperCore into an entry (SDK) | Signed and sent only with more than 4 seconds of quote life left. The accept is posted only with at least 3.5 seconds left. |
+| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`. Quotes within 2 seconds of expiry are left out of the RFQ's quote list. |
+| Bridge from HyperCore into an entry (SDK) | Sent only after the maker confirms, before the acceptance's `fund_by`: 2 seconds after the confirm. |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
 | Quote lease `lease_ms` | 1,000 to 60,000 milliseconds |
@@ -23,7 +23,7 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 
 | Signing | Window |
 | --- | --- |
-| Accept funding | `valid_before` at least 5 seconds ahead and at most 900 seconds after `valid_after` |
+| Accept funding | `valid_before` no earlier than the quote's `expiry`, and at most 900 seconds after `valid_after` |
 | Withdrawal `Exit` | `expiry` 5 to 3,600 seconds ahead, less a 5 second margin |
 | Withdrawal payout | At most 4,500 seconds from `valid_after` to `valid_before`; `valid_before` at least 300 seconds after the `Exit` `expiry`, or after now with no `Exit` |
 | Maker vault withdrawal delay | 86,400 seconds |
@@ -52,6 +52,7 @@ For accounts that sign in with their own wallet ([Your users' own wallets](/hype
 | Sponsored deposit | At least 1 USDC. At most 5 per hour per account. |
 | Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
 | First exit to a new HyperCore account | At least 2 USDC. Hyperliquid takes 1 USDC to activate the account. |
+| Your own HyperCore send to a new account | Hyperliquid takes one quote token (USDC for Totalis's markets) to activate the account ([Activation gas fee](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/activation-gas-fee)). Activate a fresh treasury address once before you collect fees into it. |
 | Exits to HyperCore in flight | 1 per account |
 
 ## Rate limits

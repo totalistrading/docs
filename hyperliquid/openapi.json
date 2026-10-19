@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "160.0.0-quote-lease"
+    "version": "162.0.0-accept-before"
   },
   "servers": [
     {
@@ -1314,6 +1314,7 @@
                       "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
                       "kind": "ENTRY",
                       "sequence": 48213,
+                      "accept_before": "2026-09-26T20:01:01Z",
                       "entry": {
                         "maker_id": "7",
                         "legs": [
@@ -1583,20 +1584,21 @@
         ],
         "responses": {
           "201": {
-            "description": "The quote is live on the RFQ, or an exact retry returned it. It is unsigned and nothing is on chain: the taker receives it as `QUOTE_CREATED` and can accept it until `expiry`, and you sign only when you confirm that acceptance.",
+            "description": "The quote is live on the RFQ, or an exact retry returned it. It is unsigned and nothing is on chain: the taker receives it as `QUOTE_CREATED` and can accept it until `accept_before`, 14 seconds before `expiry`, and you sign only when you confirm that acceptance.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QuoteCreated"
                 },
                 "example": {
-                  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+                  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+                  "accept_before": "2026-09-26T20:01:01Z"
                 }
               }
             }
           },
           "400": {
-            "description": "A term no confirm could fill, named in `field_violations`: `quote_id` that is not the digest of `entry`, `maker_id` other than your key's, `legs`, `stake` or `taker` other than the RFQ's, a net stake under the minimum (`stake`), `payout` not above `stake` or over the maximum payout, `fee_bps` or `taker_fee_bps` other than Get deployment's, or `expiry` outside the next 30 seconds.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
+            "description": "A term no confirm could fill, named in `field_violations`: `quote_id` that is not the digest of `entry`, `maker_id` other than your key's, `legs`, `stake` or `taker` other than the RFQ's, a net stake under the minimum (`stake`), `payout` not above `stake` or over the maximum payout, `fee_bps` or `taker_fee_bps` other than Get deployment's, or `expiry` not more than 14 and at most 30 seconds ahead. On a cash-out, a `transfer` whose `price` is more than the buyer's free vault balance (`transfer.price`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2781,7 +2783,8 @@
                   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
                   "status": "ACCEPTED",
                   "deadline": "2026-09-26T20:00:53.352Z",
-                  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
+                  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+                  "server_time": "2026-09-26T20:00:51.791Z"
                 }
               }
             }
@@ -4686,7 +4689,8 @@
                   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
                   "status": "FILLED",
                   "deadline": "2026-09-26T20:00:53.352Z",
-                  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
+                  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+                  "server_time": "2026-09-26T20:01:04.118Z"
                 }
               }
             }
@@ -12940,7 +12944,7 @@
                 "example": {
                   "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
                   "owner": "0x1111111111111111111111111111111111111111",
-                  "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x1111111111111111111111111111111111111111\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/me/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:participant:0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30\n- urn:totalis:action:create\n- urn:totalis:request:0xa1b9cf025fe7ed666e08ddd7fe03d7adf02634fb29933a5e85302055f0164567",
+                  "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x1111111111111111111111111111111111111111\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/me/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:participant:0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30\n- urn:totalis:action:create\n- urn:totalis:scope:account:read\n- urn:totalis:scope:account:stream\n- urn:totalis:scope:quote:accept\n- urn:totalis:scope:rfq:read\n- urn:totalis:scope:rfq:write\n- urn:totalis:expires-in-days:30\n- urn:totalis:request:0xa1b9cf025fe7ed666e08ddd7fe03d7adf02634fb29933a5e85302055f0164567",
                   "expires_at": "2026-10-16T12:05:00Z"
                 }
               }
@@ -14791,7 +14795,7 @@
                 "example": {
                   "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
                   "owner": "0x7777777777777777777777777777777777777777",
-                  "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x7777777777777777777777777777777777777777\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/makers/7/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:maker:7\n- urn:totalis:owner-version:2\n- urn:totalis:action:create\n- urn:totalis:request:0x40c9c897046dd510eb3f1515c7771fcf731feea2ee945b53477e928f6a689384",
+                  "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x7777777777777777777777777777777777777777\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/makers/7/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:maker:7\n- urn:totalis:owner-version:2\n- urn:totalis:action:create\n- urn:totalis:scope:quote:read\n- urn:totalis:scope:quote:write\n- urn:totalis:scope:rfq:read\n- urn:totalis:scope:vault:read\n- urn:totalis:expires-in-days:30\n- urn:totalis:request:0x40c9c897046dd510eb3f1515c7771fcf731feea2ee945b53477e928f6a689384",
                   "expires_at": "2026-10-16T12:05:00Z"
                 }
               }
@@ -19138,8 +19142,15 @@
             "$ref": "#/components/schemas/AcceptanceFields"
           }
         ],
+        "properties": {
+          "server_time": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "The database clock that sets `fund_by` and `deadline`, read with this acceptance, as an RFC3339 UTC timestamp. Judge them against it, not the local clock."
+          }
+        },
         "required": [
-          "acceptance_id"
+          "acceptance_id",
+          "server_time"
         ],
         "unevaluatedProperties": false,
         "type": "object",
@@ -19184,6 +19195,10 @@
           "operation_id": {
             "$ref": "#/components/schemas/Bytes32",
             "description": "The on-chain operation that executes the trade; present once status is `ACCEPTED`, `FILLED` or `FAILED`."
+          },
+          "fund_by": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "For an acceptance with `funding`, once the maker confirmed: send any HyperCore to wallet transfer that funds it before this time, two seconds after the confirm, as an RFC3339 UTC timestamp. After it, discard an unsent transfer; the trade fails if the wallet lacks the funding. Never sent to the maker."
           }
         }
       },
@@ -20824,7 +20839,7 @@
               },
               "entry": {
                 "$ref": "#/components/schemas/QuoteTerms",
-                "description": "Entry terms. `stake`, `taker` and `legs` must match the RFQ, `maker_id` must be your maker, and `expiry` is Unix seconds, at most 30 seconds ahead."
+                "description": "Entry terms. `stake`, `taker` and `legs` must match the RFQ, `maker_id` must be your maker, and `expiry` is Unix seconds, more than 14 and at most 30 seconds ahead."
               }
             },
             "title": "Entry"
@@ -21487,6 +21502,7 @@
           "rfq_id",
           "kind",
           "sequence",
+          "accept_before",
           "entry"
         ],
         "properties": {
@@ -21506,6 +21522,10 @@
             "type": "integer",
             "minimum": 1,
             "description": "Venue-wide publication sequence number; a higher value was created later."
+          },
+          "accept_before": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "Accept the quote before this time, as an RFC3339 UTC timestamp: 14 seconds before `entry.expiry`, which leaves time for the maker to confirm and the trade to land. Fixed when the quote is created; an accept at or after it is refused as expired."
           },
           "entry": {
             "$ref": "#/components/schemas/QuoteTerms",
@@ -24630,9 +24650,13 @@
           "quote_id": {
             "$ref": "#/components/schemas/Bytes32",
             "description": "ID of the created quote: the digest of its terms."
+          },
+          "accept_before": {
+            "$ref": "#/components/schemas/CommonTimestamp",
+            "description": "An entry quote's `accept_before`, as the taker receives it: takers can accept the quote until then. Renew the quote before it passes. Absent for a cash-out quote."
           }
         },
-        "description": "The created quote's ID."
+        "description": "The created quote's ID and, for an entry quote, when it stops being acceptable."
       },
       "QuoteFillRate": {
         "type": "object",
@@ -25108,7 +25132,7 @@
           },
           "server_time": {
             "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Server time when the list was read, as an RFC3339 UTC timestamp."
+            "description": "The database clock that sets `fund_by`, read with the list, as an RFC3339 UTC timestamp."
           }
         }
       },
@@ -25907,7 +25931,8 @@
         "type": "string",
         "enum": [
           "REVERTED",
-          "EXPIRED_UNEXECUTED"
+          "EXPIRED_UNEXECUTED",
+          "INSUFFICIENT_CASH"
         ]
       },
       "RotateKeyRequest": {
