@@ -38,7 +38,8 @@ want, and earn the difference between what you quote and what the outcomes are w
 
 ## Endpoints
 
-Every route below takes your maker key unless it says otherwise.
+Every keyed route below takes your quoting key, except Lower your collateral, which takes your collateral key.
+Get deployment needs no key.
 
 | Step | Endpoint or event |
 | --- | --- |
@@ -66,7 +67,8 @@ routes above. Every write runs headless through the [SDK](/hyperliquid/sdk#make-
 | Credential | Signs or authenticates |
 | --- | --- |
 | Your wallet key | Sign-in, key approvals, every vault transaction, and the signature in every confirm |
-| Your maker key (`ttk_`) | Every maker API call: quotes, cancels, the quote lease, confirms and maker reads |
+| Your quoting key (`ttk_`) | Quotes, cancels, the quote lease, confirms and maker reads |
+| Your collateral key (`ttk_`) | Collateral reductions and their self-funded transaction |
 
 ## Set up
 
@@ -92,8 +94,10 @@ The wallet key controls your maker's funds. Anyone who has it can withdraw them.
 
 ### Headless
 
-`examples/onboard.mjs` in the [SDK](/hyperliquid/sdk#examples) runs steps 1 to 5 and starts a bot. Run it again to
-resume: each step skips what is already done, and it deposits only while the maker vault is empty.
+Fund your wallet first (step 2). Then `examples/onboard.mjs` in the [SDK](/hyperliquid/sdk#examples) signs in, opens
+and admits your maker, issues the quoting key, makes the first deposit and starts a bot. It does not issue the
+collateral key. It prints the quoting key once: store it as `TOTALIS_MAKER_KEY`. Run it again with that set to resume:
+each step skips what is already done, and it deposits only while the maker vault is empty.
 
 ```bash
 TOTALIS_WALLET_KEY=0x... TOTALIS_DEPOSIT=1000000000 node examples/onboard.mjs
@@ -136,6 +140,9 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
     Send `openMakerVaultTransaction(deployment, wallet.address)` from your wallet. A wallet opens one maker.
     `waitForMaker` waits until Totalis has indexed it, admits it ([Admit maker](/hyperliquid/api-reference/makers/admit-own-maker))
     and returns its `makerId`.
+
+    `send` is your own: the SDK builds each `{ chain_id, to, data, value }` and never sends a transaction. With
+    viem it is `walletClient.sendTransaction`, then waiting for the receipt.
 
     ```ts
     import { openMakerVaultTransaction, waitForMaker } from "@totalistrading/hip4-client/maker";
@@ -181,9 +188,6 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
   </Step>
 </Steps>
 
-`send` is your own: the SDK builds each `{ chain_id, to, data, value }` and never sends a transaction. With viem it
-is `walletClient.sendTransaction`, then waiting for the receipt.
-
 | `waitForMaker` returns | Do |
 | --- | --- |
 | `READY` | Create your keys and start quoting. |
@@ -205,7 +209,7 @@ origins instead of the Totalis app's. With the example, call its exported `onboa
 
 ## Manage keys
 
-Your wallet manages your maker's keys from a session ([Sign in](#set-up)). An API key cannot create, rotate or
+Your wallet manages your maker's keys from a wallet session ([Headless](#headless), step 1). An API key cannot create, rotate or
 revoke keys. /mm lists them with their status, read-only.
 
 | Do | SDK (`.../api-keys`) | API |
@@ -429,12 +433,12 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 | --- | --- |
 | `ACCEPTED` | Queued as `operation_id`, not yet on-chain. |
 | `FILLED` | The trade landed. `POSITION_OPENED` follows an entry, `POSITION_CLOSED` a `sell_back`, and `POSITION_TRANSFERRED` a `transfer`. |
-| `FAILED` | The trade reverted or expired on-chain. Nothing filled. |
+| `FAILED` | The trade reverted on-chain, or expired before it was sent. Nothing filled. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing filled. |
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
-lands. Every confirm is checked against your capacity first
+lands, and an entry with taker `funding` also expires unsent when that funding does not arrive in time. Every confirm is checked against your capacity first
 ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ without
 `intent_id`, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
 fill can still revert. Keep following `OPERATION_UPDATED`.
@@ -461,9 +465,11 @@ Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any RFQ a
 
 ### After a restart
 
-Subscribe from your saved cursor. The maker snapshot's `acceptances` holds every acceptance still
-waiting for you, earliest deadline first, and
-[List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) pages the rest. Answer each
+Subscribe from your saved cursor. On `REPLAY`, the replayed `QUOTE_ACCEPTED` events carry what arrived while you
+were away. On `SNAPSHOT` or `RESET`, the snapshot's `acceptances` holds the acceptances still waiting for you,
+earliest deadline first; if `truncated` lists it, page the rest. Either way,
+[List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) returns every one still waiting: follow
+`next_cursor` until `has_more` is false. Answer each
 one before its `deadline`, and don't quote those RFQs again first. Keep the `quote_id`s you created in durable
 storage, so a restarted bot confirms only terms it published.
 

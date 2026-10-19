@@ -8,11 +8,11 @@ Your users trade with their own wallet. The wallet is the Totalis account: it si
 bets, cash-outs and withdrawals. Totalis never holds the key, and you never hold the funds.
 
 ```bash
-npm install @totalistrading/hip4-client
+npm install @totalistrading/hip4-client@0.64.0 viem
 ```
 
-The SDK is private: see [Get access](/hyperliquid/build/overview#get-access). You need a server key, a browser
-key, your registered origins and your partner slug, all from the same page.
+The SDK is private: see [Get access](/hyperliquid/build/overview#get-access). It also explains how to request
+your server key, browser key, registered origins and partner slug.
 
 | Credential | Looks like | Where it lives | Does |
 | --- | --- | --- | --- |
@@ -114,7 +114,7 @@ on your site. To trade through your product they create an API key in the
 [Totalis app](https://hip4.totalis.trade/account/api-keys), or export their wallet key
 ([Wallet key](/hyperliquid/authentication#wallet-key)). An account created in the Totalis app is not admitted by
 you, so its RFQs are attributed to you only with a signed [origin builder code](/hyperliquid/build/builder-codes),
-which works only from a wallet session on your page. RFQs it sends with an API key cannot be attributed to you.
+which needs the user to sign in on your page with their exported wallet key. RFQs it sends with an API key cannot be attributed to you.
 
 ## Sessions
 
@@ -129,7 +129,7 @@ The SDK calls [Create wallet challenge](/hyperliquid/api-reference/wallet-sessio
 | Lifetime | Fixed maximum and idle limit on [Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) |
 | Refresh | None. Sign in again. |
 | End | `signOutWallet`. Any later request with the token is `UNAUTHENTICATED`. |
-| API keys | A session can issue, rotate and revoke the account's own `ttk_` keys with `totalis.issueApiKey`, for a bot that trades the same account. |
+| API keys | A session can issue, rotate and revoke the account's own `ttk_` keys (`totalis.issueApiKey` and `rotateApiKey`; revoke with `revokeApiKey` from `.../api-keys`), for a bot that trades the same account. |
 
 A browser sets `Origin` itself. Outside a browser, pass `origin`, one of your registered origins, to
 `signInWithWallet` and `signOutWallet`, and send it as the `Origin` header on every later call and stream
@@ -154,7 +154,7 @@ The API answers CORS from your registered origins. Preflights allow `Authorizati
 | A request from a registered origin | Answered with `Access-Control-Allow-Origin` set to it |
 | Sign-in or a preflight from an origin Totalis has not registered | `403 ORIGIN_NOT_ALLOWED` |
 | A session token from another origin, or with no `Origin` | `401 UNAUTHENTICATED` |
-| A browser key from an origin that is not yours | The request names no partner |
+| A browser key from an origin that is not yours, or an unknown or revoked key | `403 FORBIDDEN` |
 
 To add or remove an origin, email [founders@totalis.trade](mailto:founders@totalis.trade).
 
@@ -164,7 +164,7 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 | --- | --- | --- |
 | The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
 | The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the maker confirms, and the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
-| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) apply. | Totalis |
+| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
 
 ```js
@@ -239,20 +239,22 @@ available USDC on HyperEVM. Available wallet USDC is `WALLET_USDC` less `pending
 wallet. It takes no amount. The wallet signs a USDC `ReceiveWithAuthorization` that deposits its available USDC
 into the vault, then one `Exit` of that plus the free vault cash. Totalis pays the gas for both, so the wallet
 needs no HYPE. When the available wallet USDC is under the
-[sponsored deposit minimum](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners), it stays in the wallet and
+[sponsored deposit minimum](/hyperliquid/limits-and-fees#deposits-and-exits), it stays in the wallet and
 only the free vault cash moves. To move a chosen amount, use `exitToCore`.
 Staging runs no exits to HyperCore, so `exitToCore` and `returnToCore` fail there
 ([Staging](/hyperliquid/build/staging#what-staging-does-not-run)).
 
 The first credit to a HyperCore account that does not exist yet pays Hyperliquid's activation fee, so it has a
-higher minimum ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)).
+higher minimum ([Limits](/hyperliquid/limits-and-fees#deposits-and-exits)). Until the user accepts that
+1 USDC fee, `exitToCore` and `returnToCore` fail with `409 CORE_ACCOUNT_ACTIVATION_REQUIRED`. Pass
+`activationFeeAccepted: true` once they accept it.
 
 ## Withdrawals
 
 Withdrawals and exits to HyperCore are sponsored. For an account that signs in with an external wallet they share
 one minimum and one hourly count ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)).
 
-| Over the limit | Result |
+| Case | Result |
 | --- | --- |
 | Below the minimum | `400 INVALID_REQUEST`, naming the amount field |
 | Over the hourly count | `429 RATE_LIMITED`, with `Retry-After` |
@@ -300,7 +302,7 @@ of that type: an allowed `TransferWithAuthorization` pays anyone.
   | `ReceiveWithAuthorization` | `from` the user's wallet, `to` `vault_address`, and the `value` the user approved. The `nonce` is `depositNonce`, derived from `vault`, `chainId`, `from`, `salt` and `account` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)). `account` is the vault balance the deposit credits and appears nowhere else in the message. Derive the nonce yourself with the user's wallet as both `from` and `account`; never sign a nonce you did not derive. |
   | `SendAsset` | `bridgeAction` for the amount the user approved. Its `destination`, `0x2000000000000000000000000000000000000000`, credits the signer's own HyperEVM address. |
   | `SellBack`, `CashoutTransfer` | The terms of the bid the user chose, with the owner or seller the user's wallet |
-  | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
+  | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `deployment.router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
   | `TransferWithAuthorization` | `from` the user's wallet, and the `to` and `value` the user entered. The `nonce` is `payoutNonce`, derived from the user's wallet and the withdrawal's `Idempotency-Key`, which binds the payout to that one withdrawal. Derive it yourself. |
 
 - **One user, one signer.** Resolve the wallet from the user's own authenticated request every time. Never fall

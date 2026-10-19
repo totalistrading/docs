@@ -22,7 +22,7 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | `cursor` | No | Your last applied cursor. Needs `replay:read`. |
 | `open_rfqs` | No | `true` for every open RFQ, not only yours. Needs `rfq:read`. |
 | `account_reads` | No | `true` for `readInvalidated` frames. |
-| `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. |
+| `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. If the snapshot would cut short `rfqs`, `quotes` or `open_rfqs`, the stream closes with `SNAPSHOT_TOO_LARGE` instead. |
 
 ## Event
 
@@ -39,6 +39,7 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
       "rfq_id": "0199a1c9-0a11-7c3e-9f20-5b7d8e9fa001",
       "kind": "ENTRY",
       "sequence": 8812,
+      "accept_before": "2026-09-26T20:00:11Z",
       "entry": {
         "maker_id": "3",
         "legs": [{ "outcome_id": "1209", "side": "YES" }],
@@ -47,7 +48,7 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
         "fee_bps": 100,
         "taker_fee_bps": 150,
         "taker": "0x1111111111111111111111111111111111111111",
-        "expiry": "1790193625",
+        "expiry": "1790452825",
         "salt": "73100245913027741890236401853207113049"
       }
     }
@@ -58,14 +59,14 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | `event_type` | When | `payload` |
 | --- | --- | --- |
 | `RFQ_CREATED` | You created an RFQ, or any RFQ opened (with `open_rfqs`) | The open RFQ, as [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq), without `status` |
-| `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at` |
-| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, and `entry`, `sell_back` or `transfer` |
-| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. Expiry sends no event. |
+| `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at`, and `intent_id` and `intent_generation` for any RFQ opened with an intent. `terminal_reason` is set only on `RFQ_FAILED`: `REVERTED`, `EXPIRED_UNEXECUTED` or `INSUFFICIENT_CASH`. |
+| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, `accept_before` (entry quotes: accept before it, 14 seconds before `entry.expiry`), and `entry`, `sell_back` or `transfer` |
+| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. An entry quote stops being acceptable at its `accept_before`, which sends no event. |
 | `OPERATION_UPDATED` | An operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position changed on-chain | `position_id`, `block_number`, `log_index`. Read the position. |
 | `VAULT_BALANCE_CHANGED` | Your vault balance changed | `address`, `amount` (the new balance), `transaction_hash`, `status` |
 | `WALLET_BALANCE_CHANGED` | A USDC transfer touched your wallet | `address`, `transaction_hash`, `block_number` |
-| `WALLET_FUNDING_UPDATED` | An acceptance's wallet funding changed | `acceptance_id`, `status`, `updated_at` |
+| `WALLET_FUNDING_UPDATED` | An acceptance's wallet funding changed | `acceptance_id`, `status`, `updated_at`, and from `ACCEPT_QUEUED` on, `fund_by`: send any HyperCore-to-wallet transfer that funds it before then |
 | `WITHDRAWAL_UPDATED` | A withdrawal changed | The withdrawal, as [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) |
 | `CORE_EXIT_UPDATED` | A HyperCore exit changed | `exit_id`, `status`, `updated_at` |
 
@@ -83,8 +84,8 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 
 | Class | Holds | Pages the rest when `truncated` |
 | --- | --- | --- |
-| `rfqs` | Your RFQs | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |
+| `rfqs` | Your open RFQs | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs): every open RFQ, so keep those whose `taker` is yours |
 | `quotes` | Live quotes on your open RFQs | [List quotes](/hyperliquid/api-reference/quotes/list-quotes), per RFQ |
 | `acceptances` | Your acceptances in `PENDING_CONFIRM` | [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance), per quote |
-| `operations` | Your operations | [List operations](/hyperliquid/api-reference/account/list-operations) |
+| `operations` | Your operations still in progress | [List operations](/hyperliquid/api-reference/account/list-operations) |
 | `open_rfqs` | Every open RFQ, with `open_rfqs: true` | [List RFQs](/hyperliquid/api-reference/rfqs/list-rfqs) |

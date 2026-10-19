@@ -77,7 +77,8 @@ Expiry: 1792152000
 
 The request JSON is minified, with the keys in this order: `intent_id` and `intent_generation` only when you send
 them, then `stake`, `legs`, `builder_code` and `origin`. Each leg is `{"outcome_id","side"}` in that order.
-`origin` is the page's origin, exactly as the browser sends it in `Origin`.
+`origin` is the page's origin, exactly as the browser sends it in `Origin`. `intent_generation` is a decimal string.
+Send the legs in strictly increasing `outcome_id` order, as Create RFQ requires.
 
 ```json
 {"stake":"5000000","legs":[{"outcome_id":"1209","side":"YES"}],"builder_code":"tot_rfq_production_0198a6f682a57abc9f2a4f0fb4374941","origin":"https://app.example.com"}

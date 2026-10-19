@@ -92,16 +92,15 @@ The wallet needs no HYPE for bets, cash-outs and withdrawals: Totalis pays that 
 
 ## Make markets on staging
 
-[Set up](/hyperliquid/guides/market-making#set-up) your maker as in production, with `environment: "staging"`. An
-account created in the staging app signs in with its origin, `https://hip4-staging.totalis.trade`; a
-[partner-admitted wallet](/hyperliquid/guides/market-making#partner-admitted-wallet) with your registered staging
-origin.
+[Set up](/hyperliquid/guides/market-making#set-up) your maker as in production, with `environment: "staging"`. Sign in from
+`https://hip4-staging.totalis.trade` for an account created in the staging app. Sign in from your registered staging
+origin for a [partner-admitted wallet](/hyperliquid/guides/market-making#partner-admitted-wallet).
 
 | Need | On staging |
 | --- | --- |
 | Testnet HYPE for gas | Makers pay their own gas. Get HYPE on Hyperliquid testnet, then send it to your wallet on HyperEVM through HYPE's system address, `0x2222222222222222222222222222222222222222` ([Hyperliquid: transfers](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/hyperevm/hypercore-less-than-greater-than-hyperevm-transfers)). |
 | Testnet USDC for the maker vault | [Testnet USDC](#testnet-usdc) |
-| Markets to quote | Staging lists Hyperliquid testnet's outcomes. An RFQ opens only on a market whose `eligibility.state` is `ENABLED` and whose `combo.state` is `OPEN` ([List markets](/hyperliquid/api-reference/markets/list-markets) with `eligibility=ENABLED`). A market stays enabled only while its Hyperliquid testnet book has orders, so few are, and the set changes. The daily BTC rounds are the steadiest. |
+| Markets to quote | Staging lists Hyperliquid testnet's outcomes. An RFQ opens only on a market whose `eligibility.state` is `ENABLED` and whose `combo.state` is `OPEN` ([List markets](/hyperliquid/api-reference/markets/list-markets) with `eligibility=ENABLED`). A market stays enabled only while Hyperliquid testnet gives it fresh reference prices on both sides, so few are, and the set changes. `eligibility.reason` says why one is not. The daily BTC rounds are the steadiest. |
 
 A staging RFQ comes from a test taker, often your own. Open one against your maker to test the whole path: quote,
 confirm, the fill on-chain and settlement.

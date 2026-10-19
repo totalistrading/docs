@@ -19,7 +19,7 @@ the gas.
 
 ### Create RFQ
 
-Legs go in strictly ascending `outcome_id` order. One leg is a single; more is a parlay.
+Legs go in strictly ascending `outcome_id` order. One leg is a single; more is a Combo (a parlay).
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/rfqs \
@@ -61,6 +61,7 @@ Each `QUOTE_CREATED` carries one quote:
   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
   "kind": "ENTRY",
   "sequence": 48213,
+  "accept_before": "2026-09-26T20:01:01Z",
   "entry": {
     "maker_id": "7",
     "legs": [{ "outcome_id": "1209", "side": "YES" }],
@@ -75,8 +76,9 @@ Each `QUOTE_CREATED` carries one quote:
 }
 ```
 
-`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. A quote
-also stops at `expiry` (unix seconds), which sends no event.
+`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. An entry quote
+stops being acceptable at `accept_before`, 14 seconds before `expiry` (unix seconds), which sends no event. A
+cash-out quote leaves the list 22 seconds before its `expiry`.
 
 ### Accept
 
@@ -101,7 +103,8 @@ The response waits for the maker's answer:
   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
   "status": "ACCEPTED",
   "deadline": "2026-09-26T20:00:53.352Z",
-  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
+  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+  "server_time": "2026-09-26T20:00:51.791Z"
 }
 ```
 
@@ -110,7 +113,8 @@ The response waits for the maker's answer:
 | `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded. Create a new RFQ. |
 
-Read later, an acceptance can also be `FILLED` or `FAILED`.
+Read later, an acceptance can also be `FILLED` or `FAILED`. With `funding`, an `ACCEPTED` acceptance also carries
+`fund_by`, 2 seconds after the confirm. Judge `deadline` and `fund_by` against `server_time`, not your clock.
 
 ### Funding
 
@@ -132,7 +136,10 @@ the shortfall in the same transaction as the trade. It needs `funding:deposit`.
 ```
 
 `value` is the stake minus `VAULT_FREE` in [Get balances](/hyperliquid/api-reference/account/get-balances),
-signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`.
+signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`. Sign
+`valid_after` at or before now and `valid_before` no earlier than the quote's `expiry`, at most 900 seconds apart. If
+you bridge USDC from HyperCore to fund it, send the bridge only after the accept returns `ACCEPTED` and before
+`fund_by`. `WALLET_FUNDING_UPDATED` reports the funding's progress.
 
 ### Lost response
 
@@ -147,7 +154,7 @@ is final. Never accept the same quote under a second key.
 | --- | --- |
 | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
 | `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
-| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. Cash an SDK entry bridged from HyperCore stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
 
 The position's ID is the `quote_id` you accepted:
 
@@ -159,7 +166,7 @@ curl https://hip4-api.totalis.trade/v1/me/positions/$QUOTE_ID \
 ## Cash out
 
 [Cash out position](/hyperliquid/api-reference/positions/cash-out-position) opens a cash-out RFQ on an
-`OPEN` position you own. The body is empty.
+`OPEN` position you own. The body is an empty JSON object, `{}`.
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/me/positions/$POSITION_ID/cashout \
@@ -203,7 +210,7 @@ proceeds land in your vault balance:
 
 | `kind` | You receive |
 | --- | --- |
-| `SELL_BACK` | `price` less the profit fee on the part above the position's `net_stake`: `floor((price - net_stake) * fee_bps / 10000)`, nothing when `price` is at or below `net_stake` ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it. |
+| `SELL_BACK` | `price` less the profit fee on the part above the position's `net_stake`: `floor((price - net_stake) * fee_bps / 10000)`, no fee when `price` is at or below `net_stake` ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it. |
 | `TRANSFER` | `price`, with no fee |
 
 ## Settlement

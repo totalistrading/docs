@@ -6,9 +6,9 @@ description: 'Connect to the Hyperliquid WebSocket, send one subscribe frame, re
 
 | | Value |
 | --- | --- |
-| URL | `wss://hip4-api.totalis.trade/v1/stream` |
+| URL | `wss://hip4-ws.totalis.trade/v1/stream` |
 | Subprotocol | `totalis.realtime.v2` |
-| Auth | `Authorization: Bearer <key>` on the upgrade. Browsers send a second subprotocol, `auth.<base64url of the key>`, instead. |
+| Auth | `Authorization: Bearer <key>` on the upgrade. Browsers send two subprotocols instead, `totalis.realtime.v2` then `auth.<token>`, where `<token>` is the key or session token in base64url without `=` padding, from an allowed `Origin`. |
 | Channels | [Account](/hyperliquid/api-reference/websocket/account) (a key for your account), [Maker](/hyperliquid/api-reference/websocket/maker) (a key for a maker) |
 
 Public market prices use a separate socket: [Market data](/hyperliquid/api-reference/websocket/market-data).
@@ -42,7 +42,7 @@ Response:
 }
 ```
 
-A first frame that is not a valid subscribe, or arrives late, closes with `INVALID_SUBSCRIPTION`. A subscription your key may not use
+Send it within 10 seconds. A first frame that is late, malformed or has unknown fields closes with `INVALID_SUBSCRIPTION`. A subscription your key may not use
 closes with `SUBSCRIPTION_DENIED`. There is no unsubscribe: close the socket.
 
 ## Frames
@@ -51,10 +51,10 @@ Every server frame is `{ "channel": ..., "data": ... }`.
 
 | `channel` | When | `data` |
 | --- | --- | --- |
-| `subscriptionResponse` | Once, after your subscribe | Your subscription, `connection_id`, `server_time`, `heartbeat_interval_ms`, `resume`, `cursor` |
+| `subscriptionResponse` | Once, after your subscribe | Your subscription, `connection_id`, `server_time`, `heartbeat_interval_ms`, `resume`, `cursor`, and `account_reads` when you set it |
 | `snapshot` | After the response, when `resume` is `SNAPSHOT` or `RESET` | `cursor`, `resources`, and `truncated` when a class was cut short |
 | `event` | Each committed change, in order | `cursor`, `event_id`, `event_type`, `occurred_at`, `payload` |
-| `publication` | Each heartbeat, with `publication_freshness` | `cursor`, `source_cut_at`, `server_time` |
+| `publication` | Each heartbeat, with `publication_freshness` | `cursor`, `source_cut_at`, `server_time`, or `null` when coverage is unknown. Treat `null` as not fresh. |
 | `readInvalidated` | With `account_reads`, when an account read changed | The `resources` to read again |
 | `marketRefresh` | After the snapshot, and when the market catalog changes | `catalog_generation`, `resource: "/v1/markets"` |
 | `drain` | The server is restarting | `deadline`, `retry_after_ms` |
@@ -91,7 +91,7 @@ the rest:
 { "resource": "acceptances", "href": "/v1/makers/7/acceptances" }
 ```
 
-Page that route once from the first page. Balances, positions and maker capital are not snapshot
+Read the rest from that route, starting at its first page. An `href` with a `{placeholder}` is per resource: fill it in for each item. Balances, positions and maker capital are not snapshot
 classes: read them over HTTP when you connect, and again on their events.
 
 ## Apply events
@@ -126,7 +126,7 @@ The stream is the only replay; there is no HTTP event log. The replay window is 
 
 ## Heartbeats, drain and reset
 
-- Keepalive is WebSocket ping and pong, every `heartbeat_interval_ms`.
+- The server sends a WebSocket ping every `heartbeat_interval_ms`. Answer with a pong within 5 seconds, or the server drops the connection.
 - On `drain`, open a new connection, resume from your cursor, then close the old one. The server
   closes it with `CONNECTION_DRAIN` by `deadline`.
 - On `reset`, discard local state and reconnect without a cursor.
@@ -136,6 +136,10 @@ to do:
 
 | `retry` | Do | Codes |
 | --- | --- | --- |
-| `BACKOFF` | Reconnect with backoff and resume from your cursor. | `SLOW_CONSUMER`, `CONNECTION_DRAIN` |
+| `BACKOFF` | Reconnect with backoff and resume from your cursor. | `SLOW_CONSUMER`, `CONNECTION_DRAIN`, `SOURCE_UNAVAILABLE`, `DEPENDENCY_STALE`, `SNAPSHOT_TOO_LARGE` |
 | `REFRESH` | Reconnect without a cursor and apply the fresh snapshot. | `CURSOR_RESET` |
-| `NEVER` | Stop. | `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED` |
+| `NEVER` | Stop. | `SUBSCRIPTION_DENIED`, `AUTHORIZATION_REVOKED`, `INVALID_SUBSCRIPTION`, `SUBPROTOCOL_REQUIRED`, `STREAM_REPLACED` |
+
+An account holds at most 4 open streams. With an API key, a fifth is refused with `429` and `Retry-After`. A wallet
+session's fifth replaces its oldest, which closes with `STREAM_REPLACED`. A dropped stream can hold its slot for up
+to 30 seconds.

@@ -17,8 +17,8 @@ one by one they lock 13,000 USDC. After a reduction they lock 8,000, the larger 
 
 ## Your capital
 
-[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) reads the maker vault
-exactly as the contract sees it. All amounts are atomic USDC.
+[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) reads your maker vault's
+lanes from the chain, plus the fills Totalis holds for you that are not yet on-chain. All amounts are atomic USDC.
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
@@ -79,14 +79,15 @@ Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperli
 
 | When | What changes |
 | --- | --- |
-| You confirm a fill | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`. `discount` does not change, so the new position locks in full. |
+| You confirm an entry | Its worst case joins `pending_commitments` ([When collateral is checked](#when-collateral-is-checked)). |
+| The entry lands on-chain | The taker's net stake joins `vault_gross` and `stake_escrow`. `gross_open` rises by the position's `payout - net stake`, and its reservation leaves `pending_commitments`. `discount` does not change, so the new position locks in full. |
 | A position loses | You keep the stake: it leaves `stake_escrow` and stays in `vault_gross`. `gross_open` falls by the position's worst case. |
 | A position wins | The taker's stake goes back to them. You owe the profit, held in `payable_owed` until Totalis claims it for the taker. `gross_open` falls. |
 | A position pays part (`PARTIAL`) | What it pays leaves `vault_gross` for the owner, and you keep the rest of the stake. It leaves `stake_escrow`. `gross_open` falls. |
 | A position closes either way | `discount` falls by the part of the closed position's worst case you did not pay, so the credit it earned leaves with it. |
 | You buy a position back (`SELL_BACK`) | The price comes out of `vault_gross`. The net stake leaves `stake_escrow`, so it is yours again. The position closes as above. |
 | Another maker buys it (`TRANSFER`) | Nothing changes for you. You still back it, for its new owner. |
-| You deposit or withdraw | `vault_gross` moves. A withdrawal must leave `free_collateral` covered. |
+| You deposit or withdraw | `vault_gross` moves. A withdrawal executes only if its amount is within `free_collateral` at that time. |
 
 The profit fee comes out of the taker's winnings, not your vault. The entry fee comes out of the
 taker's stake before it reaches you. Rates are on [Limits](/hyperliquid/limits-and-fees).
@@ -145,8 +146,8 @@ const { job, submitted } = await maker.reduceCollateral({
 });
 ```
 
-`id` is `chain_id` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). The steps below are the
-same flow over the API.
+`id` is `chain_id` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Use your collateral key,
+not the quoting bot's: it holds `vault:write` and `operations:submit`. The steps below are the same flow over the API.
 
 <Steps>
   <Step title="Start a job">
@@ -156,7 +157,7 @@ same flow over the API.
 
     ```bash
     curl -X POST https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/collateral-reductions \
-      -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+      -H "Authorization: Bearer $TOTALIS_COLLATERAL_KEY" \
       -H "Idempotency-Key: 01998713-2f4a-7c3e-9b1d-6a0e4f5c8d20"
     ```
 
@@ -185,7 +186,7 @@ same flow over the API.
 
     ```bash
     curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/operations/$OPERATION_ID/self-funded-transaction \
-      -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
+      -H "Authorization: Bearer $TOTALIS_COLLATERAL_KEY" \
       -H "Idempotency-Key: 01998713-2f4a-7c3e-9b1d-6a0e4f5c8d20" \
       -H "Content-Type: application/json" \
       -d '{ "signed_transaction": "0x02f8d4..." }'
@@ -234,8 +235,8 @@ open position locks in full again. It can only raise your requirement, never low
 
 ## Move maker funds
 
-Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these, and /mm
-only shows a pending withdrawal: [Fund and withdraw](/hyperliquid/guides/market-making#fund-and-withdraw)
+Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these. /mm
+only shows a pending withdrawal. [Fund and withdraw](/hyperliquid/guides/market-making#fund-and-withdraw)
 runs each call headless with the SDK. The
 vault is `vault_address` and USDC is `usdc.address` in
 [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Every `amount` is atomic USDC

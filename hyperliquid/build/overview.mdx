@@ -10,7 +10,7 @@ Totalis is open to builders. Pick the path that matches what you ship.
 | --- | --- | --- | --- | --- |
 | A bot or script | You | Your own Totalis account | An API key (`ttk_`) and your wallet key | [Quickstart](/hyperliquid/quickstart) |
 | A market maker | Your maker | Your maker | A maker API key (`ttk_`) and the maker wallet | [Market making](/hyperliquid/guides/market-making) |
-| A frontend | Your users | Each user's own wallet | Partner credentials and a builder code | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
+| A frontend | Your users | Each user's own wallet | Partner credentials: server key, browser key, registered origins and a builder signer | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
 | Attribution on accounts you did not admit | Users of your page | Any account no partner admitted | A builder code for your origin and a builder signer | [Builder codes](/hyperliquid/build/builder-codes) |
 
 Every path uses the same API and the [TypeScript SDK](/hyperliquid/sdk). Totalis never holds a user's key:
@@ -41,7 +41,7 @@ credentials or the SDK.
     | Item | Example | Needed for |
     | --- | --- | --- |
     | Company or app name | Acme Markets | Everything |
-    | Partner slug you want | `acme`: lowercase letters, digits and hyphens, up to 63 characters | Partner credentials |
+    | Partner slug you want | `acme`: lowercase letters, digits and hyphens, up to 63 characters, starting with a letter or digit | Partner credentials |
     | Production origins | `https://app.acme.com` | Partner credentials |
     | Staging origins | `https://staging.acme.com` | Staging credentials |
     | Builder signer address | `0x...`, a key your server holds | Partner credentials. Required to register you; used to sign origin builder codes. |
