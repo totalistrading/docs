@@ -61,8 +61,12 @@ Every route below takes your maker key unless it says otherwise.
 [/mm](https://hip4.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
 pending withdrawal, positions, quotes and performance. It has no buttons that act. Its position, exposure
 and performance pages read routes that only the app's session can call; a bot reads the same facts from the
-routes above. Every write runs from your own machine with your wallet key and the
-[SDK](/hyperliquid/sdk#make-markets) or the API.
+routes above. Every write runs headless through the [SDK](/hyperliquid/sdk#make-markets) or the API:
+
+| Credential | Signs or authenticates |
+| --- | --- |
+| Your wallet key | Sign-in, key approvals, every vault transaction, and the signature in every confirm |
+| Your maker key (`ttk_`) | Every maker API call: quotes, cancels, the quote lease, confirms and maker reads |
 
 ## Set up
 
@@ -145,10 +149,13 @@ TOTALIS_WALLET_KEY=0x... TOTALIS_DEPOSIT=1000000000 node examples/onboard.mjs
 
     const keys = createApiKeyClient("production", onSession);
     const owner = toTotalisSigner(wallet);
-    const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", scopes: [...QUOTING_BOT_SCOPES] });
+    const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", scopes: [...QUOTING_BOT_SCOPES], expires_in_days: 90 });
     // Only to lower your collateral; keep it apart from the quoting bot's.
-    const collateral = await issueApiKey(keys, owner, { maker: makerId, label: "Collateral", scopes: [...COLLATERAL_SCOPES] });
+    const collateral = await issueApiKey(keys, owner, { maker: makerId, label: "Collateral", scopes: [...COLLATERAL_SCOPES], expires_in_days: 90 });
     ```
+
+    A key stops working at its expiry. Rotate it before then ([Manage keys](#manage-keys)), or pass
+    `expires_in_days: 0` for a key that lasts until you revoke it.
   </Step>
   <Step title="Fund the maker vault">
     Approve USDC for the vault, then deposit it. Both come from your wallet.
@@ -217,7 +224,8 @@ has every vault call and its reverts.
 | `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
 
 Your maker is one wallet: your Totalis account's embedded wallet. Totalis admits a maker only from the account's
-own wallet, so you run your bot with its exported key. Nothing fills without your confirmation signature, so to
+own wallet, so you run your bot with its exported key. A wallet that signs in on a partner's site cannot run a
+maker: once it controls one, it can no longer sign in to manage it. Nothing fills without your confirmation signature, so to
 stop filling, stop confirming.
 
 The vault cannot move a maker to another wallet.

@@ -121,22 +121,32 @@ withdrawal then reverts. While one is pending, subtract its `pending.amount`
 A reduction looks at every open position you back, finds the most your book can lose under any way
 the markets can resolve, and certifies the difference as your `discount`. You submit that
 certificate on-chain from a wallet that pays the gas. Totalis does not run reductions for you, and
-it does not pay their gas. Every step runs headless on a key with the
-[maker collateral scopes](/hyperliquid/authentication#scopes) (`COLLATERAL_SCOPES` in the SDK).
+it does not pay their gas. It runs headless: the API calls use a maker key with the
+[maker collateral scopes](/hyperliquid/authentication#scopes) (`COLLATERAL_SCOPES` in the SDK), and a wallet that
+holds HYPE signs the certificate transaction. Your maker wallet works.
 
 ```ts
 import { createMaker } from "@totalistrading/hip4-client/maker";
-import { createWalletClient, http } from "viem";
+import { createWalletClient, defineChain, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
-const maker = createMaker({ environment: "production", apiKey: process.env.TOTALIS_COLLATERAL_KEY!, makerId, signer: wallet });
+const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
+const hyperEvm = defineChain({
+  id: 999, name: "HyperEVM", nativeCurrency: { name: "HYPE", symbol: "HYPE", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.hyperliquid.xyz/evm"] } },
+});
 const walletClient = createWalletClient({ account: wallet, chain: hyperEvm, transport: http() });
+const maker = createMaker({
+  environment: "production", apiKey: process.env.TOTALIS_COLLATERAL_KEY!, makerId: process.env.TOTALIS_MAKER_ID!, signer: wallet,
+});
 const { job, submitted } = await maker.reduceCollateral({
-  signTransaction: async (call) => walletClient.signTransaction(await walletClient.prepareTransactionRequest({ to: call.to, data: call.data, value: 0n })),
+  signTransaction: async (call) =>
+    walletClient.signTransaction(await walletClient.prepareTransactionRequest({ to: call.to, data: call.data, value: 0n })),
 });
 ```
 
-`hyperEvm` is a viem chain for `chain_id` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
-The steps below are the same flow over the API.
+`id` is `chain_id` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). The steps below are the
+same flow over the API.
 
 <Steps>
   <Step title="Start a job">

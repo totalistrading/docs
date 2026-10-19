@@ -266,8 +266,9 @@ acceptance still waits: answer it in `onAcceptance`.
 The maker wallet sends its own vault transactions and pays the gas in HYPE. The SDK never sends a transaction.
 See [Market making](/hyperliquid/guides/market-making) and [Maker collateral](/hyperliquid/guides/collateral).
 
-A maker onboards and manages its keys headless, from a wallet session signed in with the Totalis app's origin
-([Set up](/hyperliquid/guides/market-making#set-up)). The `.../api-keys` helpers take the maker in `{ maker }`:
+A maker onboards and manages its keys headless, from a wallet session that its Totalis account's exported embedded wallet
+signs in with the Totalis app's origin ([Set up](/hyperliquid/guides/market-making#set-up)). A wallet that signs in on a
+partner's site cannot run a maker ([Your maker wallet](/hyperliquid/guides/market-making#your-maker-wallet)). The `.../api-keys` helpers take the maker in `{ maker }`:
 
 | Function | Does |
 | --- | --- |
