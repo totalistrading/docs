@@ -1,0 +1,25 @@
+---
+title: 'Changelog'
+icon: 'clock-rotate-left'
+description: 'What changed in each release of @totalistrading/hip4-client, with the breaking changes called out.'
+---
+
+The SDK follows [semantic versioning](https://semver.org). Every release, with its additions and fixes, is in
+`CHANGELOG.md` in the package. The table below is the releases that need you to change something, plus the
+latest.
+
+| Version | Change |
+| --- | --- |
+| 0.65.1 | The first release on public npm, under Apache-2.0. Install with `npm install @totalistrading/hip4-client` and no registry setup. Same code as 0.65.0. |
+| 0.65.0 | Additive. `Operation` carries `failure_reason`, and `entryFailure(record, operation)` names why an entry did not trade: `INSUFFICIENT_CASH` or `CORE_MOVE_MISSED` ([Why an entry did not trade](/hyperliquid/sdk/trading#why-an-entry-did-not-trade)). `openPosition` returns the entry `record`. Published to GitHub Packages only. |
+| 0.64.0 | Needs the venue's `accept_before`, `fund_by` and `server_time`. `sendAcceptance` posts the accept first and sends an entry's bridge only once it is `ACCEPTED`, before `fund_by`; the result's `bridge` is replaced by the `bridging` promise. `signEntry` signs everything at once and takes `cash`. Records carry `version: 2` and `bridgeState`, persisted through `onRecord`; `sendAcceptance` refuses older records. `bestQuote()` takes no argument and cuts quotes off at `accept_before`. Removes `EntryError` `QUOTE_SHORT`, `BRIDGE_LATE` and `BRIDGE_REFUSED`, and `bridged` on `ApiError` and `normalizeError`. |
+| 0.63.0 | `openPosition` and `cashOut` collect quotes for `collectMs` (1 s) before choosing; pass `collectMs: 0` for the old first-quote behaviour. `signEntry` and `openPosition` without `core` throw `INSUFFICIENT_FUNDS` when the wallet is known to fall short, instead of signing an entry the venue refuses. `issueApiKey` refuses a challenge whose scopes differ from the request. |
+| 0.61.0 | Adds `listApiKeys`, `revokeApiKey`, `QUOTING_BOT_SCOPES`, `COLLATERAL_SCOPES` and `examples/onboard.mjs`, for makers onboarding headless. No change to existing functions. |
+| 0.60.1 | Docs only. `quote`, `bid` and `cancelQuote` can throw `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`) when the venue records an acceptance while the request is on its way. Answer it in `onAcceptance`. |
+| 0.60.0 | `quote` and `bid` throw `AcceptancePendingError` when an acceptance is waiting for you, and `onRfq` holds that RFQ until it is answered. `reduceCollateral` returns the job's `idempotencyKey`. |
+| 0.57.0 | A resumed account stream is `live` only after its replay is applied. A withdrawal or return to HyperCore with an unread balance throws `BalanceUnknownError`, and Core exits on a deployment without them (staging) throw `ExitUnavailableError`, before anything is signed. Both used to be plain `Error`s. |
+| 0.55.0 | Cash-out RFQs carry `net_stake` and `payout`. |
+| 0.54.0 | Anonymous reads refuse query parameters they do not take (400 `INVALID_QUERY`). |
+| 0.50.0 | `getVolumeLeaderboard` needs a signed-in session. API keys are refused. |
+| 0.47.0 | A maker is one wallet. `controller()` no longer builds `setQuoteSigner`. |
+| 0.45.0 | The native HyperCore withdrawal routes are gone. |

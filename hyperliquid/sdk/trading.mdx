@@ -1,0 +1,160 @@
+---
+title: 'Trade'
+icon: 'arrow-right-arrow-left'
+description: 'Open a position, find out why an entry did not trade, cash out and withdraw with createTotalis.'
+---
+
+`createTotalis` runs every taker flow: it creates the RFQ, picks a quote, gets the signatures it needs, funds
+the stake, and follows the trade to the end.
+
+```ts
+import { createTotalis } from "@totalistrading/hip4-client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const totalis = createTotalis({
+  environment: "production",
+  accessToken: process.env.TOTALIS_API_KEY!,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+});
+```
+
+The signer must be the account's wallet. In a browser, pass `window.ethereum` or a wallet client instead
+([Wallets and partners](/hyperliquid/sdk/wallets)).
+
+## Open a position
+
+```ts
+const opened = await totalis.openPosition({
+  legs: [
+    { outcome_id: "1209", side: "YES" },
+    { outcome_id: "1344", side: "NO" },
+  ],
+  stake: 25_000_000n, // 25 USDC
+});
+
+if (opened.operationId) {
+  const operation = await totalis.waitForOperation(opened.operationId);
+  console.log(operation.status); // COMMITTED when the position opened
+}
+```
+
+Legs go in strictly ascending `outcome_id` order. `openPosition`:
+
+1. Waits for the account stream, then creates the RFQ.
+2. Collects quotes and picks the best one.
+3. Has the wallet sign `TakerAccept`, plus any funding the vault is short of.
+4. Sends one accept, and recovers it if the answer is lost.
+
+It returns once the maker answers. `status` says what happened:
+
+| `status` | Meaning |
+| --- | --- |
+| `ACCEPTED` | The maker confirmed. Follow `operationId` with `waitForOperation`. |
+| `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded |
+| `NOT_ADMITTED` | Every response was lost and the venue had no acceptance, so the SDK cancelled the RFQ. Nothing traded. |
+| `FILLED`, `FAILED` | Only after a lost answer is recovered: the trade had already committed, or already failed |
+
+The result also carries `rfqId`, `acceptanceId`, `quoteId`, `positionId`, the signed entry `record`, and `bridged`
+and `bridging` for an entry that bridged cash from HyperCore ([Entry records](/hyperliquid/sdk/resume-and-retry#entry-records-and-the-bridge)).
+
+An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it opened, or `REVERTED` or
+`EXPIRED_UNEXECUTED` when nothing traded.
+
+### Options
+
+| Option | Default | Does |
+| --- | --- | --- |
+| `legs` | | The legs, in ascending `outcome_id` order |
+| `stake` | | The stake in atomic USDC |
+| `quoteTimeoutMs` | 20,000 | Cancels the RFQ and throws if no acceptable quote arrives in time |
+| `collectMs` | 1,000 | How long to keep collecting after the first quote `choose` would take. `0` takes it at once. |
+| `choose` | `bestQuote()` | Picks a quote from `(quotes, serverNowMs)`, or returns `undefined` to keep waiting |
+| `funding` | `"wallet"` | `"wallet"` funds the exact shortfall from the wallet; `"none"` never funds; a funding command you built is sent as is |
+| `core` | | HyperCore spot USDC you offer to bridge to the wallet when its HyperEVM USDC falls short |
+| `cash` | | A `spendableCash()` read to plan from. Left out, balances are read while quotes arrive. |
+| `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. Persist it. |
+
+`bestQuote()` takes the highest payout still before its `accept_before`. A custom `choose` may be called again
+for a later time, so it must depend only on its arguments. Collection ends early if waiting would lose the quote
+or pass `quoteTimeoutMs`.
+
+Funding comes from free vault cash first, then the wallet, then a bridge of `core`. 0.05 USDC stays behind for
+the bridge's gas.
+
+### Why an entry did not trade
+
+An entry can fail before it is sent, or after it is accepted.
+
+**Before anything is sent**, while it plans the funding, `openPosition` throws `EntryError` and cancels the RFQ:
+
+| `code` | Meaning |
+| --- | --- |
+| `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
+| `INSUFFICIENT_FUNDS` | Vault cash, wallet USDC and `core` (less 0.05 USDC) do not cover the stake. The message names the shortfall. |
+
+**After it is accepted**, an operation that ends `REVERTED` or `EXPIRED_UNEXECUTED` traded nothing.
+`entryFailure` names the message to show:
+
+```ts
+import { entryFailure } from "@totalistrading/hip4-client";
+
+const operation = await totalis.waitForOperation(opened.operationId!);
+if (operation.status !== "COMMITTED") {
+  switch (entryFailure(opened.record, operation)) {
+    case "INSUFFICIENT_CASH": // the stake was not covered when it had to be
+    case "CORE_MOVE_MISSED":  // the planned HyperCore cash never confirmed moving in time; it may still be on HyperCore
+    default:                  // any other outcome
+  }
+}
+```
+
+Pass the latest record, as `onSigned` or `onRecord` last handed it to you. When the entry bridged and failed,
+see [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
+
+### Watch quotes yourself
+
+To show quotes as they arrive instead of letting `openPosition` choose:
+
+```ts
+const stop = totalis.watchQuotes(rfqId, (quotes, serverNowMs) => render(quotes));
+```
+
+The listener gets the RFQ's acceptable quotes, oldest first, and `[]` while the stream is down. A quote is dropped
+at its `accept_before`, and the listener is called again then. To take one, sign and send it as in
+[Resume and retry](/hyperliquid/sdk/resume-and-retry).
+
+## Settlement
+
+When a position's markets resolve, Totalis settles it and pays the winnings into the owner's vault balance.
+There is nothing to call.
+
+## Cash out
+
+```ts
+const sale = await totalis.cashOut({ positionId });
+if (sale.operationId) await totalis.waitForOperation(sale.operationId);
+```
+
+`cashOut` requests bids for the position, picks one with `bestBid()` (by default, the best bid with at least 25
+seconds left), has the owner sign it, and sends one accept. It takes `choose` and `collectMs` like
+`openPosition`.
+
+## Withdraw
+
+```ts
+await totalis.withdraw({
+  destination: "0x2222222222222222222222222222222222222222",
+  amount: 15_000_000n,
+  onStarted: (withdrawalId) => saveWithdrawal(withdrawalId),
+});
+```
+
+`withdraw` signs the `Exit` for any part of the amount the wallet is short of, plus the USDC payout, in one go.
+It resolves at `PAYOUT_COMMITTED`. After a restart, `waitForWithdrawal(withdrawalId)` follows it.
+
+To store the signed request before sending it, `signWithdrawal` returns `{ idempotencyKey, account, body }` and
+`sendWithdrawal(signed)` sends it.
+
+A withdrawal with an unread balance throws `BalanceUnknownError` before anything is signed.
+
+To move cash to HyperCore instead, see [Move cash to HyperCore](/hyperliquid/sdk/wallets#move-cash-to-hypercore).

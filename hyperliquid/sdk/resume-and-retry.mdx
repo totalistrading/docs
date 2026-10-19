@@ -1,0 +1,118 @@
+---
+title: 'Resume and retry'
+icon: 'rotate'
+description: 'Sign, persist and send so an app survives a reload without signing twice, plus how the SDK retries and what each error means.'
+---
+
+Network calls fail and pages reload. The SDK is built so neither one trades twice or loses a trade.
+
+## Sign, persist, send
+
+`openPosition` and `cashOut` run in one call. To survive a reload mid-trade, split them into three steps:
+sign, save the signed record, then send it.
+
+```ts
+// save and load are your own durable storage.
+const signed = await totalis.signEntry({ quote });                         // plain JSON
+await save(signed);                                                         // before anything is sent
+const result = await totalis.sendAcceptance(signed, { onRecord: save });
+
+// After a reload:
+const resumed = await totalis.recoverAcceptance(await load(), { onRecord: save }); // never signs again
+```
+
+### `signEntry({ quote, core, cash })`
+
+Asks the wallet for every signature the entry needs, at once. It plans the funding from `cash` (a
+`spendableCash()` read) or, without it, from current balances: free vault cash first, then the wallet, then a
+bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
+
+- `core` is the HyperCore spot USDC you offer. Leave it out to fund from the wallet alone. `core: null` means your
+  HyperCore read failed.
+- Pass `cash` to plan before the wallet prompt. Without it, the wallet is asked for `TakerAccept` while the
+  balances load, so a plan that fails throws after the prompt.
+- Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current.
+
+### `signCashout({ quote })`
+
+Has the owner sign a cash-out quote's `SellBack` or `CashoutTransfer`.
+
+### `sendAcceptance(signed, { onRecord })`
+
+Sends either kind of record under its acceptance ID, and checks the answer echoes the record's IDs. An entry's
+bridge is sent only after the accept answers `ACCEPTED` with its `fund_by` still ahead. Any other answer
+discards it.
+
+### `recoverAcceptance(signed, { wait, onRecord })`
+
+Reads and fences the acceptance. It signs nothing. It sends a never-sent bridge only if the acceptance is
+`ACCEPTED` before its `fund_by`, and resends a sent one that got no answer, with the same bytes, in that same
+window. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
+
+## Entry records and the bridge
+
+An entry record carries `version: 2` and a `bridgeState`: `SENT`, `LANDED`, `PROCESSED`, `REFUSED` or
+`DISCARDED`. `onRecord` is awaited with the record before the bridge is first sent and again on each new state.
+Persist it over the stored one. `sendAcceptance` refuses a record from SDK 0.63 or older; `recoverAcceptance`
+only reads it.
+
+The result never waits for Hyperliquid:
+
+- `bridging` is set when this call sent the bridge. It resolves to Hyperliquid's answer, or `unknown` when none
+  came before `fund_by`.
+- `bridged` is `{ amount, landed }` (amount in atomic USDC) once a bridge was sent, and never for one
+  Hyperliquid refused. `landed: "yes"` means Hyperliquid answered `ok`: unless the operation `COMMITTED`, that
+  cash is now in the wallet on HyperEVM, not on HyperCore. `"unknown"` means read the balances rather than
+  assume where it is.
+
+See [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)
+for what to show the user.
+
+## Retries
+
+Each command is built once with its `Idempotency-Key`. After a network failure or a `BACKOFF` error, the SDK
+resends it byte for byte, up to five sends. Change that with `retry: { attempts }`, or turn it off with
+`retry: false`.
+
+## Errors
+
+`unwrap` and every flow throw `ApiError` for a venue error, with `code`, `retry`, `status`, `requestId`,
+`fieldViolations` and `retryAfterMs`. Its `retry` says what to do next:
+
+| `retry` | Do |
+| --- | --- |
+| `BACKOFF` | The SDK's resends ran out. Call `resend()` later. |
+| `REFRESH` | Re-read state, then decide on a new command with a new key |
+| `NEVER` | Stop. `SECRET_UNAVAILABLE` means revoke the key and create another. |
+
+`NetworkError` means the outcome is unknown: the command may have reached the venue. Call `resend()`, never a
+new command, so it cannot run twice.
+
+```ts
+import { ApiError, NetworkError } from "@totalistrading/hip4-client";
+
+try {
+  await totalis.withdraw({ destination, amount: 15_000_000n });
+} catch (error) {
+  const resendable = error instanceof NetworkError || (error instanceof ApiError && error.retry === "BACKOFF");
+  if (resendable && error.resend) await error.resend(); // same bytes, same key
+  else throw error;
+}
+```
+
+Every code is on [Errors](/hyperliquid/errors).
+
+### `normalizeError(error)`
+
+Turns any SDK failure into one shape for your UI: `{ code, message, retryable, retry, requestId, status,
+mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have reached the venue.
+
+### Flow errors
+
+| Error | Thrown when |
+| --- | --- |
+| `EntryError` | An entry cannot be funded, before anything is sent ([Why an entry did not trade](/hyperliquid/sdk/trading#why-an-entry-did-not-trade)) |
+| `BalanceUnknownError` | A withdrawal or return to HyperCore needs a balance that has not been read |
+| `ExitUnavailableError` | `exitToCore` or `returnToCore` runs on staging, which has no exits to HyperCore |
+| `AcceptancePendingError` | A maker quotes an RFQ while one of its acceptances waits ([Make markets](/hyperliquid/sdk/making#when-an-acceptance-is-waiting)) |
+| `StreamClosedError` | A stream closes with `retry` `NEVER` |

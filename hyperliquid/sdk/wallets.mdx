@@ -1,0 +1,100 @@
+---
+title: 'Wallets and partners'
+icon: 'wallet'
+description: 'Sign a user in with their own wallet, admit wallets from a partner server, deposit, move cash to HyperCore and issue keys from a session.'
+---
+
+In your own frontend, each user trades with their own wallet. They sign in to get a session, and that session
+plus the wallet is all `createTotalis` needs. How the pieces fit is on
+[Your users' own wallets](/hyperliquid/build/partner-frontend).
+
+## Sign in with a wallet
+
+```ts
+import { createTotalis } from "@totalistrading/hip4-client";
+import { signInWithWallet, signOutWallet } from "@totalistrading/hip4-client/wallet-session";
+
+const partnerKey = "tpb_v1_prd_...";
+
+const session = await signInWithWallet({ environment: "production", signer: window.ethereum, partnerKey });
+
+const totalis = createTotalis({
+  environment: "production",
+  accessToken: session.access_token,
+  signer: window.ethereum,
+  partnerKey,
+});
+
+// Later:
+await signOutWallet({ environment: "production", accessToken: session.access_token, partnerKey });
+```
+
+`signInWithWallet` asks for a challenge, checks it is the Totalis sign-in for this origin, wallet and request,
+has the wallet sign it, and returns the session.
+
+Outside a browser, pass `origin` and send the same value as the `Origin` header with every request on the
+session:
+
+- A partner's wallet uses the partner's registered origin.
+- A maker uses the Totalis app's origin: `https://hip4.totalis.trade`, or `https://hip4-staging.totalis.trade` on
+  staging.
+
+## Admit a wallet
+
+A partner's wallet must be admitted before it can trade. The wallet consents in the browser, and your server
+admits it with your `tpk_` key.
+
+```ts
+// Browser
+import { signAdmissionConsent } from "@totalistrading/hip4-client/partner";
+
+// chain_id comes from GET /v1/deployment.
+const { consent } = await signAdmissionConsent({
+  signer: window.ethereum,
+  partner: "your-slug",
+  environment: "production",
+  chainId: deployment.chain_id,
+});
+```
+
+```ts
+// Server
+import { createPartnerServer } from "@totalistrading/hip4-client/partner";
+
+const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_SERVER_KEY! });
+await partner.admitWallet(address, consent);
+```
+
+`signAdmissionConsent` returns the wallet's `address` and its `consent`, and takes an optional
+`lifetimeSeconds`. `createPartnerServer` refuses to run in a browser, so the server key cannot leak there. See [Partner frontend](/hyperliquid/build/partner-frontend).
+
+## Deposit
+
+| Function | Does |
+| --- | --- |
+| `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself, paying its own gas |
+| `totalis.signDeposit`, `totalis.sendDeposit` | A deposit the wallet signs and Totalis relays, paying the gas |
+
+## Move cash to HyperCore
+
+```ts
+const exit = await totalis.exitToCore({ amount: 10_000_000n });
+```
+
+`exitToCore` moves vault cash to HyperCore. After a restart, `waitForCoreExit(exitId)` follows it. `signCoreExit`
+and `sendCoreExit` split it into sign and send.
+
+`returnToCore()` takes no amount. It moves free vault cash and the wallet's available USDC (`WALLET_USDC` less
+`pending.wallet_reserved`) back to HyperCore. Available wallet USDC under the sponsored deposit minimum
+([Limits](/hyperliquid/limits-and-fees#deposits-and-exits)) stays in the wallet. `signReturnToCore` and
+`sendReturnToCore` split it.
+
+`returnToCore` throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`). A wallet embedded in
+your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, so both functions throw
+`ExitUnavailableError` there, before anything is signed.
+
+## Issue a key from a session
+
+`totalis.issueApiKey({ label, scopes })` issues the account's own `ttk_` key from a wallet session, with the
+wallet's approval. `rotateApiKey` replaces one. Makers issue their keys with the `.../api-keys` helpers
+instead ([Onboard headless](/hyperliquid/sdk/making#onboard-headless)).

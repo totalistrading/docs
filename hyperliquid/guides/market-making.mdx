@@ -62,7 +62,7 @@ Get deployment needs no key.
 [/mm](https://hip4.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
 pending withdrawal, positions, quotes and performance. It has no buttons that act. Its position, exposure
 and performance pages read routes that only the app's session can call; a bot reads the same facts from the
-routes above. Every write runs headless through the [SDK](/hyperliquid/sdk#make-markets) or the API:
+routes above. Every write runs headless through the [SDK](/hyperliquid/sdk/making) or the API:
 
 | Credential | Signs or authenticates |
 | --- | --- |
@@ -94,7 +94,7 @@ The wallet key controls your maker's funds. Anyone who has it can withdraw them.
 
 ### Headless
 
-Fund your wallet first (step 2). Then `examples/onboard.mjs` in the [SDK](/hyperliquid/sdk#examples) signs in, opens
+Fund your wallet first (step 2). Then `examples/onboard.mjs` in the [SDK](/hyperliquid/sdk/overview#examples) signs in, opens
 and admits your maker, issues the quoting key, makes the first deposit and starts a bot. It does not issue the
 collateral key. It prints the quoting key once: store it as `TOTALIS_MAKER_KEY`. Run it again with that set to resume:
 each step skips what is already done, and it deposits only while the maker vault is empty.
@@ -184,7 +184,7 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
   </Step>
   <Step title="Quote">
     Run your bot on the quoting key with `createMaker`, signing confirms with your wallet key
-    ([SDK](/hyperliquid/sdk#make-markets)). [Quote](#quote) and [Confirm](#confirm) below have the rules.
+    ([SDK](/hyperliquid/sdk/making)). [Quote](#quote) and [Confirm](#confirm) below have the rules.
   </Step>
 </Steps>
 
@@ -579,7 +579,7 @@ a state you can't act on ([Compatibility](/hyperliquid/api-reference/introductio
   <Card title="Real time" icon="tower-broadcast" href="/hyperliquid/guides/realtime">
     Hold the maker channel and resume it without missing a fill.
   </Card>
-  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk#make-markets">
+  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk/making">
     `createMaker`: quote, confirm and reduce collateral in a few lines.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/hyperliquid/errors#codes">

@@ -1,0 +1,119 @@
+---
+title: 'TypeScript SDK'
+sidebarTitle: 'Overview'
+icon: 'code'
+description: 'Install @totalistrading/hip4-client from npm, make a first call, and pick the client for what you are building.'
+---
+
+`@totalistrading/hip4-client` is the official TypeScript SDK for Totalis on Hyperliquid. It wraps every route
+with typed requests and responses, runs the taker and maker flows end to end, builds every signed message, and
+keeps a WebSocket in sync. It never holds a key: every signature goes to the signer you pass in.
+
+## Install
+
+```bash
+npm install @totalistrading/hip4-client viem
+```
+
+The package is public on npm under Apache-2.0. It is ESM, runs in Node 22 or later and in browsers, and has no
+wallet dependency. `viem` (or ethers) is only there to turn a private key into a signer.
+
+<Note>
+Versions up to 0.65.0 were published to GitHub Packages. If your `.npmrc` has an
+`@totalistrading:registry=https://npm.pkg.github.com` line, remove it.
+</Note>
+
+## Make a first call
+
+Create a `ttk_` API key for your account ([Create, rotate, revoke](/hyperliquid/authentication#create-rotate-revoke)),
+then read your account:
+
+```ts
+import { createClient, unwrap } from "@totalistrading/hip4-client";
+
+const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
+
+const me = unwrap(await client.GET("/v1/me"));
+console.log(me.wallet);
+```
+
+Every route in the [API reference](/hyperliquid/api-reference/introduction) is on `client`, with its path,
+parameters and response typed. `unwrap` returns the body or throws an [`ApiError`](/hyperliquid/sdk/resume-and-retry#errors).
+
+## Pick a client
+
+| You are building | Use | Guide |
+| --- | --- | --- |
+| A bot or app that opens and cashes out positions | `createTotalis` | [Trade](/hyperliquid/sdk/trading) |
+| A market maker | `createMaker`, from `.../maker` | [Make markets](/hyperliquid/sdk/making) |
+| A frontend where users sign in with their own wallet | `signInWithWallet`, then `createTotalis` | [Wallets and partners](/hyperliquid/sdk/wallets) |
+| A partner server that admits wallets | `createPartnerServer`, from `.../partner` | [Wallets and partners](/hyperliquid/sdk/wallets#admit-a-wallet) |
+| Anything else | `createClient` or `createMakerClient` | The [API reference](/hyperliquid/api-reference/introduction) |
+
+`createTotalis` and `createMaker` each carry a typed `client` and a `stream` too, so you rarely need more than one.
+
+## Environments
+
+| `environment` | REST | WebSocket |
+| --- | --- | --- |
+| `"production"` | `https://hip4-api.totalis.trade` | `wss://hip4-ws.totalis.trade` |
+| `"staging"` | `https://hip4-api-staging.totalis.trade` | `wss://hip4-ws-staging.totalis.trade` |
+
+Staging runs on Hyperliquid testnet ([Staging](/hyperliquid/build/staging)). To point at another origin, pass
+`baseUrl`. It serves the streams too unless you also set `streamBaseUrl`.
+
+## Options
+
+Every client takes the same options.
+
+| Option | Does |
+| --- | --- |
+| `accessToken` | A `ttk_` key, a wallet session token, or a function that returns the current one |
+| `signer` | The account's wallet, the `wallet` on `GET /v1/me`. Only flows that sign need it. It is never stored. |
+| `partnerKey` | Your `tpb_` browser key, sent as `X-Totalis-Partner`. A `tpk_` server key is refused. |
+| `headers` | Extra headers on every request and stream, such as `Origin` outside a browser |
+| `retry` | The resend policy, or `false` to send once ([Retries](/hyperliquid/sdk/resume-and-retry#retries)) |
+
+`createMaker` takes `apiKey` (the maker's `ttk_` key) and `makerId` in place of `accessToken`.
+
+A signer can be a viem account or wallet client, an EIP-1193 provider such as `window.ethereum`, or an ethers
+signer. `toTotalisSigner`, from `.../signer`, converts any of them yourself when you need to.
+
+## Conventions
+
+- **Money** is atomic USDC (6 decimals), as a `bigint` or a decimal string. `25_000_000n` is 25 USDC.
+- **Time** comes from the venue. Deadlines such as `accept_before` and `fund_by` are judged on the venue clock,
+  which `stream.serverNow()` gives you.
+- **Commands are idempotent.** Each one is built once with its `Idempotency-Key` and resent byte for byte, so a
+  retry never trades twice.
+- **Clean up.** Call `close()` on `createTotalis` and `createMaker` when you are done, to stop their streams.
+
+## Entry points
+
+| Import | Holds |
+| --- | --- |
+| `@totalistrading/hip4-client` | `createClient`, `createTotalis`, the money and UI helpers, errors, pagination, `TotalisStream`, the HyperCore helpers |
+| `.../maker` | `createMaker`, `createMakerClient`, maker onboarding and vault transactions |
+| `.../wallet-session` | `signInWithWallet`, `signOutWallet`, `checkSignInChallenge` |
+| `.../partner` | `signAdmissionConsent`, `admissionConsentMessage`, `createPartnerServer` |
+| `.../api-keys` | Issuing, rotating, listing and revoking keys, and the maker scope sets |
+| `.../typed-data` | Builders and hashing for every signed message ([Signed messages](/hyperliquid/sdk/signing)) |
+| `.../signer` | `toTotalisSigner` |
+| `.../realtime` | `TotalisStream` and the frame types |
+| `.../errors` | The error registry, `ApiError`, `NetworkError` |
+| `.../version` | `sdkVersion`, the API contract version the types come from (not the package version) |
+| `.../browse`, `.../account-read` | Types only |
+
+## Examples
+
+The package ships runnable examples in `node_modules/@totalistrading/hip4-client/examples`.
+
+| File | Shows |
+| --- | --- |
+| `onboard.mjs` | Headless maker onboarding from an exported wallet key: sign in, open and admit the maker, issue the quoting key, make the first deposit and start the bot. A rerun resumes where it stopped. |
+| `node-bot.mjs` | A maker bot that quotes entries, buys back cash-outs of positions it backs, and confirms acceptances only while its own check passes |
+| `browser-wallet.html`, `browser-wallet.mjs` | Opening and cashing out a position from an injected wallet, with no bundler |
+| `partner-frontend.mjs` | A partner page that collects consent, signs a wallet in and trades |
+| `partner-server.mjs` | A partner server that admits a wallet with its `tpk_` key |
+
+The SDK follows semver. What changed in each release is on the [Changelog](/hyperliquid/sdk/changelog).

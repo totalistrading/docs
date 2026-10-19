@@ -351,7 +351,7 @@ not the quoting bot's: it holds `vault:write` and `operations:submit`. The steps
 - One job runs per maker at a time. Creating another while one is open returns the open one.
 - A new discount only ever raises the old one. It never undoes a larger discount still in force.
 - New fills lock in full, and closing positions use the discount up ([After a reduction](#after-a-reduction)).
-  [The TypeScript SDK](/hyperliquid/sdk#make-markets)'s `reduceCollateral` runs all four steps.
+  [The TypeScript SDK](/hyperliquid/sdk/making)'s `reduceCollateral` runs all four steps.
 - `COLLATERAL_REDUCTION_UNAVAILABLE` means reductions are switched off for this vault right now.
   Retry later.
 
@@ -402,5 +402,5 @@ reverts `NoMaker()` for an unknown `makerId`; the view calls return zeros.
 While the vault is paused, `depositMaker` and `executeMakerWithdraw` revert `Paused()`; the other calls
 still work.
 
-The [SDK](/hyperliquid/sdk#make-markets)'s `maker.controller()` builds each call for your wallet to
+The [SDK](/hyperliquid/sdk/making)'s `maker.controller()` builds each call for your wallet to
 send.

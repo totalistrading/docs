@@ -1,0 +1,32 @@
+---
+title: 'Signed messages'
+icon: 'signature'
+description: 'Build and hash every message a Totalis flow signs: the EIP-712 builders, the USDC authorizations, the key approval and the Hyperliquid bridge.'
+---
+
+The flows on the other pages build and sign these for you. Use the builders directly when you sign with your own
+stack, or to check what a wallet is asked to sign. Each takes the [deployment](/hyperliquid/api-reference/deployment/get-deployment)
+and returns EIP-712 typed data, from `.../typed-data`.
+
+| Builder | Message |
+| --- | --- |
+| `takerAcceptTypedData(deployment, entry)` | `TakerAccept` |
+| `quoteTypedData(deployment, entry)` | `Quote` |
+| `sellBackTypedData(deployment, sellBack)` | `SellBack` |
+| `cashoutTransferTypedData(deployment, transfer)` | `CashoutTransfer` |
+| `exitTypedData(deployment, exit)` | `Exit` |
+| `receiveWithAuthorizationTypedData(deployment, authorization)` | USDC `ReceiveWithAuthorization` |
+| `transferWithAuthorizationTypedData(deployment, payout)` | USDC `TransferWithAuthorization` |
+| `issueKeyMessage`, `parseIssueKeyMessage` | The Sign-In with Ethereum key approval |
+| `sendAssetTypedData(bridgeAction(hyperliquidNetwork(chain_id), amount))` | Hyperliquid `SendAsset`. These are root exports. |
+
+## Helpers
+
+| Helper | Gives |
+| --- | --- |
+| `hashTypedData` | The digest. A quote's digest is its `quote_id`. |
+| `canonicalSignature` | A signature in the form the API accepts |
+| `depositNonce`, `payoutNonce` | The [USDC nonces](/hyperliquid/authentication#usdc-nonces) |
+
+What each message means, and when a flow asks for it, is on
+[Signatures and quote life](/hyperliquid/build/partner-frontend#signatures-and-quote-life).

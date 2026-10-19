@@ -93,7 +93,7 @@ refuses an admission that carries an `Origin` header.
   <Step title="The wallet trades">
     `totalis` has the same flows as any account: `openPosition`, `cashOut`, `withdraw`. See
     [Trading](/hyperliquid/guides/trading), [Withdrawals](/hyperliquid/guides/withdrawals) and the
-    [SDK](/hyperliquid/sdk).
+    [SDK](/hyperliquid/sdk/overview).
   </Step>
 </Steps>
 
@@ -291,7 +291,7 @@ the only thing between a user's click and their money. A policy that allows a pr
 of that type: an allowed `TransferWithAuthorization` pays anyone.
 
 - **Sign only the message you built.** For each request, build the expected typed data on your server, for the
-  authenticated user and the action they confirmed in your UI, with the SDK's [builders](/hyperliquid/sdk#signing).
+  authenticated user and the action they confirmed in your UI, with the SDK's [builders](/hyperliquid/sdk/signing).
   Sign only when the request equals it in full: domain, primary type and every field, the nonce included.
   Comparing the two `hashTypedData` digests checks all of it at once. Checking a few fields is not enough: a
   deposit names the account it credits only inside its nonce.
