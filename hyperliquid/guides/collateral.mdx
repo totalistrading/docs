@@ -68,7 +68,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 | `reservations` | One row per confirmed fill not yet on-chain. `status` `UNKNOWN` means its outcome is not known yet; it still counts. |
 | `actions` | `MAKER_WITHDRAW`: the most a new [withdrawal request](#move-maker-funds) may ask for, or `null` with a blocker such as `MAKER_WITHDRAW_PENDING`. `MAKER_QUOTE` is always `null`: only your bot knows its other live quotes. |
 | `deployment_digest` | The hash of the deployment this read is bound to. |
-| `signer` | Your maker's quote signer. For a maker opened in the app it equals `owner`. The zero address means the maker cannot quote. |
+| `signer` | Your maker's quote signer. It equals `owner`: a maker is one wallet. The zero address means the maker cannot quote. |
 | `context.status` | `CURRENT`, or `STALE` or `UNAVAILABLE` when a source lags. A stale read never authorizes an action. |
 
 Every amount is `null` when it cannot be read, never `0` in its place.
@@ -121,7 +121,22 @@ withdrawal then reverts. While one is pending, subtract its `pending.amount`
 A reduction looks at every open position you back, finds the most your book can lose under any way
 the markets can resolve, and certifies the difference as your `discount`. You submit that
 certificate on-chain from a wallet that pays the gas. Totalis does not run reductions for you, and
-it does not pay their gas.
+it does not pay their gas. Every step runs headless on a key with the
+[maker collateral scopes](/hyperliquid/authentication#scopes) (`COLLATERAL_SCOPES` in the SDK).
+
+```ts
+import { createMaker } from "@totalistrading/hip4-client/maker";
+import { createWalletClient, http } from "viem";
+
+const maker = createMaker({ environment: "production", apiKey: process.env.TOTALIS_COLLATERAL_KEY!, makerId, signer: wallet });
+const walletClient = createWalletClient({ account: wallet, chain: hyperEvm, transport: http() });
+const { job, submitted } = await maker.reduceCollateral({
+  signTransaction: async (call) => walletClient.signTransaction(await walletClient.prepareTransactionRequest({ to: call.to, data: call.data, value: 0n })),
+});
+```
+
+`hyperEvm` is a viem chain for `chain_id` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
+The steps below are the same flow over the API.
 
 <Steps>
   <Step title="Start a job">
@@ -209,7 +224,9 @@ open position locks in full again. It can only raise your requirement, never low
 
 ## Move maker funds
 
-Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these. The
+Your wallet calls the vault directly and pays the gas in HYPE. Totalis does not relay these, and /mm
+only shows a pending withdrawal: [Fund and withdraw](/hyperliquid/guides/market-making#fund-and-withdraw)
+runs each call headless with the SDK. The
 vault is `vault_address` and USDC is `usdc.address` in
 [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Every `amount` is atomic USDC
 (6 decimals).

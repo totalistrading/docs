@@ -1,10 +1,10 @@
 ---
 title: 'TypeScript SDK'
 icon: 'code'
-description: 'The @totalistrading/hip4-client SDK 0.60.1: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
+description: 'The @totalistrading/hip4-client SDK 0.61.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
 ---
 
-`@totalistrading/hip4-client` 0.60.1 wraps every route, the taker and maker flows, wallet sign-in, partner
+`@totalistrading/hip4-client` 0.61.0 wraps every route, the taker and maker flows, wallet sign-in, partner
 admission, every signed message and the WebSocket. It never stores a key: every signature goes to the signer you
 pass in.
 
@@ -19,7 +19,7 @@ GitHub account that should read it. Then, with a GitHub token that has `read:pac
 ```
 
 ```bash
-npm install @totalistrading/hip4-client@0.60.1 viem
+npm install @totalistrading/hip4-client@0.61.0 viem
 ```
 
 ESM, Node 22 or later, and browsers. It has no wallet dependency: `viem` or ethers only turns a private key into a
@@ -31,7 +31,7 @@ signer.
 | `.../maker` | `createMaker`, `createMakerClient`, `AcceptancePendingError`, `makerReadiness`, `waitForMaker`, `controllerTransactions`, `openMakerVaultTransaction`, `encodeCall`, `memoryPublished` |
 | `.../wallet-session` | `signInWithWallet`, `signOutWallet`, `checkSignInChallenge` |
 | `.../partner` | `signAdmissionConsent`, `admissionConsentMessage`, `createPartnerServer` |
-| `.../api-keys` | `issueApiKey`, `rotateApiKey`, `createApiKeyClient`, `checkKeyChallenge` |
+| `.../api-keys` | `issueApiKey`, `rotateApiKey`, `listApiKeys`, `revokeApiKey`, `QUOTING_BOT_SCOPES`, `COLLATERAL_SCOPES`, `createApiKeyClient`, `checkKeyChallenge` |
 | `.../typed-data` | Builders and hashing for every signed message, the USDC nonces, the key approval message |
 | `.../signer` | `toTotalisSigner` for viem accounts and wallet clients, EIP-1193 providers and ethers signers |
 | `.../realtime` | `TotalisStream` and the frame types |
@@ -199,7 +199,7 @@ await signOutWallet({ environment: "production", accessToken: session.access_tok
 
 | Function | Does |
 | --- | --- |
-| `signInWithWallet({ environment, signer, partnerKey, origin })` | Asks for a challenge, checks it is the Totalis sign-in for this origin, wallet and request, has the wallet sign it, and returns the session. `origin` is required outside a browser. |
+| `signInWithWallet({ environment, signer, partnerKey, origin })` | Asks for a challenge, checks it is the Totalis sign-in for this origin, wallet and request, has the wallet sign it, and returns the session. `origin` is required outside a browser: a partner's registered origin, or for a maker the Totalis app's, `https://hip4.totalis.trade`. Send it as the `Origin` header with every request on the session. |
 | `signOutWallet(options)` | Ends the session |
 | `signAdmissionConsent({ signer, partner, environment, chainId, lifetimeSeconds })` | The wallet's consent to your partner slug, for your server |
 | `createPartnerServer({ environment, serverKey }).admitWallet(address, consent)` | Admits the wallet. Refuses to run in a browser. |
@@ -255,7 +255,7 @@ maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFI
 | `controller()` | Vault transactions for the maker wallet to send: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`, `resetDiscount` |
 | `withdrawal()` | The pending maker vault withdrawal, and what blocks executing it |
 | `reduceCollateral({ signTransaction })` | Requests a [collateral reduction](/hyperliquid/guides/collateral#reduce-collateral) and follows it. Returns `{ job, idempotencyKey, submitted }`. With `signTransaction`, signs the certificate transaction and submits it (`submitted`). Without it, sign `job.transaction` yourself and send it to [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) under that same `idempotencyKey`. Any wallet with HYPE can sign; the maker wallet works. Needs a key with the maker collateral scopes. |
-| `openMakerVaultTransaction(deployment, wallet)` | The transaction that opens a maker for `wallet`, for an account whose own wallet signs in. An app account uses **Create maker account** on /mm. |
+| `openMakerVaultTransaction(deployment, wallet)` | The transaction that opens a maker for `wallet`. Send it from that wallet, your account's wallet ([Set up](/hyperliquid/guides/market-making#set-up)). |
 
 `quote` and `bid` throw `AcceptancePendingError` (`code` `ACCEPTANCE_PENDING`, with `rfqId`, `quoteId` and
 `deadline`), and send nothing, while this maker has an unanswered acceptance on that RFQ that the SDK has
@@ -265,6 +265,20 @@ acceptance still waits: answer it in `onAcceptance`.
 
 The maker wallet sends its own vault transactions and pays the gas in HYPE. The SDK never sends a transaction.
 See [Market making](/hyperliquid/guides/market-making) and [Maker collateral](/hyperliquid/guides/collateral).
+
+A maker onboards and manages its keys headless, from a wallet session signed in with the Totalis app's origin
+([Set up](/hyperliquid/guides/market-making#set-up)). The `.../api-keys` helpers take the maker in `{ maker }`:
+
+| Function | Does |
+| --- | --- |
+| `issueApiKey(keys, owner, { maker, label, scopes })` | Asks for the maker's key challenge, checks it, has the maker wallet sign it, and creates the key. The secret is returned once. |
+| `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | Replaces a key the same way. The old key keeps working for the overlap. |
+| `listApiKeys(keys, { maker })` | Every key of the maker, oldest first, revoked and expired ones included |
+| `revokeApiKey(keys, keyId, { maker })` | Revokes a key at once. No signature. |
+| `QUOTING_BOT_SCOPES`, `COLLATERAL_SCOPES` | The [maker scope sets](/hyperliquid/authentication#scopes): quoting, which moves no vault money, and collateral reduction |
+
+`keys` is `createApiKeyClient(environment, { accessToken: session.access_token, headers: { Origin: origin } })`, and
+`owner` is `toTotalisSigner(wallet)`.
 
 ## Signing
 
@@ -356,6 +370,7 @@ The package repository ships these examples.
 
 | File | Shows |
 | --- | --- |
+| `examples/onboard.mjs` | Headless maker onboarding from the exported wallet key: sign in, open and admit the maker, issue the quoting key, make the first deposit (only while the maker vault is empty) and start the bot. A rerun resumes. |
 | `examples/node-bot.mjs` | A maker bot that quotes entry RFQs, buys back cash-outs of positions it backs, and confirms acceptances only while its `willing(acceptance)` check passes |
 | `examples/browser-wallet.html`, `browser-wallet.mjs` | Opening and cashing out a position from an injected wallet, with no bundler |
 | `examples/partner-frontend.mjs` | A partner page that collects consent, signs a wallet in and trades |
@@ -367,6 +382,7 @@ The package ships `CHANGELOG.md`. Recent breaking changes:
 
 | Version | Change |
 | --- | --- |
+| 0.61.0 | Adds `listApiKeys`, `revokeApiKey`, `QUOTING_BOT_SCOPES`, `COLLATERAL_SCOPES` and `examples/onboard.mjs`, for makers onboarding headless. No change to existing functions. |
 | 0.60.1 | Docs only. `quote`, `bid` and `cancelQuote` can throw `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`) when the venue records an acceptance while the request is on its way. Answer it in `onAcceptance`. |
 | 0.60.0 | `quote` and `bid` throw `AcceptancePendingError` when an acceptance is waiting for you, and `onRfq` holds that RFQ until it is answered. `reduceCollateral` returns the job's `idempotencyKey`. |
 | 0.57.0 | A resumed account stream is `live` only after its replay is applied. A withdrawal or return to HyperCore with an unread balance throws `BalanceUnknownError`, and Core exits on a deployment without them (staging) throw `ExitUnavailableError`, before anything is signed. Both used to be plain `Error`s. |
