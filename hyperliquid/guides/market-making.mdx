@@ -58,66 +58,175 @@ Every route below takes your maker key unless it says otherwise.
 | Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/guides/collateral#reduce-collateral) |
 | Check a pending vault withdrawal | [`GET /v1/makers/{maker_id}/withdrawal`](/hyperliquid/api-reference/makers/get-maker-withdrawal) |
 
-Your maker's position, exposure and performance pages on [/mm](https://hip4.totalis.trade/mm) read routes
-that only the app's session can call. A bot reads the same facts from the routes above.
+[/mm](https://hip4.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
+pending withdrawal, positions, quotes and performance. It has no buttons that act. Its position, exposure
+and performance pages read routes that only the app's session can call; a bot reads the same facts from the
+routes above. Every write runs headless through the [SDK](/hyperliquid/sdk#make-markets) or the API:
+
+| Credential | Signs or authenticates |
+| --- | --- |
+| Your wallet key | Sign-in, key approvals, every vault transaction, and the signature in every confirm |
+| Your maker key (`ttk_`) | Every maker API call: quotes, cancels, the quote lease, confirms and maker reads |
 
 ## Set up
 
+You sign up once in a browser. Everything after that runs headless.
+
+### In a browser, once
+
 <Steps>
   <Step title="Get access">
-    Totalis is invite-only for now. Email [founders@totalis.trade](mailto:founders@totalis.trade) for access to
-    the app and an invite code. Sign in at [hip4.totalis.trade](https://hip4.totalis.trade) with Google or email.
-    Your account gets a wallet embedded in the app: that wallet becomes your maker wallet.
-  </Step>
-  <Step title="Fund your wallet">
-    At [hip4.totalis.trade/mm](https://hip4.totalis.trade/mm), under **Your wallet**, add a little HYPE for gas
-    and the USDC you will quote with.
-  </Step>
-  <Step title="Create the maker">
-    Choose **Create maker account**: one transaction from your wallet. Your `maker_id` is assigned then.
-    A wallet opens one maker.
-  </Step>
-  <Step title="Fund the maker vault">
-    Choose **Fund vault** to move USDC into the maker vault: an approval, then the deposit.
-  </Step>
-  <Step title="Create a key">
-    Under **API keys** on the same page, choose **Create key**. It issues a key named "Quoting bot" with the
-    [maker scopes](/hyperliquid/authentication#scopes). Copy it: it is shown once.
+    Totalis is invite-only for now. Email [founders@totalis.trade](mailto:founders@totalis.trade) for access and
+    an invite code. Sign up at [hip4.totalis.trade](https://hip4.totalis.trade) with Google or email. Your
+    account gets a wallet embedded in the app: that wallet is your maker wallet.
   </Step>
   <Step title="Export the wallet key">
-    In Account, under Private key, choose **Export private key**. Check its address equals **Maker wallet**
-    under **Run a bot** on /mm. Your bot signs every confirm with it.
-  </Step>
-  <Step title="Run your bot">
-    **Run a bot** on /mm shows your Maker ID, the API base URL, the environment variables to set and an
-    [SDK](/hyperliquid/sdk#make-markets) example.
+    In Account, under Private key, choose **Export private key**. Keep it only where your bot runs, as
+    `TOTALIS_WALLET_KEY`. It signs your sign-ins, your keys' approvals, your vault transactions and every confirm.
   </Step>
 </Steps>
 
-Makers are never sponsored. Your wallet pays the gas for every maker vault call, in HYPE.
+<Warning>
+The wallet key controls your maker's funds. Anyone who has it can withdraw them. Never paste it into a website.
+</Warning>
 
-The quoting key cannot reduce collateral. For that, issue a second key in Account, then API keys: under
-**Keys act for** choose your maker, and pick the [maker collateral scopes](/hyperliquid/authentication#scopes).
+### Headless
 
-| /mm shows | Do |
+`examples/onboard.mjs` in the [SDK](/hyperliquid/sdk#examples) runs steps 1 to 5 and starts a bot. Run it again to
+resume: each step skips what is already done, and it deposits only while the maker vault is empty.
+
+```bash
+TOTALIS_WALLET_KEY=0x... TOTALIS_DEPOSIT=1000000000 node examples/onboard.mjs
+```
+
+<Steps>
+  <Step title="Sign in">
+    Sign in with the wallet key and the Totalis app's origin, `https://hip4.totalis.trade`. Send the same origin
+    as the `Origin` header with every request on the session.
+
+    ```ts
+    import { createClient, unwrap } from "@totalistrading/hip4-client";
+    import { signInWithWallet } from "@totalistrading/hip4-client/wallet-session";
+    import { privateKeyToAccount } from "viem/accounts";
+
+    const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
+    const origin = "https://hip4.totalis.trade";
+    const session = await signInWithWallet({ environment: "production", signer: wallet, origin });
+    const onSession = { accessToken: session.access_token, headers: { Origin: origin } };
+    const client = createClient("production", onSession);
+    const deployment = unwrap(await client.GET("/v1/deployment"));
+    ```
+
+    A session lasts at most 30 days and ends after 7 days unused
+    ([Limits](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners)). Then sign in again the same way. You need a
+    session only to open and admit your maker and to manage its keys. Your bot runs on its maker key.
+  </Step>
+  <Step title="Fund your wallet">
+    Send HYPE for gas and the USDC you will quote with to your maker wallet on HyperEVM. Makers are never
+    sponsored: your wallet pays the gas for every vault transaction.
+  </Step>
+  <Step title="Open and admit your maker">
+    Send `openMakerVaultTransaction(deployment, wallet.address)` from your wallet. A wallet opens one maker.
+    `waitForMaker` waits until Totalis has indexed it, admits it ([Admit maker](/hyperliquid/api-reference/makers/admit-own-maker))
+    and returns its `makerId`.
+
+    ```ts
+    import { openMakerVaultTransaction, waitForMaker } from "@totalistrading/hip4-client/maker";
+
+    await send(openMakerVaultTransaction(deployment, wallet.address)); // your wallet signs and sends it
+    const readiness = await waitForMaker(client);
+    if (readiness.state !== "READY") throw new Error(readiness.state); // see the table below
+    const makerId = readiness.makerId;
+    ```
+  </Step>
+  <Step title="Create your keys">
+    Issue the quoting bot's key, approved by your wallet's signature. Its scopes cannot move vault money.
+    Copy the secret: it is shown once.
+
+    ```ts
+    import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalistrading/hip4-client/api-keys";
+    import { toTotalisSigner } from "@totalistrading/hip4-client/signer";
+
+    const keys = createApiKeyClient("production", onSession);
+    const owner = toTotalisSigner(wallet);
+    const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", scopes: [...QUOTING_BOT_SCOPES], expires_in_days: 90 });
+    // Only to lower your collateral; keep it apart from the quoting bot's.
+    const collateral = await issueApiKey(keys, owner, { maker: makerId, label: "Collateral", scopes: [...COLLATERAL_SCOPES], expires_in_days: 90 });
+    ```
+
+    A key stops working at its expiry. Rotate it before then ([Manage keys](#manage-keys)), or pass
+    `expires_in_days: 0` for a key that lasts until you revoke it.
+  </Step>
+  <Step title="Fund the maker vault">
+    Approve USDC for the vault, then deposit it. Both come from your wallet.
+
+    ```ts
+    import { controllerTransactions } from "@totalistrading/hip4-client/maker";
+
+    const vault = controllerTransactions(deployment, makerId, wallet.address);
+    await send(vault.approveUsdc(1_000_000_000n)); // 1,000 USDC in atomic units
+    await send(vault.deposit(1_000_000_000n));
+    ```
+  </Step>
+  <Step title="Quote">
+    Run your bot on the quoting key with `createMaker`, signing confirms with your wallet key
+    ([SDK](/hyperliquid/sdk#make-markets)). [Quote](#quote) and [Confirm](#confirm) below have the rules.
+  </Step>
+</Steps>
+
+`send` is your own: the SDK builds each `{ chain_id, to, data, value }` and never sends a transaction. With viem it
+is `walletClient.sendTransaction`, then waiting for the receipt.
+
+| `waitForMaker` returns | Do |
 | --- | --- |
-| **Create maker account** is disabled | Add HYPE to your wallet. |
-| **Finish setup** | Your maker is on-chain but Totalis has not indexed it yet. Choose **Finish setup**. |
-| Your maker is awaiting activation | Choose **Refresh account**. If it stays, email us. |
-| Your maker account is restricted | It cannot quote. Email [founders@totalis.trade](mailto:founders@totalis.trade). |
-| Account setup needs attention | Email us before you create another maker. |
+| `READY` | Create your keys and start quoting. |
+| `PENDING` | Your maker is admitted and awaiting activation. Read again later. If it stays, email us. |
+| `RESTRICTED` | It cannot quote. Email [founders@totalis.trade](mailto:founders@totalis.trade). |
+| `WALLET_REQUIRED`, `OWNERSHIP_CONFLICT` | Your account has no single wallet that controls the maker. Email us before you open another maker. |
+
+## Manage keys
+
+Your wallet manages your maker's keys from a session ([Sign in](#set-up)). An API key cannot create, rotate or
+revoke keys. /mm lists them with their status, read-only.
+
+| Do | SDK (`.../api-keys`) | API |
+| --- | --- | --- |
+| Create | `issueApiKey(keys, owner, { maker, label, scopes })` | [Create maker API key challenge](/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge), then [Create maker API key](/hyperliquid/api-reference/api-keys/create-maker-api-key) |
+| Rotate | `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | The challenge, then [Rotate maker API key](/hyperliquid/api-reference/api-keys/rotate-maker-api-key) |
+| List | `listApiKeys(keys, { maker })` | [List maker API keys](/hyperliquid/api-reference/api-keys/list-maker-api-keys) |
+| Revoke | `revokeApiKey(keys, keyId, { maker })` | [Revoke maker API key](/hyperliquid/api-reference/api-keys/revoke-maker-api-key) |
+
+[Create, rotate, revoke](/hyperliquid/authentication#create-rotate-revoke) has the approval and the overlap rules,
+and [Scopes](/hyperliquid/authentication#scopes) the two maker scope sets.
+
+## Fund and withdraw
+
+Your wallet sends every vault transaction and pays its gas in HYPE. `maker.controller()` builds each one on a
+maker key, or `controllerTransactions(deployment, makerId, wallet.address)` without one.
+
+| Do | Transaction | Then |
+| --- | --- | --- |
+| Deposit | `approveUsdc(amount)`, then `deposit(amount)` | `vault_gross` grows ([Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)). |
+| Request a withdrawal | `requestWithdraw(amount, to)` | Ask for at most the `MAKER_WITHDRAW` action in your capital. It waits the [withdrawal delay](/hyperliquid/limits-and-fees), during which Totalis can cancel it. |
+| Cancel it | `cancelWithdraw()` | Nothing moves. |
+| Complete it | `executeWithdraw()` once `maker.withdrawal()` says it is executable | USDC goes to `to`. |
+| Lower your collateral | `maker.reduceCollateral({ signTransaction })` on the collateral key | [Reduce collateral](/hyperliquid/guides/collateral#reduce-collateral) |
+
+/mm shows a pending withdrawal and its countdown, read-only. [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds)
+has every vault call and its reverts.
 
 ## Your maker wallet
 
 | Name | What it is | Where to read it |
 | --- | --- | --- |
-| `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | **Run a bot** on /mm |
+| `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | `waitForMaker`'s `makerId`, or the vault's `makerOf(wallet)` |
 | `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 | `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
 
-Your maker is one wallet: your Totalis account's wallet. For an account created in the app that is the
-embedded wallet, so you run your bot with its exported key. Nothing fills without your confirmation signature,
-so to stop filling, stop confirming.
+Your maker is one wallet: your Totalis account's embedded wallet. Totalis admits a maker only from the account's
+own wallet, so you run your bot with its exported key. A wallet that signs in on a partner's site cannot run a
+maker: once it controls one, it can no longer sign in to manage it. Nothing fills without your confirmation signature, so to
+stop filling, stop confirming.
 
 The vault cannot move a maker to another wallet.
 

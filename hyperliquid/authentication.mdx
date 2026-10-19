@@ -16,7 +16,7 @@ sent in the request body. Market reads need no key; an expired or revoked key on
 | Credential | For | Issued by |
 | --- | --- | --- |
 | API key (`ttk_`) | A bot, script or maker acting for one account | The account's wallet: [Create, rotate, revoke](#create-rotate-revoke) |
-| Wallet session | A user signing in with their own wallet on a partner's site | Totalis, once a partner has admitted the wallet (for a new account) and the wallet signs a Sign-In with Ethereum message: [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions) |
+| Wallet session | A maker managing its maker and keys headless with its Totalis account's exported embedded wallet, or a user signing in with their own wallet on a partner's site | Totalis, when the account's wallet signs a Sign-In with Ethereum message: [Sign in](/hyperliquid/guides/market-making#set-up) for a maker, [Your users' own wallets](/hyperliquid/build/partner-frontend#sessions) for a partner's user (a new account needs the partner's admission first) |
 | Partner keys (`tpk_`, `tpb_`) | A partner's server and pages | Totalis, by email: [Build on Totalis](/hyperliquid/build/overview#get-access) |
 
 ## Keys
@@ -54,20 +54,20 @@ routes that only the app's session can call. A maker key gets `403` on them.
 
 ## Create, rotate, revoke
 
-The account's wallet approves every API key. An account created in the Totalis app does it in the app. An account
-whose own wallet signs in on a partner's site does it from its wallet session, with the SDK's
-`totalis.issueApiKey` and `rotateApiKey` ([SDK](/hyperliquid/sdk#external-wallets)), or in the partner's own UI.
+The account's wallet approves every API key.
+
+| Keys for | Managed |
+| --- | --- |
+| Your account, created in the Totalis app | In the app, or headless like a maker's |
+| A maker | Headless only, from a wallet session with the SDK or the API: [Manage keys](/hyperliquid/guides/market-making#manage-keys). The app lists them read-only. |
+| An account whose own wallet signs in on a partner's site | From its wallet session with the SDK's `totalis.issueApiKey` and `rotateApiKey` ([SDK](/hyperliquid/sdk#external-wallets)), or in the partner's own UI |
 
 In the [Totalis app](https://hip4.totalis.trade/account/api-keys), under Account, then API keys:
 
-1. Under **Keys act for**, choose **Your account** or a maker.
-2. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only the
+1. Enter a name, the [scopes](#scopes) and an expiry: 1, 7, 30 or 90 days, or Forever. Only your
    account's scopes are offered.
-3. Your wallet approves with a Sign-In with Ethereum message.
-4. Copy the key. It is shown once.
-
-For a maker, **Create key** under **API keys** on [/mm](https://hip4.totalis.trade/mm) does this in one step, with
-the Maker scopes below.
+2. Your wallet approves with a Sign-In with Ethereum message.
+3. Copy the key. It is shown once.
 
 Rotating takes the same approval and keeps the name and scopes. The old key can overlap for none, one
 hour or 24 hours. Revoking needs no signature and takes effect at once. A key that reports
@@ -113,13 +113,14 @@ app session from an allowed origin, never an API key.
 | Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 | Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
 
-Any active maker can issue both scope sets from the app: Account, then API keys, with **Keys act for** set to the maker.
+Any active maker can issue both maker scope sets from its wallet session: `QUOTING_BOT_SCOPES` and `COLLATERAL_SCOPES`
+in the SDK ([Manage keys](/hyperliquid/guides/market-making#manage-keys)).
 
 ## Wallet key
 
 An account whose own wallet signs in already holds its key. For an account created in the Totalis app, the wallet
-is embedded in the app. To sign from code, export its key: Account, then Private key, then **Export private
-key**. Check its address equals `wallet` in `GET /v1/me`, or for a maker, `signer` in
+is embedded in the app. To sign from code, export its key once in a browser: Account, then Private key, then
+**Export private key**. A maker needs it for everything after signup. Check its address equals `wallet` in `GET /v1/me`, or for a maker, `signer` in
 [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). A maker key cannot call `GET /v1/me`.
 
 <Warning>
