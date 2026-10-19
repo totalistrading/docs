@@ -76,7 +76,7 @@ A key receives only the frames its scopes allow:
 An RFQ stops taking quotes at `expires_at`, which sends no event.
 
 An automatic RFQ also carries `intent_id` and `intent_generation` on its `RFQ_*` events: every RFQ the Totalis
-app opens, and any a taker opens with them. An RFQ with a higher `intent_generation` replaces the same intent's
+app opens, and any RFQ a taker opens with them. An RFQ with a higher `intent_generation` replaces the same intent's
 earlier RFQs. Other RFQs carry neither.
 
 ## Snapshot

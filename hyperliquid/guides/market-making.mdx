@@ -302,7 +302,7 @@ fill can still revert. Keep following `OPERATION_UPDATED`.
 | `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED` | RFQs with `intent_id` only: Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 | `503 DEPENDENCY_STALE` | Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 
-Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any a taker opens with one
+Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any RFQ a taker opens with one
 ([Maker channel](/hyperliquid/api-reference/websocket/maker#event)). Every code is on
 [Errors](/hyperliquid/errors#codes).
 
