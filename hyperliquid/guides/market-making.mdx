@@ -101,8 +101,8 @@ TOTALIS_WALLET_KEY=0x... TOTALIS_DEPOSIT=1000000000 node examples/onboard.mjs
 
 <Note>
 On [staging](/hyperliquid/build/staging), sign up at [hip4-staging.totalis.trade](https://hip4-staging.totalis.trade)
-with the staging invite code, and run with `TOTALIS_ENVIRONMENT=staging`. The steps below then use
-`environment: "staging"` and the staging app's origin, `https://hip4-staging.totalis.trade`.
+with the staging invite code, and run with `TOTALIS_ENVIRONMENT=staging`. In the steps below, set `environment` to `"staging"`: the sign-in
+then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
 </Note>
 
 <Steps>
@@ -116,10 +116,11 @@ with the staging invite code, and run with `TOTALIS_ENVIRONMENT=staging`. The st
     import { privateKeyToAccount } from "viem/accounts";
 
     const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
-    const origin = "https://hip4.totalis.trade";
-    const session = await signInWithWallet({ environment: "production", signer: wallet, origin });
+    const environment = "production"; // or "staging"
+    const origin = environment === "staging" ? "https://hip4-staging.totalis.trade" : "https://hip4.totalis.trade";
+    const session = await signInWithWallet({ environment, signer: wallet, origin });
     const onSession = { accessToken: session.access_token, headers: { Origin: origin } };
-    const client = createClient("production", onSession);
+    const client = createClient(environment, onSession);
     const deployment = unwrap(await client.GET("/v1/deployment"));
     ```
 
@@ -153,7 +154,7 @@ with the staging invite code, and run with `TOTALIS_ENVIRONMENT=staging`. The st
     import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalistrading/hip4-client/api-keys";
     import { toTotalisSigner } from "@totalistrading/hip4-client/signer";
 
-    const keys = createApiKeyClient("production", onSession);
+    const keys = createApiKeyClient(environment, onSession);
     const owner = toTotalisSigner(wallet);
     const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", scopes: [...QUOTING_BOT_SCOPES], expires_in_days: 90 });
     // Only to lower your collateral; keep it apart from the quoting bot's.

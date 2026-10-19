@@ -123,7 +123,7 @@ Before the accept is posted, an entry can throw `EntryError`. `openPosition` the
 | `code` | Meaning |
 | --- | --- |
 | `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
-| `INSUFFICIENT_FUNDS` | Vault cash, wallet USDC and `core` less 0.05 USDC do not cover the stake. Without `core`, vault cash and wallet USDC alone. The message names the shortfall. |
+| `INSUFFICIENT_FUNDS` | With `funding: "wallet"` (the default): current vault cash, wallet USDC and `core` less 0.05 USDC do not cover the stake. Without `core`, vault cash and wallet USDC alone. The message names the shortfall. |
 | `QUOTE_SHORT` | Too little quote life was left to sign or send the bridge. Nothing was bridged. |
 | `BRIDGE_REFUSED` | Hyperliquid refused the bridge (`hyperliquidError`). Nothing was bridged or posted. |
 | `BRIDGE_LATE` | The bridge left too little quote life to post the accept. Nothing was posted; cash the bridge moved stays in the wallet. |
@@ -268,8 +268,8 @@ The maker wallet sends its own vault transactions and pays the gas in HYPE. The 
 See [Market making](/hyperliquid/guides/market-making) and [Maker collateral](/hyperliquid/guides/collateral).
 
 A maker onboards and manages its keys headless, from a wallet session that its Totalis account's exported embedded wallet
-signs in with the Totalis app's origin ([Set up](/hyperliquid/guides/market-making#set-up)). A wallet that signs in on a
-partner's site cannot run a maker ([Your maker wallet](/hyperliquid/guides/market-making#your-maker-wallet)). The `.../api-keys` helpers take the maker in `{ maker }`:
+signs in with the Totalis app's origin ([Set up](/hyperliquid/guides/market-making#set-up)), or that a partner-admitted
+wallet signs in with the partner's registered origin ([Partner-admitted wallet](/hyperliquid/guides/market-making#partner-admitted-wallet)). The `.../api-keys` helpers take the maker in `{ maker }`:
 
 | Function | Does |
 | --- | --- |
