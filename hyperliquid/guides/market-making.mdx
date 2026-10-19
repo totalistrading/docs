@@ -62,7 +62,7 @@ Get deployment needs no key.
 [/mm](https://hip4.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
 pending withdrawal, positions, quotes and performance. It has no buttons that act. Its position, exposure
 and performance pages read routes that only the app's session can call; a bot reads the same facts from the
-routes above. Every write runs headless through the [SDK](/hyperliquid/sdk#make-markets) or the API:
+routes above. Every write runs headless through the [SDK](/hyperliquid/sdk/making) or the API:
 
 | Credential | Signs or authenticates |
 | --- | --- |
@@ -94,7 +94,7 @@ The wallet key controls your maker's funds. Anyone who has it can withdraw them.
 
 ### Headless
 
-Fund your wallet first (step 2). Then `examples/onboard.mjs` in the [SDK](/hyperliquid/sdk#examples) signs in, opens
+Fund your wallet first (step 2). Then `examples/onboard.mjs` in the [SDK](/hyperliquid/sdk/overview#examples) signs in, opens
 and admits your maker, issues the quoting key, makes the first deposit and starts a bot. It does not issue the
 collateral key. It prints the quoting key once: store it as `TOTALIS_MAKER_KEY`. Run it again with that set to resume:
 each step skips what is already done, and it deposits only while the maker vault is empty.
@@ -115,8 +115,8 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
     as the `Origin` header with every request on the session.
 
     ```ts
-    import { createClient, unwrap } from "@totalistrading/hip4-client";
-    import { signInWithWallet } from "@totalistrading/hip4-client/wallet-session";
+    import { createClient, unwrap } from "@totalis/hip4-client";
+    import { signInWithWallet } from "@totalis/hip4-client/wallet-session";
     import { privateKeyToAccount } from "viem/accounts";
 
     const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
@@ -145,7 +145,7 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
     viem it is `walletClient.sendTransaction`, then waiting for the receipt.
 
     ```ts
-    import { openMakerVaultTransaction, waitForMaker } from "@totalistrading/hip4-client/maker";
+    import { openMakerVaultTransaction, waitForMaker } from "@totalis/hip4-client/maker";
 
     await send(openMakerVaultTransaction(deployment, wallet.address)); // your wallet signs and sends it
     const readiness = await waitForMaker(client);
@@ -158,8 +158,8 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
     Copy the secret: it is shown once.
 
     ```ts
-    import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalistrading/hip4-client/api-keys";
-    import { toTotalisSigner } from "@totalistrading/hip4-client/signer";
+    import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalis/hip4-client/api-keys";
+    import { toTotalisSigner } from "@totalis/hip4-client/signer";
 
     const keys = createApiKeyClient(environment, onSession);
     const owner = toTotalisSigner(wallet);
@@ -175,7 +175,7 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
     Approve USDC for the vault, then deposit it. Both come from your wallet.
 
     ```ts
-    import { controllerTransactions } from "@totalistrading/hip4-client/maker";
+    import { controllerTransactions } from "@totalis/hip4-client/maker";
 
     const vault = controllerTransactions(deployment, makerId, wallet.address);
     await send(vault.approveUsdc(1_000_000_000n)); // 1,000 USDC in atomic units
@@ -184,7 +184,7 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
   </Step>
   <Step title="Quote">
     Run your bot on the quoting key with `createMaker`, signing confirms with your wallet key
-    ([SDK](/hyperliquid/sdk#make-markets)). [Quote](#quote) and [Confirm](#confirm) below have the rules.
+    ([SDK](/hyperliquid/sdk/making)). [Quote](#quote) and [Confirm](#confirm) below have the rules.
   </Step>
 </Steps>
 
@@ -579,7 +579,7 @@ a state you can't act on ([Compatibility](/hyperliquid/api-reference/introductio
   <Card title="Real time" icon="tower-broadcast" href="/hyperliquid/guides/realtime">
     Hold the maker channel and resume it without missing a fill.
   </Card>
-  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk#make-markets">
+  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk/making">
     `createMaker`: quote, confirm and reduce collateral in a few lines.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/hyperliquid/errors#codes">

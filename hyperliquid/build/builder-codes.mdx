@@ -119,7 +119,7 @@ export async function authorizeRfq({ accountId, idempotencyKey, intentId, intent
 
 The SDK's `openPosition` does not send builder fields. Create the RFQ with `totalis.client.POST("/v1/rfqs")`
 under the signed `Idempotency-Key`, then take a quote from `watchQuotes`, and sign and send it with `signEntry` and
-`sendAcceptance` ([SDK](/hyperliquid/sdk#resumable-entries-and-cash-outs)).
+`sendAcceptance` ([SDK](/hyperliquid/sdk/resume-and-retry)).
 
 ## Reports and payouts
 

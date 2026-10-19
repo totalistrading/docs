@@ -1,0 +1,72 @@
+---
+title: 'Streams and helpers'
+icon: 'tower-broadcast'
+description: 'Keep an account or maker in sync with TotalisStream, page through lists, and use the money and UI helpers.'
+---
+
+## Stream events
+
+`createTotalis` and `createMaker` start their own stream. To follow an account or a maker without them, use
+`TotalisStream` directly:
+
+```ts
+import { TotalisStream } from "@totalis/hip4-client/realtime";
+
+const stream = new TotalisStream({
+  environment: "production",
+  accessToken: process.env.TOTALIS_API_KEY!,
+  subscription: { type: "account" }, // or { type: "maker", maker_id: "7" }
+});
+
+stream.on("event", (event) => console.log(event.event_type, event.payload));
+stream.start();
+```
+
+The stream applies the snapshot or replay, drops duplicates, and reconnects from the last applied cursor.
+
+- `status` is `live` only while it is caught up.
+- `serverNow()` is the venue clock.
+- On close it follows the close reason's `retry`: `BACKOFF` resumes, `REFRESH` (or a `reset` frame) emits `reset`
+  and takes a fresh snapshot, and `NEVER` ends it with `StreamClosedError`.
+- In a browser it authenticates with the `auth.<token>` subprotocol and the page's origin. In Node it sends the
+  bearer header ([Connection](/hyperliquid/api-reference/websocket/connection)).
+
+What each event means is on [Real time](/hyperliquid/guides/realtime).
+
+## Page through lists
+
+`items` walks every page of a list route and yields one item at a time. `pages` yields whole pages.
+
+```ts
+import { createClient, items, unwrap } from "@totalis/hip4-client";
+
+const client = createClient("production", { accessToken: process.env.TOTALIS_API_KEY });
+
+for await (const position of items(
+  (query) => client.GET("/v1/me/positions", { params: { query } }).then(unwrap),
+  (page) => page.items,
+)) {
+  console.log(position.position_id);
+}
+```
+
+## Money helpers
+
+| Helper | Gives |
+| --- | --- |
+| `totalis.spendableCash()`, `spendableCash(balance)` | `{ vault, wallet, total }`, the cash the SDK plans with, net of reserved cash. Each is `null` while unknown, never 0. |
+| `netPayout(quote)` | What a full win pays the user after the profit fee |
+| `netCashout(bid, position)` | What a cash-out pays the user: a sell-back after the profit fee, a transfer in full |
+
+For example, a 3 USDC stake quoted at 9.18 USDC, with a 20 bps entry fee and a 100 bps profit fee, has a
+`netPayout` of 9.118140 USDC.
+
+## UI adapter
+
+`createUiAdapter(totalis, { onInvalidate, onCatalogStale })` gives a frontend what it needs without tying it to
+a framework:
+
+- live quotes, with the best one picked
+- the venue clock, as `serverNow` and `secondsLeft`
+- account invalidations, to refresh a query cache
+- a catalog refresh, only when `catalog_generation` moves

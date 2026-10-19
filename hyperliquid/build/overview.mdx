@@ -13,7 +13,7 @@ Totalis is open to builders. Pick the path that matches what you ship.
 | A frontend | Your users | Each user's own wallet | Partner credentials: server key, browser key, registered origins and a builder signer | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
 | Attribution on accounts you did not admit | Users of your page | Any account no partner admitted | A builder code for your origin and a builder signer | [Builder codes](/hyperliquid/build/builder-codes) |
 
-Every path uses the same API and the [TypeScript SDK](/hyperliquid/sdk). Totalis never holds a user's key:
+Every path uses the same API and the [TypeScript SDK](/hyperliquid/sdk/overview). Totalis never holds a user's key:
 every bet, cash-out and withdrawal is signed by the account's own wallet.
 
 ## Credentials
@@ -56,7 +56,6 @@ credentials or the SDK.
     | Browser key (`tpb_`) for each environment | Email |
     | Your origins registered | Confirmed by email |
     | Your account code, and origin builder codes on request | Email |
-    | Read access to `@totalistrading/hip4-client` on GitHub Packages | GitHub |
     | Staging access | See [Staging](/hyperliquid/build/staging) |
   </Step>
 </Steps>
@@ -78,7 +77,7 @@ A bot on your own account needs none of this. Create an API key in the
   <Card title="Staging" icon="flask" href="/hyperliquid/build/staging">
     The testnet copy of Totalis, for building against.
   </Card>
-  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk">
+  <Card title="TypeScript SDK" icon="code" href="/hyperliquid/sdk/overview">
     Every route, flow, signed message and stream.
   </Card>
 </CardGroup>

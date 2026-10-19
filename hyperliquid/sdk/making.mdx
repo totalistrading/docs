@@ -1,0 +1,174 @@
+---
+title: 'Make markets'
+icon: 'chart-line'
+description: 'Run a maker bot with createMaker: quote entries, bid on cash-outs, answer acceptances, keep a quote lease, manage collateral and onboard headless.'
+---
+
+`createMaker` runs a maker: it delivers every open RFQ, publishes your quotes, and signs your answer to each
+acceptance. It never broadcasts a vault transaction: the maker wallet sends those itself and pays the gas in
+HYPE. Set up your maker first ([Market making](/hyperliquid/guides/market-making#set-up)).
+
+## A minimal bot
+
+```ts
+import { createMaker, type MakerAcceptance } from "@totalis/hip4-client/maker";
+import { privateKeyToAccount } from "viem/accounts";
+
+const makerId = process.env.TOTALIS_MAKER_ID!;
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!,
+  makerId,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+});
+
+maker.onRfq(
+  async (rfq) => {
+    if (rfq.kind === "ENTRY") {
+      await maker.quote(rfq, { payout: (BigInt(rfq.stake) * 18n) / 10n }); // placeholder price
+    } else if (rfq.maker_id === makerId) {
+      await maker.bid(rfq, { price: 18_000_000n }); // buy back a position you back
+    }
+  },
+  (error) => console.error(error),
+);
+
+// Re-check your price and capital before you commit. This placeholder only checks the deadline.
+const stillGood = async (acceptance: MakerAcceptance) => Date.parse(acceptance.deadline) > maker.stream.serverNow();
+
+maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFIRM" : "DECLINE"));
+```
+
+The prices are placeholders. Price from your own market data
+([Price entries](/hyperliquid/guides/market-making#price-entries)). `examples/node-bot.mjs` in the package is a
+fuller version.
+
+## Quote
+
+### `onRfq(handler, onError?)`
+
+Runs `handler` once per open RFQ per subscription, from both events and the snapshot.
+
+- A restart or new subscription delivers the still-open RFQs again. Quoting again replaces your earlier quote,
+  so it cannot double-fill.
+- An RFQ with an acceptance waiting for you is held back, and offered again once you decline it or its
+  `deadline` passes on the venue clock.
+- An RFQ you filled, or one that ended, is never offered again.
+- `onError` receives whatever the handler throws, and the RFQ can be offered again.
+
+### `quote(rfq, { payout })`
+
+Publishes `entry` terms with the deployment's fees and returns the `quoteId`. It starts the stream and waits
+until it is live. After a truncated snapshot or a cursor resume, it first pages
+[List acceptances](/hyperliquid/api-reference/quotes/list-acceptances), which needs `quote:read`.
+
+### `bid(rfq, { price })`
+
+Publishes `sell_back` terms when this maker backs the position. Otherwise it publishes `transfer` terms, paid from
+the maker wallet's own vault balance ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
+
+### `cancelQuote(quoteId)`
+
+Removes a quote. `ACCEPTED` means you already confirmed it. While an acceptance of it waits for you, the venue
+refuses with `STATE_CONFLICT`: decline the acceptance instead.
+
+## Answer acceptances
+
+### `onAcceptance(handler, onError?)`
+
+Answers every pending acceptance once, with the handler's `CONFIRM` or `DECLINE`. It signs only terms this maker
+published that have not expired, and resends a lost answer byte for byte. `onError` receives what fails, with the
+acceptance.
+
+To answer one yourself, call `confirm(acceptance, decision)`.
+
+### Remember what you published
+
+The SDK only confirms quotes it knows this maker published. Pass a `published` store backed by durable storage so
+a restarted process can still confirm them. `memoryPublished` keeps them in memory only.
+
+### When an acceptance is waiting
+
+While this maker has an unanswered acceptance on an RFQ that the SDK has already received, `quote` and `bid`
+send nothing and throw `AcceptancePendingError` (`code` `ACCEPTANCE_PENDING`, with `rfqId`, `quoteId` and
+`deadline`).
+
+If the venue records an acceptance while a `quote`, `bid` or `cancelQuote` request is on its way, it refuses that
+request with `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`).
+
+Either way, the acceptance still waits for you: answer it in `onAcceptance`.
+
+## Stay connected
+
+| Function or option | Does |
+| --- | --- |
+| `keepQuoteLease(leaseMs, onError?)` | Arms the [quote lease](/hyperliquid/guides/market-making#quote-lease) and renews it every third of `leaseMs` until stopped. If renewals stop, the venue cancels your open quotes that no taker is accepting. |
+| `renewQuoteLease(leaseMs)`, `releaseQuoteLease()` | Renews once, or releases the lease |
+| `stream: { cursor }` | Resumes after a saved `maker.stream.cursor` |
+| `deployment()` | The cached [deployment](/hyperliquid/api-reference/deployment/get-deployment) every quote signs against |
+
+## Manage collateral
+
+| Function | Does |
+| --- | --- |
+| `controller()` | Builds vault transactions: `approveUsdc`, `deposit`, `requestWithdraw`, `executeWithdraw`, `cancelWithdraw`, `resetDiscount`. Any wallet can fund a deposit (`approveUsdc`, `deposit`); the maker wallet sends the rest. |
+| `withdrawal()` | The pending maker vault withdrawal, and what blocks executing it |
+| `reduceCollateral({ signTransaction })` | Runs a [collateral reduction](/hyperliquid/guides/collateral#reduce-collateral) end to end |
+
+`reduceCollateral` requests the reduction, follows it, and returns `{ job, idempotencyKey, submitted }`. With
+`signTransaction`, it signs the certificate transaction and submits it. Without it, sign `job.transaction`
+yourself and send it to [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction)
+under the same `idempotencyKey`. Any wallet with HYPE can sign; the maker wallet works. It needs a key with the
+maker collateral scopes.
+
+See [Maker collateral](/hyperliquid/guides/collateral) for what a reduction frees.
+
+## Onboard headless
+
+A maker onboards and manages its keys from a wallet session, with no browser. Sign in with your Totalis account's
+exported wallet and the Totalis app's origin ([Sign in with a wallet](/hyperliquid/sdk/wallets#sign-in-with-a-wallet)).
+A partner-admitted wallet signs in with its partner's registered origin instead
+([Partner-admitted wallet](/hyperliquid/guides/market-making#partner-admitted-wallet)).
+
+`examples/onboard.mjs` in the package runs every step below, and resumes if you rerun it.
+
+### Open the maker
+
+| Function | Does |
+| --- | --- |
+| `openMakerVaultTransaction(deployment, address)` | The transaction that opens a maker for the wallet at `address`. Send it from that wallet, your account's wallet. |
+| `makerReadiness(client)` | Reads and admits the account's maker (`GET` and `POST /v1/me/maker`), answering `NOT_INDEXED` until its open transaction is indexed |
+| `waitForMaker(client)` | Polls `makerReadiness` until the maker is ready |
+
+Both take a client signed in as the account (a wallet session), not a maker key.
+
+### Issue the maker's keys
+
+```ts
+import { createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalis/hip4-client/api-keys";
+import { toTotalisSigner } from "@totalis/hip4-client/signer";
+
+const keys = createApiKeyClient("production", {
+  accessToken: session.access_token,
+  headers: { Origin: "https://hip4.totalis.trade" },
+});
+const owner = toTotalisSigner(wallet);
+
+const issued = await issueApiKey(keys, owner, {
+  maker: makerId,
+  label: "Quoting bot",
+  scopes: [...QUOTING_BOT_SCOPES],
+  expires_in_days: 90, // 1 to 90, or 0 for no expiry; 30 when left out
+});
+```
+
+| Function | Does |
+| --- | --- |
+| `issueApiKey(keys, owner, { maker, label, scopes, expires_in_days })` | Asks for the maker's key challenge, checks it, has the maker wallet sign it, and creates the key. The secret is returned once. |
+| `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | Replaces a key the same way. The old key keeps working for the overlap. |
+| `listApiKeys(keys, { maker })` | Every key of the maker, oldest first, revoked and expired ones included |
+| `revokeApiKey(keys, keyId, { maker })` | Revokes a key at once. No signature. |
+
+`QUOTING_BOT_SCOPES` and `COLLATERAL_SCOPES` are the [maker scope sets](/hyperliquid/authentication#scopes).
+Give the quoting bot `QUOTING_BOT_SCOPES`, which move no vault money, and keep `COLLATERAL_SCOPES` on a separate
+key for reductions.

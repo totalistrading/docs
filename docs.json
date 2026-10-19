@@ -183,7 +183,7 @@
       },
       {
         "product": "Hyperliquid",
-        "description": "Singles and parlays on Hyperliquid HIP-4 prediction markets",
+        "description": "Combos on Hyperliquid HIP-4 prediction markets, quoted by market makers and settled on HyperEVM",
         "tabs": [
           {
             "tab": "Guides",
@@ -212,8 +212,20 @@
                   "hyperliquid/build/overview",
                   "hyperliquid/build/partner-frontend",
                   "hyperliquid/build/builder-codes",
-                  "hyperliquid/build/staging",
-                  "hyperliquid/sdk"
+                  "hyperliquid/build/staging"
+                ]
+              },
+              {
+                "group": "TypeScript SDK",
+                "pages": [
+                  "hyperliquid/sdk/overview",
+                  "hyperliquid/sdk/trading",
+                  "hyperliquid/sdk/making",
+                  "hyperliquid/sdk/wallets",
+                  "hyperliquid/sdk/resume-and-retry",
+                  "hyperliquid/sdk/streams",
+                  "hyperliquid/sdk/signing",
+                  "hyperliquid/sdk/changelog"
                 ]
               },
               {
@@ -420,6 +432,10 @@
     "/api-reference/openapi.json"
   ],
   "redirects": [
+    {
+      "source": "/hyperliquid/sdk",
+      "destination": "/hyperliquid/sdk/overview"
+    },
     {
       "source": "/guides/world-cup-reward-pool",
       "destination": "/solana/referrals"
