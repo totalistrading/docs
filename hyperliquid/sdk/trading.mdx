@@ -101,9 +101,14 @@ import { entryFailure } from "@totalistrading/hip4-client";
 const operation = await totalis.waitForOperation(opened.operationId!);
 if (operation.status !== "COMMITTED") {
   switch (entryFailure(opened.record, operation)) {
-    case "INSUFFICIENT_CASH": // the stake was not covered when it had to be
-    case "CORE_MOVE_MISSED":  // the planned HyperCore cash never confirmed moving in time; it may still be on HyperCore
-    default:                  // any other outcome
+    case "INSUFFICIENT_CASH":
+      show("Not enough cash to cover the stake.");
+      break;
+    case "CORE_MOVE_MISSED":
+      show("Hyperliquid did not confirm the move from HyperCore in time. Your USDC may still be there.");
+      break;
+    default:
+      show("The entry did not go through.");
   }
 }
 ```

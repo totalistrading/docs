@@ -5,7 +5,7 @@ description: 'Run a maker bot with createMaker: quote entries, bid on cash-outs,
 ---
 
 `createMaker` runs a maker: it delivers every open RFQ, publishes your quotes, and signs your answer to each
-acceptance. It never sends a transaction. The maker wallet sends its own vault transactions and pays the gas in
+acceptance. It never broadcasts a vault transaction: the maker wallet sends those itself and pays the gas in
 HYPE. Set up your maker first ([Market making](/hyperliquid/guides/market-making#set-up)).
 
 ## A minimal bot
@@ -136,7 +136,7 @@ A partner-admitted wallet signs in with its partner's registered origin instead
 
 | Function | Does |
 | --- | --- |
-| `openMakerVaultTransaction(deployment, wallet)` | The transaction that opens a maker for `wallet`. Send it from that wallet, your account's wallet. |
+| `openMakerVaultTransaction(deployment, address)` | The transaction that opens a maker for the wallet at `address`. Send it from that wallet, your account's wallet. |
 | `makerReadiness(client)` | Reads and admits the account's maker (`GET` and `POST /v1/me/maker`), answering `NOT_INDEXED` until its open transaction is indexed |
 | `waitForMaker(client)` | Polls `makerReadiness` until the maker is ready |
 

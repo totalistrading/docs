@@ -77,7 +77,7 @@ resends it byte for byte, up to five sends. Change that with `retry: { attempts 
 ## Errors
 
 `unwrap` and every flow throw `ApiError` for a venue error, with `code`, `retry`, `status`, `requestId`,
-`fieldViolations` and `retryAfterMs`. Its `retry` says what to do next:
+`fieldViolations` and `retryAfterMs`, plus `resend` on a flow command answered `BACKOFF`. Its `retry` says what to do next:
 
 | `retry` | Do |
 | --- | --- |
@@ -85,7 +85,7 @@ resends it byte for byte, up to five sends. Change that with `retry: { attempts 
 | `REFRESH` | Re-read state, then decide on a new command with a new key |
 | `NEVER` | Stop. `SECRET_UNAVAILABLE` means revoke the key and create another. |
 
-`NetworkError` means the outcome is unknown: the command may have reached the venue. Call `resend()`, never a
+`NetworkError` means the outcome is unknown: the command may have reached the venue. When it carries `resend`, call it, never a
 new command, so it cannot run twice.
 
 ```ts

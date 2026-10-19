@@ -120,7 +120,9 @@ withdrawal then reverts. While one is pending, subtract its `pending.amount`
 ## What a reduction nets
 
 A reduction answers one question: across every way your markets can resolve, what is the most your
-open positions can cost you at the same time? Your `requirement` drops to that amount.
+open positions can cost you at the same time? At full credit, your `requirement` drops to that amount. The
+examples below assume a `floor_bps` of 0 and a reduction small enough to land whole
+([After a reduction](#after-a-reduction)).
 
 Each position costs at most its worst case, `payout - net stake`, the amount it adds to `gross_open`.
 A position that loses costs nothing. You keep its stake, but that stake is already held in

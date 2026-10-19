@@ -49,7 +49,7 @@ admits it with your `tpk_` key.
 import { signAdmissionConsent } from "@totalistrading/hip4-client/partner";
 
 // chain_id comes from GET /v1/deployment.
-const { consent } = await signAdmissionConsent({
+const { address, consent } = await signAdmissionConsent({
   signer: window.ethereum,
   partner: "your-slug",
   environment: "production",
@@ -58,10 +58,10 @@ const { consent } = await signAdmissionConsent({
 ```
 
 ```ts
-// Server
+// Server, with the address and consent the browser sent
 import { createPartnerServer } from "@totalistrading/hip4-client/partner";
 
-const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_SERVER_KEY! });
+const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY! });
 await partner.admitWallet(address, consent);
 ```
 
@@ -81,7 +81,8 @@ await partner.admitWallet(address, consent);
 const exit = await totalis.exitToCore({ amount: 10_000_000n });
 ```
 
-`exitToCore` moves vault cash to HyperCore. After a restart, `waitForCoreExit(exitId)` follows it. `signCoreExit`
+`exitToCore` moves vault cash to HyperCore. Store `exit.exit_id` if the process may restart: after one,
+`waitForCoreExit(exitId)` follows it. `signCoreExit`
 and `sendCoreExit` split it into sign and send.
 
 `returnToCore()` takes no amount. It moves free vault cash and the wallet's available USDC (`WALLET_USDC` less
