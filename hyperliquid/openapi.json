@@ -1596,7 +1596,7 @@
             }
           },
           "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
+            "description": "A term no confirm could fill, named in `field_violations`: `quote_id` that is not the digest of `entry`, `maker_id` other than your key's, `legs`, `stake` or `taker` other than the RFQ's, a net stake under the minimum (`stake`), `payout` not above `stake` or over the maximum payout, `fee_bps` or `taker_fee_bps` other than Get deployment's, or `expiry` outside the next 30 seconds.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1737,7 +1737,7 @@
             }
           },
           "409": {
-            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.\n- `RFQ_GENERATION_IN_FLIGHT` (retry `REFRESH`): The RFQ generation is changing; re-read the RFQ.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1755,8 +1755,6 @@
                               "enum": [
                                 "IDEMPOTENCY_KEY_REUSED",
                                 "RFQ_NOT_OPEN",
-                                "RFQ_GENERATION_STALE",
-                                "RFQ_GENERATION_IN_FLIGHT",
                                 "STATE_CONFLICT"
                               ]
                             },
@@ -1777,7 +1775,7 @@
             }
           },
           "429": {
-            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.\n- `QUOTE_EXPOSURE_LIMIT` (retry `BACKOFF`): The maker's open quote exposure is at its limit.",
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -1798,8 +1796,7 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "RATE_LIMITED",
-                                "QUOTE_EXPOSURE_LIMIT"
+                                "RATE_LIMITED"
                               ]
                             },
                             "retry": {
@@ -1818,7 +1815,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `QUOTE_EXPOSURE_STALE` (retry `BACKOFF`): The maker's exposure projection is stale.\n- `COMBO_AUTOMATIC_DISABLED` (retry `BACKOFF`): Automatic combo quoting is disabled.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -1841,8 +1838,6 @@
                               "enum": [
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
-                                "QUOTE_EXPOSURE_STALE",
-                                "COMBO_AUTOMATIC_DISABLED",
                                 "FINANCIAL_ACTIONS_DISABLED"
                               ]
                             },
@@ -3306,7 +3301,7 @@
             }
           },
           "409": {
-            "description": "Resending the same answer replays the result; a different answer to the same acceptance returns `IDEMPOTENCY_KEY_REUSED`. An answer after the acceptance's `deadline` cannot reopen it.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote expired.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.",
+            "description": "Resending the same answer replays the result; a different answer to the same acceptance returns `IDEMPOTENCY_KEY_REUSED`. An answer after the acceptance's `deadline` cannot reopen it. `QUOTE_CAPACITY_EXCEEDED`: your free capital, less the fills you have confirmed that are not yet on chain, does not cover this fill (for a transfer, your own vault balance does not cover its price). Nothing filled.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote expired.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3326,7 +3321,8 @@
                                 "STATE_CONFLICT",
                                 "QUOTE_EXPIRED",
                                 "QUOTE_SIGNER_CHANGED",
-                                "QUOTE_CAPACITY_EXCEEDED"
+                                "QUOTE_CAPACITY_EXCEEDED",
+                                "RFQ_GENERATION_STALE"
                               ]
                             },
                             "retry": {
@@ -3383,7 +3379,7 @@
             }
           },
           "429": {
-            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.\n- `QUOTE_EXPOSURE_LIMIT` (retry `BACKOFF`): The maker's open quote exposure is at its limit.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -3404,7 +3400,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "RATE_LIMITED"
+                                "RATE_LIMITED",
+                                "QUOTE_EXPOSURE_LIMIT"
                               ]
                             },
                             "retry": {
@@ -3423,7 +3420,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `QUOTE_EXPOSURE_STALE` (retry `BACKOFF`): The maker's exposure projection is stale.\n- `COMBO_AUTOMATIC_DISABLED` (retry `BACKOFF`): Automatic combo quoting is disabled.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -3446,6 +3443,8 @@
                               "enum": [
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
+                                "QUOTE_EXPOSURE_STALE",
+                                "COMBO_AUTOMATIC_DISABLED",
                                 "FINANCIAL_ACTIONS_DISABLED"
                               ]
                             },
@@ -5209,7 +5208,7 @@
       "get": {
         "operationId": "listOperations",
         "summary": "List operations",
-        "description": "List your account's on-chain operations.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "List your account's on-chain operations.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "tags": [
           "Account"
         ],
@@ -5490,7 +5489,7 @@
       "get": {
         "operationId": "getOperation",
         "summary": "Get operation",
-        "description": "Get an on-chain operation and its latest chain status.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "Get an on-chain operation and its latest chain status.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "tags": [
           "Account"
         ],
@@ -6356,7 +6355,7 @@
         "tags": [
           "Positions"
         ],
-        "description": "List your account's positions.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permission `READ_POSITIONS`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "List your account's positions.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "security": [
           {
             "apiKey": [
@@ -6775,7 +6774,7 @@
         "tags": [
           "Positions"
         ],
-        "description": "Get one of your account's positions.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permission `READ_POSITIONS`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "Get one of your account's positions.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "security": [
           {
             "apiKey": [
@@ -7385,7 +7384,7 @@
         "tags": [
           "Account"
         ],
-        "description": "List your account's activity.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read` and the maker permission `READ_ACTIVITY`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "List your account's activity.\n\nRequires one of:\n\n- a key for your account with `account:read`\n- a key for a maker with `vault:read`\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "security": [
           {
             "apiKey": [
@@ -15751,7 +15750,7 @@
       "get": {
         "operationId": "stream",
         "summary": "Open stream",
-        "description": "Open the WebSocket that streams your account's or your maker's updates.\n\nRequires one of:\n\n- a key for your account with `account:stream`\n- a key for a maker with `rfq:read`\n- a key for a maker with `vault:read` and the maker permissions `READ_ACTIVITY`, `READ_CAPITAL`, `READ_PERFORMANCE`, `READ_POSITIONS`\n- a key for a maker with `quote:read`\n- a key for your account with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | key for your account | `rfq:read` |\n| Account | key for your account | `account:stream` |\n| RFQ | key for a maker | `rfq:read` |\n| Quote | key for a maker | `quote:read` |\n| Account | key for a maker | `vault:read` and the maker permissions `READ_CAPITAL`, `READ_POSITIONS`, `READ_ACTIVITY`, `READ_PERFORMANCE` |",
+        "description": "Open the WebSocket that streams your account's or your maker's updates.\n\nRequires one of:\n\n- a key for your account with `account:stream`\n- a key for a maker with `rfq:read`\n- a key for a maker with `vault:read`\n- a key for a maker with `quote:read`\n- a key for your account with `rfq:read`\n\nAlso requires `replay:read` to resume from a cursor or replay retained events.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.\n\nEach key receives only the frames its scopes allow, and other frame classes are denied:\n\n| Frames | Key | Needs |\n| --- | --- | --- |\n| Open RFQ discovery | key for your account | `rfq:read` |\n| Account | key for your account | `account:stream` |\n| RFQ | key for a maker | `rfq:read` |\n| Quote | key for a maker | `quote:read` |\n| Account | key for a maker | `vault:read` |",
         "tags": [
           "WebSocket"
         ],
@@ -16026,7 +16025,7 @@
         "tags": [
           "Makers"
         ],
-        "description": "Get your maker vault's capital, reservations and free collateral.\n\nRequires a key for a maker with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Get your maker vault's capital, reservations and free collateral.\n\nRequires a key for a maker with `vault:read`.",
         "security": [
           {
             "apiKey": [
@@ -16963,7 +16962,7 @@
       "get": {
         "operationId": "getMakerWithdrawal",
         "summary": "Get maker withdrawal",
-        "description": "Get your maker vault's pending withdrawal, when it becomes executable and what would block executing it now.\n\nRequires a key for a maker with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Get your maker vault's pending withdrawal, when it becomes executable and what would block executing it now.\n\nRequires a key for a maker with `vault:read`.",
         "tags": [
           "Makers"
         ],
@@ -17558,7 +17557,7 @@
       "get": {
         "operationId": "getCollateralReduction",
         "summary": "Get collateral reduction",
-        "description": "Get a collateral-reduction job.\n\nRequires a key for a maker with `vault:read` and the maker permission `READ_CAPITAL`.",
+        "description": "Get a collateral-reduction job.\n\nRequires a key for a maker with `vault:read`.",
         "tags": [
           "Makers"
         ],
@@ -18213,7 +18212,7 @@
         "tags": [
           "Makers"
         ],
-        "description": "List every quote this maker published in a period, live or not, newest first, with each quote's current status and the period's fill rate.\n\nRequires a key for a maker with `vault:read` and the maker permission `READ_POSITIONS`.",
+        "description": "List every quote this maker published in a period, live or not, newest first, with each quote's current status and the period's fill rate.\n\nRequires a key for a maker with `vault:read`.",
         "security": [
           {
             "apiKey": [

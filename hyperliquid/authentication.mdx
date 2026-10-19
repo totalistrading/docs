@@ -45,6 +45,9 @@ A maker key calls these, each with the scope in [Scopes](#scopes):
 | [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `vault:write` |
 | [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction) | `operations:submit` |
 
+A maker key reads `/v1/me/positions`, `/v1/me/activity`, `/v1/me/operations` and its capital with `vault:read`.
+Every maker key holds the maker's read permissions; there is nothing more to grant.
+
 The maker's position, exposure, performance and activity pages in the app read `/v1/makers/{maker_id}/...`
 routes that only the app's session can call. A maker key gets `403` on them.
 
@@ -108,6 +111,8 @@ app session from an allowed origin, never an API key.
 | Taker that withdraws | Yours | The taker scopes plus `funding:withdraw` |
 | Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 | Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
+
+Any active maker can issue both scope sets from the app: Account, then API keys, with **Keys act for** set to the maker.
 
 ## Wallet key
 

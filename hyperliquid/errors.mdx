@@ -145,7 +145,6 @@ closes use the same codes.
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
-| `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
 | `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote expired. |
 | `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |

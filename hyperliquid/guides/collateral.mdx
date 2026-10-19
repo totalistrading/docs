@@ -92,10 +92,16 @@ taker's stake before it reaches you. Rates are on [Limits](/hyperliquid/limits-a
 
 ## When collateral is checked
 
-Creating a quote reserves nothing. Your capacity is checked when you confirm a fill, against
-`free_collateral` less every fill not yet on-chain. If several of your quotes are accepted at once,
-a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and nothing fills. The contract checks again when the
-trade lands: a fill it refuses ends `FAILED`. Quote only what `free_after_pending` covers.
+A quote reserves nothing until you confirm it. From your confirm until the fill lands on-chain or its
+`expiry` passes, an entry fill holds its worst case, `payout - net stake`, against your capacity.
+
+Each entry confirm is checked against `free_collateral` less the entry fills you confirmed that are not yet
+on-chain. If several of your quotes are accepted at once, a later confirm can fail with
+`QUOTE_CAPACITY_EXCEEDED`, and nothing fills. Quote only what `free_after_pending` covers.
+
+The contract checks again when the trade lands, and a fill it refuses ends `FAILED`. That can still happen
+after `ACCEPTED`: on an RFQ the app did not open, the confirm check is skipped while Totalis's view of the chain
+lags, and cash-out confirms (`sell_back`, `transfer`) there are not checked against your capital yet.
 
 A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the
 withdrawal then reverts. While one is pending, subtract its `pending.amount`
@@ -136,8 +142,8 @@ it does not pay their gas.
     for one call to the vault.
   </Step>
   <Step title="Sign and submit it">
-    Sign that call as an EIP-1559 transaction from any wallet that holds HYPE for gas. Your maker wallet
-    works. Send it to
+    Sign that call as an EIP-1559 (type 2) transaction to the vault on this chain, with zero value and
+    exactly the job's calldata. Any wallet that holds HYPE for gas can send it; your maker wallet works. Send it to
     [Submit self-funded transaction](/hyperliquid/api-reference/makers/submit-self-funded-transaction)
     with the job's `operation_id` and the same `Idempotency-Key` that created the job, before the
     job's `expiry`. Totalis checks the transaction matches the job and broadcasts it. It never holds

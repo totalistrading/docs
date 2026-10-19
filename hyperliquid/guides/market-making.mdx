@@ -177,8 +177,21 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 | `salt` | A random uint256. |
 | `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
 
-A quote that breaks a rule returns `400 INVALID_REQUEST`, with `field_violations` naming the field.
-{/* TODO(TT-2251): confirm the field_violations pointers (e.g. /entry/fee_bps, /entry/payout) once the publish validation ships. */}
+An entry quote that could never fill is refused when you send it: `400 INVALID_REQUEST`, with
+`field_violations` naming the field.
+
+| `field_violations` | Why |
+| --- | --- |
+| `/quote_id` | Not the EIP-712 digest of `entry` as `Quote`. |
+| `/entry/maker_id` | Not your key's maker. |
+| `/entry/legs`, `/entry/stake`, `/entry/taker` | Differ from the RFQ. |
+| `/entry/stake` | The RFQ's net stake is under the minimum. |
+| `/entry/payout` | Not above `stake`, or over the maximum payout. |
+| `/entry/fee_bps`, `/entry/taker_fee_bps` | Differ from Get deployment now. |
+| `/entry/expiry` | Not in the future, or further ahead than the window. |
+
+A leg that has already settled returns `409 RFQ_NOT_OPEN`. The minimum, the maximum payout and the window
+are on [Limits](/hyperliquid/limits-and-fees).
 
 ### Quoting rules
 
@@ -189,7 +202,7 @@ A quote that breaks a rule returns `400 INVALID_REQUEST`, with `field_violations
   The windows, and how close to `expiry` a quote stops being shown, are on [Limits](/hyperliquid/limits-and-fees).
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
   `free_after_pending` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
-- A `409 RFQ_NOT_OPEN` means the RFQ closed or a newer one replaced it. Drop it.
+- A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.
 - Never quote again, or cancel, while an acceptance of your quote is waiting for you. Either one withdraws the
   acceptance, and the taker sees it `CANCELLED`. Answer it instead: confirm, or decline. The
   [SDK](/hyperliquid/sdk#make-markets) refuses to quote an RFQ while it holds an acceptance on it.
@@ -261,7 +274,12 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
-lands.
+lands. An `ACCEPTED` fill can still revert:
+
+- An entry confirm is checked against your capacity. On an RFQ the app did not open, the check is skipped while
+  Totalis's view of the chain lags, and the vault decides.
+- A cash-out confirm (`sell_back` or `transfer`) on an RFQ the app did not open is not checked against your
+  capital yet. A `transfer` needs your wallet's own vault balance to cover its `price`.
 
 - `{ "decision": "DECLINE" }` needs no signature. Decline when your price or your capital moved.
 - The confirm deadline is on [Limits](/hyperliquid/limits-and-fees). It is short, so sign on a hot
@@ -270,17 +288,18 @@ lands.
 
 | Error | Means | Do |
 | --- | --- | --- |
-| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less fills not yet on-chain, does not cover this fill. | Nothing filled. Quote smaller, or add capital. |
-| `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN`, `RFQ_GENERATION_STALE` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
+| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed entry fills not yet on-chain, does not cover this fill's `payout - net stake`. | Nothing filled. Quote smaller, or add capital. |
+| `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
+| `409 RFQ_GENERATION_STALE` | App RFQs only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
 | `409 STATE_CONFLICT` | The deadline passed, or the trade can no longer open, for example because a leg resolved. | Nothing filled. |
 | `422 INVALID_SIGNATURE`, `WRONG_AUTHORITY` | The signature is not your maker wallet's, over these exact terms. | Fix the signer, and resend before the deadline. |
-| `429 QUOTE_EXPOSURE_LIMIT` | Too many fills are pending for your maker, or on this RFQ. | Nothing filled. |
-| `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED`, `DEPENDENCY_STALE` | Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
+| `429 QUOTE_EXPOSURE_LIMIT` | App RFQs only: too many fills are pending for your maker, or on this RFQ. | Nothing filled. |
+| `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED` | App RFQs only: Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
+| `503 DEPENDENCY_STALE` | Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 
-{/* TODO(TT-2251): confirm QUOTE_CAPACITY_EXCEEDED is returned at confirm on every RFQ, and that capacity no longer surfaces as STATE_CONFLICT. */}
-
-App RFQs carry `intent_id` ([Maker channel](/hyperliquid/api-reference/websocket/maker#event)). The
-exposure limits apply to them. Every code is on [Errors](/hyperliquid/errors#codes).
+App RFQs, the ones the Totalis app opens, carry `intent_id`
+([Maker channel](/hyperliquid/api-reference/websocket/maker#event)). Every code is on
+[Errors](/hyperliquid/errors#codes).
 
 ### After a restart
 
@@ -332,7 +351,8 @@ and `payout`, and the leg state to price against.
 Bid only on positions you back. A maker wallet created in the app cannot hold its own vault balance: Totalis
 moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background, and
 [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker. A
-`transfer` you cannot pay for fails at confirm, and the owner's cash-out with it. A position you buy by
+`transfer` you cannot pay for is accepted at confirm and reverts on-chain, and the owner's cash-out fails
+with it. A position you buy by
 transfer belongs to your wallet's account, not your maker: read it and its settlement with a key for
 [your account](/hyperliquid/authentication#keys).
 
