@@ -33,6 +33,24 @@ curl https://hip4-api.totalis.trade/v1/rfqs \
 { "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a" }
 ```
 
+#### Which legs combine
+
+Each leg is one outcome, so a Combo holds at most one leg per `outcome_id`. The leg count is on
+[Limits](/hyperliquid/limits-and-fees).
+
+| Legs | Result |
+| --- | --- |
+| Different outcomes, in ascending `outcome_id` order | Accepted, whether or not they share a question. |
+| `YES` on two outcomes of one question | Accepted, but it can never win: Hyperliquid settles exactly one outcome of a question to `YES`. Block it in your slip. |
+| `YES` and `NO` of the same outcome | `400 INVALID_REQUEST`. |
+| The same leg twice | `400 INVALID_REQUEST`. |
+| Legs out of ascending `outcome_id` order | `400 INVALID_REQUEST`. |
+| No legs, or more than the limit | `400 INVALID_REQUEST`. |
+| A `side` other than `YES` or `NO`, or an `outcome_id` that is not a canonical decimal | `400 INVALID_REQUEST`. |
+| A leg whose market takes no new Combo position now | `400 INVALID_REQUEST`, with `field_violations` naming `/legs/{i}/outcome_id` and the reason in the message ([Errors](/hyperliquid/errors#codes)). |
+
+Outcomes of one question share `native_question_id` ([Get market](/hyperliquid/api-reference/markets/get-market)).
+
 ### Collect quotes
 
 Each `QUOTE_CREATED` carries one quote:

@@ -140,6 +140,27 @@ Before you quote:
   quote with other fees is refused.
 - Read your capital. If `context.status` is not `CURRENT`, stop quoting until it is.
 
+### Hedge on Hyperliquid
+
+A Combo leg is a Hyperliquid outcome side, so you can hedge it on that outcome's HyperCore book.
+
+| Combo leg | Hyperliquid |
+| --- | --- |
+| `side` | Side index: `0` for `YES`, `1` for `NO` |
+| `outcome_id` and `side` | Encoding `10 * outcome_id + side` |
+| Coin, for books and orders by name | `#` and the encoding: `YES` of outcome `1209` is `#12090` |
+| Asset ID, for orders on the exchange endpoint | `100000000 + encoding`: `100012090` |
+| Quote token | `quoteToken` in Hyperliquid's `outcomeMeta`. Every outcome on mainnet and testnet quotes in `USDC`. |
+
+- Hyperliquid refuses an order worth under $10 (`Order must have minimum value of $10.`). Size hedges in
+  steps of at least that, or net several Combos into one order.
+- A leg and its outcome token settle on the same HyperCore result. Hyperliquid pays `settleFraction` per
+  `YES` token and `1 - settleFraction` per `NO` token, and the Combo leg's result is the same fraction
+  ([Settlement](/hyperliquid/guides/trading#settlement)).
+
+Hyperliquid documents the encoding on [Asset IDs](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/asset-ids)
+and settlement on [HIP-4](https://hyperliquid.gitbook.io/hyperliquid-docs/hyperliquid-improvement-proposals-hips/hip-4-outcome-markets).
+
 ## Quote
 
 ```bash
