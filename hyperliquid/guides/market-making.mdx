@@ -313,7 +313,10 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 ```
 
 ```json
-{ "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e" }
+{
+  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+  "accept_before": "2026-09-26T20:01:01Z"
+}
 ```
 
 | Field | Rule |
@@ -322,7 +325,7 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 | `maker_id` | Your maker. |
 | `payout` | What you pay if every leg wins, gross of the profit fee. More than `stake`, and at most the maximum payout on [Limits](/hyperliquid/limits-and-fees). |
 | `fee_bps`, `taker_fee_bps` | Exactly the current values in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
-| `expiry` | Unix seconds, inside the window on [Limits](/hyperliquid/limits-and-fees). |
+| `expiry` | Unix seconds, more than 14 and at most 30 seconds ahead ([Limits](/hyperliquid/limits-and-fees)). Takers can accept until the response's `accept_before`, 14 seconds before it. |
 | `salt` | A random uint256. |
 | `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
 
@@ -337,7 +340,7 @@ An entry quote that could never fill is refused when you send it: `400 INVALID_R
 | `/entry/stake` | The RFQ's net stake is under the minimum. |
 | `/entry/payout` | Not above `stake`, or over the maximum payout. |
 | `/entry/fee_bps`, `/entry/taker_fee_bps` | Differ from Get deployment now. |
-| `/entry/expiry` | Not in the future, or further ahead than the window. |
+| `/entry/expiry` | 14 seconds or less ahead, or more than 30. |
 
 A leg that has already settled returns `409 RFQ_NOT_OPEN`. The minimum, the maximum payout and the window
 are on [Limits](/hyperliquid/limits-and-fees).
@@ -347,8 +350,9 @@ are on [Limits](/hyperliquid/limits-and-fees).
 - Price the net stake. The taker fee comes off `stake` before it reaches you, so you risk
   `payout - net stake`.
 - Your newest quote on an RFQ replaces your last one. The taker sees `QUOTE_REMOVED` for the old one.
-- A quote leaves the RFQ at its `expiry`, and the RFQ closes at `expires_at`. Neither sends an event.
-  The windows, and how close to `expiry` a quote stops being shown, are on [Limits](/hyperliquid/limits-and-fees).
+- An entry quote can be accepted until its `accept_before`. Quote again before it passes to stay on the RFQ. The
+  RFQ stops taking new quotes at `expires_at`, but a live quote stays acceptable until its `accept_before`. Neither
+  sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
   `free_after_pending` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
 - A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.

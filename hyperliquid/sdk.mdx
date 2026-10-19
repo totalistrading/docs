@@ -1,10 +1,10 @@
 ---
 title: 'TypeScript SDK'
 icon: 'code'
-description: 'The @totalistrading/hip4-client SDK 0.63.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
+description: 'The @totalistrading/hip4-client SDK 0.64.0: install, environments, taker and maker flows, wallet sign-in, partner admission, signing, the WebSocket, retries and errors.'
 ---
 
-`@totalistrading/hip4-client` 0.63.0 wraps every route, the taker and maker flows, wallet sign-in, partner
+`@totalistrading/hip4-client` 0.64.0 wraps every route, the taker and maker flows, wallet sign-in, partner
 admission, every signed message and the WebSocket. It never stores a key: every signature goes to the signer you
 pass in.
 
@@ -19,7 +19,7 @@ GitHub account that should read it. Then, with a GitHub token that has `read:pac
 ```
 
 ```bash
-npm install @totalistrading/hip4-client@0.63.0 viem
+npm install @totalistrading/hip4-client@0.64.0 viem
 ```
 
 ESM, Node 22 or later, and browsers. It has no wallet dependency: `viem` or ethers only turns a private key into a
@@ -105,12 +105,13 @@ shortfall from the wallet in the same accept, and recovers a lost accept. It ret
 
 | Option | Default | Does |
 | --- | --- | --- |
-| `choose(quotes, serverNowMs)` | `bestQuote()`: highest payout with 5 seconds left | Returns one quote, or `undefined` to wait. It may be asked about a later time, so it must depend only on its arguments. |
+| `choose(quotes, serverNowMs)` | `bestQuote()`: highest payout before its `accept_before` | Returns one quote, or `undefined` to wait. It may be asked about a later time, so it must depend only on its arguments. |
 | `collectMs` | 1,000 | How long quotes keep arriving after the first one `choose` would take. It picks when the window ends, or sooner if waiting would lose that quote or pass `quoteTimeoutMs`. `0` takes it at once. `cashOut` takes it too. |
 | `funding` | `"wallet"` | `"wallet"` signs the exact shortfall; `"none"` never funds; a funding command is sent as is |
 | `core` | | HyperCore spot USDC to bridge to the wallet for what its HyperEVM USDC lacks, as in `signEntry` |
+| `cash` | | The `{ vault, wallet }` of a `spendableCash` read to plan from. Left out, the balances are read while the quotes arrive. |
 | `quoteTimeoutMs` | 20,000 | Cancels the RFQ and throws if nothing acceptable arrives in time |
-| `onSigned(record)` | | Receives the signed record before anything is sent, to persist it |
+| `onSigned(record)` | | Awaited with the signed record before anything is sent, then with each change to its bridge. Persist it over the stored one. |
 
 | `status` | Meaning |
 | --- | --- |
@@ -118,23 +119,18 @@ shortfall from the wallet in the same accept, and recovers a lost accept. It ret
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded |
 | `NOT_ADMITTED` | Every response was lost, the venue had no acceptance, and the SDK cancelled the RFQ. Nothing traded. |
 
-Before the accept is posted, an entry can throw `EntryError`. `openPosition` then cancels the RFQ.
+While it plans the funding, before anything is signed or sent, an entry can throw `EntryError`. `openPosition` then
+cancels the RFQ.
 
 | `code` | Meaning |
 | --- | --- |
 | `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
 | `INSUFFICIENT_FUNDS` | With `funding: "wallet"` (the default): current vault cash, wallet USDC and `core` less 0.05 USDC do not cover the stake. Without `core`, vault cash and wallet USDC alone. The message names the shortfall. |
-| `QUOTE_SHORT` | Too little quote life was left to sign or send the bridge. Nothing was bridged. |
-| `BRIDGE_REFUSED` | Hyperliquid refused the bridge (`hyperliquidError`). Nothing was bridged or posted. |
-| `BRIDGE_LATE` | The bridge left too little quote life to post the accept. Nothing was posted; cash the bridge moved stays in the wallet. |
-
-Both thresholds are on [Limits](/hyperliquid/limits-and-fees). They are the points where the SDK gives up, not a
-promise that an entry with more life executes. An entry's
-signatures and how to choose a quote with enough life are on
+An entry's signatures and when its bridge moves are on
 [Signatures and quote life](/hyperliquid/build/partner-frontend#signatures-and-quote-life).
 
-`watchQuotes(rfqId, listener)` reports an RFQ's live quotes for a UI, and `[]` while the stream is down. Drop a
-quote at its `expiry` yourself.
+`watchQuotes(rfqId, listener)` reports an RFQ's live quotes for a UI, and `[]` while the stream is down. Drop an
+entry quote at its `accept_before` yourself.
 
 Once a position is decided, Totalis settles it and pays the winnings into the owner's vault balance. There is
 nothing to call.
@@ -163,24 +159,27 @@ Every money flow splits into sign, persist, send, so an app resumes after a relo
 ```ts
 const signed = await totalis.signEntry({ quote });   // plain JSON
 await save(signed);                                   // before anything is sent
-const result = await totalis.sendAcceptance(signed); // one accept
+const result = await totalis.sendAcceptance(signed, { onRecord: save }); // one accept, then any bridge
 // after a reload:
-const resumed = await totalis.recoverAcceptance(await load()); // reads the acceptance, never signs again
+const resumed = await totalis.recoverAcceptance(await load(), { onRecord: save }); // never signs again
 ```
 
 | Function | Does |
 | --- | --- |
-| `signEntry({ quote, core })` | Plans funding from current balances: free vault cash first, then the wallet, then a bridge of `core` (HyperCore spot USDC you offer) to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind. `core: null` means your HyperCore read failed; leave `core` out to fund from the wallet alone. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. |
+| `signEntry({ quote, core, cash })` | Asks the wallet for every signature at once. Plans funding from `cash` (a `spendableCash` read), or from current balances without it: free vault cash first, then the wallet, then a bridge of `core` (HyperCore spot USDC you offer) to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind. `core: null` means your HyperCore read failed; leave `core` out to fund from the wallet alone. Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current. |
 | `signCashout({ quote })` | Has the owner sign a cash-out quote's `SellBack` or `CashoutTransfer` |
-| `sendAcceptance(signed)` | Sends either record under its acceptance ID. The answer must echo the record's IDs. |
-| `recoverAcceptance(signed, { wait })` | Reads and fences the acceptance. Waits out `PENDING_CONFIRM` unless `wait: false`. Never sends the bridge again. |
+| `sendAcceptance(signed, { onRecord })` | Sends either record under its acceptance ID. The answer must echo the record's IDs. An entry's bridge goes only after the accept answers `ACCEPTED` with its `fund_by` still ahead; any other answer discards it. |
+| `recoverAcceptance(signed, { wait, onRecord })` | Reads and fences the acceptance, signing nothing. Sends a never-sent bridge only if the acceptance is `ACCEPTED` before its `fund_by`, and resends a sent one without an answer, the same bytes, within that window. Waits out `PENDING_CONFIRM` unless `wait: false`. |
 
-The bridge runs on HyperCore on its own, before the accept. If the accept then does not execute, the bridged
-USDC stays in the wallet on HyperEVM. The result's `bridged` (`{ amount, landed }`, amount in USDC base units)
-reports it on any entry that bridged, and an accept refused after the bridge (an `ApiError` such as
-`QUOTE_EXPIRED`) or a `BRIDGE_LATE` `EntryError` carries the same `bridged`, as does `normalizeError`'s result.
-`landed` is `"yes"` only when Hyperliquid answered `ok`. A bridge whose answer never arrived can still land after
-the SDK stops resending it, so `"unknown"` means read the balances rather than assume it failed. See
+An entry record carries `version: 2` and a `bridgeState`: `SENT`, `LANDED`, `PROCESSED`, `REFUSED` or `DISCARDED`.
+`onRecord` is awaited with the record before the bridge is first sent and again with each new state: persist it
+over the stored one. `sendAcceptance` refuses a record from SDK 0.63 or older; `recoverAcceptance` only reads it.
+
+The result never waits for Hyperliquid. Its `bridging` promise, set when the call sent the bridge, resolves to
+Hyperliquid's answer, or `unknown` when none came before `fund_by`. `bridged` (`{ amount, landed }`, amount in
+USDC base units) is set once a bridge was sent: unless the operation `COMMITTED`, that cash is in the wallet on
+HyperEVM, not on HyperCore. `landed` is `"yes"` only when Hyperliquid answered `ok`, so `"unknown"` means read the
+balances rather than assume it failed. See
 [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
 
 ## External wallets
@@ -361,8 +360,7 @@ try {
 `NetworkError` means the outcome is unknown. Call `resend()`, never a new command.
 
 `normalizeError(error)` turns any SDK failure into `{ code, message, retryable, retry, requestId, status,
-mayStillRun, resend, bridged, cause }`. `mayStillRun` is true when the command may have reached the venue.
-`bridged` is set when an entry failed after bridging from HyperCore: the cash now in its HyperEVM wallet. A withdrawal
+mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have reached the venue. A withdrawal
 or return to HyperCore with an unread balance throws `BalanceUnknownError`. Staging has no exits to HyperCore,
 so `exitToCore` and `returnToCore` throw `ExitUnavailableError` there before anything is signed.
 
@@ -384,6 +382,7 @@ The package ships `CHANGELOG.md`. Recent breaking changes:
 
 | Version | Change |
 | --- | --- |
+| 0.64.0 | Needs the venue's `accept_before`, `fund_by` and `server_time`. `sendAcceptance` posts the accept first and sends an entry's bridge only once it is `ACCEPTED`, before `fund_by`; the result's `bridge` is replaced by the `bridging` promise. `signEntry` signs everything at once and takes `cash`. Records carry `version: 2` and `bridgeState`, persisted through `onRecord`; `sendAcceptance` refuses older records. `bestQuote()` takes no argument and cuts quotes off at `accept_before`. Removes `EntryError` `QUOTE_SHORT`, `BRIDGE_LATE` and `BRIDGE_REFUSED`, and `bridged` on `ApiError` and `normalizeError`. |
 | 0.63.0 | `openPosition` and `cashOut` collect quotes for `collectMs` (1 s) before choosing; pass `collectMs: 0` for the old first-quote behaviour. `signEntry` and `openPosition` without `core` throw `INSUFFICIENT_FUNDS` when the wallet is known to fall short, instead of signing an entry the venue refuses. `issueApiKey` refuses a challenge whose scopes differ from the request. |
 | 0.61.0 | Adds `listApiKeys`, `revokeApiKey`, `QUOTING_BOT_SCOPES`, `COLLATERAL_SCOPES` and `examples/onboard.mjs`, for makers onboarding headless. No change to existing functions. |
 | 0.60.1 | Docs only. `quote`, `bid` and `cancelQuote` can throw `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`) when the venue records an acceptance while the request is on its way. Answer it in `onAcceptance`. |
