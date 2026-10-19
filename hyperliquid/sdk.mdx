@@ -177,9 +177,9 @@ over the stored one. `sendAcceptance` refuses a record from SDK 0.63 or older; `
 
 The result never waits for Hyperliquid. Its `bridging` promise, set when the call sent the bridge, resolves to
 Hyperliquid's answer, or `unknown` when none came before `fund_by`. `bridged` (`{ amount, landed }`, amount in
-USDC base units) is set once a bridge was sent: unless the operation `COMMITTED`, that cash is in the wallet on
-HyperEVM, not on HyperCore. `landed` is `"yes"` only when Hyperliquid answered `ok`, so `"unknown"` means read the
-balances rather than assume it failed. See
+USDC base units) is set once a bridge was sent, and never for one Hyperliquid refused. `landed` is `"yes"` only when
+Hyperliquid answered `ok`: then, unless the operation `COMMITTED`, that cash is in the wallet on HyperEVM, not on
+HyperCore. `"unknown"` means read the balances rather than assume where it is. See
 [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
 
 ## External wallets
