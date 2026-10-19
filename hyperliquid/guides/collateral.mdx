@@ -7,7 +7,7 @@ description: 'What backs your quotes: the maker vault, every capital field and h
 Every position you confirm is backed by your maker vault. When you fill, the vault locks that
 position's worst case: what you pay if every leg wins. Positions that cannot all win at once still
 lock in full until you run a **collateral reduction**. A reduction lowers your requirement to what
-your whole book can lose together.
+your whole book can lose together ([What a reduction nets](#what-a-reduction-nets)).
 
 <img className="block dark:hidden rounded-2xl" src="/images/pictures/hl-collateral-light.png" alt="Two positions on the same tournament, only one of which can win: backed one by one they lock 13,000, reduced they lock 8,000" />
 <img className="hidden dark:block rounded-2xl" src="/images/pictures/hl-collateral-dark.png" alt="Two positions on the same tournament, only one of which can win: backed one by one they lock 13,000, reduced they lock 8,000" />
@@ -117,6 +117,147 @@ A pending maker withdrawal reserves nothing. Fills during its delay can use that
 withdrawal then reverts. While one is pending, subtract its `pending.amount`
 ([Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal)) from what you quote with.
 
+## What a reduction nets
+
+A reduction answers one question: across every way your markets can resolve, what is the most your
+open positions can cost you at the same time? Your `requirement` drops to that amount.
+
+Each position costs at most its worst case, `payout - net stake`, the amount it adds to `gross_open`.
+A position that loses costs nothing. You keep its stake, but that stake is already held in
+`stake_escrow`, so it never offsets another position's cost.
+
+Two positions net only when their markets are linked. Three links count:
+
+| Link | Why it nets |
+| --- | --- |
+| `YES` and `NO` of one outcome | Only one side can win. |
+| Named outcomes of one tournament winner question | At most one of them wins. |
+| A combo and any one of its legs | A combo pays only if every leg wins, so one losing leg voids it. |
+
+Every other pair of markets is independent: each can resolve either way, whatever the others do.
+
+### YES and NO of one outcome
+
+You back two positions on "BTC above 120,000 on October 31":
+
+| Position | Taker holds | Worst case |
+| --- | --- | --- |
+| A | `YES` | 3,000 |
+| B | `NO` | 1,200 |
+
+| Market resolves | A costs | B costs | Total |
+| --- | --- | --- | --- |
+| `YES` | 3,000 | 0 | 3,000 |
+| `NO` | 0 | 1,200 | 1,200 |
+
+| | Before the reduction | After |
+| --- | --- | --- |
+| `gross_open` | 4,200 | 4,200 |
+| `discount` | 0 | 1,200 |
+| `requirement` | 4,200 | 3,000 |
+
+The larger side is the requirement, and the smaller side is the credit. If the market resolves to a
+fraction, A pays part and B pays part, and together they still cost at most 3,000.
+
+### One tournament winner question
+
+A tournament winner question has one named outcome per team, and at most one of them wins. You back
+three positions on the same tournament:
+
+| Position | Taker holds | Worst case |
+| --- | --- | --- |
+| A | Team 1 `YES` | 8,000 |
+| B | Team 2 `YES` | 5,000 |
+| C | Team 3 `NO` | 2,000 |
+
+| Winner | A costs | B costs | C costs | Total |
+| --- | --- | --- | --- | --- |
+| Team 1 | 8,000 | 0 | 2,000 | 10,000 |
+| Team 2 | 0 | 5,000 | 2,000 | 7,000 |
+| Team 3 | 0 | 0 | 0 | 0 |
+| Another team, or no winner | 0 | 0 | 2,000 | 2,000 |
+
+| | Before the reduction | After |
+| --- | --- | --- |
+| `gross_open` | 15,000 | 15,000 |
+| `discount` | 0 | 5,000 |
+| `requirement` | 15,000 | 10,000 |
+
+The shortcut: add every `NO` worst case on the question, then add the largest `YES - NO` of any one
+outcome if it is above zero. Here that is `2,000 + (8,000 - 0) = 10,000`. The reduction always counts
+the case where none of the listed outcomes wins, so a team listed later cannot break the bound.
+
+The picture at the top of this page is the same tournament with only A and B: 13,000 backed one by
+one, 8,000 after a reduction.
+
+### Combos
+
+A combo can never cost more than any one of its legs lets it. The reduction charges each combo to one
+of its legs, picks the legs that free the most, and nets those legs as above. You back two combos:
+
+| Position | Legs | Worst case |
+| --- | --- | --- |
+| D | Lakers win `YES`, BTC above 120,000 `YES` | 4,000 |
+| E | Lakers win `NO`, Chiefs win `YES` | 2,500 |
+
+Both are charged to "Lakers win": D to its `YES` leg, E to its `NO` leg.
+
+| Lakers | D costs | E costs | Total |
+| --- | --- | --- | --- |
+| Win | Up to 4,000 | 0 | Up to 4,000 |
+| Lose | 0 | Up to 2,500 | Up to 2,500 |
+
+| | Before the reduction | After |
+| --- | --- | --- |
+| `gross_open` | 6,500 | 6,500 |
+| `discount` | 0 | 2,500 |
+| `requirement` | 6,500 | 4,000 |
+
+A combo's other legs still decide whether it pays. They do not add to the bound. A combo leg on a
+tournament outcome nets with the rest of that tournament the same way a one-leg position does.
+
+### What does not net
+
+| Not linked | Why |
+| --- | --- |
+| Two different outcomes, such as "Lakers win" and "Chiefs win" | Both can win. |
+| A price ladder, such as "BTC above 110,000" and "BTC above 120,000" | Each market settles on its own and can settle to a fraction, so one result does not fix the other, even when the wording implies it. |
+| A spread or over/under, and the winner of the same game | They settle under different rules, such as when a game is abandoned. |
+| Outcomes Totalis cannot confirm belong to one tournament winner question | Without a confirmed single-winner question, each outcome backs on its own. |
+
+Treating linked markets as independent can only overstate your worst case. A reduction never lowers
+your requirement below what your book can actually lose.
+
+### After a reduction
+
+The freed USDC stays in your maker vault as `free_collateral`. It can back any new fill, in any
+market, or be withdrawn. A position you fill after the reduction locks its full worst case, even if
+it would net with your book. Run another reduction to net it.
+
+When a position closes, its credit leaves with it. `discount` falls by the part of the position's
+worst case that it did not cost you:
+
+| The position | `discount` falls by |
+| --- | --- |
+| Wins in full | Nothing |
+| Pays part (`PARTIAL`) | Its worst case, less what it cost you |
+| Loses | Its full worst case |
+| Is bought back (`SELL_BACK`) | Its full worst case |
+
+Take the tournament above, with `discount` at 5,000 and `requirement` at 10,000:
+
+| You buy back | `gross_open` | `discount` | `requirement` | What the rest can cost |
+| --- | --- | --- | --- | --- |
+| B (Team 2 `YES`) | 10,000 | 0 | 10,000 | 10,000, if Team 1 wins |
+| C (Team 3 `NO`) | 13,000 | 3,000 | 10,000 | 8,000, if Team 1 wins |
+
+After buying back C you lock 2,000 more than your book can lose, until your next reduction.
+
+One reduction raises `discount` by at most a capped share of `gross_open`, and positions that close
+between the job's snapshot and its landing shrink what it adds. A large book can take several
+reductions to reach its full credit. `requirement` never drops below the `floor_bps` share of
+`gross_open`.
+
 ## Reduce collateral
 
 A reduction looks at every open position you back, finds the most your book can lose under any way
@@ -209,24 +350,10 @@ not the quoting bot's: it holds `vault:write` and `operations:submit`. The steps
 
 - One job runs per maker at a time. Creating another while one is open returns the open one.
 - A new discount only ever raises the old one. It never undoes a larger discount still in force.
-- New fills do not use the discount, and closing positions use it up. Run a reduction again after
-  your book grows. [The TypeScript SDK](/hyperliquid/sdk#make-markets)'s `reduceCollateral` runs all
-  four steps.
+- New fills lock in full, and closing positions use the discount up ([After a reduction](#after-a-reduction)).
+  [The TypeScript SDK](/hyperliquid/sdk#make-markets)'s `reduceCollateral` runs all four steps.
 - `COLLATERAL_REDUCTION_UNAVAILABLE` means reductions are switched off for this vault right now.
   Retry later.
-
-### What nets
-
-The reduction treats these positions as linked, and every other pair as independent:
-
-| Linked | Why |
-| --- | --- |
-| The legs of one position | It pays only if every leg wins. |
-| `YES` and `NO` of the same outcome | Only one side can win. |
-| Outcomes of one tournament winner question | Only one named outcome can win. |
-
-Treating two markets as independent can only overstate your worst case, never understate it. The
-certificate never lowers your requirement below what your book can actually lose.
 
 ### Undo a discount
 
