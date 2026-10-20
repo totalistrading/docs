@@ -30,6 +30,7 @@ const opened = await totalis.openPosition({
     { outcome_id: "1344", side: "NO" },
   ],
   stake: 25_000_000n, // 25 USDC
+  onSigned: save, // your durable storage, before anything is sent and on each update
 });
 
 if (opened.operationId) {
@@ -74,7 +75,9 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 | `cash` | | A `spendableCash()` read to plan from. Left out, balances are read while quotes arrive. |
 | `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. Persist it. |
 
-`bestQuote()` takes the highest payout still before its `accept_before`. A custom `choose` may be called again
+`bestQuote()` takes the highest payout still before its `accept_before` on the venue clock. Every signer prompt
+spends that time; to keep a margin for a slow signer, see
+[Signatures and quote life](/hyperliquid/build/partner-frontend#signatures-and-quote-life). A custom `choose` may be called again
 for a later time, so it must depend only on its arguments. Collection ends early if waiting would lose the quote
 or pass `quoteTimeoutMs`.
 
@@ -92,8 +95,16 @@ An entry can fail before it is sent, or after it is accepted.
 | `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
 | `INSUFFICIENT_FUNDS` | Vault cash, wallet USDC and `core` (less 0.05 USDC) do not cover the stake. The message names the shortfall. |
 
-**After it is accepted**, an operation that ends `REVERTED` or `EXPIRED_UNEXECUTED` traded nothing.
-`entryFailure` names the message to show:
+**After it is accepted**, an operation that ends `REVERTED` or `EXPIRED_UNEXECUTED` traded nothing. The venue
+does not read the wallet's balance at the accept. If it finds the cash missing before it sends the trade, the
+operation ends `EXPIRED_UNEXECUTED` with `failure_reason` `INSUFFICIENT_CASH`. Cash that leaves after that can end
+it `REVERTED` with no reason. `entryFailure(record, operation)` names the message to show:
+
+| `entryFailure` | Means |
+| --- | --- |
+| `INSUFFICIENT_CASH` | Not enough cash. Also returned when the planned HyperCore cash reached the wallet and still fell short. |
+| `CORE_MOVE_MISSED` | The entry planned to move HyperCore cash, and Hyperliquid never answered `ok` before `fund_by`. The bridge was never sent, discarded, refused or left unanswered. The USDC is on HyperCore or, if `bridged` is set, in the wallet. |
+| `undefined` | Any other failure, or the operation has no `failure_reason` |
 
 ```ts
 import { entryFailure } from "@totalis/hip4-client";
@@ -113,8 +124,9 @@ if (operation.status !== "COMMITTED") {
 }
 ```
 
-Pass the latest record, as `onSigned` or `onRecord` last handed it to you. When the entry bridged and failed,
-see [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
+Pass the latest record: `opened.record`, or the one `onSigned` or `onRecord` last handed you. Only a record whose
+`bridgeState` is `LANDED` shows the HyperCore cash moved in time. When the entry bridged and failed, see
+[Funding from HyperCore](/hyperliquid/build/partner-frontend#funding-from-hypercore).
 
 ### Watch quotes yourself
 

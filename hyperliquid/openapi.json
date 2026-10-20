@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "162.0.0-accept-before"
+    "version": "163.0.0-operation-failure-reason"
   },
   "servers": [
     {
@@ -2755,14 +2755,15 @@
       "post": {
         "operationId": "acceptQuote",
         "summary": "Accept quote",
-        "description": "Accept a quote to open a position or cash one out.\n\nRequires a key for your account with `quote:accept`.\n\nAlso requires `sponsorship:use` when Totalis pays the gas.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "Accept a quote to open a position or cash one out.\n\nRequires a key for your account with `quote:accept`, `sponsorship:use`.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "tags": [
           "RFQs & Quotes"
         ],
         "security": [
           {
             "apiKey": [
-              "quote:accept"
+              "quote:accept",
+              "sponsorship:use"
             ]
           },
           {
@@ -2771,7 +2772,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance after the maker answered or the two-second confirm window closed, returned within three seconds. Its status is `ACCEPTED`, `DECLINED`, `TIMED_OUT` or `CANCELLED`, never `PENDING_CONFIRM`. `ACCEPTED` means the trade is queued, not yet on chain: follow `OPERATION_UPDATED` on the account stream until it fills.",
+            "description": "The acceptance after the maker answered or the two-second confirm window closed, returned within three seconds. Its status is `ACCEPTED`, `DECLINED`, `TIMED_OUT` or `CANCELLED`, never `PENDING_CONFIRM`. `ACCEPTED` means the trade is queued, not yet on chain: follow `OPERATION_UPDATED` on the account stream until it ends. Only `COMMITTED` opened the position; an operation that ends `EXPIRED_UNEXECUTED` or `REVERTED` traded nothing, and its `failure_reason` says why when known.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2933,7 +2934,7 @@
             }
           },
           "409": {
-            "description": "A quote can be accepted once: a new `Idempotency-Key` on an RFQ that already has a live acceptance returns `STATE_CONFLICT`.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote expired.\n- `QUOTE_CANCELLED` (retry `REFRESH`): The maker cancelled the quote.\n- `QUOTE_REPLACED` (retry `REFRESH`): A newer quote from the same maker replaced this one.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `CORE_MOVE_IN_FLIGHT` (retry `REFRESH`): A HyperCore transfer for this account is still in flight.",
+            "description": "A quote can be accepted once: a new `Idempotency-Key` on an RFQ that already has a live acceptance returns `STATE_CONFLICT`.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote is past its accept_before or expired.\n- `QUOTE_CANCELLED` (retry `REFRESH`): The maker cancelled the quote.\n- `QUOTE_REPLACED` (retry `REFRESH`): A newer quote from the same maker replaced this one.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `CORE_MOVE_IN_FLIGHT` (retry `REFRESH`): A HyperCore transfer for this account is still in flight.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3304,7 +3305,7 @@
             }
           },
           "409": {
-            "description": "Resending the same answer replays the result; a different answer to the same acceptance returns `IDEMPOTENCY_KEY_REUSED`. An answer after the acceptance's `deadline` cannot reopen it. `QUOTE_CAPACITY_EXCEEDED`: your free capital, less the fills you have confirmed that are not yet on chain, does not cover this fill (for a transfer, your own vault balance does not cover its price). Nothing filled.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote expired.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.",
+            "description": "Resending the same answer replays the result; a different answer to the same acceptance returns `IDEMPOTENCY_KEY_REUSED`. An answer after the acceptance's `deadline` cannot reopen it. `QUOTE_CAPACITY_EXCEEDED`: your free capital, less the fills you have confirmed that are not yet on chain, does not cover this fill (for a transfer, your own vault balance does not cover its price). Nothing filled.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote is past its accept_before or expired.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3929,7 +3930,7 @@
             }
           },
           "409": {
-            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.\n- `RFQ_GENERATION_IN_FLIGHT` (retry `REFRESH`): The RFQ generation is changing; re-read the RFQ.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3946,6 +3947,8 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "IDEMPOTENCY_KEY_REUSED",
+                                "RFQ_GENERATION_STALE",
+                                "RFQ_GENERATION_IN_FLIGHT",
                                 "STATE_CONFLICT"
                               ]
                             },
@@ -4007,7 +4010,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `COMBO_AUTOMATIC_DISABLED` (retry `BACKOFF`): Automatic combo quoting is disabled.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -4030,6 +4033,7 @@
                               "enum": [
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
+                                "COMBO_AUTOMATIC_DISABLED",
                                 "FINANCIAL_ACTIONS_DISABLED"
                               ]
                             },
@@ -5250,6 +5254,16 @@
                 "example": {
                   "operations": [
                     {
+                      "operation_id": "0x8c4f1a7e2d9b5c3a6f1e8d4b7a2c9f5e3d1b8a6c4f2e9d7b5a3c1f8e6d4b2a90",
+                      "kind": "ACCEPT",
+                      "amount": "10000000",
+                      "status": "EXPIRED_UNEXECUTED",
+                      "transaction_hash": null,
+                      "failure_reason": "INSUFFICIENT_CASH",
+                      "created_at": "2026-09-26T15:02:11.204Z",
+                      "updated_at": "2026-09-26T15:02:19.733Z"
+                    },
+                    {
                       "operation_id": "0x2d9e4a7b1c6f3e8d5a2b9c4f7e1d6a3b8c5f2e9d4a7b1c6e3f8d5a2b9c4e7f10",
                       "kind": "CLAIM",
                       "amount": null,
@@ -5266,18 +5280,9 @@
                       "transaction_hash": "0x4f7a1c8e5b2d9f6a3c1e8b5d2f9a6c3e1b8d5f2a9c6e3b1d8f5a2c9e6b3d1f8a",
                       "created_at": "2026-09-25T18:41:33.127Z",
                       "updated_at": "2026-09-25T18:41:37.560Z"
-                    },
-                    {
-                      "operation_id": "0x7e3c9a41d2b85f06e1a7c4d93b28f5e60a1c7d4b92e3f8a05c6d1b7e42a9f3c0",
-                      "kind": "DEPOSIT_USER_AUTHORIZED",
-                      "amount": "25000000",
-                      "status": "COMMITTED",
-                      "transaction_hash": "0x9a4c2e7f1b8d5a3c6e9f2b4d7a1c8e5f3b6d9a2c4e7f1b8d5a3c6e9f2b4d7a1c",
-                      "created_at": "2026-09-25T18:39:02.315Z",
-                      "updated_at": "2026-09-25T18:39:06.844Z"
                     }
                   ],
-                  "next_cursor": "MjAyNi0wOS0yNVQxODozOTowMi4zMTVafDB4N2UzYzlhNDFkMmI4NWYwNmUx",
+                  "next_cursor": "MjAyNi0wOS0yNVQxODo0MTozMy4xMjdafDB4NWIxZjhlMmE5YzRkNzAzNmUx",
                   "has_more": true,
                   "checkpoint": {
                     "block_number": "31552210",
@@ -5514,7 +5519,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The operation and its latest chain status. A key reads its own account's operations: yours, or its maker's.",
+            "description": "The operation, its latest chain status and, when known, why it ended unexecuted. A key reads its own account's operations: yours, or its maker's.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19145,7 +19150,7 @@
         "properties": {
           "server_time": {
             "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "The database clock that sets `fund_by` and `deadline`, read with this acceptance, as an RFC3339 UTC timestamp. Judge them against it, not the local clock."
+            "description": "The database clock that sets `fund_by` and `deadline`, read with this acceptance, as an RFC3339 UTC timestamp. Judge them against it, not the local clock: the venue's time now is at most `server_time` plus the time elapsed since you sent the request (take the larger of a monotonic and a wall clock's elapsed time). Setting your clock to `server_time` when the response arrives reads early by the response's delay and can send too late. The accept response is held for the maker's answer, so a `GET /v1/rfqs/{rfq_id}/quotes` sent alongside it gives a tighter bound from its own `server_time`; keep the tightest. Send nothing timed by `fund_by` without a response to judge it by."
           }
         },
         "required": [
@@ -19186,7 +19191,7 @@
               "TIMED_OUT",
               "CANCELLED"
             ],
-            "description": "`PENDING_CONFIRM`: waiting for the maker. `ACCEPTED`: the maker confirmed and the trade is queued as `operation_id`. `FILLED`: the trade committed on chain. `FAILED`: it reverted or expired unexecuted. `DECLINED`: the maker declined. `TIMED_OUT`: the maker did not answer by `deadline`. `CANCELLED`: the quote or RFQ went away first."
+            "description": "`PENDING_CONFIRM`: waiting for the maker. `ACCEPTED`: the maker confirmed and the trade is queued as `operation_id`. `FILLED`: the trade committed on chain. `FAILED`: it reverted or expired unexecuted; read `GET /v1/me/operations/{operation_id}`, whose `failure_reason` is INSUFFICIENT_CASH when the taker's Cash fell short. `DECLINED`: the maker declined. `TIMED_OUT`: the maker did not answer by `deadline`. `CANCELLED`: the quote or RFQ went away first."
           },
           "deadline": {
             "$ref": "#/components/schemas/CommonTimestamp",
@@ -19198,7 +19203,7 @@
           },
           "fund_by": {
             "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "For an acceptance with `funding`, once the maker confirmed: send any HyperCore to wallet transfer that funds it before this time, two seconds after the confirm, as an RFC3339 UTC timestamp. After it, discard an unsent transfer; the trade fails if the wallet lacks the funding. Never sent to the maker."
+            "description": "For an acceptance with `funding`, once the maker confirmed: send any HyperCore to wallet transfer that funds it before this time, two seconds after the confirm, as an RFC3339 UTC timestamp. Send the transfer only after the accept answers `ACCEPTED`, never before it: an accept answered any other way trades nothing. Save the signed transfer before its first send and resend the same bytes while Hyperliquid has not answered, until `fund_by`. After it, discard an unsent transfer; if the wallet still lacks the funding, the operation ends EXPIRED_UNEXECUTED with `failure_reason` INSUFFICIENT_CASH. Judge `fund_by` by the bound `server_time` describes, never the local clock. Never sent to the maker."
           }
         }
       },
@@ -21585,7 +21590,7 @@
           },
           "terminal_reason": {
             "$ref": "#/components/schemas/RfqTerminalReason",
-            "description": "Why a FAILED RFQ ended: the accept transaction reverted, or it expired unexecuted. Present only when status is FAILED."
+            "description": "Why a FAILED RFQ ended: the accept transaction reverted (REVERTED), it expired unexecuted (EXPIRED_UNEXECUTED), or the taker's Cash did not cover the stake when it was to execute (INSUFFICIENT_CASH). The accept's operation then has `failure_reason` INSUFFICIENT_CASH. Present only when status is FAILED."
           },
           "created_at": {
             "type": "string",
@@ -21595,7 +21600,7 @@
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "When quote collection ends, 20 seconds after creation. A created quote stays acceptable until its own expiry."
+            "description": "When quote collection ends, 20 seconds after creation. A quote created by then stays acceptable until its own `accept_before`."
           },
           "legs": {
             "type": "array",
@@ -23739,6 +23744,10 @@
               }
             ]
           },
+          "failure_reason": {
+            "description": "Why the operation ended without executing, present only when the venue names a reason: INSUFFICIENT_CASH on an EXPIRED_UNEXECUTED accept whose taker's Cash fell short. Absent otherwise, including an EXPIRED_UNEXECUTED or REVERTED operation with no named reason.",
+            "$ref": "#/components/schemas/OperationFailureReason"
+          },
           "created_at": {
             "description": "RFC 3339 UTC time the operation was admitted.",
             "$ref": "#/components/schemas/CommonTimestamp"
@@ -23748,6 +23757,13 @@
             "$ref": "#/components/schemas/CommonTimestamp"
           }
         }
+      },
+      "OperationFailureReason": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_CASH"
+        ],
+        "description": "Why an operation ended without executing. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its funding draws) did not cover the stake when it was to execute, for a funded accept by its `fund_by`; it ends EXPIRED_UNEXECUTED and nothing traded. The RFQ fails with the same `terminal_reason`."
       },
       "OperationList": {
         "type": "object",
@@ -25128,7 +25144,7 @@
             "items": {
               "$ref": "#/components/schemas/Quote"
             },
-            "description": "Live quotes on this RFQ in creation order, at most 100. Rank them yourself. Left out: entry quotes within two seconds of expiry, cash-out quotes within 22 seconds of expiry, a quote whose acceptance timed out, and every quote on a cash-out RFQ that already has an accepted one."
+            "description": "Live quotes on this RFQ in creation order, at most 100. Rank them yourself. Left out: entry quotes at or after their `accept_before`, cash-out quotes within 22 seconds of expiry, a quote whose acceptance timed out, and every quote on a cash-out RFQ that already has an accepted one."
           },
           "server_time": {
             "$ref": "#/components/schemas/CommonTimestamp",
@@ -26738,7 +26754,7 @@
             "$ref": "#/components/schemas/UInt64String"
           },
           "valid_before": {
-            "description": "EIP-3009 validBefore in Unix seconds; must be at least 5 seconds ahead and at most 900 seconds after valid_after.",
+            "description": "EIP-3009 validBefore in Unix seconds; must be at or after the quote's `entry.expiry`, as the accept can execute until then, and at most 900 seconds after valid_after.",
             "$ref": "#/components/schemas/UInt64String"
           },
           "salt": {
