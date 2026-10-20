@@ -28,160 +28,6 @@
   "navigation": {
     "products": [
       {
-        "product": "Solana",
-        "description": "Parlays across Kalshi and Polymarket, settled on Solana",
-        "tabs": [
-          {
-            "tab": "Guides",
-            "groups": [
-              {
-                "group": "Overview",
-                "pages": [
-                  "solana/index"
-                ]
-              },
-              {
-                "group": "Get started",
-                "pages": [
-                  "solana/quickstart",
-                  "solana/how-do-i",
-                  "solana/authentication"
-                ]
-              },
-              {
-                "group": "Core concepts",
-                "pages": [
-                  "solana/guides/lifecycle",
-                  "solana/limits-and-fees",
-                  "solana/guides/funding",
-                  "solana/guides/vault-architecture",
-                  "solana/glossary"
-                ]
-              },
-              {
-                "group": "Guides",
-                "pages": [
-                  "solana/guides/realtime",
-                  "solana/guides/event-catalog",
-                  "solana/guides/reading-data",
-                  "solana/guides/webhooks",
-                  "solana/guides/websocket",
-                  "solana/guides/early-cashout",
-                  "solana/guides/quote-requests",
-                  "solana/guides/market-making",
-                  "solana/guides/cashout-auctions"
-                ]
-              },
-              {
-                "group": "Resources",
-                "pages": [
-                  "solana/faq",
-                  "solana/changelog",
-                  "solana/referrals",
-                  "terms-of-service",
-                  "privacy-policy"
-                ]
-              }
-            ]
-          },
-          {
-            "tab": "API reference",
-            "groups": [
-              {
-                "group": "Overview",
-                "pages": [
-                  "solana/api-reference/introduction",
-                  "solana/errors"
-                ]
-              },
-              {
-                "group": "Quote service",
-                "pages": [
-                  "solana/api-reference/quote-service/create",
-                  "solana/api-reference/quote-service/update",
-                  "solana/api-reference/quote-service/get",
-                  "solana/api-reference/quote-service/commit",
-                  "solana/api-reference/quote-service/cancel",
-                  "solana/api-reference/quote-service/stream",
-                  "solana/api-reference/quote-service/cashout-create",
-                  "solana/api-reference/quote-service/cashout-stream",
-                  "solana/api-reference/quote-service/cashout-commit"
-                ]
-              },
-              {
-                "group": "Market maker",
-                "pages": [
-                  "solana/api-reference/quote-service-mm/stream",
-                  "solana/api-reference/quote-service-mm/submit-quote",
-                  "solana/api-reference/quote-service-mm/withdraw-quote",
-                  "solana/api-reference/quote-service-mm/cashout-quote",
-                  "solana/api-reference/mm/list-quotes",
-                  "solana/api-reference/mm/confirm-quote",
-                  "solana/api-reference/mm/list-positions",
-                  "solana/api-reference/mm/get-position"
-                ]
-              },
-              {
-                "group": "Markets",
-                "pages": [
-                  "solana/api-reference/markets/list",
-                  "solana/api-reference/markets/list-flat",
-                  "solana/api-reference/markets/get"
-                ]
-              },
-              {
-                "group": "Parlays",
-                "pages": [
-                  "solana/api-reference/parlays/list",
-                  "solana/api-reference/parlays/get"
-                ]
-              },
-              {
-                "group": "Account",
-                "pages": [
-                  "solana/api-reference/user/get-profile",
-                  "solana/api-reference/user/update-username",
-                  "solana/api-reference/user/check-username",
-                  "solana/api-reference/user/get-wallet",
-                  "solana/api-reference/user/submit-tx"
-                ]
-              },
-              {
-                "group": "API keys",
-                "pages": [
-                  "solana/api-reference/user/list-api-keys",
-                  "solana/api-reference/user/create-api-key",
-                  "solana/api-reference/user/revoke-api-key"
-                ]
-              },
-              {
-                "group": "Funds and vault",
-                "pages": [
-                  "solana/api-reference/funds/get-vault",
-                  "solana/api-reference/funds/vault-deposit",
-                  "solana/api-reference/funds/vault-withdraw",
-                  "solana/api-reference/funds/wallet-withdraw",
-                  "solana/api-reference/funds/delegation-status",
-                  "solana/api-reference/funds/enable-trading",
-                  "solana/api-reference/funds/portfolio",
-                  "solana/api-reference/funds/pnl"
-                ]
-              },
-              {
-                "group": "Webhooks",
-                "pages": [
-                  "solana/api-reference/webhooks/get-config",
-                  "solana/api-reference/webhooks/set-config",
-                  "solana/api-reference/webhooks/rotate-secret",
-                  "solana/api-reference/webhooks/list-deliveries",
-                  "solana/api-reference/webhooks/redeliver"
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
         "product": "Hyperliquid",
         "description": "Combos on Hyperliquid HIP-4 prediction markets, quoted by market makers and settled on HyperEVM",
         "tabs": [
@@ -375,6 +221,160 @@
             ]
           }
         ]
+      },
+      {
+        "product": "Solana",
+        "description": "Parlays across Kalshi and Polymarket, settled on Solana",
+        "tabs": [
+          {
+            "tab": "Guides",
+            "groups": [
+              {
+                "group": "Overview",
+                "pages": [
+                  "solana/index"
+                ]
+              },
+              {
+                "group": "Get started",
+                "pages": [
+                  "solana/quickstart",
+                  "solana/how-do-i",
+                  "solana/authentication"
+                ]
+              },
+              {
+                "group": "Core concepts",
+                "pages": [
+                  "solana/guides/lifecycle",
+                  "solana/limits-and-fees",
+                  "solana/guides/funding",
+                  "solana/guides/vault-architecture",
+                  "solana/glossary"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "solana/guides/realtime",
+                  "solana/guides/event-catalog",
+                  "solana/guides/reading-data",
+                  "solana/guides/webhooks",
+                  "solana/guides/websocket",
+                  "solana/guides/early-cashout",
+                  "solana/guides/quote-requests",
+                  "solana/guides/market-making",
+                  "solana/guides/cashout-auctions"
+                ]
+              },
+              {
+                "group": "Resources",
+                "pages": [
+                  "solana/faq",
+                  "solana/changelog",
+                  "solana/referrals",
+                  "terms-of-service",
+                  "privacy-policy"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "API reference",
+            "groups": [
+              {
+                "group": "Overview",
+                "pages": [
+                  "solana/api-reference/introduction",
+                  "solana/errors"
+                ]
+              },
+              {
+                "group": "Quote service",
+                "pages": [
+                  "solana/api-reference/quote-service/create",
+                  "solana/api-reference/quote-service/update",
+                  "solana/api-reference/quote-service/get",
+                  "solana/api-reference/quote-service/commit",
+                  "solana/api-reference/quote-service/cancel",
+                  "solana/api-reference/quote-service/stream",
+                  "solana/api-reference/quote-service/cashout-create",
+                  "solana/api-reference/quote-service/cashout-stream",
+                  "solana/api-reference/quote-service/cashout-commit"
+                ]
+              },
+              {
+                "group": "Market maker",
+                "pages": [
+                  "solana/api-reference/quote-service-mm/stream",
+                  "solana/api-reference/quote-service-mm/submit-quote",
+                  "solana/api-reference/quote-service-mm/withdraw-quote",
+                  "solana/api-reference/quote-service-mm/cashout-quote",
+                  "solana/api-reference/mm/list-quotes",
+                  "solana/api-reference/mm/confirm-quote",
+                  "solana/api-reference/mm/list-positions",
+                  "solana/api-reference/mm/get-position"
+                ]
+              },
+              {
+                "group": "Markets",
+                "pages": [
+                  "solana/api-reference/markets/list",
+                  "solana/api-reference/markets/list-flat",
+                  "solana/api-reference/markets/get"
+                ]
+              },
+              {
+                "group": "Parlays",
+                "pages": [
+                  "solana/api-reference/parlays/list",
+                  "solana/api-reference/parlays/get"
+                ]
+              },
+              {
+                "group": "Account",
+                "pages": [
+                  "solana/api-reference/user/get-profile",
+                  "solana/api-reference/user/update-username",
+                  "solana/api-reference/user/check-username",
+                  "solana/api-reference/user/get-wallet",
+                  "solana/api-reference/user/submit-tx"
+                ]
+              },
+              {
+                "group": "API keys",
+                "pages": [
+                  "solana/api-reference/user/list-api-keys",
+                  "solana/api-reference/user/create-api-key",
+                  "solana/api-reference/user/revoke-api-key"
+                ]
+              },
+              {
+                "group": "Funds and vault",
+                "pages": [
+                  "solana/api-reference/funds/get-vault",
+                  "solana/api-reference/funds/vault-deposit",
+                  "solana/api-reference/funds/vault-withdraw",
+                  "solana/api-reference/funds/wallet-withdraw",
+                  "solana/api-reference/funds/delegation-status",
+                  "solana/api-reference/funds/enable-trading",
+                  "solana/api-reference/funds/portfolio",
+                  "solana/api-reference/funds/pnl"
+                ]
+              },
+              {
+                "group": "Webhooks",
+                "pages": [
+                  "solana/api-reference/webhooks/get-config",
+                  "solana/api-reference/webhooks/set-config",
+                  "solana/api-reference/webhooks/rotate-secret",
+                  "solana/api-reference/webhooks/list-deliveries",
+                  "solana/api-reference/webhooks/redeliver"
+                ]
+              }
+            ]
+          }
+        ]
       }
     ],
     "global": {
@@ -389,13 +389,13 @@
     "links": [
       {
         "label": "Get an API key",
-        "href": "https://app.totalis.trade/settings/api-keys"
+        "href": "https://hip4.totalis.trade/account/api-keys"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://app.totalis.trade"
+      "href": "https://hip4.totalis.trade"
     }
   },
   "contextual": {
