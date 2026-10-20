@@ -70,8 +70,8 @@ The result never waits for Hyperliquid:
 
 - `bridging` is set when this call sent the bridge. It resolves to Hyperliquid's answer, or `unknown` when none
   came before `fund_by`.
-- `bridged` is `{ amount, landed }` (amount in atomic USDC) once a bridge was sent, and never for one
-  Hyperliquid refused. `landed: "yes"` means Hyperliquid answered `ok`: unless the operation `COMMITTED`, that
+- `bridged` is `{ amount, landed }` (amount in atomic USDC) once a bridge was sent. It is a snapshot from the
+  send; a later refusal updates the saved record, not this result. `landed: "yes"` means Hyperliquid answered `ok`: unless the operation `COMMITTED`, that
   cash is now in the wallet on HyperEVM, not on HyperCore. `"unknown"` means read the balances rather than
   assume where it is. `bridged` names a bridge that was sent; it does not prove the cash reached the wallet.
 

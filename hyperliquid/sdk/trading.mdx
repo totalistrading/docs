@@ -103,7 +103,7 @@ it `REVERTED` with no reason. `entryFailure(record, operation)` names the messag
 | `entryFailure` | Means |
 | --- | --- |
 | `INSUFFICIENT_CASH` | Not enough cash. Also returned when the planned HyperCore cash reached the wallet and still fell short. |
-| `CORE_MOVE_MISSED` | The entry planned to move HyperCore cash, and Hyperliquid never answered `ok` before `fund_by`. The bridge was never sent, discarded, refused or left unanswered. The USDC is on HyperCore or, if `bridged` is set, in the wallet. |
+| `CORE_MOVE_MISSED` | The entry planned to move HyperCore cash, and Hyperliquid never answered `ok` before `fund_by`. The bridge was never sent, discarded, refused or left unanswered. Read balances to find the USDC: it is on HyperCore or in the wallet. |
 | `undefined` | Any other failure, or the operation has no `failure_reason` |
 
 ```ts
