@@ -6,12 +6,21 @@ description: 'Trade combos on Hyperliquid HIP-4 outcome markets: request a quote
 
 Totalis lets you trade Hyperliquid's HIP-4 outcome markets as singles or combos. A **single** is one
 outcome and trades on the HyperCore order book. A **combo** is several outcomes in one position that
-pays in full only if every leg wins. Combos are request-for-quote: market makers compete to quote yours, and
-you take the best price with one signature. Totalis holds the position in its vault on HyperEVM and
-pays you when the markets settle.
+pays in full only if every leg wins. Fractional results can pay part of that amount. Combos are request-for-quote:
+market makers compete to quote yours. You sign the quote you choose and any required funding authorizations.
+The maker confirms, then Totalis submits the trade to its vault on HyperEVM.
 
 You can also put Totalis in your own frontend, where your users trade with their own wallets:
 [Build on Totalis](/hyperliquid/build/overview).
+
+| Position | Execution | Funds and API |
+| --- | --- | --- |
+| Native single | A YES or NO token on HyperCore's order book. | HyperCore spot cash and Hyperliquid's [exchange API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/exchange-endpoint). |
+| One-leg RFQ position | A maker quote accepted through Totalis. | Totalis vault position, signatures and fees, using the RFQ API below. |
+| Combo | One Totalis RFQ position with several legs. | The same RFQ API and vault flow, with a product of the legs' payout factors. |
+
+A one-leg RFQ is not a native order-book order. The Totalis RFQ API does not place or cancel HyperCore
+orders. [Balances and funding](/hyperliquid/guides/funding) explains how to move cash between the two.
 
 <CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/hyperliquid/quickstart">
@@ -49,12 +58,14 @@ other account, trading and maker route needs an API key or a [wallet session](/h
   </Step>
   <Step title="Accept and fill">
     Sign the quote you want and [accept it](/hyperliquid/api-reference/quotes/accept-quote). The maker
-    has 2 seconds to confirm or decline. Totalis puts the trade on-chain and pays the gas.
+    can confirm or decline within the [confirm window](/hyperliquid/limits-and-fees). An `ACCEPTED`
+    response queues the trade. Its operation reaching `COMMITTED` establishes the on-chain fill.
   </Step>
   <Step title="Settle, or cash out first">
-    When the markets resolve, Totalis settles the position and pays a win into your vault balance.
-    Nothing to call or sign. To leave early, [cash out](/hyperliquid/guides/trading#cash-out): makers bid
-    for the position.
+    Totalis submits eligible settlements and claims automatically. Returns first credit your vault balance.
+    [Settlement and returns](/hyperliquid/guides/settlement) explains fractional results, delayed claims and
+    exceptional outcomes. To leave early, request a [cash-out](/hyperliquid/guides/trading#cash-out).
+    It needs an executable bid and is not guaranteed.
   </Step>
 </Steps>
 
@@ -66,11 +77,12 @@ other account, trading and maker route needs an API key or a [wallet session](/h
 | 2 | Receives `QUOTE_CREATED`. | [Create quote](/hyperliquid/api-reference/quotes/create-quote): the payout. |
 | 3 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) with a signature. | Receives `QUOTE_ACCEPTED`. |
 | 4 | The accept response carries the maker's answer. | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) with a signature, or decline. |
-| 5 | Holds the position. | Backs it from the maker vault. |
+| 5 | Holds the position once the operation is `COMMITTED`. | Backs it from the maker vault. |
 
 Your USDC sits in your Totalis wallet and the vault contract. The vault moves funds only with a
 signature from the funds' owner. You do not need to deposit before you trade: an accept with signed `funding` pulls any shortfall from your
-wallet, and the SDK adds it for you. Winnings are claimed for you.
+wallet, and the SDK adds it for you. [Funding](/hyperliquid/guides/funding) shows where cash sits before and
+after trading. [Contract interfaces](/hyperliquid/guides/contracts) describes the vault's controls and direct calls.
 
 ## The essentials
 
@@ -79,7 +91,7 @@ wallet, and the SDK adds it for you. Winnings are claimed for you.
 | Base URL | `https://hip4-api.totalis.trade`, on HyperEVM (chain ID `999`) |
 | Auth | `Authorization: Bearer <key>` ([Authentication](/hyperliquid/authentication)). Market reads and the deployment need no key. |
 | Staging | `https://hip4-api-staging.totalis.trade`, on HyperEVM testnet (chain ID `998`): [Staging](/hyperliquid/build/staging) |
-| Amounts | Strings in USDC atomic units: `"25000000"` is 25 USDC |
+| Amounts | Trading amounts are micro-USDC strings: `"25000000"` is 25 USDC. Activity effects use their asset's own decimals ([conventions](/hyperliquid/api-reference/introduction#requests)). |
 | Gas | Totalis pays it for takers. Makers pay their own, in HYPE. |
 | Separate from Solana | The [Solana API](/solana/quickstart) has its own keys and endpoints |
 
@@ -106,11 +118,25 @@ wallet, and the SDK adds it for you. Winnings are claimed for you.
   </Card>
 </CardGroup>
 
+## What you can build
+
+| Build | Start with | Constraint |
+| --- | --- | --- |
+| An own-wallet combo frontend | [Partner wallets](/hyperliquid/build/partner-frontend) and [Frontend lifecycle](/hyperliquid/build/frontend-lifecycle) | Partner access, registered origins and one wallet identity per account. |
+| An algorithmic taker | [API trading](/hyperliquid/guides/api-trading) | Quote acceptance also needs the account wallet's signature. |
+| A market maker | [Market making](/hyperliquid/guides/market-making) | Maker collateral and your own HYPE for chain transactions. |
+| A combo feature in a Hyperliquid terminal | [Funding](/hyperliquid/guides/funding) | Native orders and Totalis positions have separate execution and cash locations. |
+| A portfolio or capital dashboard | [Account reads](/hyperliquid/api-reference/account/get-balances) and [Maker collateral](/hyperliquid/guides/collateral) | Respect freshness, unknown amounts and asset units. |
+| A partner distribution channel | [Builder codes](/hyperliquid/build/builder-codes) | Attribution follows admission and signed-origin rules. |
+
+Market reference prices are not executable combo prices. A maker prices the combined exposure, including
+correlation. Multiplying displayed chances does not establish an executable payout or a guaranteed hedge.
+
 ## Need help?
 
 <CardGroup cols={2}>
   <Card title="Email the founders" icon="envelope" href="mailto:founders@totalis.trade">
-    Partner access, SDK access, staging and liquidity.
+    Partner access, staging and liquidity.
   </Card>
   <Card title="Errors" icon="triangle-exclamation" href="/hyperliquid/errors#codes">
     Every code, and which to retry.

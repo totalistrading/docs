@@ -20,36 +20,28 @@ or to test on testnet first, see [Build on Totalis](/hyperliquid/build/overview)
 
 ## 2. Read
 
-Markets need no key:
+Markets need no key. Select from the current catalog instead of reusing an outcome ID from an example:
 
 ```bash
-curl "https://hip4-api.totalis.trade/v1/markets?limit=1"
+curl -fsS "https://hip4-api.totalis.trade/v1/markets?limit=200" \
+  | jq '[.items[] | select(.state == "ACTIVE" and .eligibility.state == "ENABLED" and .combo.state == "OPEN")
+    | {outcome_id, native_question_id, title}]'
 ```
 
-```json
-{
-  "items": [
-    {
-      "outcome_id": "1209",
-      "native_question_id": null,
-      "title": "HYPE touches 100 by 20261001-0000",
-      "state": "ACTIVE",
-      "sides": [
-        { "side": "YES", "coin": "#12090" },
-        { "side": "NO", "coin": "#12091" }
-      ]
-    }
-  ],
-  "next_cursor": "eyJnIjo2NDM3LCJhIjoxMjExLCJrIjoibWFya2V0In0",
-  "has_more": true
-}
+`ACTIVE` alone does not mean a market admits Combo RFQs. If this page has no eligible market, follow
+`next_cursor` from the original [List markets](/hyperliquid/api-reference/markets/list-markets) response,
+or wait for another market to open. Never replace an empty result with a historical outcome ID.
+
+Choose an eligible market and set its ID:
+
+```bash
+export OUTCOME_ID="<chosen-outcome-id>"
 ```
 
-The list is flat: one row per market, with no question title. Markets of one question share
-`native_question_id`. For a market in a question, [Get market](/hyperliquid/api-reference/markets/get-market)
-returns its `question`, with the `title` and all its markets. A standalone market has
-`native_question_id: null` and `question: null`. [List questions](/hyperliquid/api-reference/markets/list-questions)
-(`GET /v1/discovery`) groups markets under their question titles, and lists standalone markets separately.
+The list is flat: one row per market. Markets of one question share `native_question_id`.
+[Get market](/hyperliquid/api-reference/markets/get-market) returns its `market`, `question` and rules.
+[List questions](/hyperliquid/api-reference/markets/list-questions) (`GET /v1/discovery`) groups markets
+under their question titles and lists standalone markets separately.
 
 Your identity checks the key:
 
@@ -78,23 +70,35 @@ wscat -c wss://hip4-ws.totalis.trade/v1/stream -s totalis.realtime.v2 \
 > {"method":"subscribe","subscription":{"type":"account"}}
 ```
 
-Then create an RFQ for 5 USDC on `YES` of outcome `1209`:
+Wait for the account snapshot. Then create an RFQ for 5 USDC on `YES` of the market you selected.
+Generate a fresh UUIDv7 for the command (Python 3.14):
+
+```bash
+export IDEMPOTENCY_KEY="$(python3.14 -c 'import uuid; print(uuid.uuid7())')"
+```
+
+The [Python HTTP example](/hyperliquid/guides/api-trading#python-http-example) includes UUIDv7 generation
+for earlier Python versions. Keep this key with the exact body until the command is resolved.
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/rfqs \
   -H "Authorization: Bearer $TOTALIS_API_KEY" \
-  -H "Idempotency-Key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771" \
+  -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
   -H "Content-Type: application/json" \
-  -d '{ "stake": "5000000", "legs": [{ "outcome_id": "1209", "side": "YES" }] }'
+  -d "$(jq -nc --arg id "$OUTCOME_ID" '{stake:"5000000",legs:[{outcome_id:$id,side:"YES"}]}')"
 ```
 
 ```json
 { "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a" }
 ```
 
-Quotes arrive on the socket as `QUOTE_CREATED`, each with a `payout`. Generate a new lowercase UUIDv7
-`Idempotency-Key` for every command.
+Quotes arrive on the socket as `QUOTE_CREATED`, each with a `payout`. Creating an RFQ spends no stake.
+There may be no quote; a quote request is not a guaranteed fill.
 
 ## 4. Accept
 
-Sign a quote and accept it before its `accept_before`: [Trading](/hyperliquid/guides/trading#accept).
+Your API key authenticates the request. It does not sign the trade: your account wallet signs the exact
+quote. Accept it before its `accept_before` and follow the operation until `COMMITTED`:
+[Trading](/hyperliquid/guides/trading#accept).
+
+For an HTTP bot with executable signing and recovery, use [API trading](/hyperliquid/guides/api-trading).

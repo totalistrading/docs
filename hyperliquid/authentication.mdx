@@ -92,7 +92,7 @@ expiry (30 when omitted), and `overlap_seconds` is 0 to 86400 (3600 when omitted
 | `identity:read` | Yours | Your identity and wallet |
 | `account:read` | Yours | Balances, positions, activity, operations, withdrawals |
 | `account:stream` | Yours | The [account channel](/hyperliquid/api-reference/websocket/account) |
-| `rfq:read` | Either | Open RFQs and RFQ events |
+| `rfq:read` | Either | Open RFQs and RFQ events. Your account also reads its own RFQs after they end. |
 | `rfq:write` | Yours | Create and cancel RFQs |
 | `quote:read` | Either | Yours: quotes on your RFQs, your acceptances. A maker: acceptances of its quotes. |
 | `quote:accept` | Yours | Accept a quote |
@@ -108,10 +108,13 @@ expiry (30 when omitted), and `overlap_seconds` is 0 to 86400 (3600 when omitted
 
 | Integration | Account | Scopes |
 | --- | --- | --- |
-| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `replay:read`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
+| Taker | Yours | `identity:read`, `account:read`, `account:stream`, `replay:read`, `rfq:read`, `rfq:write`, `quote:read`, `quote:accept`, `position:cashout`, `sponsorship:use`, `funding:deposit` |
 | Taker that withdraws | Yours | The taker scopes plus `funding:withdraw` |
 | Maker | The maker | `rfq:read`, `quote:read`, `quote:write`, `replay:read`, `vault:read` |
 | Maker collateral | The maker | `vault:read`, `vault:write`, `operations:submit` |
+
+Include `rfq:read` even though open RFQs are public. When you send a key, RFQ reads check its scope.
+You need an authenticated read to inspect your own terminal RFQ and its `terminal_reason`.
 
 Any active maker can issue both maker scope sets from its wallet session: `QUOTING_BOT_SCOPES` and `COLLATERAL_SCOPES`
 in the SDK ([Manage keys](/hyperliquid/guides/market-making#manage-keys)).
@@ -147,8 +150,9 @@ and [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 | Withdraw: vault shortfall | Your wallet | `Exit` | `vault_withdrawal.signature` |
 | Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |
 
-Settling and claiming need no signature. Send signatures as lowercase hex with `v` of 27 or 28. EOA and
-ERC-1271 signatures are accepted.
+Settling and claiming need no signature. Send signatures as lowercase hex. ECDSA signatures use `v` of 27 or 28.
+Vault trade messages accept EOA or ERC-1271 signatures. USDC funding and payout authorizations require
+ECDSA signatures; wallet sign-in requires an EOA. See the [signature support matrix](/hyperliquid/build/partner-frontend#signature-support).
 
 ## Domain
 
@@ -208,4 +212,5 @@ Signed field names differ from the API's. This is the only place they do.
 | Accept funding | `keccak256(abi.encode(vault, chainId, from, salt, account))`, with `from` and `account` your wallet. Send `salt`, not the nonce. |
 | Withdrawal payout | `keccak256(abi.encode(keccak256("TOTALIS_PAYOUT_NONCE_V1"), chainId, vault, account, uint128(Idempotency-Key)))`. Not sent. |
 
-Signature windows are on [Limits](/hyperliquid/limits-and-fees).
+Signature windows are on [Limits](/hyperliquid/limits-and-fees). To check an implementation in another
+language, use the [offline signing vectors](/hyperliquid/guides/api-trading#verify-your-signer).

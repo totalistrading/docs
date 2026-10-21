@@ -8,7 +8,7 @@ description: 'Request conventions, idempotency, pagination, and every error code
 
 | Kind | Encoding | Example |
 | --- | --- | --- |
-| Amount | String, USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
+| Totalis stake, payout, balance or withdrawal | String, HyperEVM USDC atomic units (6 decimals). Never a JSON number. | `"12500000"` is 12.5 USDC |
 | Large number | Decimal string: outcome, chain, block, stream cursor sequence | `"1209"` |
 | Leg | `outcome_id` and `side` | `{ "outcome_id": "1209", "side": "YES" }` |
 | Address | Lowercase `0x` hex. Input may be checksummed. | `"0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"` |
@@ -17,12 +17,18 @@ description: 'Request conventions, idempotency, pagination, and every error code
 | Timestamp | RFC 3339 UTC. Signed terms use unix seconds. | `"2026-09-26T20:00:50Z"` |
 | Enum | Upper snake case. Ignore unknown values on reads. | `"ACCEPTED"` |
 
+[Activity effects](/hyperliquid/api-reference/account/list-activity) are the exception to the USDC amount
+convention: `effects[].delta` uses the native atomic units of its `asset`. HyperCore USDC uses 8 decimals,
+while HyperEVM USDC uses 6. Hyperliquid's own balance responses use decimal token amounts.
+Convert exactly before comparing values, and never sum activity lane deltas as income.
+
 An omitted optional field and `null` are not interchangeable unless the field says so.
 
 ### Idempotency
 
-A command `POST` sends an `Idempotency-Key`: a lowercase UUIDv7, new for every command. The table below lists
-routes with their own rules.
+Send an `Idempotency-Key` only when the operation declares it. It is a lowercase UUIDv7, chosen once
+before the first send. Reuse it for retries of that command. Commands keyed by their own resource take no
+header; their rules are below.
 
 ```http
 POST /v1/rfqs HTTP/1.1
@@ -47,6 +53,21 @@ Content-Type: application/json
 | [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | None. A repeated keep renews again. A repeated release is safe and returns `released: false` once none is armed. |
 | [Admit own maker](/hyperliquid/api-reference/makers/admit-own-maker) | None. A repeat returns the current ownership unchanged. |
 | [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | Required. A resend with the same key and body returns the withdrawal as it is now, still `202`, however long ago it was signed. |
+
+### Recover a command after a restart
+
+Persist the account, environment, method, path, idempotency key and exact request body before sending a
+financial command. An API-key rotation does not justify giving the same command a new idempotency key.
+Keep one command record through every retry and recovery read.
+
+An HTTP timeout or connection loss does not prove that a command failed. For an accept, read its
+[acceptance](/hyperliquid/api-reference/quotes/get-acceptance) and follow its operation. If the acceptance
+is absent, [cancel the RFQ and read again](/hyperliquid/guides/trading#lost-response) before concluding
+that nothing was admitted. A successful cancel does not revoke a maker's existing signature.
+
+The replay rules are per operation. Do not infer a general expiry for command records from a quote's
+expiry, a wallet session's expiry or the WebSocket replay window. For a withdrawal, replay the saved
+command or read the [withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) by its ID.
 
 ## Pagination
 
@@ -147,7 +168,8 @@ closes use the same codes.
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
-| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote expired. |
+| `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
+| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote is past its accept_before or expired. |
 | `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
 | `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |

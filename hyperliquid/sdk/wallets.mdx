@@ -26,6 +26,7 @@ const totalis = createTotalis({
 });
 
 // Later:
+totalis.close();
 await signOutWallet({ environment: "production", accessToken: session.access_token, partnerKey });
 ```
 
@@ -41,8 +42,9 @@ session:
 
 ## Admit a wallet
 
-A partner's wallet must be admitted before it can trade. The wallet consents in the browser, and your server
-admits it with your `tpk_` key.
+A new wallet needs admission before its first successful sign-in. An existing account signs in without a new
+admission. Check the [onboarding cases](/hyperliquid/build/partner-frontend#onboard-a-user) before asking for consent.
+The wallet consents in the browser, and your server admits it with your `tpk_` key.
 
 ```ts
 // Browser
@@ -68,6 +70,24 @@ await partner.admitWallet(address, consent);
 `signAdmissionConsent` returns the wallet's `address` and its `consent`, and takes an optional
 `lifetimeSeconds`. `createPartnerServer` refuses to run in a browser, so the server key cannot leak there. See [Partner frontend](/hyperliquid/build/partner-frontend).
 
+## Helper credentials
+
+Every financial action also needs the account wallet to sign. An API key authenticates the request; it does not
+replace that signature. Wallet sessions must come from the origin they signed in from. These are account
+helpers; maker keys use the [maker client](/hyperliquid/sdk/making). Sponsored deposits also require an eligible
+account wallet ([Deposits and exits](/hyperliquid/limits-and-fees#deposits-and-exits)).
+
+| Helper | Wallet session | Account API key |
+| --- | --- | --- |
+| `openPosition`, `signEntry`, `sendAcceptance` | Yes | Taker [scopes](/hyperliquid/authentication#scopes); funding from the wallet also needs `funding:deposit`. |
+| `cashOut`, `signCashout`, `sendAcceptance` | Yes | Cash-out [scopes](/hyperliquid/authentication#scopes). |
+| `withdraw`, `signWithdrawal`, `sendWithdrawal` | Yes | `funding:withdraw` and `sponsorship:use`. |
+| `exitToCore`, `signCoreExit`, `sendCoreExit` | Yes | `funding:withdraw` and `sponsorship:use`. |
+| `signDeposit`, `sendDeposit` | Yes | No. Sponsored deposits reject API keys. |
+| `returnToCore`, `signReturnToCore`, `sendReturnToCore` | Yes, for an `EXTERNAL` wallet. | Only the vault-only path can use a key. If wallet cash requires a sponsored deposit, use a session. |
+| `directDepositCalls` | Yes | Yes. The wallet sends the returned transactions and pays its own gas. |
+| `issueApiKey`, `rotateApiKey` | Yes, with fresh wallet approval. | No. An API key cannot manage keys. |
+
 ## Deposit
 
 | Function | Does |
@@ -88,7 +108,10 @@ and `sendCoreExit` split it into sign and send.
 `returnToCore()` takes no amount. It moves free vault cash and the wallet's available USDC (`WALLET_USDC` less
 `pending.wallet_reserved`) back to HyperCore. Available wallet USDC under the sponsored deposit minimum
 ([Limits](/hyperliquid/limits-and-fees#deposits-and-exits)) stays in the wallet. `signReturnToCore` and
-`sendReturnToCore` split it.
+`sendReturnToCore` split it. Use a wallet session when it includes a sponsored deposit. With an API key, use
+`exitToCore` for free vault cash. To move wallet USDC first, send `directDepositCalls` with the wallet's own
+provider, wait for both transactions to commit, refresh balances, then sign an exit for the resulting free vault
+cash. See [Funding and balances](/hyperliquid/guides/funding).
 
 `returnToCore` throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`). A wallet embedded in
 your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, so both functions throw
@@ -99,3 +122,6 @@ your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, s
 `totalis.issueApiKey({ label, scopes })` issues the account's own `ttk_` key from a wallet session, with the
 wallet's approval. `rotateApiKey` replaces one. Makers issue their keys with the `.../api-keys` helpers
 instead ([Onboard headless](/hyperliquid/sdk/making#onboard-headless)).
+
+Close the client and reconnect when the wallet or environment changes. Store pending signed records per wallet
+and deployment, then recover them after sign-in ([Frontend lifecycle](/hyperliquid/build/frontend-lifecycle)).

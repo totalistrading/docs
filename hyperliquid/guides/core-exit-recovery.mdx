@@ -1,0 +1,125 @@
+---
+title: 'Recover a Core exit'
+icon: 'life-ring'
+description: 'Resume an exit after a reload, distinguish a delayed Core credit from cash held in the router, and recover only when the contract permits it.'
+---
+
+Read [Get HyperCore exit](/hyperliquid/api-reference/core-exits/get-hypercore-exit) by its original `exit_id`.
+Keep the signed record and its `Idempotency-Key` until the exit reaches a terminal state. A HyperEVM
+transaction's success does not by itself prove that the exit's HyperCore credit has been linked.
+
+## Resume by state
+
+| Exit state | Meaning | Action |
+| --- | --- | --- |
+| `QUEUED`, `DISPATCHED` | The relay is queued, broadcast, or waiting for qualified chain evidence. | Follow the same exit. Do not create a second move. |
+| `ATTEMPT_FAILED` | One relay failed; the signed Exit may still execute. | Keep following the exit and its operation. This state is nonterminal. |
+| `SENT` | The router sent cash toward HyperCore; the corresponding credit is not linked yet. | Read HyperCore balances and ledger history. Wait or escalate. The router recovery below cannot reverse a sent bridge. |
+| `CREDITED` | The exit is linked to its HyperCore credit. | Refresh the spendable HyperCore balance. |
+| `RECOVERED` | A signed router recovery paid the specified HyperEVM recipient. | Read that recipient's wallet balance and the recovery receipt. |
+| `FAILED` | The exit is proven unexecuted after expiry. | Re-read balances before constructing a new move with a new ID. |
+| `ABANDONED` | The ID was tombstoned before admission. | A late create under that ID is refused. No admitted move was cancelled. |
+
+`waitForCoreExit(exit_id)` follows the exit toward its final result. Keep the ID if your application stops
+waiting, reloads, or loses a response. Inspect the returned status or error and re-read the exit before
+deciding what happened. [List HyperCore exits](/hyperliquid/api-reference/core-exits/list-hypercore-exits)
+returns unresolved exits after a reload.
+
+An exit can remain `SENT` without a timeout. The credit can exist before Totalis has enough evidence to
+link it uniquely to this exit. Neither elapsed time nor a larger wallet balance establishes which transfer
+caused the credit. Email [founders@totalis.trade](mailto:founders@totalis.trade) with the environment, account
+wallet, exit ID, `exit_digest`, operation ID, receipt hash and matching HyperCore ledger entry.
+
+## Cash held in the router
+
+A signed vault `Exit` can be submitted directly to the vault. If its recipient is the CoreExit router,
+that direct call can debit the vault and leave USDC in the router before the router completes the bridge.
+Totalis attempts to complete an admitted exit from that state. The contract also allows an owner-authorized
+return to an EVM recipient.
+
+Read the router address from the exit or its deployment. Check its `VAULT()` and `USDC()` against
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Use the
+[CoreExit ABI](/downloads/hyperliquid/core-exit-d712d4658f3e.abi.json) only for its matching source revision:
+[Contract interfaces](/hyperliquid/guides/contracts).
+
+| Requirement for `recover` | Read or input |
+| --- | --- |
+| The original Exit names this router | `Exit.to == router_address`. |
+| The vault already consumed the exact Exit | `vault.consumed(exit_digest) == true`. |
+| The router has not processed it | `router.processed(exit_digest) == false`. |
+| The full amount is available in the router | `USDC.balanceOf(router_address) >= Exit.amount`. |
+| The account authorizes the recipient | A fresh `Recover` signature from `Exit.account`. |
+| The recipient is valid | Nonzero, and neither the router nor the vault. |
+
+These reads establish eligibility at the observed block only. A competing completion can win before your
+transaction executes. The router processes each Exit digest once.
+
+## Sign the recovery
+
+Use the original signed Exit terms, including its `salt`, from your persisted record. The exit read returns
+the digest but not every original signed field. Do not reconstruct missing terms from an amount and a time.
+
+```text
+Exit(address account,address to,uint128 amount,uint64 expiry,uint256 salt)
+Recover(bytes32 exit,address recipient)
+```
+
+`Recover.exit` is the complete EIP-712 digest of `Exit`, not the UUID `exit_id` and not an operation ID.
+Both messages use the vault's domain, with the vault as `verifyingContract`, not the router.
+
+```ts
+import { hashTypedData } from 'viem';
+
+// deployment, exitTerms, recipient and ownerWalletClient are your verified inputs.
+const domain = {
+  name: 'TotalisParlay',
+  version: '1',
+  chainId: Number(deployment.chain_id),
+  verifyingContract: deployment.vault_address,
+};
+const types = {
+  Exit: [
+    { name: 'account', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'amount', type: 'uint128' },
+    { name: 'expiry', type: 'uint64' },
+    { name: 'salt', type: 'uint256' },
+  ],
+};
+const digest = hashTypedData({ domain, types, primaryType: 'Exit', message: exitTerms });
+if (digest.toLowerCase() !== exit.exit_digest.toLowerCase()) {
+  throw new Error('Stored Exit does not match the admitted exit');
+}
+const recoverySignature = await ownerWalletClient.signTypedData({
+  account: exitTerms.account,
+  domain,
+  types: { Recover: [
+    { name: 'exit', type: 'bytes32' },
+    { name: 'recipient', type: 'address' },
+  ] },
+  primaryType: 'Recover',
+  message: { exit: digest, recipient },
+});
+// A relayer submits recover(exitTerms, recipient, recoverySignature) to the router.
+```
+
+Anyone can relay the signed call. A direct relayer pays HyperEVM gas. There is no public Totalis HTTP
+recovery route or SDK `recover` helper. If you need a relayer, contact support with the exit identifiers
+before requesting another signature. The original Exit signature does not authorize an arbitrary recovery
+recipient; `recover` requires the separate signature above.
+
+The recovery authorization has no separate expiry. It is restricted to that one Exit digest and recipient
+and stops being usable once the router processes the exit. Treat it as a financial authorization.
+
+## Read the result
+
+| Contract result | Meaning |
+| --- | --- |
+| `CoreExitRecovered` receipt | USDC was transferred to the signed recipient. Totalis can observe this as `RECOVERED`. |
+| `AlreadyProcessed` | Another completion already processed the digest. Inspect router events and re-read the exit. |
+| `NotWithdrawn` | The vault has not consumed the digest. Recovery is unavailable. |
+| `MissingFunds` | The router cannot pay the original amount. Re-read and escalate. |
+| `Unauthorized`, `WrongRecipient`, `ZeroAddress` | Correct the signature or signed inputs before retrying. |
+
+[Abandon HyperCore exit](/hyperliquid/api-reference/core-exits/abandon-hypercore-exit) only fences an ID the
+venue never admitted. It does not withdraw cash from the router or cancel a queued, consumed or sent exit.

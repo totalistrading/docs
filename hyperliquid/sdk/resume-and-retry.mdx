@@ -49,6 +49,39 @@ Reads and fences the acceptance. It signs nothing. It sends a never-sent bridge 
 `ACCEPTED` before its `fund_by`, and resends a sent one that got no answer, with the same bytes, in that same
 window. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
 
+## Store records by wallet and deployment
+
+Keep each record under its `account`, `chainId`, `vault` and `acceptanceId`, alongside your selected environment.
+Reauthenticate the same account before recovery. The SDK refuses to send or recover a record for a different
+wallet, chain or vault. A staging rebuild can replace the vault; do not submit an old staging record to the new
+deployment.
+
+Persist every `onSigned` or `onRecord` update before the callback resolves. Do not replace a pending record with
+a new trade after a lost response. Recover it first. Closing the page, aborting a request or dismissing a wallet
+popup does not cancel a command already admitted by the venue.
+
+Keep sessions and signed records out of URLs and logs. Give your storage the same access control as the signed-in
+account. A signed record carries authorizations; do not let another wallet's UI load it as its own pending trade.
+See [Frontend lifecycle](/hyperliquid/build/frontend-lifecycle) for wallet changes and prompt handling.
+
+## Concurrent signers
+
+Serialize wallet prompts for one account in your app. Separate tabs or bots can still spend the same available
+cash, so refresh balances after `STATE_CONFLICT` and build a new command only after resolving the earlier one.
+
+The SDK's default Hyperliquid nonce generator increases within one JavaScript runtime. It does not coordinate
+other tabs, processes or bots using the same wallet. If you coordinate Hyperliquid nonces yourself, reserve one
+for the bridge and pass it to the split signing flow:
+
+```ts
+const signed = await totalis.signEntry({ quote, core, hypercoreNonce: reservedNonce });
+await save(signed);
+const result = await totalis.sendAcceptance(signed, { onRecord: save });
+```
+
+`reservedNonce` comes from your shared nonce allocator. The same wallet's other Hyperliquid clients must use that
+allocator too. Recover a sent bridge with its stored record; do not allocate another nonce to retry it.
+
 ## Entry records and the bridge
 
 An entry record carries `version: 2` and a `bridgeState`: `SENT`, `LANDED`, `PROCESSED`, `REFUSED` or

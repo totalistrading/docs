@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Totalis wallet example</title>
+    <style>
+      body { font: 16px system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 1rem; }
+      label { display: block; margin-top: 1rem; }
+      input, textarea { box-sizing: border-box; width: 100%; font: inherit; }
+      button { margin: 1rem .5rem 0 0; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <h1>Totalis wallet example</h1>
+    <p id="environment"></p>
+    <button id="connect">Connect and sign in</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <label for="legs">Legs, in ascending outcome ID order</label>
+    <textarea id="legs" rows="4">[{"outcome_id":"1209","side":"YES"}]</textarea>
+    <label for="stake">Stake in atomic USDC (5000000 is 5 USDC)</label>
+    <input id="stake" value="5000000" inputmode="numeric">
+    <label for="minimum">Minimum gross payout in atomic USDC, before profit fees</label>
+    <input id="minimum" value="10000000" inputmode="numeric">
+    <p>Choose your stake and price limit. The example takes the best quote meeting your minimum. It shows the
+      selected payout and full-win return after fees before the wallet prompt.</p>
+    <button id="open" disabled>Request quotes and sign</button>
+    <button id="recover" disabled>Recover saved entry</button>
+    <pre id="status" role="status">Connect an already admitted EOA wallet to begin.</pre>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

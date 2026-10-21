@@ -15,6 +15,7 @@ app-only routes. This script:
   accepts fields added later (requests stay strict);
 - writes the API reference tab: an Overview group (OVERVIEW), then one group per PAGES entry, led
   by its hand-written pages (LEADS).
+- clarifies public integration descriptions without changing wire shapes or validation rules.
 
 A route the spec has and PAGES does not place, or the reverse, stops the script.
 
@@ -368,6 +369,60 @@ def publish(spec: dict) -> dict:
     return spec
 
 
+def integration_descriptions(spec: dict) -> dict:
+    """Keep integration clarifications reproducible when the backend spec is regenerated.
+
+    These are documentation annotations only. Auth, validators, examples and signed shapes
+    remain the backend's contract. Keep these overrides until the source descriptions agree.
+    """
+    spec["info"]["description"] = spec["info"]["description"].replace(
+        "every command `POST` requires an `Idempotency-Key` header",
+        "commands send an `Idempotency-Key` only where the operation requires it; "
+        "confirm and maker admission take none",
+    )
+    schemas = spec["components"]["schemas"]
+    schemas["QuoteTerms"]["properties"]["expiry"]["description"] = (
+        "Signed on-chain expiry, in Unix seconds. The venue stops accepting an entry quote "
+        "earlier, at its accept_before. Use EntryQuote.accept_before and the venue clock "
+        "to decide whether to accept; expiry alone does not establish acceptability."
+    )
+    schemas["CashoutRfq"]["properties"]["expires_at"]["description"] = (
+        "When cash-out quote collection ends. Existing bids remain subject to the cash-out "
+        "acceptance and execution margins in /hyperliquid/limits-and-fees; a bid's signed "
+        "expiry alone does not establish acceptability."
+    )
+    schemas["Balance"]["description"] = (
+        "The account's reported Totalis balance in atomic USDC (6 decimals): account wallet "
+        "USDC on HyperEVM plus free vault cash, net of the pending reservations described below. "
+        "HyperCore cash is separate and is not included in amount or components. "
+        "Read it through Hyperliquid's public clearinghouse state API as shown in "
+        "/hyperliquid/guides/funding."
+    )
+
+    def wording(node, account_wallet=False):
+        if isinstance(node, dict):
+            if isinstance(node.get("description"), str):
+                node["description"] = node["description"].replace("\u2013", " to ")
+                if account_wallet:
+                    node["description"] = node["description"].replace("embedded wallet", "account wallet")
+            for value in node.values():
+                wording(value, account_wallet)
+        elif isinstance(node, list):
+            for value in node:
+                wording(value, account_wallet)
+
+    wording(spec)
+    for name in ("WalletFunding", "WithdrawalCommand", "VaultWithdrawal", "Withdrawal"):
+        wording(schemas[name], account_wallet=True)
+    if "state-specific recovery procedure" not in schemas["CoreExitState"]["description"]:
+        schemas["CoreExitState"]["description"] += (
+            " Recovery is available only for a consumed vault Exit that the router has not processed. "
+            "It cannot reverse a SENT exit awaiting HyperCore credit. See "
+            "/hyperliquid/guides/core-exit-recovery for the state-specific recovery procedure."
+        )
+    return spec
+
+
 def tab() -> dict:
     """The API reference tab: the overview, then one group per resource, each led by its hand-written pages."""
     return {
@@ -408,7 +463,7 @@ def main() -> int:
     else:
         spec = json.loads((args.spec or SPEC).read_text())
 
-    spec = open_responses(readable(publish(spec)))
+    spec = open_responses(readable(integration_descriptions(publish(spec))))
     unique_titles(spec)
     spec_text = dump(spec)
     docs_text = dump(with_tab(json.loads(DOCS.read_text())))
