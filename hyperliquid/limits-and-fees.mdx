@@ -10,7 +10,6 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | --- | --- |
 | Legs per RFQ | 1 to 50, strictly ascending `outcome_id` |
 | Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
-| Maximum payout | 1,000,000 USDC per position |
 | Fees | `taker_fee_bps` on the stake at accept. `fee_bps` on profit at claim, and on a `SELL_BACK` on the `price` above the position's net stake. A transfer to another maker pays no fee. A position keeps the `fee_bps` it opened with. |
 | Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
 | Cash-out RFQ open | 30 seconds |
