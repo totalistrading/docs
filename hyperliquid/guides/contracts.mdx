@@ -1,0 +1,144 @@
+---
+title: 'Contracts and control'
+icon: 'file-contract'
+description: 'Check the deployment, call the vault without the TypeScript SDK, and understand settlement, collateral and administrative control.'
+---
+
+Check [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) before you sign or send a direct
+transaction. Its `chain_id`, `vault_address` and USDC domain identify where your funds and signatures go.
+`source_revision` identifies the deployed contract source. `audit_status` is `PRE_AUDIT` until the contracts
+complete an external audit, then `AUDITED`. A source revision identifies a version; it is not an audit report.
+
+## Download an interface
+
+These JSON files contain only the public functions and events used below and by the
+[funding and recovery flow](/hyperliquid/guides/funding). They contain no deployed addresses or signing keys.
+
+| Interface | Download |
+| --- | --- |
+| Vault: configuration, maker setup and funds, settlement, claims and direct user withdrawals | [Vault ABI](/downloads/hyperliquid/vault-d712d4658f3e.abi.json) |
+| HyperCore exit router: completion, processing status and recovery | [CoreExit ABI](/downloads/hyperliquid/core-exit-d712d4658f3e.abi.json) |
+
+The interfaces are pinned to source revision `d712d4658f3e5ee3e0fc7634c7f545586f290964`. Match it with
+`source_revision` from the environment you use. If it differs, obtain the matching interface from
+[founders@totalis.trade](mailto:founders@totalis.trade) before sending a direct transaction. A matching function
+name alone does not establish the same tuple layout or behavior. For a verified-source or audit-report link
+for that deployment, include its `chain_id`, `vault_address` and `source_revision` in your request.
+
+## Open a maker without the SDK
+
+Send this function to `vault_address` from your account wallet. Pass that same wallet as `quoteSigner`:
+
+```solidity
+function openMakerVault(address quoteSigner) external returns (uint64 makerId);
+function makerOf(address controller) external view returns (uint64 makerId);
+event MakerOpened(uint64 indexed makerId, address indexed controller, address quoteSigner);
+```
+
+The sender becomes the controller. It can open only one maker. The supported Totalis API requires the
+controller and quote signer to be the account's same wallet. Do not substitute a separate quote signer.
+
+With Foundry `cast`, use the wallet already saved in your local keystore as `totalis-maker`. Set
+`TOTALIS_VAULT` and `TOTALIS_CHAIN_ID` from Get deployment, `HYPEREVM_RPC_URL` to a matching RPC, and
+`TOTALIS_WALLET_ADDRESS` to that keystore wallet's address:
+
+```bash
+cast send "$TOTALIS_VAULT" 'openMakerVault(address)' "$TOTALIS_WALLET_ADDRESS" \
+  --account totalis-maker --chain "$TOTALIS_CHAIN_ID" --rpc-url "$HYPEREVM_RPC_URL"
+
+cast call "$TOTALIS_VAULT" 'makerOf(address)(uint64)' "$TOTALIS_WALLET_ADDRESS" \
+  --rpc-url "$HYPEREVM_RPC_URL"
+```
+
+You pay the transaction's gas in HYPE. Wait for its successful receipt and read the maker ID from
+`MakerOpened` or `makerOf`; a transaction receipt does not expose a Solidity return value. A zero ID means
+that address has no maker. If the send response is lost, read `makerOf` before sending another transaction.
+
+After Totalis indexes the maker, sign in with the account wallet and call
+[Admit own maker](/hyperliquid/api-reference/makers/admit-own-maker). Then create your maker keys and
+[fund the maker vault](/hyperliquid/guides/market-making#headless). Opening a maker on-chain does not by itself
+admit it to the API. Deposits and maker withdrawals use the
+[direct vault calls](/hyperliquid/guides/collateral#move-maker-funds).
+
+## Read the vault configuration
+
+Call `config()` on `vault_address` with the matching Vault ABI. The result includes these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `usdc`, `feeSink` | Token held by the vault and the fixed destination of protocol treasury withdrawals. |
+| `feeBps`, `takerFeeBps`, `minStake` | Current fees and minimum net stake. The API's deployment response gives the fee fields used in quotes. |
+| `maxFeeBps`, `maxTakerFeeBps`, `minStakeFloor`, `maxMinStake` | Fixed bounds on changes to fees and minimum stake. |
+| `k` | Collateral floor, in basis points. The API calls it `floor_bps`. |
+| `maxRaiseBps`, `reduceInterval` | Maximum discount increase per certificate and the cooldown between increases. See [Limits](/hyperliquid/limits-and-fees#maker-collateral). |
+| `withdrawDelay` | Delay between requesting and executing a maker withdrawal. |
+| `readGasDefault` | Default per-leg outcome read budget for settlement and caching. |
+| `paused`, `retired` | Current entry and operation restrictions, described below. |
+| `owner`, `guardian`, `attestor` | Current administrative and collateral-certificate authorities. |
+
+For example, install `web3` for Python and download the matching ABI to your working directory. Set the
+same environment variables as above:
+
+```python
+import json
+import os
+from pathlib import Path
+from web3 import Web3
+
+abi = json.loads(Path("vault-d712d4658f3e.abi.json").read_text())
+w3 = Web3(Web3.HTTPProvider(os.environ["HYPEREVM_RPC_URL"]))
+if w3.eth.chain_id != int(os.environ["TOTALIS_CHAIN_ID"]):
+    raise ValueError("RPC chain does not match Get deployment")
+
+vault = w3.eth.contract(
+    address=Web3.to_checksum_address(os.environ["TOTALIS_VAULT"]), abi=abi
+)
+output = next(item for item in abi if item.get("name") == "config")["outputs"][0]
+config = dict(zip(
+    [field["name"] for field in output["components"]],
+    vault.functions.config().call(),
+))
+for name in ("maxRaiseBps", "reduceInterval", "k", "paused", "retired"):
+    print(name, config[name])
+```
+
+A successful contract read establishes these on-chain values. It does not override the API's own admission,
+rate limits or tighter trading windows.
+
+## Control and trust
+
+The vault is immutable and has no proxy upgrade authority. Administrative control still affects its
+operation:
+
+| Authority | Can do | Limit |
+| --- | --- | --- |
+| Account wallet | Sign its trades and withdrawals. | An API key or session alone cannot replace a financial signature. |
+| Maker controller and quote signer | Fund and withdraw maker capital, and sign fills and buybacks. | Maker withdrawals re-check free collateral. The supported API serves a maker only while controller and signer are the same account wallet. |
+| Collateral attestor | Authorize reductions in a maker's locked collateral. | The contract checks the reduction cap, cooldown and floor. It trusts the certificate's risk assessment. An incorrect assessment can leave open positions undercollateralized. |
+| Owner | Pause or unpause, retire the vault, change fees and minimum stake within fixed bounds, and rotate guardian or attestor through the contract's delay. | Cannot upgrade the vault or redirect a user withdrawal. Treasury withdrawals go only to the fixed `feeSink`. |
+| Guardian | Pause, cancel a pending maker withdrawal, or reset a collateral discount. | Cannot unpause or withdraw user funds. Resetting a discount raises the maker's requirement. |
+| Totalis relayer and settlement service | Submit authorized trades and permissionless settlement or claim calls. | The contract checks signatures and state. A submitted operation is not filled until it commits on-chain. |
+
+Open positions depend on the backing maker's solvency and the collateral attestor's assessment. Settlement
+also depends on Hyperliquid's outcome results remaining readable or already cached. USDC transfers depend
+on the token contract, including its pause and address restrictions. See
+[Settlement](/hyperliquid/guides/settlement) for the result and claim rules.
+
+## Pause, retirement and independent access
+
+| State | Observable behavior |
+| --- | --- |
+| Paused | New entries, deposits, maker withdrawal execution, buybacks and state-bound cash-out transfers are blocked. Settlement, caching, claims and user withdrawals remain callable. Ordinary `transferTicket` remains callable with both parties' signatures. |
+| Retired | New entries are blocked permanently. Existing positions can continue through settlement and exit operations, subject to their normal checks and any pause. |
+| API or relayer unavailable | Your on-chain balance and positions remain in the vault. Direct calls require an RPC connection and a wallet or relayer that pays gas in HYPE. |
+
+Anyone can call `cacheSettlement(outcomeId, readGas)`, `settle(positionId, legs, readGas)` and
+`claim(positionId)`. Use the deployment's `config.readGasDefault` as the outcome read budget. Preserve the exact position legs from the accepted quote or
+[Get position](/hyperliquid/api-reference/positions/get-position); their hash must match the position.
+A claim credits the position owner's vault balance. It does not send USDC to an external wallet.
+
+The balance owner can call `withdraw(to, amount)` directly to move free vault USDC to a HyperEVM address.
+A signed `withdrawWithSig` can be relayed by another gas-paying wallet. These calls do not unlock funds still
+backing an open position or make an unavailable result settle. Maker capital uses its separate withdrawal
+request and delay. [Funding and recovery](/hyperliquid/guides/funding) has the supported withdrawal and
+HyperCore exit paths.

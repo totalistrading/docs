@@ -1,0 +1,119 @@
+---
+title: 'Settlement and returns'
+icon: 'calculator'
+description: 'Calculate full, fractional and early-loss returns, distinguish settlement from payment, and handle unavailable or pruned results.'
+---
+
+Follow your [position](/hyperliquid/api-reference/positions/get-position) until it closes. Totalis submits
+settlement and claims automatically. A market result, a settled position, a vault credit and a withdrawal are
+different events.
+
+## Calculate the return
+
+Each leg's `result_numerator / result_denominator` is the payout factor for the side you selected.
+A YES factor of `0.25` means the NO factor is `0.75`. A fraction is a payout rule, not an instruction to
+refund the stake.
+
+Use integers throughout. With gross stake `G`, entry fee rate `t`, position profit fee rate `b` and quoted
+maximum payout `P`:
+
+```text
+entry_fee = floor(G * t / 10000)
+net_stake = G - entry_fee
+effective_payout = floor(P * product(result_numerator) / product(result_denominator))
+profit = max(effective_payout - net_stake, 0)
+profit_fee = floor(profit * b / 10000)
+total_return_after_all_claims = effective_payout - profit_fee
+trading_profit = total_return_after_all_claims - G
+```
+
+Multiply the factors before the final division. Rounding after each leg can change the return.
+The position keeps its original `fee_bps`. Current fee settings come from
+[Get deployment](/hyperliquid/api-reference/deployment/get-deployment); fee rules live on
+[Limits and fees](/hyperliquid/limits-and-fees).
+
+## Worked returns
+
+These illustrative terms use a 10 USDC gross stake, a 20 bps entry fee, a 100 USDC maximum payout and a
+100 bps profit fee. They are examples, not current fee quotes. The entry fee is 0.02 USDC and the net stake
+is 9.98 USDC. Amounts below are USDC after all available profit claims finish. All unspecified legs are
+fully resolved at 1; the last row explicitly leaves another leg unresolved.
+
+| Selected-side factors | Effective payout | `settlement_kind` | Profit fee | Total returned | Profit against gross stake |
+| --- | ---: | --- | ---: | ---: | ---: |
+| Every leg is 1 | 100 | `WIN` | 0.9002 | 99.0998 | 89.0998 |
+| One resolved leg is 0 | 0 | `LOSS` | 0 | 0 | -10 |
+| One leg is 0.05 | 5 | `PARTIAL` | 0 | 5 | -5 |
+| One leg is 0.0998 | 9.98 | `WIN` | 0 | 9.98 | -0.02 |
+| Two legs are 0.25 and 0.5 | 12.5 | `WIN` | 0.0252 | 12.4748 | 2.4748 |
+| Two legs are 0.25 and 0.25 | 6.25 | `PARTIAL` | 0 | 6.25 | -3.75 |
+| One leg is 0 and another is unresolved | 0 | `EARLY_LOST` | 0 | 0 | -10 |
+
+`WIN` means the effective payout reaches the net stake. It does not necessarily mean all legs paid in full
+or that you recovered the entry fee. Positive factors can also round to a zero payout.
+
+An early loss is possible whenever the payout rounds to zero even if every unresolved leg later pays in full.
+Otherwise an unresolved leg keeps the position open.
+
+## Settlement and payment
+
+| Result | Vault credit at settlement | What follows |
+| --- | --- | --- |
+| Zero payout | Nothing. | The position closes. |
+| Positive payout below net stake | The effective payout. | The position closes with `PARTIAL`. |
+| Payout equal to net stake | The net stake. | The position closes with `WIN` and no profit to claim. |
+| Payout above net stake | The net stake. | Gross profit remains in `unclaimed_profit`; Totalis claims it into your vault, less the profit fee. |
+
+Profit claims depend on distributable funds in the backing maker's vault. A claim can pay part of the profit
+or wait for more funds. `SETTLED_UNCLAIMED` can therefore persist; elapsed time does not establish payment.
+`unclaimed_profit` is the gross amount still outstanding, not the full historical payout.
+The fee calculation across partial claims gives the same total fee as a full claim. Inspect the position,
+activity and current balances for actual credits.
+
+For an [embedded wallet](/hyperliquid/guides/funding#where-your-cash-sits), a later sweep can move free vault
+cash to HyperCore. A vault credit is not a withdrawal to an external address.
+
+## Exceptional results
+
+| Observation | Settlement behavior | Your integration |
+| --- | --- | --- |
+| A terminal numeric result | The contract uses the selected-side factor and can preserve it in its settlement cache. | Use the observed factors; never derive a substitute from the title or current price. |
+| A fractional numeric result, including a tie | The fraction participates in the same product. | Show the fractional return and fees. Do not label it an automatic stake refund. |
+| A recognised nonnumeric result without a cached terminal factor | The leg remains unresolved for grading. | Keep the obligation pending unless an early loss already determines a zero payout. |
+| A result read fails or providers disagree | An unavailable read does not establish a result. | Keep the last known state and retry reads with backoff. |
+| HyperCore prunes a result already cached by the vault | The cached terminal factor remains usable. | Follow the position's on-chain settlement. |
+| A permanently pruned result was never cached | There is no general refund or result-reconstruction action in this vault generation. Settlement can remain blocked indefinitely unless an early loss decides it. | Escalate with the position ID and outcome IDs. An eligible signed cash-out is a separate trade and needs a willing buyer. |
+| An event is postponed, cancelled, or past its displayed date | The event label or date alone does not settle the position. The market's authoritative factor controls. | Read the market's published rules and actual result; do not invent a factor or time-based refund. |
+| Historical amount fields are unavailable | Missing display evidence does not itself cancel the position or prove a zero credit. | Preserve unknown values and reconcile the position, operations and account activity. |
+
+Cached terminal factors are write-once in this generation. A later native change does not rewrite a factor
+already cached by the vault. The current contracts have no general dispute or time-based refund action.
+
+## Cash-out comparison
+
+A cash-out is a separate signed sale before settlement. With the example's 9.98 USDC net stake and 100 bps
+profit fee:
+
+| Bid | Gross price | Fee | Cash received |
+| --- | ---: | ---: | ---: |
+| `SELL_BACK` to the backing maker | 12.5 | 0.0252 | 12.4748 |
+| `SELL_BACK` below net stake | 5 | 0 | 5 |
+| An executable `TRANSFER` | 12.5 | 0 | 12.5 |
+
+Compare `netCashout(bid, position)` when bids have different kinds. A higher gross price can return less
+after fees. A transfer changes ownership; the new owner's later profit fee still uses the position's original
+net stake and profit fee rate. Buyer availability is described under
+[Maker cash-outs](/hyperliquid/guides/market-making#cash-outs).
+
+## Track a delayed position
+
+| State | Action |
+| --- | --- |
+| `OPEN` | Inspect unresolved legs. Request a cash-out only if you want to sell and a bid is available. |
+| `AWAITING_SETTLEMENT` | Follow position and operation updates. A deciding result does not itself prove a vault credit. |
+| `SETTLED_UNCLAIMED` | Follow remaining profit and balance updates. Do not count gross outstanding profit as free cash. |
+| `CLOSED` | Read `close_reason`, `settlement_kind`, `settlement_payout` and activity to identify the outcome. |
+
+For a persistent delay, email [founders@totalis.trade](mailto:founders@totalis.trade) with the environment,
+position ID, deciding outcome IDs, operation IDs and any transaction hashes. Keep credentials and signed
+authorizations out of support messages.

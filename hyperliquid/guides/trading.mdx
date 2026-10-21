@@ -9,6 +9,10 @@ You need a key for your account with the [taker scopes](/hyperliquid/authenticat
 (`usdc.address` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment)). Totalis pays
 the gas.
 
+Your API key authenticates requests; your account wallet separately signs financial actions. Cash can sit
+on HyperCore, in your HyperEVM wallet, or in the vault. Read [Balances and funding](/hyperliquid/guides/funding)
+before automating trades from an embedded wallet, whose idle vault cash can be swept to HyperCore.
+
 ## Open a position
 
 1. Subscribe to the [account channel](/hyperliquid/api-reference/websocket/account) and wait for the snapshot.
@@ -79,6 +83,27 @@ Each `QUOTE_CREATED` carries one quote:
 `payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. An entry quote
 stops being acceptable at `accept_before`, 14 seconds before `expiry` (unix seconds), which sends no event. A
 cash-out quote leaves the list 22 seconds before its `expiry`.
+
+### Quote timing
+
+Use `expires_at` to stop collecting new quotes, `accept_before` to decide whether an entry quote can still
+be accepted, and `expiry` for its signed on-chain lifetime. Compare venue deadlines using the bound described
+by the response's `server_time`; response transit time counts too.
+
+For example, these are illustrative timestamps, using the windows on [Limits](/hyperliquid/limits-and-fees):
+
+| Event | Example venue time | Meaning |
+| --- | --- | --- |
+| An RFQ opens | `12:00:00` | Makers can start quoting. |
+| A quote is created with `expiry` of `12:00:30` | `12:00:00` | Its returned `accept_before` is `12:00:16`. |
+| You accept | `12:00:12` | The maker must answer by the acceptance's returned `deadline`. |
+| The maker confirms | `12:00:12.500` | A funded accept returns `fund_by`; any required bridge must be sent within that bound. |
+| The RFQ's `expires_at` | `12:00:20` | Quote collection ends. This does not extend the earlier quote's `accept_before`. |
+
+Each wallet prompt consumes the quote's remaining acceptance window. An entry can require several funding
+signatures ([Signature requirements](/hyperliquid/build/partner-frontend#signatures-and-quote-life)). For a
+manual wallet flow, prepare cash and wallet chain selection before requesting quotes. When a quote expires
+before submission, obtain new terms and new signatures rather than reusing the expired acceptance.
 
 ### Accept
 
@@ -204,6 +229,12 @@ Quotes arrive as `QUOTE_CREATED`. `kind` is `SELL_BACK` or `TRANSFER` and names 
 | `SELL_BACK` | `sell_back` | The maker that backs it | Closes (`close_reason: SELL_BACK`) |
 | `TRANSFER` | `transfer` | Another maker | Moves to the buyer |
 
+The supported maker bot setup bids to buy back its own positions. A transfer requires a different maker's
+buyer wallet to have free user vault cash; maker collateral does not fund that purchase. See
+[Cash-out liquidity](/hyperliquid/guides/market-making#cash-outs). A request can receive no bids, and an
+unsigned bid can still be declined or fail before the on-chain fill. Show cash-out as complete only on
+`COMMITTED`.
+
 Sign `sell_back` as `SellBack` or `transfer` as `CashoutTransfer`, then accept it like an entry quote,
 with no `funding`. On `COMMITTED` you receive `POSITION_CLOSED` or `POSITION_TRANSFERRED`, and the
 proceeds land in your vault balance:
@@ -215,12 +246,15 @@ proceeds land in your vault balance:
 
 ## Settlement
 
-Automatic. Totalis settles every resolved position, then claims a win into your vault balance. Nothing
-to call or sign. `SETTLED_UNCLAIMED` is the short wait between the two.
+Totalis submits eligible settlements and claims automatically. Settlement credits the returned stake or
+partial return; profit is claimed separately. Claims can arrive in parts or wait for distributable maker
+funds, so `SETTLED_UNCLAIMED` has no fixed completion time. See
+[Settlement and returns](/hyperliquid/guides/settlement) for exact arithmetic, worked returns and exceptional
+results.
 
 | Position `status` | Meaning |
 | --- | --- |
-| `OPEN` | A leg is unresolved. You can cash out. |
+| `OPEN` | The position is not yet eligible for settlement. You can request a cash-out. |
 | `AWAITING_SETTLEMENT` | Resolved, or a leg lost; settlement has not landed. |
 | `SETTLED_UNCLAIMED` | A `WIN` with profit not yet claimed. |
 | `CLOSED` | Claimed (`CLAIM`), sold back (`SELL_BACK`), or settled with nothing to claim (`null`), per `close_reason`. |
@@ -230,7 +264,7 @@ to call or sign. `SETTLED_UNCLAIMED` is the short wait between the two.
 | `WIN` | Pays at least the net stake. The profit is claimed after. |
 | `PARTIAL` | Pays less than the net stake. |
 | `LOSS` | Pays nothing. |
-| `EARLY_LOST` | A leg lost before the others resolved. Pays nothing. |
+| `EARLY_LOST` | Even treating unresolved legs as full wins, the payout rounds to zero. Pays nothing. |
 
 Each leg's result is `result_numerator / result_denominator`. The position pays its `payout` times the
 product of its legs' results.

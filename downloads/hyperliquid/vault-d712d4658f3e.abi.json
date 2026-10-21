@@ -1,0 +1,1143 @@
+[
+  {
+    "inputs": [],
+    "name": "DOMAIN_SEPARATOR",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "balance",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "outcomeId",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "readGas",
+        "type": "uint256"
+      }
+    ],
+    "name": "cacheSettlement",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      }
+    ],
+    "name": "cancelMakerWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "ticketId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "claim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "config",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "usdc",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "feeSink",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "feeBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "takerFeeBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "maxFeeBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "maxTakerFeeBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint128",
+            "name": "minStake",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "minStakeFloor",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "maxMinStake",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "maxTicketPayout",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint8",
+            "name": "maxLegs",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxQuoteLife",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxSellBackLife",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxTransferLife",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxExitLife",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint16",
+            "name": "k",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint32",
+            "name": "reduceInterval",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "withdrawDelay",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "attestMaxAge",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "rotateDelay",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "readGasDefault",
+            "type": "uint32"
+          },
+          {
+            "internalType": "bool",
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "guardian",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "attestor",
+            "type": "address"
+          },
+          {
+            "internalType": "uint128",
+            "name": "treasuryBalance",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint64",
+            "name": "makerCount",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint128",
+            "name": "lanesTotal",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint16",
+            "name": "maxRaiseBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bool",
+            "name": "retired",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct ConfigView",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "consumed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "expectedController",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      }
+    ],
+    "name": "depositMaker",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      }
+    ],
+    "name": "executeMakerWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "makerOf",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "name": "makerWithdrawals",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "readyAt",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "name": "makers",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "controller",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "quoteSigner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "vault",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "stakeEscrow",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "payableOwed",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "grossOpen",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "discount",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "settledTurnover",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint64",
+        "name": "lastReduceAt",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "quoteSigner",
+        "type": "address"
+      }
+    ],
+    "name": "openMakerVault",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "name": "requestMakerWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      }
+    ],
+    "name": "resetDiscount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "ticketId",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint32",
+            "name": "outcomeId",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint8",
+            "name": "side",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct Leg[]",
+        "name": "legs",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "readGas",
+        "type": "uint256"
+      }
+    ],
+    "name": "settle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "name": "settlementCache",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "set",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint64",
+        "name": "value",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "tickets",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "stake",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "payout",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "worst0",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint16",
+        "name": "feeBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "enum TicketStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint128",
+        "name": "residual",
+        "type": "uint128"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "legsHash",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "ticketId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint128",
+            "name": "price",
+            "type": "uint128"
+          },
+          {
+            "internalType": "address",
+            "name": "seller",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "buyer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "expiry",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "salt",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Transfer",
+        "name": "x",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "sellerSig",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "buyerSig",
+        "type": "bytes"
+      }
+    ],
+    "name": "transferTicket",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      }
+    ],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint128",
+            "name": "amount",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint64",
+            "name": "expiry",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "salt",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Exit",
+        "name": "e",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "sig",
+        "type": "bytes"
+      }
+    ],
+    "name": "withdrawWithSig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "by",
+        "type": "address"
+      }
+    ],
+    "name": "DiscountReset",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "payer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      }
+    ],
+    "name": "MakerDeposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "controller",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "quoteSigner",
+        "type": "address"
+      }
+    ],
+    "name": "MakerOpened",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "readyAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "MakerWithdrawRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum WithdrawPhase",
+        "name": "phase",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "by",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "name": "MakerWithdrawResolved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint32",
+        "name": "outcomeId",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "value",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "rawValue",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "question",
+        "type": "uint32"
+      }
+    ],
+    "name": "SettlementCached",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum SettleKind",
+        "name": "kind",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "effective",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "realizedCost",
+        "type": "uint128"
+      }
+    ],
+    "name": "TicketSettled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "makerId",
+        "type": "uint64"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "paid",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "fee",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "residualAfter",
+        "type": "uint128"
+      }
+    ],
+    "name": "Claimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "digest",
+        "type": "bytes32"
+      }
+    ],
+    "name": "EnvelopeConsumed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "price",
+        "type": "uint128"
+      }
+    ],
+    "name": "TicketTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "balanceAfter",
+        "type": "uint128"
+      }
+    ],
+    "name": "UserBalance",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "amount",
+        "type": "uint128"
+      }
+    ],
+    "name": "UserWithdrawn",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ControllerMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DigestConsumed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Expired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientFree",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LegPending",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LegsMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MakerExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MakerShort",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoMaker",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoTicket",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoWithdrawRequest",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NothingToClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutcomeUnavailable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Paused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SelfAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WithdrawNotReady",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WithdrawRequestLive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAmount",
+    "type": "error"
+  }
+]

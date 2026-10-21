@@ -33,8 +33,10 @@ Staging keys carry `stg` instead of `prd`: see [Staging](/hyperliquid/build/stag
 
 ## Get access
 
-Email [founders@totalis.trade](mailto:founders@totalis.trade). There is no self-serve signup for partner
-credentials or the SDK.
+Install the [public SDK](/hyperliquid/sdk/overview#install) from npm. No approval or GitHub access is needed.
+
+Email [founders@totalis.trade](mailto:founders@totalis.trade) for partner credentials, registered origins,
+builder codes or staging access. Partner credentials have no self-serve signup.
 
 <Steps>
   <Step title="Send us">
@@ -46,7 +48,6 @@ credentials or the SDK.
     | Staging origins | `https://staging.acme.com` | Staging credentials |
     | Builder signer address | `0x...`, a key your server holds | Partner credentials. Required to register you; used to sign origin builder codes. |
     | Payout address on HyperEVM | `0x...` | Revenue share |
-    | GitHub account | `acme-bot` | SDK access |
     | Expected volume | Users, RFQs per day, typical stake | Sizing your rate limits |
   </Step>
   <Step title="You receive">
@@ -63,7 +64,7 @@ credentials or the SDK.
 Origins are `https://` with a host and an optional port, and no path. Each origin belongs to one partner.
 
 A bot on your own account needs none of this. Create an API key in the
-[Totalis app](https://hip4.totalis.trade/account/api-keys) and email us only for SDK access.
+[Totalis app](https://hip4.totalis.trade/account/api-keys) and install the SDK from npm.
 
 ## Next
 
@@ -73,6 +74,9 @@ A bot on your own account needs none of this. Create an API key in the
   </Card>
   <Card title="Builder codes" icon="tag" href="/hyperliquid/build/builder-codes">
     How RFQs are attributed to you, and how you are paid.
+  </Card>
+  <Card title="Frontend lifecycle" icon="arrows-rotate" href="/hyperliquid/build/frontend-lifecycle">
+    Wallet changes, signing prompts and recovery after a reload.
   </Card>
   <Card title="Staging" icon="flask" href="/hyperliquid/build/staging">
     The testnet copy of Totalis, for building against.

@@ -1,0 +1,177 @@
+---
+title: 'API trading'
+icon: 'terminal'
+description: 'Run a bot through market selection, signed entry, recovery and cash management over HTTP or the TypeScript SDK.'
+---
+
+Trade Combos from your own account with an API key and its wallet signer. The key authenticates requests;
+the wallet signs financial terms. Create the key in the Totalis app, or from an existing wallet session
+([Authentication](/hyperliquid/authentication)). A new account still needs
+[access](/hyperliquid/build/overview#get-access).
+
+| You trade | Execution |
+| --- | --- |
+| A Combo, or a one-leg RFQ position | Totalis RFQ endpoints and the HyperEVM vault |
+| A native HIP-4 single on the order book | Hyperliquid's own exchange API on HyperCore |
+
+The same outcome can appear in both paths. An RFQ position does not place an order on the HyperCore order
+book. Native orders, order cancellation and order-book subscriptions use
+[Hyperliquid's API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api).
+
+## Choose eligible legs
+
+Read [List markets](/hyperliquid/api-reference/markets/list-markets), following every `next_cursor` until
+`has_more` is false. For each leg of a Combo RFQ, require all three checks:
+
+| Field | Required state |
+| --- | --- |
+| `state` | `ACTIVE` |
+| `eligibility.state` | `ENABLED` |
+| `combo.state` | `OPEN` |
+
+Eligibility can change between your read and command. A refused leg is named in
+`field_violations`; refresh the market before deciding on a new RFQ. Inspect `combo.reason` and
+`combo.opens_at` when a market is closed to Combos. A displayed reference price does not promise an RFQ
+quote or an executable fill.
+
+Sort `outcome_id` as integers, not text. `"9"` goes before `"10"`. Use each outcome once. Two `YES` legs
+from the same `native_question_id` cannot both win, even though the API accepts that combination.
+Read the market's rules from [Get market](/hyperliquid/api-reference/markets/get-market), including the
+parent question and any recurring round. The permitted count is on [Limits](/hyperliquid/limits-and-fees).
+
+## Open and reconcile an entry
+
+| Step | Call or action | Save |
+| --- | --- | --- |
+| Check identity | `GET /v1/me`; ensure the signer equals `wallet` | Account and wallet |
+| Check signing domain and fees | `GET /v1/deployment` | Deployment used for this signature |
+| Plan funding | `GET /v1/me/balances`; require current readable components | Stake, funding plan |
+| Ask for quotes | Persist the command, then `POST /v1/rfqs` | Idempotency key, exact body, `rfq_id` |
+| Select a price | Account stream or `GET /v1/rfqs/{rfq_id}/quotes` | Selected quote and minimum acceptable payout |
+| Sign | Verify quote terms, then sign `TakerAccept` and any USDC funding | Signed body and acceptance idempotency key |
+| Accept | `POST /v1/quotes/{quote_id}/accept` with that saved command | Acceptance and `operation_id` |
+| Reconcile | `GET /v1/me/operations/{operation_id}` or `OPERATION_UPDATED` | Terminal operation state |
+| Read position | After `COMMITTED`, `GET /v1/me/positions/{quote_id}` | Position and its freshness context |
+
+A REST-only bot can poll quotes and operations. Use the [account stream](/hyperliquid/guides/realtime)
+for lower latency, and HTTP reads to reconcile after a disconnect. Follow the per-route
+[rate limits](/hyperliquid/limits-and-fees#rate-limits).
+
+Verify the quote's RFQ, legs, stake, wallet and fees before signing. Recompute its `quote_id` from its
+`Quote` terms. Your acceptance signs `TakerAccept`, which has a different primary type and digest even
+though its fields match the quote. Compare payouts only for the same stake, legs and fee terms.
+`payout` is gross, before the profit fee. The [worked returns](/hyperliquid/guides/settlement#worked-returns) determine what
+you receive.
+
+Use the venue clock: quote lists return `server_time`, and entry quotes return `accept_before`. Account
+for time spent in transit and signing. A quote's signed `expiry` is not its acceptance cutoff.
+Timings and signing windows are on [Limits](/hyperliquid/limits-and-fees).
+
+`ACCEPTED` means the maker confirmed and execution is queued. `COMMITTED` means the position opened.
+`REVERTED` and `EXPIRED_UNEXECUTED` mean the operation did not trade. Include `rfq:read` on your key so you
+can read your own terminal RFQ and its `terminal_reason`.
+
+## Recover after a restart
+
+Persist a command before its first send. Keep the environment, account, route, exact body and idempotency
+key together. Signed command records authorize a financial action; protect them as signing material.
+
+| Saved state | Resume |
+| --- | --- |
+| RFQ creation sent, response lost | Resend that command with the same key and body |
+| Quote signed, acceptance response lost | Replay the saved accept or read its acceptance; never accept under another key |
+| Acceptance not found | Cancel the RFQ, then read the acceptance again; follow the [fencing rules](/hyperliquid/api-reference/quotes/get-acceptance) |
+| Maker confirmed | Follow the existing `operation_id` through nonterminal states, including `UNKNOWN` |
+| Stream cursor cannot resume | Take a fresh snapshot and reconcile saved operations and positions over HTTP |
+
+An unknown outcome is not a failed trade. Never start a replacement entry solely because an HTTP request
+timed out. Reconnect and replay rules are on [Real time](/hyperliquid/guides/realtime), and command rules
+are on [Errors and idempotency](/hyperliquid/errors#idempotency).
+
+## Manage cash
+
+Keep HyperCore spot cash, HyperEVM wallet USDC and free vault cash separate. `GET /v1/me/balances` reports
+the last two. It does not include HyperCore. An embedded Totalis wallet's free vault cash can move to
+HyperCore in the background. An external wallet keeps its vault cash until it authorizes a move.
+
+Read [Funding](/hyperliquid/guides/funding) for cash locations, reservations, sweep behavior, the official
+Hyperliquid `spotClearinghouseState` request and exact conversion between unit scales. The published
+Totalis API reference does not expose a HyperCore portfolio route for a bot to depend on.
+
+Serialize commands that plan from the same cash, and re-read after each admitted funding, withdrawal
+or exit. A balance read does not lock cash. Funding must equal the shortfall when admitted; another
+command can change it before you send. If the venue refuses it, recover that command before you plan
+another one.
+
+The TypeScript SDK can bridge Core spot USDC when you supply `core`. Without it, `openPosition` uses only
+free vault cash and the HyperEVM wallet. A failed entry can leave bridged cash on HyperEVM; reconcile its
+location before moving it again. See [Entry bridge recovery](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
+
+## Read trading results
+
+Use positions for the holding and its settlement state. Use activity for fills, fees and cash movements.
+Activity rows can be revised or corrected: upsert by `activity_id` and revision, and apply the correction's
+`supersedes` relationship instead of counting both records as new income. Never treat a null amount as zero.
+
+Require the read's freshness context before using amounts for a new action. A WebSocket snapshot can be
+truncated; page the corresponding HTTP collection before treating it as complete.
+
+| Need | Read |
+| --- | --- |
+| Gross payout, fees and exceptional outcomes | [Settlement](/hyperliquid/guides/settlement) |
+| Open and closed holdings | [List positions](/hyperliquid/api-reference/positions/list-positions) |
+| Fills, fees, deposits and corrections | [List activity](/hyperliquid/api-reference/account/list-activity) |
+| Cumulative trading return over a window | [Get P&L](/hyperliquid/api-reference/account/get-p-l) |
+| Early exit | [Cash out](/hyperliquid/guides/trading#cash-out) |
+| Move funds out | [Withdrawals](/hyperliquid/guides/withdrawals) |
+
+## Python HTTP example
+
+[Download the Python example and fixtures](https://github.com/totalistrading/docs/tree/main/examples/hyperliquid).
+It discovers eligible markets, validates your chosen legs, signs an entry, funds a HyperEVM wallet shortfall,
+and follows its acceptance, operation and position. It uses HTTP without the TypeScript SDK.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r examples/hyperliquid/requirements.txt
+.venv/bin/python examples/hyperliquid/python_entry.py --environment staging markets
+```
+
+Choose the outcomes and sides yourself. Save them as a JSON array in `legs.json`, in numeric outcome order.
+The example's `entry` command only previews until you add `--execute`. It also requires your own minimum
+gross payout, so it never accepts a price without your limit.
+
+```bash
+export TOTALIS_API_KEY="ttk_v1_stg_<your-key>"
+# TOTALIS_WALLET_KEY is required only for --execute. Load it from your secret store.
+.venv/bin/python examples/hyperliquid/python_entry.py --environment staging entry \
+  --legs legs.json --stake 5000000 --minimum-payout 10000000 --state entry.json
+```
+
+The values above illustrate a stake and a price limit. Add `--execute` to sign and submit the selected
+trade. After an interruption, keep `entry.json` and use:
+
+```bash
+.venv/bin/python examples/hyperliquid/python_entry.py --environment staging resume --state entry.json
+```
+
+Resume never signs again. It reuses saved command bytes and checks account and environment. A restart
+before an acceptance was signed cancels the RFQ instead of choosing another quote. Run one process per
+account; the journal lock only excludes a second process using the same journal.
+
+The example runs on Python on macOS or Linux. It does not implement HyperCore bridging, native order-book
+orders, cash-out, withdrawal, or a trading strategy. Those use the linked API contracts or the
+[TypeScript flows](/hyperliquid/sdk/trading). Start with [Staging](/hyperliquid/build/staging) and its
+published environment limitations.
+
+## Verify your signer
+
+Run the fixtures offline before sending any request:
+
+```bash
+.venv/bin/python examples/hyperliquid/python_entry.py vectors
+```
+
+The fixture file contains the domain separator, messages, struct hashes, digests, signatures and recovered
+signer for `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer` and `Exit`. It uses a synthetic vault address.
+These are encoding fixtures, not valid live quotes, and require no private key or API access.
