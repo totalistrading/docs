@@ -15,6 +15,8 @@ description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptanc
 | RFQ | Request for quote. `ENTRY` prices new legs for a stake; `CASHOUT` prices an existing position. |
 | Quote | A maker's unsigned offer on one RFQ: `entry` terms (a `payout`), or `sell_back` or `transfer` terms (a `price`). |
 | Acceptance | The record of one accept on one quote, named by the accept's `Idempotency-Key` (`acceptance_id`). A quote has at most one. |
+| `accept_before` | When an entry quote stops being acceptable, before its signed `expiry` ([Limits](/hyperliquid/limits-and-fees)). |
+| `fund_by` | When a HyperCore to wallet transfer that funds a confirmed accept must be sent by ([Limits](/hyperliquid/limits-and-fees)). |
 | Confirm | The maker's answer to an acceptance before its `deadline`, 2 seconds after the accept: `CONFIRM` with a signature, or `DECLINE`. |
 | Position | A filled trade on-chain: legs, stake, payout, owner and backing maker. An entry position's `position_id` is its `quote_id`. |
 | Stake, payout | What the taker pays, before the entry fee (`taker_fee_bps`); what the position pays if every leg wins, before the profit fee (`fee_bps`). |

@@ -13,8 +13,9 @@ Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-d
 | Fees | `taker_fee_bps` on the stake at accept. `fee_bps` on profit at claim, and on a `SELL_BACK` on the `price` above the position's net stake. A transfer to another maker pays no fee. A position keeps the `fee_bps` it opened with. |
 | Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
 | Cash-out RFQ open | 30 seconds |
-| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
-| Bridge from HyperCore into an entry (SDK) | Sent only after the maker confirms, before the acceptance's `fund_by`: 2 seconds after the confirm. |
+| Entry quote `expiry` | More than 14 and at most 30 seconds ahead when published |
+| Entry quote `accept_before` | 14 seconds before `expiry`. An accept at or after it is `409 QUOTE_EXPIRED`, and lists leave the quote out. |
+| `fund_by` | 2 seconds after the maker confirms an accept with `funding`. Send the HyperCore to wallet transfer that funds it only after the accept answers `ACCEPTED`, and before `fund_by`. |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
 | Quote lease `lease_ms` | 1,000 to 60,000 milliseconds |
