@@ -15,9 +15,11 @@ description: 'Every fee, size, timing, signing window and rate limit of the Hype
 | Single-market orders in the Totalis app | **0.1%** builder fee | The filled value of an order, buy or sell, that carries the Totalis builder. Some orders go without it and pay none, such as a new account's first buy. Hyperliquid also charges its own [outcome trading fee](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees). Orders you send to Hyperliquid yourself pay only Hyperliquid's fee. |
 | Deposits and withdrawals | None | A first exit to a new HyperCore account pays Hyperliquid's activation fee ([Deposits and exits](#deposits-and-exits)). |
 
-At production rates, a 10 USDC Combo stake pays a 0.15 USDC entry fee and opens with a net stake of
-9.85 USDC. If it wins its 25 USDC payout, the profit is 15.15 USDC, the profit fee is 0.1515 USDC and you
-receive 24.8485 USDC. Combo fees round down to 0.000001 USDC.
+**Example:** You bet 10 USDC on a Combo with a 25 USDC payout. At production rates, the entry fee is
+0.15 USDC, leaving a net stake of 9.85 USDC. If the Combo wins in full, your profit is 15.15 USDC.
+The 1% profit fee is 0.1515 USDC, so you receive 24.8485 USDC.
+
+Combo fees are rounded down to the nearest 0.000001 USDC.
 
 Each quote signs the current `fee_bps` and `taker_fee_bps`. If either rate changes before you accept, the
 accept fails. A position keeps the `fee_bps` it opened with. Staging uses its own rates. Read the live
