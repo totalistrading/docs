@@ -414,6 +414,15 @@
     },
     "links": [
       {
+        "header": "Status",
+        "items": [
+          {
+            "label": "Hyperliquid status",
+            "href": "https://status.totalis.trade"
+          }
+        ]
+      },
+      {
         "header": "Legal",
         "items": [
           {
