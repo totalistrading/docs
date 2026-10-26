@@ -30,6 +30,8 @@ a quote.
 | --- | --- |
 | Legs per RFQ | 1 to 5, strictly ascending `outcome_id`. More legs return `400 INVALID_REQUEST`. |
 | Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
+| Maximum bet amount | Currently 1,000 USDC |
+| Maximum payout multiplier | 1,000x |
 | Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
 | Cash-out RFQ open | 30 seconds |
 | Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
