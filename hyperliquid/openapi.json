@@ -20896,11 +20896,11 @@
           "legs": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 50,
+            "maxItems": 5,
             "items": {
               "$ref": "#/components/schemas/CommonLeg"
             },
-            "description": "1 to 50 legs in strictly increasing outcome_id order."
+            "description": "1 to 5 legs in strictly increasing outcome_id order."
           },
           "builder_code": {
             "type": "string",

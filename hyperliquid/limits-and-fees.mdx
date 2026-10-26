@@ -4,13 +4,36 @@ icon: 'scale-balanced'
 description: 'Every fee, size, timing, signing window and rate limit of the Hyperliquid API.'
 ---
 
-Current fees are in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
+## Fees
+
+| Fee | Production | Charged on |
+| --- | --- | --- |
+| Combo entry (`taker_fee_bps`) | **1.5%** | The stake, when you accept a quote. The rest of the stake is the position's net stake. |
+| Combo profit (`fee_bps`) | **1%** | The profit of a winning position at claim: what it settles at minus the net stake. A full win settles at `payout`; a leg resolved to a fraction settles lower ([Settlement](/hyperliquid/guides/trading#settlement)). A position that settles at or below its net stake pays nothing more. |
+| Combo cash-out (`SELL_BACK`) | **1%** | The `price` above the position's net stake, at the position's `fee_bps` ([Cash out](/hyperliquid/guides/trading#cash-out)). A price at or below the net stake pays nothing. |
+| Combo transfer to another maker | None | |
+| Single-market orders in the Totalis app | **0.1%** builder fee | The filled value of an order, buy or sell, that carries the Totalis builder. Some orders go without it and pay none, such as a new account's first buy. Hyperliquid also charges its own [outcome trading fee](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees). Orders you send to Hyperliquid yourself pay only Hyperliquid's fee. |
+| Deposits and withdrawals | None | A first exit to a new HyperCore account pays Hyperliquid's activation fee ([Deposits and exits](#deposits-and-exits)). |
+
+**Example:** You bet 10 USDC on a Combo with a 25 USDC payout. At production rates, the entry fee is
+0.15 USDC, leaving a net stake of 9.85 USDC. If the Combo wins in full, your profit is 15.15 USDC.
+The 1% profit fee is 0.1515 USDC, so you receive 24.8485 USDC.
+
+Combo fees are rounded down to the nearest 0.000001 USDC.
+
+Each quote signs the current `fee_bps` and `taker_fee_bps`. If either rate changes before you accept, the
+accept fails. A position keeps the `fee_bps` it opened with. Staging uses its own rates. Read the live
+values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) before you price or sign
+a quote.
+
+## Limits
 
 | Trading | Value |
 | --- | --- |
-| Legs per RFQ | 1 to 50, strictly ascending `outcome_id` |
+| Legs per RFQ | 1 to 5, strictly ascending `outcome_id`. More legs return `400 INVALID_REQUEST`. |
 | Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
-| Fees | `taker_fee_bps` on the stake at accept. `fee_bps` on profit at claim, and on a `SELL_BACK` on the `price` above the position's net stake. A transfer to another maker pays no fee. A position keeps the `fee_bps` it opened with. |
+| Maximum bet amount | Currently 1,000 USDC |
+| Maximum payout multiplier | 1,000x |
 | Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
 | Cash-out RFQ open | 30 seconds |
 | Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
