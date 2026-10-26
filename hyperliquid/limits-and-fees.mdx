@@ -10,7 +10,6 @@ description: 'Every fee, size, timing, signing window and rate limit of the Hype
 | --- | --- | --- |
 | Combo entry (`taker_fee_bps`) | **1.5%** | The stake, when you accept a quote. The rest of the stake is the position's net stake. |
 | Combo profit (`fee_bps`) | **1%** | The profit of a winning position at claim: what it settles at minus the net stake. A full win settles at `payout`; a leg resolved to a fraction settles lower ([Settlement](/hyperliquid/guides/trading#settlement)). A position that settles at or below its net stake pays nothing more. |
-| Combo cash-out (`SELL_BACK`) | **1%** | The `price` above the position's net stake, at the position's `fee_bps` ([Cash out](/hyperliquid/guides/trading#cash-out)). A price at or below the net stake pays nothing. |
 | Combo transfer to another maker | None | |
 | Single-market orders in the Totalis app | **0.1%** builder fee | The filled value of an order, buy or sell, that carries the Totalis builder. Some orders go without it and pay none, such as a new account's first buy. Hyperliquid also charges its own [outcome trading fee](https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees). Orders you send to Hyperliquid yourself pay only Hyperliquid's fee. |
 | Deposits and withdrawals | None | A first exit to a new HyperCore account pays Hyperliquid's activation fee ([Deposits and exits](#deposits-and-exits)). |
