@@ -60,7 +60,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POST /v1/me/positions/{position_id}/cashout", "Cash out position", "Positions"),
             ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
             ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
-            ("POST /v1/rfqs/{rfq_id}/declines", "Decline RFQ", "Quotes"),
+            ("POST /v1/rfqs/{rfq_id}/declines", "Decline RFQ", "RFQs"),
             ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
             ("PUT /v1/makers/{maker_id}/quote-lease", "Keep quote lease", "Quotes"),

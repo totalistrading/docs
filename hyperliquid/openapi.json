@@ -3054,7 +3054,7 @@
           }
         },
         "x-mint": {
-          "href": "/hyperliquid/api-reference/quotes/decline-rfq",
+          "href": "/hyperliquid/api-reference/rfqs/decline-rfq",
           "metadata": {
             "title": "Decline RFQ",
             "sidebarTitle": "Decline RFQ"
