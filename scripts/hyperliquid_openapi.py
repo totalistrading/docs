@@ -60,6 +60,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POST /v1/me/positions/{position_id}/cashout", "Cash out position", "Positions"),
             ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
             ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
+            ("POST /v1/rfqs/{rfq_id}/declines", "Decline RFQ", "Quotes"),
             ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
             ("PUT /v1/makers/{maker_id}/quote-lease", "Keep quote lease", "Quotes"),
@@ -87,6 +88,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/me/operations", "List operations", "Account"),
             ("GET /v1/me/operations/{operation_id}", "Get operation", "Account"),
             ("POST /v1/me/withdrawals", "Create withdrawal", "Withdrawals"),
+            ("POST /v1/me/run-off-claims", "Create run-off claim", "Withdrawals"),
             ("GET /v1/me/withdrawals/{withdrawal_id}", "Get withdrawal", "Withdrawals"),
             ("POST /v1/me/deposits", "Create deposit", "Deposits"),
             ("POST /v1/core-exits", "Create HyperCore exit", "Core exits"),
@@ -113,9 +115,10 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "Partners & wallet sign-in": (
-        "A partner admits its users' own wallets, which sign in from the partner's pages.",
+        "A partner admits its users' own wallets, which sign in from the partner's pages, and reads its own report.",
         [
             ("POST /v1/partner/wallet-admissions", "Admit wallet", "Partners"),
+            ("GET /v1/partner/report", "Get partner report", "Partners"),
             ("POST /v1/auth/wallet-challenges", "Create wallet challenge", "Wallet sessions"),
             ("POST /v1/auth/wallet-sessions", "Create wallet session", "Wallet sessions"),
             ("DELETE /v1/auth/wallet-sessions/current", "End wallet session", "Wallet sessions"),
@@ -174,7 +177,7 @@ def operations(spec: dict):
 
 # The one group both sides use, split so a taker and a maker each find their calls together.
 SUBGROUPS: dict[str, list[tuple[str, int]]] = {
-    "RFQs & Quotes": [("Taking", 4), ("Making", 6), ("Reads", 4)],
+    "RFQs & Quotes": [("Taking", 4), ("Making", 7), ("Reads", 4)],
 }
 
 

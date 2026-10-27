@@ -1,7 +1,7 @@
 ---
 title: 'Builder codes'
 icon: 'tag'
-description: 'How Totalis attributes RFQs to you: automatically for accounts you admitted, and with a signed builder code for any other account on your page. The signed message, reports, payouts and revocation.'
+description: 'How Totalis attributes RFQs to you: automatically for accounts you admitted, and with a signed builder code for any other account on your page. The signed message, your report API, payouts and revocation.'
 ---
 
 A builder code names you on an RFQ. The positions it opens, and the fees they pay, count toward your revenue
@@ -123,17 +123,53 @@ under the signed `Idempotency-Key`, then take a quote from `watchQuotes`, and si
 
 ## Reports and payouts
 
-Totalis pays you an agreed share of the fees on positions your codes opened, in USDC on HyperEVM, to the payout
-address you registered. Terms are agreed with Totalis and are not stored in the API.
+Totalis pays you a share of the total fees on positions your codes opened, in USDC on HyperEVM, to the payout
+address you registered. Your share is agreed with Totalis and recorded as terms: each terms entry prices every fee
+from its UTC day until the next one.
 
-| Report | Contents |
+Read your report from your server with your server key. It holds the figures Totalis pays from.
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/partner/report?from=2026-10-01&to=2026-11-01" \
+  -H "Authorization: Bearer $TOTALIS_PARTNER_KEY"
+```
+
+```ts
+import { createPartnerServer } from "@totalis/hip4-client/partner";
+
+const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY });
+const report = await partner.report({ from: "2026-10-01", to: "2026-11-01" });
+```
+
+| Field | Contents |
 | --- | --- |
-| Totals for a period | Positions opened, their stake, and the entry, winnings and cash-out fees collected |
-| Per position | Every fee, with its transaction hash |
-| Payouts | Each transfer to your payout address, its period and its transaction hash, checked on-chain |
+| `balance` | All time. `fees` charged on your positions; `accrued`, each terms period's fees times its share, rounded down; `paid`; and `owed`, which is `accrued - paid`. `unpriced_fees` were charged before your first terms and earn nothing. `share_bps` is your current share, in basis points. |
+| `terms` | Every terms entry, oldest first: `effective_from` (a UTC day) and `share_bps`. |
+| `days` | Each UTC day in the range with fees: positions opened (`tickets`), their stake, and the entry (`taker_fees`), winnings and cash-out (`buyback_fees`) fees, with the `share_bps` in force that day. |
+| `totals` | The range's days added up. |
+| `payouts` | Every payout to you, newest first: its period, payout address, `amount`, state, and each USDC transfer with its transaction hash, checked on-chain. |
 
-Reports and payouts are by email: ask [founders@totalis.trade](mailto:founders@totalis.trade). To change your
-payout address, email us from your registered contact.
+| Range | Rule |
+| --- | --- |
+| `from`, `to` | UTC days (`YYYY-MM-DD`), sent together. `to` is exclusive: `from=2026-10-01&to=2026-11-01` is October. |
+| Neither | The 30 days through today. |
+| Longest | 366 days. Ask a longer period in parts. |
+
+Amounts are atomic USDC decimal strings, 6 decimals: `"1500000"` is 1.50 USDC. A payout counts as paid in full
+from the moment Totalis queues it; if less lands on-chain, the rest returns to `owed`. Totalis decides when to pay,
+so `owed` is what you have earned and not yet been paid, not a schedule.
+
+| Response | When |
+| --- | --- |
+| `200` | Your report |
+| `400 INVALID_QUERY` | `from` or `to` is not a date, only one was sent, `from` is not before `to`, or they are more than 366 days apart |
+| `401 UNAUTHENTICATED` | The server key is unknown or revoked, or your partner is suspended |
+| `403 FORBIDDEN` | The request has an `Origin`, or a credential other than your server key. Read reports from your server. |
+| `429 RATE_LIMITED` | More than 60 reports a minute |
+
+A per-position list of fees, each with its transaction hash, is by email: ask
+[founders@totalis.trade](mailto:founders@totalis.trade). To change your payout address, email us from your registered
+contact.
 
 ## Rotation and revocation
 
