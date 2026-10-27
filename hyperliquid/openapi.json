@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, and `GET /v1/partner/report`, your fees, terms and payouts. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "180.0.0-partner-report"
+    "version": "181.0.0-partner-report"
   },
   "servers": [
     {
@@ -25099,16 +25099,14 @@
         }
       },
       "PartnerDay": {
-        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PartnerFeeFields"
+          }
+        ],
         "required": [
           "day",
-          "share_bps",
-          "tickets",
-          "stake_volume",
-          "taker_fees",
-          "winnings_fees",
-          "buyback_fees",
-          "total_fees"
+          "share_bps"
         ],
         "properties": {
           "day": {
@@ -25124,7 +25122,20 @@
             "minimum": 0,
             "maximum": 10000,
             "description": "The terms in force that day, or null before your first terms."
-          },
+          }
+        },
+        "unevaluatedProperties": false
+      },
+      "PartnerFeeFields": {
+        "required": [
+          "tickets",
+          "stake_volume",
+          "taker_fees",
+          "winnings_fees",
+          "buyback_fees",
+          "total_fees"
+        ],
+        "properties": {
           "tickets": {
             "type": "integer",
             "minimum": 0,
@@ -25153,42 +25164,12 @@
         }
       },
       "PartnerFees": {
-        "type": "object",
-        "required": [
-          "tickets",
-          "stake_volume",
-          "taker_fees",
-          "winnings_fees",
-          "buyback_fees",
-          "total_fees"
-        ],
-        "properties": {
-          "tickets": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Positions opened through your codes."
-          },
-          "stake_volume": {
-            "$ref": "#/components/schemas/CommonAmount",
-            "description": "Their stake, atomic USDC."
-          },
-          "taker_fees": {
-            "$ref": "#/components/schemas/CommonAmount",
-            "description": "Fees charged on opening them, atomic USDC."
-          },
-          "winnings_fees": {
-            "$ref": "#/components/schemas/CommonAmount",
-            "description": "Fees charged on their claimed winnings, atomic USDC."
-          },
-          "buyback_fees": {
-            "$ref": "#/components/schemas/CommonAmount",
-            "description": "Fees charged on their cash-outs, atomic USDC."
-          },
-          "total_fees": {
-            "$ref": "#/components/schemas/CommonAmount",
-            "description": "All three together, atomic USDC: what your share is of."
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PartnerFeeFields"
           }
-        }
+        ],
+        "unevaluatedProperties": false
       },
       "PartnerPayout": {
         "type": "object",
@@ -27068,11 +27049,11 @@
           },
           "quality": {
             "$ref": "#/components/schemas/Quality",
-            "description": "How the reference price was derived: BOOK_MID from the order book or best bid and offer, MARK_PRICE from the mark price, ALL_MIDS_FALLBACK from the all-mids fallback, TRADE from executed trades."
+            "description": "How the reference price was derived: BOOK_MID from the order book or best bid and offer (the midpoint, or the mark when best_bid or best_ask is null), MARK_PRICE from the mark price, ALL_MIDS_FALLBACK from the all-mids fallback, TRADE from executed trades."
           },
           "value": {
             "$ref": "#/components/schemas/IntegerValue",
-            "description": "Reference price of this side as an integer; divide by scale for the probability price between 0 and 1."
+            "description": "Reference price of this side as an integer: the book midpoint, or mark when the book is one-sided or empty, which is published only while mark is known. Divide by scale for the probability price between 0 and 1."
           },
           "best_bid": {
             "oneOf": [
@@ -27083,7 +27064,7 @@
                 "type": "null"
               }
             ],
-            "description": "Best bid at scale when the feed carries a book, otherwise null."
+            "description": "Best bid at scale when the book has bids, otherwise null."
           },
           "best_ask": {
             "oneOf": [
@@ -27094,7 +27075,7 @@
                 "type": "null"
               }
             ],
-            "description": "Best ask at scale when the feed carries a book, otherwise null."
+            "description": "Best ask at scale when the book has asks, otherwise null."
           },
           "last_trade": {
             "oneOf": [
@@ -27127,7 +27108,7 @@
                 "type": "null"
               }
             ],
-            "description": "Crowd probability at scale: the book midpoint when best_ask - best_bid is at most 10% of scale, last_trade when the spread is at most 50% and last_trade lies within [best_bid, best_ask], otherwise null. The midpoint rounds half to even, so YES and NO chances sum to scale. chance_basis says which applied."
+            "description": "Crowd probability at scale: the newest evidence (an execution, or the book midpoint while best_ask - best_bid is at most 10% of scale) kept within [best_bid, best_ask]. On a book wider than 50% of scale, one-sided or empty, it is null once that evidence is more than 20 minutes old. Null before any evidence. The midpoint rounds half to even, so YES and NO chances sum to scale. chance_basis says which applied."
           },
           "chance_basis": {
             "oneOf": [
@@ -27135,14 +27116,15 @@
                 "type": "string",
                 "enum": [
                   "MID",
-                  "LAST_TRADE"
+                  "LAST_TRADE",
+                  "HELD"
                 ]
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Which input chance is: MID, the book midpoint, so a midpoint history describes it; LAST_TRADE, last_trade on a wide book, where midpoint history does not. Null exactly when chance is null."
+            "description": "Where chance comes from: MID, the current book midpoint; LAST_TRADE, last_trade inside the current book; HELD, earlier evidence kept within the current book (a midpoint the book no longer supports, or evidence clamped to best_bid or best_ask). Null exactly when chance is null."
           },
           "mark": {
             "oneOf": [
