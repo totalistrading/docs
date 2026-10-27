@@ -59,7 +59,7 @@ Get deployment needs no key.
 | Lower your collateral | [`POST /v1/makers/{maker_id}/collateral-reductions`](/hyperliquid/guides/collateral#reduce-collateral) |
 | Check a pending vault withdrawal | [`GET /v1/makers/{maker_id}/withdrawal`](/hyperliquid/api-reference/makers/get-maker-withdrawal) |
 
-[/mm](https://hip4.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
+[/mm](https://app.totalis.trade/mm) shows your maker read-only: its onboarding state, balances, keys, a
 pending withdrawal, positions, quotes and performance. It has no buttons that act. Its position, exposure
 and performance pages read routes that only the app's session can call; a bot reads the same facts from the
 routes above. Every write runs headless through the [SDK](/hyperliquid/sdk/making) or the API:
@@ -79,7 +79,7 @@ You sign up once in a browser. Everything after that runs headless.
 <Steps>
   <Step title="Get access">
     Totalis is invite-only for now. Email [founders@totalis.trade](mailto:founders@totalis.trade) for access and
-    an invite code. Sign up at [hip4.totalis.trade](https://hip4.totalis.trade) with Google or email. Your
+    an invite code. Sign up at [app.totalis.trade](https://app.totalis.trade) with Google or email. Your
     account gets a wallet embedded in the app: that wallet is your maker wallet.
   </Step>
   <Step title="Export the wallet key">
@@ -111,7 +111,7 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
 
 <Steps>
   <Step title="Sign in">
-    Sign in with the wallet key and the Totalis app's origin, `https://hip4.totalis.trade`. Send the same origin
+    Sign in with the wallet key and the Totalis app's origin, `https://app.totalis.trade`. Send the same origin
     as the `Origin` header with every request on the session.
 
     ```ts
@@ -121,7 +121,7 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
 
     const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
     const environment = "production"; // or "staging"
-    const origin = environment === "staging" ? "https://hip4-staging.totalis.trade" : "https://hip4.totalis.trade";
+    const origin = environment === "staging" ? "https://hip4-staging.totalis.trade" : "https://app.totalis.trade";
     const session = await signInWithWallet({ environment, signer: wallet, origin });
     const onSession = { accessToken: session.access_token, headers: { Origin: origin } };
     const client = createClient(environment, onSession);
