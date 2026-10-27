@@ -227,8 +227,10 @@ tournament outcome nets with the rest of that tournament the same way a one-leg 
 | A spread or over/under, and the winner of the same game | They settle under different rules, such as when a game is abandoned. |
 | Outcomes Totalis cannot confirm belong to one tournament winner question | Without a confirmed single-winner question, each outcome backs on its own. |
 
-Treating linked markets as independent can only overstate your worst case. A reduction never lowers
-your requirement below what your book can actually lose.
+Treating linked markets as independent can only overstate your worst case. The reduction's certificate
+must bound what your book can lose. The vault checks the certificate's signer, cap, cooldown and floor; it
+does not recompute the portfolio's risk. You depend on the attestor's assessment
+([Control and trust](/hyperliquid/guides/contracts#control-and-trust)).
 
 ### After a reduction
 
@@ -255,15 +257,23 @@ Take the tournament above, with `discount` at 5,000 and `requirement` at 10,000:
 
 After buying back C you lock 2,000 more than your book can lose, until your next reduction.
 
-One reduction raises `discount` by at most a capped share of `gross_open`, and positions that close
-between the job's snapshot and its landing shrink what it adds. A large book can take several
-reductions to reach its full credit. `requirement` never drops below the `floor_bps` share of
+One reduction raises `discount` by at most
+`floor(gross_open * config.maxRaiseBps / 10000)`. The cap applies to the increase, not to the total discount.
+Positions that close between the job's snapshot and its landing shrink what it adds. A large book can take
+several reductions to reach its full credit. `requirement` never drops below the `floor_bps` share of
 `gross_open`.
+
+Read `maxRaiseBps` and `reduceInterval` from the vault's
+[`config()`](/hyperliquid/guides/contracts#read-the-vault-configuration). They belong to the deployment, so do
+not copy values from another environment. After the first increase, another can land only after
+`lastReduceAt + reduceInterval`. A certificate that adds no discount does not restart that clock.
+The job's `next_eligible_at` gives the next eligible time. [Limits](/hyperliquid/limits-and-fees#maker-collateral)
+has the units and the planning example.
 
 ## Reduce collateral
 
-A reduction looks at every open position you back, finds the most your book can lose under any way
-the markets can resolve, and certifies the difference as your `discount`. You submit that
+A reduction looks at every open position you back, computes a conservative bound on what your book can
+lose together, and certifies the difference as your `discount`. You submit that
 certificate on-chain from a wallet that pays the gas. Totalis does not run reductions for you, and
 it does not pay their gas. It runs headless: the API calls use a maker key with the
 [maker collateral scopes](/hyperliquid/authentication#scopes) (`COLLATERAL_SCOPES` in the SDK), and a wallet that
@@ -405,4 +415,4 @@ While the vault is paused, `depositMaker` and `executeMakerWithdraw` revert `Pau
 still work.
 
 The [SDK](/hyperliquid/sdk/making)'s `maker.controller()` builds each call for your wallet to
-send.
+send. Other clients can use the [versioned contract interface](/hyperliquid/guides/contracts#download-an-interface).

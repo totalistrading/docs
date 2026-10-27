@@ -139,7 +139,9 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
   <Step title="Open and admit your maker">
     Send `openMakerVaultTransaction(deployment, wallet.address)` from your wallet. A wallet opens one maker.
     `waitForMaker` waits until Totalis has indexed it, admits it ([Admit maker](/hyperliquid/api-reference/makers/admit-own-maker))
-    and returns its `makerId`.
+    and returns its `makerId`. Python, Go and other clients can call
+    [`openMakerVault(address)` directly](/hyperliquid/guides/contracts#open-a-maker-without-the-sdk), then use the
+    same maker admission and key endpoints.
 
     `send` is your own: the SDK builds each `{ chain_id, to, data, value }` and never sends a transaction. With
     viem it is `walletClient.sendTransaction`, then waiting for the receipt.
@@ -512,15 +514,20 @@ and `payout`, and the leg state to price against.
 | Back the position (`maker_id` is yours) | `sell_back` terms, a `price` | Your maker vault | Closes |
 | Do not back it | `transfer` terms, a `price` | Your maker wallet's own vault balance, not the maker vault | Moves to your wallet's account. Its original maker still backs it. |
 
-Bid only on positions you back: your maker wallet cannot hold its own vault balance.
-[Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker, and
-Totalis moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background. A
-`transfer` your wallet's free vault balance cannot cover is refused when you publish it (`400 INVALID_REQUEST`
-naming `transfer.price`). While Totalis's view of the vault lags the chain, publishing skips that check;
-confirm then answers `QUOTE_CAPACITY_EXCEEDED` once the view is current, or the vault refuses the transfer
-on-chain. A position you buy by
-transfer belongs to your wallet's account, not your maker: read it and its settlement with a key for
-[your account](/hyperliquid/authentication#keys).
+The supported maker setup funds your maker vault for entries and `SELL_BACK` bids. Bid only on positions
+you back. [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a
+maker, and Totalis moves an [embedded wallet's](/hyperliquid/glossary) free personal vault cash to HyperCore in
+the background. The maker setup does not provide a funding path for a separate personal vault balance to pay
+for `TRANSFER` bids. A taker must not assume another maker can buy their position, or that a cash-out will
+receive a quote. The original maker can also decline to quote or confirm.
+
+`TRANSFER` remains a wire and contract operation. Its buyer must already have enough free personal vault
+balance; maker collateral cannot pay its price. Ask [founders@totalis.trade](mailto:founders@totalis.trade)
+before building an integration that depends on this path. A `transfer` your wallet's free vault balance cannot
+cover is refused when you publish it. While Totalis's view of the vault lags the chain, publishing skips that
+check; confirm can then refuse it, or the vault can refuse the transfer on-chain
+([Errors](/hyperliquid/errors#codes)). A transferred position belongs to the buyer's account. Its original
+maker continues to back it.
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \

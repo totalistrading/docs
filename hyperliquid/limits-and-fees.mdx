@@ -60,6 +60,24 @@ a quote.
 | Key approval message | 5 minutes, single use |
 | Request body | 64 KiB |
 
+## Maker collateral
+
+Read these fields from the current vault's [`config()`](/hyperliquid/guides/contracts#read-the-vault-configuration).
+The HTTP deployment response does not include them. A basis point is `1 / 10000`.
+
+| Setting | Value |
+| --- | --- |
+| Maximum discount increase per reduction | `floor(gross_open * config.maxRaiseBps / 10000)` atomic USDC. `maxRaiseBps` is a deployment constant in basis points. |
+| Reduction cooldown | `config.reduceInterval` seconds after the last increase. The first increase has no prior cooldown; a certificate that adds nothing does not restart it. |
+| Collateral floor | `config.k` in basis points, returned as `floor_bps` by [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
+| Next eligible reduction | The reduction job's `next_eligible_at`; the contract checks the cooldown again when it lands. |
+
+For example, a vault configured with `maxRaiseBps = 2500` can add at most 25% of the current `gross_open`
+to the discount in one reduction. A book with `gross_open = 1000 USDC`, no discount and a target discount of
+`600 USDC` needs increases of at most `250`, `250` and `100 USDC`, each subject to that vault's cooldown.
+This is an illustration, not the current configuration. Closing positions or opening new ones changes the
+calculation ([After a reduction](/hyperliquid/guides/collateral#after-a-reduction)).
+
 ## Wallet sign-in and partners
 
 For accounts that sign in with their own wallet ([Your users' own wallets](/hyperliquid/build/partner-frontend)).

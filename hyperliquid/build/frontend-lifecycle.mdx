@@ -1,0 +1,95 @@
+---
+title: 'Frontend lifecycle'
+icon: 'arrows-rotate'
+description: 'Connect a wallet, handle account and chain changes, persist signed trades and recover after a reload.'
+---
+
+Bind one Totalis client to one signed-in wallet and environment. Keep its pending trades separate from the
+wallet connection: disconnecting a wallet does not cancel an accepted trade.
+
+## Connect the wallet
+
+Use your wallet library to connect, then pass its EIP-1193 provider to `signInWithWallet` and `createTotalis`.
+An injected extension, a connected mobile wallet provider and your own embedded EOA use the same SDK interface.
+Totalis does not open a WalletConnect session for you.
+
+1. Select production or staging and read its `GET /v1/deployment`.
+2. Connect the wallet and switch it to the deployment's `chain_id` before requesting trade signatures.
+3. Sign in from your registered origin. Follow the [onboarding cases](/hyperliquid/build/partner-frontend#onboard-a-user)
+   if the wallet needs admission.
+4. Check that the session's `address` matches the connected account, then create the client with that session and provider.
+5. Wait for the account stream before showing account state as current. Resume any pending records for that wallet.
+
+Serve a local frontend from a registered HTTPS origin ([Staging](/hyperliquid/build/staging#develop-locally)).
+Your browser key is public. Your server key never goes into browser code.
+
+## Handle wallet changes
+
+| Event | Do |
+| --- | --- |
+| `accountsChanged` | Stop new actions, close the old client and clear its account data from the screen. Sign in with the newly selected account before creating another client. |
+| `chainChanged` | Stop new signing flows. Check the deployment and the wallet's selected chain before reconnecting. Changing the wallet's chain does not change the SDK's `environment`. |
+| Wallet disconnects | Close the client and show a disconnected state. Keep pending signed records for recovery with the same wallet. |
+| You change environment | Close the old client. Read the new deployment and sign in there; credentials and pending records are environment-specific. |
+| Session expires or ends | Sign in again. Reuse pending signed records only with the same account and deployment. |
+| Stream is not live | Show account data as stale. Wait for a snapshot or replay before treating it as current. |
+
+If your wallet provider implements `on` and `removeListener`, subscribe to its account, chain and disconnect
+events. Remove those listeners when your component unmounts. Call `totalis.close()` on unmount or sign-out.
+Aborting a browser request stops your wait; it does not revoke a signature or cancel work already admitted.
+
+## Handle prompts and deadlines
+
+Show the stake, legs and selected payout before the wallet signs. Funding from HyperCore can add prompts to an
+entry ([Signatures and quote life](/hyperliquid/build/partner-frontend#signatures-and-quote-life)). Quote deadlines
+continue while a mobile wallet is open or a browser tab is in the background. Use `totalis.stream.serverNow()`
+for countdowns, not the device clock.
+
+| What happens | Next action |
+| --- | --- |
+| Wallet rejects a prompt before an accept is sent | Stop the flow and let the user choose whether to request another quote. Do not keep opening prompts. |
+| A sign-in challenge expires | Start a new sign-in challenge. Do not submit the old proof with a new request. |
+| The selected quote expires before acceptance | Refresh quotes or create a new RFQ. Show the replacement terms and sign again. |
+| Maker declines or times out | Show that nothing traded. Request another quote only on a new user action. |
+| Acceptance returns `ACCEPTED` | Follow its operation. Show the position as open only after `COMMITTED`. |
+| Answer is lost, or a request is aborted in flight | The outcome may still run. Recover the saved acceptance or follow its operation before offering another trade. |
+| A bridge lands but the entry fails | Refresh balances and show its USDC on HyperEVM. It did not return to HyperCore automatically ([Funding](/hyperliquid/guides/funding)). |
+
+A provider's rejection is a wallet error, not a Totalis API error. Preserve enough context to tell a rejected
+prompt from a lost HTTP answer. `normalizeError(error).mayStillRun` identifies SDK failures where a command may
+have reached Totalis. For an already signed entry, use its saved record to establish the outcome.
+
+## Persist and recover
+
+Save the signed record before sending it. Key your storage by environment, `account`, `chainId`, `vault` and
+`acceptanceId`. Persist every subsequent `onRecord` update before that callback resolves.
+
+```ts
+const signed = await totalis.signEntry({ quote });
+await save(signed);
+const accepted = await totalis.sendAcceptance(signed, { onRecord: save });
+
+// After a reload and sign-in with the same wallet:
+const recovered = await totalis.recoverAcceptance(await load(), { onRecord: save });
+if (recovered.operationId) {
+  const operation = await totalis.waitForOperation(recovered.operationId);
+  show(operation.status); // Only COMMITTED executed the trade.
+}
+```
+
+A session token and a signed record are separate. Expired authentication needs a new session; it does not mean
+the trade failed. A record for another wallet or a replaced staging vault must not be submitted to the current
+client. The SDK checks the record's wallet and deployment too.
+
+Serialize wallet prompts within your app and disable duplicate submits while one action is pending. Coordinate
+across tabs or bots that share a wallet. Separate commands have separate idempotency keys and can both execute.
+For bridges, coordinate Hyperliquid nonces as described in [Concurrent signers](/hyperliquid/sdk/resume-and-retry#concurrent-signers).
+
+## Run the frontend example
+
+The [frontend example](https://github.com/totalistrading/docs/tree/main/examples/frontend) runs from public npm
+packages. It signs in an already admitted wallet, opens an RFQ position, persists the signed record and recovers
+it after a reload. It defaults to staging and closes its client when the account or chain changes.
+
+Register its HTTPS origin and admit the wallet first. The example needs only your public browser key. A new
+wallet's admission stays on your server ([Admit a wallet](/hyperliquid/sdk/wallets#admit-a-wallet)).

@@ -23,7 +23,10 @@
       "auth": {
         "method": "bearer"
       }
-    }
+    },
+    "openapi": [
+      "api-reference/openapi.json"
+    ]
   },
   "navigation": {
     "products": [
@@ -46,10 +49,15 @@
                 "group": "Guides",
                 "pages": [
                   "hyperliquid/guides/trading",
+                  "hyperliquid/guides/api-trading",
+                  "hyperliquid/guides/funding",
+                  "hyperliquid/guides/settlement",
                   "hyperliquid/guides/market-making",
                   "hyperliquid/guides/collateral",
                   "hyperliquid/guides/realtime",
-                  "hyperliquid/guides/withdrawals"
+                  "hyperliquid/guides/withdrawals",
+                  "hyperliquid/guides/core-exit-recovery",
+                  "hyperliquid/guides/contracts"
                 ]
               },
               {
@@ -57,6 +65,7 @@
                 "pages": [
                   "hyperliquid/build/overview",
                   "hyperliquid/build/partner-frontend",
+                  "hyperliquid/build/frontend-lifecycle",
                   "hyperliquid/build/builder-codes",
                   "hyperliquid/build/staging"
                 ]
@@ -437,9 +446,6 @@
       }
     ]
   },
-  "openapi": [
-    "/api-reference/openapi.json"
-  ],
   "redirects": [
     {
       "source": "/hyperliquid/sdk",

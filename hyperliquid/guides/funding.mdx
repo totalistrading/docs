@@ -1,0 +1,96 @@
+---
+title: 'Balances and funding'
+icon: 'wallet'
+description: 'Track USDC across HyperCore, your HyperEVM wallet and the Totalis vault, and choose the funding path your credential supports.'
+---
+
+Read your Totalis balance and your HyperCore cash separately. A credit in one location is spendable there only
+after the move into that location completes.
+
+## Where your cash sits
+
+| Location | Read | Spend it on |
+| --- | --- | --- |
+| Your wallet's USDC on HyperEVM | `WALLET_USDC` in [Get balances](/hyperliquid/api-reference/account/get-balances) | Fund an entry, deposit, or withdraw to another HyperEVM address. |
+| Your free cash in the Totalis vault | `VAULT_FREE` in Get balances | Fund an entry, withdraw, or exit to HyperCore. |
+| Your HyperCore spot USDC | Hyperliquid's `spotClearinghouseState`, below | Native HyperCore orders, or a signed bridge into a Totalis entry. |
+| Cash already reserved or moving | `pending` in Get balances; the operation, withdrawal or exit it belongs to | Wait for its authoritative result before spending it again. |
+
+Get balances' `amount` reports wallet and vault cash, net of its specified reservations. A pending wallet
+deposit can remain in that total while it is reserved from spending. HyperCore USDC is outside the total.
+Use the component-based `spendableCash()` plan for a new action. A missing or stale balance is unknown, not zero.
+`pending.has_unknown_operations` means a previously sent action can still change your balances.
+
+| `wallet_kind` in [Get identity](/hyperliquid/api-reference/account/get-identity) | Idle vault cash |
+| --- | --- |
+| `EMBEDDED`, created in the Totalis app | Totalis moves free vault cash to HyperCore in the background using the account wallet's delegated authorization. It can move while your bot is offline. |
+| `EXTERNAL`, signed in on a partner's origin | Stays in the vault until you sign a move. This includes a wallet embedded in your own app. |
+
+A settlement or cash-out first credits the vault. For an embedded wallet, a later sweep can move that credit
+to HyperCore. A sweep has no promised completion time and is not a cash balance you can spend twice. Follow
+`CORE_EXIT_UPDATED` and the exit's `CREDITED` state. The public API has no per-account sweep toggle.
+
+## Read HyperCore spot USDC
+
+Call Hyperliquid's public [spot balance endpoint](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/spot#retrieve-a-users-token-balances)
+with the account wallet's address, not an API agent address. This call takes no Totalis credential.
+
+```bash
+export ACCOUNT_WALLET="0x1111111111111111111111111111111111111111"
+curl https://api.hyperliquid.xyz/info \
+  -H "Content-Type: application/json" \
+  -d "{\"type\":\"spotClearinghouseState\",\"user\":\"$ACCOUNT_WALLET\"}"
+```
+
+On staging, use `https://api.hyperliquid-testnet.xyz/info`. Locate the canonical USDC token using
+Hyperliquid's `spotMeta`; match its token index to the balance's `token`. `total` and `hold` are decimal
+strings in whole tokens. Available spot cash is `max(0, total - hold)`. Account modes and other concurrent
+Hyperliquid activity can restrict what a transfer actually admits. Re-read before offering cash to a trade.
+
+Convert exactly to the units the Totalis SDK expects:
+
+```ts
+import { parseUnits } from 'viem';
+
+// usdc is the matching balance row from spotClearinghouseState.
+const available = parseUnits(usdc.total, 8) - parseUnits(usdc.hold, 8);
+if (available < 0n || available % 100n !== 0n) {
+  throw new Error('Available HyperCore USDC is not exactly representable in micro-USDC');
+}
+const core = available / 100n;
+const opened = await totalis.openPosition({ legs, stake, core });
+```
+
+The `core` option is micro-USDC, not HyperCore atomic units and not a decimal string in whole USDC.
+The SDK retains the bridge buffer specified on [Limits and fees](/hyperliquid/limits-and-fees).
+If the HyperCore read fails, pass `core: null` so the funding plan treats it as unknown.
+
+## Choose a move
+
+| Task | Credential and action | Completion |
+| --- | --- | --- |
+| Open a position from free vault cash | Taker API key or wallet session; sign the quote. | Entry operation `COMMITTED`. |
+| Cover an entry's vault shortfall from wallet USDC | Same credential; add signed `funding`. An API key needs `funding:deposit`. | Funding and entry execute together. |
+| Cover an entry's shortfall from HyperCore | Offer `core` to the SDK. The wallet signs the bridge before acceptance, but the SDK sends it only after maker confirmation. | Follow the entry and bridge separately. |
+| Pre-fund the vault with sponsored gas | Wallet session; `signDeposit` and `sendDeposit`. A `ttk_` API key cannot call this deposit route. | Deposit operation `COMMITTED`. |
+| Pre-fund from an API-key bot | Build `directDepositCalls`, send the approval and deposit with your own chain client, and pay HYPE gas. | Chain receipt and a current vault balance. |
+| Move free vault cash to HyperCore | Taker key with withdrawal and sponsorship scopes, or wallet session; `exitToCore`. | Exit `CREDITED`, not just a committed HyperEVM operation. |
+| Return eligible wallet cash and free vault cash | External wallet session; `returnToCore`. Its wallet deposit needs the session. Wallet cash below the sponsored-deposit minimum stays in the wallet. | Deposit first, then exit `CREDITED`. |
+| Withdraw to another HyperEVM address | Taker key with withdrawal and sponsorship scopes, or wallet session; `withdraw`. | Withdrawal `PAYOUT_COMMITTED`. |
+
+Sizes, rates and environment restrictions are on [Limits](/hyperliquid/limits-and-fees) and
+[Staging](/hyperliquid/build/staging#what-staging-does-not-run). Maker collateral is separate from all three
+taker balances: use [Maker collateral](/hyperliquid/guides/collateral).
+
+## Recover a move
+
+| Observation | Action |
+| --- | --- |
+| The maker declined or timed out before an entry bridge was sent | No bridge runs. Start a new RFQ when you still want the trade. |
+| An entry failed after its bridge landed | The bridged USDC stays in your HyperEVM wallet. The next entry can use it; use a supported return-to-Core path to move it back. |
+| The bridge response was lost | Recover the saved acceptance record and re-read both balances. An absent response does not establish where the cash is. |
+| An exit is still unresolved | Follow [Core exit recovery](/hyperliquid/guides/core-exit-recovery). Keep its original ID and signed record. |
+| A withdrawal failed after its vault leg | Cash already moved out of the vault remains in your wallet. Re-read before constructing another withdrawal. |
+
+Persist signed records before their first send. Reuse the same bytes and identity after an unknown response:
+[Resume and retry](/hyperliquid/sdk/resume-and-retry).

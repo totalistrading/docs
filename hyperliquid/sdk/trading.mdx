@@ -38,6 +38,11 @@ if (opened.operationId) {
 }
 ```
 
+The outcome IDs above illustrate the request shape. Select current markets before calling it: each leg
+needs `state: ACTIVE`, `eligibility.state: ENABLED` and `combo.state: OPEN`. Sort legs numerically by
+`outcome_id` and reject two `YES` outcomes from the same `native_question_id`.
+See [Choose eligible legs](/hyperliquid/guides/api-trading#choose-eligible-legs).
+
 Legs go in strictly ascending `outcome_id` order. `openPosition`:
 
 1. Waits for the account stream, then creates the RFQ.
@@ -78,8 +83,13 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 for a later time, so it must depend only on its arguments. Collection ends early if waiting would lose the quote
 or pass `quoteTimeoutMs`.
 
-Funding comes from free vault cash first, then the wallet, then a bridge of `core`. 0.05 USDC stays behind for
-the bridge's gas.
+Funding comes from free vault cash first, then the wallet, then a bridge of `core`. The SDK keeps its
+bridge gas buffer behind on HyperCore.
+
+`core` is opt-in. Without it, this call cannot spend HyperCore USDC. An embedded Totalis wallet's free
+vault cash can be swept to HyperCore, including winnings. Read [Funding](/hyperliquid/guides/funding)
+and [Bot cash management](/hyperliquid/guides/api-trading#manage-cash) before assuming that a previous
+win can fund the next entry. The same rule does not automatically move an external wallet's cash.
 
 ### Why an entry did not trade
 
@@ -131,7 +141,8 @@ at its `accept_before`, and the listener is called again then. To take one, sign
 ## Settlement
 
 When a position's markets resolve, Totalis settles it and pays the winnings into the owner's vault balance.
-There is nothing to call.
+There is nothing to call. Fractional results and exceptional market outcomes follow the
+[settlement rules](/hyperliquid/guides/settlement).
 
 ## Cash out
 

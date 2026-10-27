@@ -36,6 +36,26 @@ script. Edit the tables at the top of the script, not the generated files.
 `--check` on either script fails when the committed files are stale. `scripts/hyperliquid_openapi.py` also stops
 on a schema title used twice, since generated clients name models by title and drop the clash.
 
+Public integration wording is maintained by `integration_descriptions` in the OpenAPI publisher. It clarifies
+quote cutoffs, account-wallet support, recovery and public cash reads without changing request validation or
+signed wire shapes. Regeneration retains those annotations.
+
+## Validate changes
+
+Use an LTS Node release supported by the Mintlify CLI:
+
+```bash
+npx mint validate
+npx mint broken-links
+python3 scripts/hyperliquid_openapi.py --check
+python3 scripts/hyperliquid_errors.py --registry ../hip4-backend/protocol/jsonschema/error.schema.json --check
+```
+
+The runnable examples have separate instructions and offline checks:
+
+- [Python HTTP entry, retry journal and signing fixtures](examples/hyperliquid/README.md)
+- [Own-wallet frontend with durable entry recovery](examples/frontend/README.md)
+
 ## Publishing changes
 
 Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.

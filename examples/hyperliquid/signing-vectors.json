@@ -1,0 +1,143 @@
+{
+  "domain": {
+    "chainId": 998,
+    "name": "TotalisParlay",
+    "verifyingContract": "0x000000000000000000000000000000000000c0de",
+    "version": "1"
+  },
+  "domainSeparator": "0x9148f0e7184771ecb9c77db3caa5b2652e5795de5433f8b8d3719b1f3319e0ab",
+  "signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "note": "Offline encoding fixtures only. The domain uses a synthetic contract address; these messages are not live orders.",
+  "vectors": [
+    {
+      "digest": "0x20e60d6ef49dc0af0a181c910053ecbd0b4d9dfef0072ede6280d0839d2d28a8",
+      "message": {
+        "expiry": "1800000030",
+        "feeBps": 100,
+        "legs": [
+          {
+            "outcomeId": 1,
+            "side": 0
+          },
+          {
+            "outcomeId": 8,
+            "side": 1
+          },
+          {
+            "outcomeId": 15,
+            "side": 0
+          }
+        ],
+        "makerId": "7",
+        "payout": "42500000",
+        "salt": "4660",
+        "stake": "5000000",
+        "taker": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "takerFeeBps": 20
+      },
+      "name": "quote_three_legs",
+      "primaryType": "Quote",
+      "signature": "0xbb6a549e8aa809e033f9e30175071da360795bd01f6c2a06f57b33ad005b2b7661e85de02cfde05327017ca8dd2e11bc40dd675b7907e66b3d87c14ed6ee06941c",
+      "structHash": "0xa14d29639fe9ff4d262cc023e58ba1c8cc8c6a74b867a85689c9d53cbb4ddf52"
+    },
+    {
+      "digest": "0x9015d4f9082fc75be0771b38b74fed107595b98ac554fa0054497aff4648ea85",
+      "message": {
+        "expiry": "1800000030",
+        "feeBps": 100,
+        "legs": [
+          {
+            "outcomeId": 1,
+            "side": 0
+          }
+        ],
+        "makerId": "7",
+        "payout": "42500000",
+        "salt": "4660",
+        "stake": "5000000",
+        "taker": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "takerFeeBps": 20
+      },
+      "name": "quote_single_leg",
+      "primaryType": "Quote",
+      "signature": "0x91a904c2fecbfc3139311701bef5f563b3d1bdd4896241763577d3d278be0fe37cc619cd1ed06893f56fe895f1573d1a57d15f478050abd3fd781345e2f46f411b",
+      "structHash": "0xa4d9a508763db3ace7109c1039514a3a74e98af874801add05b9e9f9432a7853"
+    },
+    {
+      "digest": "0xedbd0b2d02f9fcb2292ac3ac3f81a9d55981772958dfe3350430660c48878573",
+      "message": {
+        "expiry": "1800000030",
+        "feeBps": 100,
+        "legs": [
+          {
+            "outcomeId": 1,
+            "side": 0
+          },
+          {
+            "outcomeId": 8,
+            "side": 1
+          },
+          {
+            "outcomeId": 15,
+            "side": 0
+          }
+        ],
+        "makerId": "7",
+        "payout": "42500000",
+        "salt": "4660",
+        "stake": "5000000",
+        "taker": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "takerFeeBps": 20
+      },
+      "name": "accept_three_legs",
+      "primaryType": "TakerAccept",
+      "signature": "0xc30aa8dee06f76e7f5e8a451f7abbbbe07403f6c01dc5c3d73e2cfecef0c89686ee20c68cb4481abed58e87b9120bfd66ca1be2c159c0b48a9274005d806d3021b",
+      "structHash": "0x97d21182f19423af84b07a16173278854ae20cfa23e2bcae2dc01c7f1b17925b"
+    },
+    {
+      "digest": "0x31e2d4a4f21eb488b11fe9171ce5f015fa51c8efebc347f6ee161540957eb8b1",
+      "message": {
+        "expiry": "1800000060",
+        "legState": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "owner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "price": "3100000",
+        "salt": "48879",
+        "ticketId": "0xabababababababababababababababababababababababababababababababab"
+      },
+      "name": "sellback_normal",
+      "primaryType": "SellBack",
+      "signature": "0x65abdbc72f55d1cd3886aeee62e49be4a72d90440a2fc8b57e1054fd73494e6a33f13476c90309da7e89d2deefdcc2dd034b5eb1a6dee0e3ca2cfd03675226d81c",
+      "structHash": "0x1aa96d21aa08927bb86156ef1c3fa525a5d211843c0ed38148a70318f8500ecf"
+    },
+    {
+      "digest": "0x5ff280bc49160669a63204b25a0179ef3bb4925965b92e833ccbe57cd1e0cd7b",
+      "message": {
+        "buyer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "expiry": "1800000030",
+        "legState": "0xdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdc",
+        "price": "8800000",
+        "salt": "51966",
+        "seller": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "ticketId": "0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
+      },
+      "name": "cashout_transfer_normal",
+      "primaryType": "CashoutTransfer",
+      "signature": "0x7b64ffc51342c354b5ce2416cace0e51405659d7c0095a317694a1515bf51ddf17188ac3a41e9e3d95b2b83081e188b05cb94181f3e3b56fd9eded3f37d146bb1b",
+      "structHash": "0x485f3ea3fd2802ecfd265e929a388e646938a8da59cb28ec8cd88fc297a662b0"
+    },
+    {
+      "digest": "0x928bb4eccf0a796e4d7fece7ea896b841fbf4546443659bb58ea64121ff2a0f6",
+      "message": {
+        "account": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "amount": "12345678",
+        "expiry": "1800003600",
+        "salt": "57005",
+        "to": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      },
+      "name": "exit_normal",
+      "primaryType": "Exit",
+      "signature": "0xa9081d414bbd51c917a96f6875c5f2067da802ce96b05250d338159d5ddc6d66555c97554167578933ccaf320ee85d111899663d119a807d56fb78a1b428616e1b",
+      "structHash": "0x7528b14f280901013d9fdcecf939d32c0c119607da333e637ec3173810dfc2a5"
+    }
+  ]
+}

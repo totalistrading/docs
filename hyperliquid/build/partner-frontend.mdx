@@ -26,6 +26,23 @@ refuses an admission that carries an `Origin` header.
 
 ## Onboard a user
 
+Try [sign-in](#sessions) first when the wallet may already have an account. Admission permits account creation;
+it does not transfer an existing account or its partner attribution.
+
+| Wallet state | Next step | Attribution on your frontend |
+| --- | --- | --- |
+| Already owns a Totalis account | Sign in from your registered origin. No new admission is needed. | Keeps its existing attribution. |
+| Admitted by you, account not yet created | Sign in. The first successful sign-in creates its account. | Your account code. |
+| Admitted by another partner, account not yet created | Sign in. Admission by that approved partner permits creation. Do not admit it again. | The admitting partner's code. |
+| New wallet with no admission | Sign-in returns `ACCESS_REQUIRED`. Collect consent, admit it on your server, then sign in again. | Your account code. |
+| Only linked as a login method on another Totalis account | Sign-in does not merge accounts or give access to that account. Use that account's own wallet. | No change. |
+
+If admission races with another partner and returns `STATE_CONFLICT`, sign in to the wallet's own account.
+Do not retry admission to change its partner. An account no partner admitted can use your signed
+[origin builder code](/hyperliquid/build/builder-codes); an account another partner admitted cannot.
+
+For a new wallet, collect consent and admit it before its first successful sign-in:
+
 <Steps>
   <Step title="The wallet consents to you, in your frontend">
     ```js
@@ -103,11 +120,23 @@ refuses an admission that carries an `Origin` header.
 | --- | --- |
 | An EOA in an extension, such as `window.ethereum` | Yes. Your user sees a signature request for sign-in and for each signed action. |
 | An embedded wallet you run, such as your own Privy app's | Yes. It signs without a popup. Totalis treats it as an external wallet: `wallet_kind: EXTERNAL`. |
-| A contract wallet: Safe, smart account | No: `WALLET_CONTRACT_UNSUPPORTED`. Sign in with the EOA that controls it. |
+| A contract wallet: Safe, smart account | No: `WALLET_CONTRACT_UNSUPPORTED`. An EOA controller is a different wallet and account; signing in with it does not give access to the contract wallet's USDC. |
 | A wallet no partner admitted and with no account | No: `ACCESS_REQUIRED`, during the invite-only launch. Admit it first. |
 
-The `signer` is any EIP-1193 provider, viem account or wallet client, or ethers signer. Trade signatures accept
-ERC-1271, but sign-in does not.
+The `signer` is any EIP-1193 provider, viem account or wallet client, or ethers signer. For a mobile wallet,
+pass its connected EIP-1193 provider. You configure the wallet connection and chain in your own app.
+
+### Signature support
+
+| Action | Accepted signature | Contract-wallet limitation |
+| --- | --- | --- |
+| Wallet admission consent, sign-in and API-key approval | EOA `personal_sign` | Contract wallets cannot sign in or obtain a wallet session. |
+| Vault `TakerAccept`, `Quote`, `SellBack`, `CashoutTransfer`, `Exit` | ECDSA or ERC-1271 bytes | Support for a vault signature does not enable contract-wallet sign-in. |
+| USDC `ReceiveWithAuthorization` and `TransferWithAuthorization` | 65-byte ECDSA | Funding, sponsored deposits and withdrawal payouts require the account wallet's ECDSA signature. |
+| Hyperliquid `SendAsset` bridge | ECDSA, sent as `r`, `s`, `v` | Sign with the account wallet. |
+
+Use [Frontend lifecycle](/hyperliquid/build/frontend-lifecycle) to handle wallet changes, rejected prompts and
+reloads while a trade is pending.
 
 A Totalis app user's wallet is embedded inside the Totalis app (`wallet_kind: EMBEDDED`), so they have no wallet to sign in with
 on your site. To trade through your product they create an API key in the
@@ -160,16 +189,24 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 
 ## Funding
 
+Your wallet cash and vault cash live on HyperEVM. HyperCore spot cash must first move to HyperEVM to fund an
+RFQ entry. See [Funding and balances](/hyperliquid/guides/funding) for the balance fields and recovery paths.
+
 | From | How | Who pays gas |
 | --- | --- | --- |
 | The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
 | The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the maker confirms, and the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
-| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
+| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Requires a wallet session; an API key cannot call it. Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
 
 ```js
 const calls = await totalis.directDepositCalls(10_000_000n); // 10 USDC
-for (const call of calls) await walletClient.sendTransaction(call);
+// walletClient and publicClient use the deployment's chain.
+for (const call of calls) {
+  const hash = await walletClient.sendTransaction(call);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error("Deposit transaction reverted");
+}
 ```
 
 ## Signatures and quote life
@@ -233,8 +270,9 @@ The wallet signs an `Exit`, and Totalis pays the gas ([Create HyperCore exit](/h
 [Get HyperCore exit](/hyperliquid/api-reference/core-exits/get-hypercore-exit)). One move at a time per account: another is
 `CORE_MOVE_IN_FLIGHT`.
 
-`returnToCore()` moves all of the account's available cash back together: free vault cash, plus the wallet's
-available USDC on HyperEVM. Available wallet USDC is `WALLET_USDC` less `pending.wallet_reserved`
+`returnToCore()` uses a wallet session when wallet cash needs a sponsored deposit. An API key cannot call
+that deposit route ([Helper credentials](/hyperliquid/sdk/wallets#helper-credentials)). It moves all of the account's
+available cash back together: free vault cash, plus the wallet's available USDC on HyperEVM. Available wallet USDC is `WALLET_USDC` less `pending.wallet_reserved`
 ([Get balances](/hyperliquid/api-reference/account/get-balances)); USDC reserved for work in flight stays in the
 wallet. It takes no amount. The wallet signs a USDC `ReceiveWithAuthorization` that deposits its available USDC
 into the vault, then one `Exit` of that plus the free vault cash. Totalis pays the gas for both, so the wallet
