@@ -121,6 +121,7 @@
                     "pages": [
                       "POST /v1/rfqs/{rfq_id}/quotes",
                       "DELETE /v1/quotes/{quote_id}",
+                      "POST /v1/rfqs/{rfq_id}/declines",
                       "POST /v1/quotes/{quote_id}/confirm",
                       "GET /v1/makers/{maker_id}/acceptances",
                       "PUT /v1/makers/{maker_id}/quote-lease",
@@ -155,6 +156,7 @@
                   "GET /v1/me/operations",
                   "GET /v1/me/operations/{operation_id}",
                   "POST /v1/me/withdrawals",
+                  "POST /v1/me/run-off-claims",
                   "GET /v1/me/withdrawals/{withdrawal_id}",
                   "POST /v1/me/deposits",
                   "POST /v1/core-exits",
@@ -180,6 +182,7 @@
                 "group": "Partners & wallet sign-in",
                 "pages": [
                   "POST /v1/partner/wallet-admissions",
+                  "GET /v1/partner/report",
                   "POST /v1/auth/wallet-challenges",
                   "POST /v1/auth/wallet-sessions",
                   "DELETE /v1/auth/wallet-sessions/current"
