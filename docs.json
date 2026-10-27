@@ -392,13 +392,13 @@
     "links": [
       {
         "label": "Get an API key",
-        "href": "https://hip4.totalis.trade/account/api-keys"
+        "href": "https://app.totalis.trade/account/api-keys"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://hip4.totalis.trade"
+      "href": "https://app.totalis.trade"
     }
   },
   "contextual": {
