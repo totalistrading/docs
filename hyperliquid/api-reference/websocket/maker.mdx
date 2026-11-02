@@ -12,7 +12,7 @@ Needs a key for this `maker_id`. Connecting and resuming are on
 ```json
 {
   "method": "subscribe",
-  "subscription": { "type": "maker", "maker_id": "7" }
+  "subscription": { "type": "maker", "maker_id": "7", "publication_freshness": true }
 }
 ```
 
@@ -22,7 +22,7 @@ Needs a key for this `maker_id`. Connecting and resuming are on
 | `maker_id` | Yes | Your key's maker. Another maker's ID closes with `SUBSCRIPTION_DENIED`. |
 | `cursor` | No | Your last applied cursor. Needs `replay:read`. |
 | `account_reads` | No | `true` for `readInvalidated` frames. |
-| `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. |
+| `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. Set it: a quiet maker socket sends no other frames, so the heartbeat is how you notice it died. |
 
 Don't send `open_rfqs`: the maker snapshot always carries it, and a maker subscribe that sets it closes with
 `INVALID_SUBSCRIPTION`.
@@ -72,7 +72,7 @@ A key receives only the frames its scopes allow:
 | `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended. Stop quoting it. | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at` |
 | `QUOTE_ACCEPTED` | A taker accepted your quote | `quote_id`, `rfq_id`, `kind` (`ENTRY`, `SELL_BACK` or `TRANSFER`), `deadline`, and one terms object: `entry`, `sell_back` or `transfer`, per `kind`. Answer with [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline`. |
 | `OPERATION_UPDATED` | A maker operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
-| `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position your maker backs changed | `position_id`, `block_number`, `log_index` |
+| `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position your maker backs changed | `position_id`, `block_number`, `log_index`. Read that position with [Get position](/hyperliquid/api-reference/positions/get-position) for its status and payout. You don't need to poll positions. |
 | `MAKER_CAPITAL_UPDATED` | Your capital changed on-chain | `maker_id`, `block_number`, `log_index`. Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
 | `COLLATERAL_REDUCTION_UPDATED` | A collateral reduction changed | `job_id`, `status`, `operation_id`, `updated_at` |
 
