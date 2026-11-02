@@ -23,6 +23,7 @@ Needs a key for this `maker_id`. Connecting and resuming are on
 | `cursor` | No | Your last applied cursor. Needs `replay:read`. |
 | `account_reads` | No | `true` for `readInvalidated` frames. |
 | `publication_freshness` | No | `true` for a 1 second heartbeat and `publication` checkpoints. Set it: a quiet maker socket sends no other frames, so the heartbeat is how you notice it died. |
+| `capital` | No | `true` for [`capital` frames](#capital): your capital pushed as it changes, so you don't read it before you quote. Needs `vault:read`. |
 
 Don't send `open_rfqs`: the maker snapshot always carries it, and a maker subscribe that sets it closes with
 `INVALID_SUBSCRIPTION`.
@@ -33,7 +34,7 @@ A key receives only the frames its scopes allow:
 | --- | --- |
 | `open_rfqs`, `RFQ_*` | `rfq:read` |
 | `acceptances`, `QUOTE_ACCEPTED` | `quote:read` |
-| `operations`, `OPERATION_UPDATED`, `POSITION_*`, `MAKER_CAPITAL_UPDATED`, `COLLATERAL_REDUCTION_UPDATED` | `vault:read` |
+| `operations`, `OPERATION_UPDATED`, `POSITION_*`, `MAKER_CAPITAL_UPDATED`, `COLLATERAL_REDUCTION_UPDATED`, `capital` | `vault:read` |
 
 ## Event
 
@@ -73,7 +74,7 @@ A key receives only the frames its scopes allow:
 | `QUOTE_ACCEPTED` | A taker accepted your quote | `quote_id`, `rfq_id`, `kind` (`ENTRY`, `SELL_BACK` or `TRANSFER`), `deadline`, and one terms object: `entry`, `sell_back` or `transfer`, per `kind`. Answer with [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline`. |
 | `OPERATION_UPDATED` | A maker operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position your maker backs changed | `position_id`, `block_number`, `log_index`. Read that position with [Get position](/hyperliquid/api-reference/positions/get-position) for its status and payout. You don't need to poll positions. |
-| `MAKER_CAPITAL_UPDATED` | Your capital changed on-chain | `maker_id`, `block_number`, `log_index`. Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital). |
+| `MAKER_CAPITAL_UPDATED` | Your capital changed on-chain | `maker_id`, `block_number`, `log_index`. Read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital), or subscribe with `capital` and use the next [`capital` frame](#capital). |
 | `COLLATERAL_REDUCTION_UPDATED` | A collateral reduction changed | `job_id`, `status`, `operation_id`, `updated_at` |
 
 An RFQ stops taking quotes at `expires_at`, which sends no event.
@@ -81,6 +82,33 @@ An RFQ stops taking quotes at `expires_at`, which sends no event.
 An RFQ opened with an intent, an automatic RFQ, carries `intent_id` and `intent_generation` on its `RFQ_*` events.
 The Totalis app opens its RFQs this way, and a taker can too. A newer `intent_generation` replaces the same intent's
 earlier RFQs. Other RFQs carry neither.
+
+## Capital
+
+With `capital: true`, the stream sends your capital as a `capital` frame. `data` is the same body as
+[Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital):
+
+```json
+{
+  "channel": "capital",
+  "data": {
+    "context": { "as_of": "2026-09-26T12:00:02Z", "status": "CURRENT" },
+    "free_collateral": "4760000000",
+    "pending_commitments": "25000000",
+    "free_after_pending": "4735000000"
+  }
+}
+```
+
+The example shows a few fields; a frame carries all of them.
+
+A frame arrives right after you subscribe, again when your capital changes (a fill, a hold from a quote, a deposit or a
+withdrawal), and at least every 5 seconds. Each is usually about a second behind the change. Keep the latest frame
+and check `free_after_pending` against it before you quote, instead of reading capital in your quote path. Check
+`context.status` too: treat anything but `CURRENT` as you would on the HTTP read.
+
+If no `capital` frame arrives for 15 seconds, read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)
+until one does. Capital frames are not events: they have no cursor and a replay doesn't resend them.
 
 ## Snapshot
 
