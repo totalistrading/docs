@@ -43,7 +43,7 @@ A market can be a leg when both hold:
 | --- | --- | --- |
 | `eligibility.state` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
 | `combo.state` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
-| `chance`, on both sides | Not `null`, with `best_ask - best_bid` at most 20 cents | The book is too thin to price. RFQ entry refuses the leg with `BOOK_TOO_WIDE`. |
+| `chance`, on both sides | Not `null` | The book is empty, dust or one-sided, so it has no price. RFQ entry refuses the leg with `CHANCE_UNAVAILABLE`. |
 
 `combo.reason` is one of:
 
