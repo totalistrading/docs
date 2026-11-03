@@ -127,6 +127,9 @@ The stream is the only replay; there is no HTTP event log. The replay window is 
 ## Heartbeats, drain and reset
 
 - The server sends a WebSocket ping every `heartbeat_interval_ms`. Answer with a pong within 5 seconds, or the server drops the connection.
+- Most WebSocket APIs answer pings for you and never show them, so a ping can't tell you a socket died. Subscribe with
+  `publication_freshness: true` and treat a few missed heartbeats as a dead socket: close it and resume from your
+  cursor. Give up the same way on a connect whose `subscriptionResponse` doesn't arrive. The SDK does both.
 - On `drain`, open a new connection, resume from your cursor, then close the old one. The server
   closes it with `CONNECTION_DRAIN` by `deadline`.
 - On `reset`, discard local state and reconnect without a cursor.

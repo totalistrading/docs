@@ -43,7 +43,7 @@ Get deployment needs no key.
 
 | Step | Endpoint or event |
 | --- | --- |
-| Check your capital | [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/makers/get-maker-capital) |
+| Check your capital | [`capital` frames](/hyperliquid/api-reference/websocket/maker#capital) on the maker channel, or [`GET /v1/makers/{maker_id}/capital`](/hyperliquid/api-reference/makers/get-maker-capital) |
 | Receive RFQs | `RFQ_CREATED` on the [maker channel](/hyperliquid/api-reference/websocket/maker) |
 | Read fees and the signing domain | [`GET /v1/deployment`](/hyperliquid/api-reference/deployment/get-deployment), no key |
 | Quote, or replace your quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
@@ -270,7 +270,8 @@ Before you quote:
 
 - Read [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) for the current fees. A
   quote with other fees is refused.
-- Read your capital. If `context.status` is not `CURRENT`, stop quoting until it is.
+- Check your capital: the latest [`capital` frame](/hyperliquid/api-reference/websocket/maker#capital) if you
+  subscribed with `capital`, otherwise a read. If `context.status` is not `CURRENT`, stop quoting until it is.
 
 ### Hedge on Hyperliquid
 
