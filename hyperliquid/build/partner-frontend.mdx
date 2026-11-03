@@ -174,8 +174,11 @@ for (const call of calls) await walletClient.sendTransaction(call);
 
 ## Signatures and quote life
 
-An entry takes one to three signatures, depending on where the stake comes from. `signEntry` asks for them all at
-once, before anything is sent.
+An entry takes one to three signatures, depending on where the stake comes from. `openPosition` asks for the
+funding ones first, while quotes arrive, then for `TakerAccept` once it has picked the quote, and sends the accept
+at once. In your own flow, use `prepareEntryFunding`, then `signEntry({ quote, prepared })`
+([Resume and retry](/hyperliquid/sdk/resume-and-retry#sign-the-funding-first)).
+`signEntry` without `prepared` asks for them all at once.
 
 | The stake comes from | The wallet signs | Prompts |
 | --- | --- | --- |
@@ -192,6 +195,12 @@ An entry quote can be accepted until its `accept_before`, 14 seconds before its 
 maker to confirm and the trade to land. Every prompt spends that time, so sign at once. `bestQuote()` keeps the
 highest payout whose `accept_before` is still ahead on the venue's clock. To pick from your own list, pass that
 clock: `bestQuote()(quotes, totalis.stream.serverNow())`, or the `serverNowMs` that `watchQuotes` gives you.
+
+Makers replace a quote when they renew it, and the venue keeps one live quote per maker, so an accept can arrive
+after its quote was replaced (`QUOTE_REPLACED`). Pick the quote as late as you can, after the funding is signed. If
+it is gone, nothing traded: take the best quote still paying what you showed the user and sign again.
+`openPosition` does this for you, up to `maxAttempts` within `refreshMs`. When every retry needs a wallet prompt,
+consider one attempt and let the user press again.
 
 The accept goes first. The bridge from HyperCore goes only after the maker confirms, and only before the
 acceptance's `fund_by`, two seconds after the confirm. An accept the maker declines, or that times out, moves

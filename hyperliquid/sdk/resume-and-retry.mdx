@@ -21,9 +21,28 @@ const result = await totalis.sendAcceptance(signed, { onRecord: save });
 const resumed = await totalis.recoverAcceptance(await load(), { onRecord: save }); // never signs again
 ```
 
+### Sign the funding first
+
+The funding depends only on the stake, so it can be signed before a quote is chosen. Then only `TakerAccept`
+is left to sign once you pick, and the accept goes out straight after. Makers replace their quotes as they renew
+them, so the less time between the pick and the send, the less often a quote is gone when the accept arrives.
+`openPosition` works this way.
+
+```ts
+const prepared = await totalis.prepareEntryFunding({ stake, core, cash });   // while quotes arrive
+const signed = await totalis.signEntry({ quote: best, prepared });           // TakerAccept only
+await save(signed);
+const result = await totalis.sendAcceptance(signed, { onRecord: save });
+```
+
+A prepared funding is for one accept. If the venue refuses it with `QUOTE_REPLACED` or `QUOTE_EXPIRED`, or the
+maker answers `DECLINED` or `TIMED_OUT`, nothing traded and any bridge was discarded. Prepare again for the
+next quote. Before you sign the next one, mark a refused record with `refused: error.code` and persist it, so
+`recoverAcceptance` answers it `NOT_ADMITTED` from the record without cancelling the RFQ the next accept uses.
+
 ### `signEntry({ quote, core, cash })`
 
-Asks the wallet for every signature the entry needs, at once. It plans the funding from `cash` (a
+Without `prepared`, asks the wallet for every signature the entry needs, at once. It plans the funding from `cash` (a
 `spendableCash()` read) or, without it, from current balances: free vault cash first, then the wallet, then a
 bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
 

@@ -41,16 +41,23 @@ if (opened.operationId) {
 Legs go in strictly ascending `outcome_id` order. `openPosition`:
 
 1. Waits for the account stream, then creates the RFQ.
-2. Collects quotes and picks the best one.
-3. Has the wallet sign `TakerAccept`, plus any funding the vault is short of.
-4. Sends one accept, and recovers it if the answer is lost.
+2. Has the wallet sign any funding the vault is short of, while quotes arrive.
+3. Collects quotes and picks the best one.
+4. Has the wallet sign `TakerAccept` for it and sends the accept at once. If the answer is lost, it recovers
+   the accept.
+5. If the quote was replaced or expired before the accept arrived, or the maker declined it or didn't answer,
+   nothing traded. It signs the best other quote paying at least `minPayout` and tries again. The next quote
+   gets its own funding signature. It stops after `refreshMs` or `maxAttempts`.
 
-It returns once the maker answers. `status` says what happened:
+Makers replace their quotes as they renew them, so step 5 is what keeps a slow wallet from losing its quote.
+
+It returns once a maker answers. `status` says what happened:
 
 | `status` | Meaning |
 | --- | --- |
 | `ACCEPTED` | The maker confirmed. Follow `operationId` with `waitForOperation`. |
-| `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded |
+| `DECLINED`, `TIMED_OUT` | Nothing traded, and no other quote paying at least `minPayout` came in time |
+| `CANCELLED` | Nothing traded |
 | `NOT_ADMITTED` | Every response was lost and the venue had no acceptance, so the SDK cancelled the RFQ. Nothing traded. |
 | `FILLED`, `FAILED` | Only after a lost answer is recovered: the trade had already committed, or already failed |
 
@@ -72,7 +79,10 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 | `funding` | `"wallet"` | `"wallet"` funds the exact shortfall from the wallet; `"none"` never funds; a funding command you built is sent as is |
 | `core` | | HyperCore spot USDC you offer to bridge to the wallet when its HyperEVM USDC falls short |
 | `cash` | | A `spendableCash()` read to plan from. Left out, balances are read while quotes arrive. |
-| `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. Persist it. |
+| `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. If the venue refuses the accept for a replaced or expired quote, it is called with the record marked `refused`. Persist the latest record. |
+| `minPayout` | The first chosen quote's payout | The least payout a later quote may pay. A retry never takes less than you were shown unless you lower it. |
+| `refreshMs` | 10,000 | How long after the first quote is chosen a lost quote may still be followed by another |
+| `maxAttempts` | 4 | The most accepts sent, the first included. `1` never tries another quote. |
 
 `bestQuote()` takes the highest payout still before its `accept_before`. A custom `choose` may be called again
 for a later time, so it must depend only on its arguments. Collection ends early if waiting would lose the quote
