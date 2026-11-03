@@ -33,23 +33,51 @@ curl https://hip4-api.totalis.trade/v1/rfqs \
 { "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a" }
 ```
 
+#### Which markets can be a leg
+
+Every market from [List markets](/hyperliquid/api-reference/markets/list-markets) and
+[Get market](/hyperliquid/api-reference/markets/get-market) says whether it can be a Combo leg now.
+A market can be a leg when both hold:
+
+| Field | Value | Otherwise |
+| --- | --- | --- |
+| `eligibility.state` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
+| `combo.state` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
+| `chance`, on both sides | Not `null` | The book is empty, dust or one-sided, so it has no price. RFQ entry refuses the leg with `CHANCE_UNAVAILABLE`. |
+
+`combo.reason` is one of:
+
+| `combo.reason` | Meaning |
+| --- | --- |
+| `OUTSIDE_WINDOW` | The event is more than 7 days away (`opens_at` is when it enters the window), its time is unknown, or its result can already be known. A sports game stays open while it is played. |
+| `UNLISTED_DEPLOYER` | Totalis does not list the market's deployer. |
+| `EXCLUDED` | Totalis keeps this market out of Combos. |
+
+Show a market's price as its `chance`, never its `value`. `value` is the raw book midpoint, so an
+empty book reads 50 cents. A `chance` of `null` means the market has no price. Don't estimate a
+Combo's payout by multiplying leg prices: legs can be related, and the quote is the price.
+
+These fields change with the clock, the book and the market's state, so read them close to the RFQ. A market can
+trade alone while `combo.state` is `CLOSED`. A one-leg RFQ checks the same fields.
+
 #### Which legs combine
 
-Each leg is one outcome, so a Combo holds at most one leg per `outcome_id`. The leg count is on
-[Limits](/hyperliquid/limits-and-fees).
+A Combo holds at most one leg per question. Outcomes of one question share `native_question_id`
+([Get market](/hyperliquid/api-reference/markets/get-market)). A standalone market has none and
+combines with anything. The leg count is on [Limits](/hyperliquid/limits-and-fees).
 
 | Legs | Result |
 | --- | --- |
-| Different outcomes, in ascending `outcome_id` order | Accepted, whether or not they share a question. |
-| `YES` on two outcomes of one question | Accepted, but it can never win: Hyperliquid settles exactly one outcome of a question to `YES`. Block it in your slip. |
+| Outcomes of different questions, or standalone markets, in ascending `outcome_id` order | Accepted. |
+| Two outcomes of one question, any sides | `400 INVALID_REQUEST`, reason `SAME_QUESTION` on the second leg. Hyperliquid settles exactly one outcome of a question to `YES`, so makers price these legs as one event. Let a pick replace the question's leg in your slip. |
 | `YES` and `NO` of the same outcome | `400 INVALID_REQUEST`. |
 | The same leg twice | `400 INVALID_REQUEST`. |
 | Legs out of ascending `outcome_id` order | `400 INVALID_REQUEST`. |
 | No legs, or more than the limit | `400 INVALID_REQUEST`. |
 | A `side` other than `YES` or `NO`, or an `outcome_id` that is not a canonical decimal | `400 INVALID_REQUEST`. |
-| A leg whose market takes no new Combo position now | `400 INVALID_REQUEST`, with `field_violations` naming `/legs/{i}/outcome_id` and the reason in the message ([Errors](/hyperliquid/errors#codes)). |
+| A leg whose market can't be a leg now ([above](#which-markets-can-be-a-leg)) | `400 INVALID_REQUEST`, with `field_violations` naming `/legs/{i}/outcome_id` and the reason in the message ([Errors](/hyperliquid/errors#codes)). |
 
-Outcomes of one question share `native_question_id` ([Get market](/hyperliquid/api-reference/markets/get-market)).
+An accepted RFQ can still get no quote: each maker prices the legs and can decline.
 
 ### Collect quotes
 
