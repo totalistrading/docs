@@ -43,6 +43,7 @@ A market can be a leg when both hold:
 | --- | --- | --- |
 | `eligibility.state` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
 | `combo.state` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
+| `chance`, on both sides | Not `null`, with `best_ask - best_bid` at most 20 cents | The book is too thin to price. RFQ entry refuses the leg with `BOOK_TOO_WIDE`. |
 
 `combo.reason` is one of:
 
@@ -52,7 +53,11 @@ A market can be a leg when both hold:
 | `UNLISTED_DEPLOYER` | Totalis does not list the market's deployer. |
 | `EXCLUDED` | Totalis keeps this market out of Combos. |
 
-Both fields change with the clock and the market's state, so read them close to the RFQ. A market can
+Show a market's price as its `chance`, never its `value`. `value` is the raw book midpoint, so an
+empty book reads 50 cents. A `chance` of `null` means the market has no price. Don't estimate a
+Combo's payout by multiplying leg prices: legs can be related, and the quote is the price.
+
+These fields change with the clock, the book and the market's state, so read them close to the RFQ. A market can
 trade alone while `combo.state` is `CLOSED`. A one-leg RFQ checks the same fields.
 
 #### Which legs combine
