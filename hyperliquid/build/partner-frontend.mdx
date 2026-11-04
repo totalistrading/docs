@@ -1,7 +1,7 @@
 ---
 title: 'Your users'' own wallets'
 icon: 'wallet'
-description: 'Put Totalis in your own frontend. Your users sign in with their own wallet, which is their Totalis account, and trade through the SDK. Admission, sign-in, sessions, funding, withdrawals, attribution and errors.'
+description: 'Put Totalis in your own frontend. Your users sign in with their own wallet, which is their Totalis account, and trade through the SDK. Admission, sign-in, sessions, funding, withdrawals, vault agents, attribution and errors.'
 ---
 
 Your users trade with their own wallet. The wallet is the Totalis account: it signs in once, then signs its own
@@ -180,11 +180,11 @@ at once. In your own flow, use `prepareEntryFunding`, then `signEntry({ quote, p
 ([Resume and retry](/hyperliquid/sdk/resume-and-retry#sign-the-funding-first)).
 `signEntry` without `prepared` asks for them all at once.
 
-| The stake comes from | The wallet signs | Prompts |
-| --- | --- | --- |
-| Free vault cash | `TakerAccept` | 1 |
-| The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, USDC `ReceiveWithAuthorization` | 2 |
-| The wallet's HyperCore USDC, for what HyperEVM lacks (`core`) | `TakerAccept`, Hyperliquid `SendAsset`, USDC `ReceiveWithAuthorization` | 3 |
+| The stake comes from | The wallet signs | Prompts | Prompts with a [vault agent](#vault-agents) |
+| --- | --- | --- | --- |
+| Free vault cash | `TakerAccept` | 1 | 0 |
+| The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, USDC `ReceiveWithAuthorization` | 2 | 1 |
+| The wallet's HyperCore USDC, for what HyperEVM lacks (`core`) | `TakerAccept`, Hyperliquid `SendAsset`, USDC `ReceiveWithAuthorization` | 3 | 2 |
 
 Every one of them, the Hyperliquid bridge included, names the deployment's chain: `chain_id` in
 [Get deployment](/hyperliquid/api-reference/deployment/get-deployment), `999` in production and `998` on staging.
@@ -238,7 +238,7 @@ const exit = await totalis.exitToCore({ amount: 5_000_000n });
 await totalis.waitForCoreExit(exit.exit_id); // resolves once HyperCore credits it
 ```
 
-The wallet signs an `Exit`, and Totalis pays the gas ([Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit),
+The wallet, or its [vault agent](#vault-agents), signs an `Exit`, and Totalis pays the gas ([Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit),
 [Get HyperCore exit](/hyperliquid/api-reference/core-exits/get-hypercore-exit)). One move at a time per account: another is
 `CORE_MOVE_IN_FLIGHT`.
 
@@ -268,27 +268,126 @@ one minimum and one hourly count ([Limits](/hyperliquid/limits-and-fees#wallet-s
 | Below the minimum | `400 INVALID_REQUEST`, naming the amount field |
 | Over the hourly count | `429 RATE_LIMITED`, with `Retry-After` |
 
+## Vault agents
+
+A vault agent is a key the account's wallet approves once. Until the grant ends, the agent signs the account's
+entry accepts, cash-outs and moves of vault cash back to the account, so those need no wallet prompt. It works for the Totalis
+vault the way a Hyperliquid agent wallet works for HyperCore orders. Which messages it can sign is in
+[Every signature](#every-signature). The wallet still signs everything that moves USDC out of the wallet, out of
+HyperCore or to another address.
+
+<Steps>
+  <Step title="The wallet grants the agent, from a wallet session">
+    ```ts
+    import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+
+    const agentKey = generatePrivateKey(); // store it as a secret
+    const agent = privateKeyToAccount(agentKey);
+
+    const totalis = createTotalis({
+      environment: "production",
+      accessToken: session.access_token,
+      signer: wallet,
+      partnerKey,
+    });
+    const { operation_id } = await totalis.grantVaultAgent({
+      agent: agent.address,
+      validUntil: Math.floor(Date.now() / 1000) + 90 * 86_400, // unix seconds
+    });
+    const granted = await totalis.waitForOperation(operation_id);
+    if (granted.status !== "COMMITTED") throw new Error(`grant ${granted.status}`);
+    ```
+
+    The wallet signs an `AgentGrant`, and Totalis relays it to the vault and pays the gas
+    ([Domain](/hyperliquid/authentication#domain), [Types](/hyperliquid/authentication#types)). The agent signs
+    nothing until the operation is `COMMITTED`; a grant that ends any other way granted nothing. An API key cannot
+    grant, revoke or list agents: all three need the wallet session.
+  </Step>
+  <Step title="The agent signs">
+    ```ts
+    const totalis = createTotalis({
+      environment: "production",
+      accessToken: apiKey, // the account's ttk_ key, or its session
+      signer: wallet,      // the account; signs what the agent cannot
+      agent,
+    });
+
+    await totalis.openPosition({ legs, stake: 5_000_000n }); // agent: TakerAccept
+    await totalis.cashOut({ positionId });                   // agent: SellBack or CashoutTransfer
+    ```
+
+    `signer` stays required: the SDK reads the account from it, and asks it for every message the agent cannot
+    sign. `openPosition` asks the wallet for any funding first, while quotes arrive, and the agent signs the accept
+    as soon as a quote is picked.
+  </Step>
+</Steps>
+
+| Item | Rule |
+| --- | --- |
+| Lifetime | `validUntil` in unix seconds, at most the [grant limit](/hyperliquid/limits-and-fees#vault-agents) ahead. Grant again before it ends; the new grant replaces the old one. |
+| Nonce | Each grant or revoke for an agent needs a higher `nonce` than that agent's last. The SDK uses the current time. |
+| Revoke | `revokeVaultAgent({ agent })` from a wallet session, then `waitForOperation`. The agent keeps signing until that operation is `COMMITTED`; check its `status`. |
+| List | `vaultAgents()` from a wallet session returns the account's live agents with `valid_until` and `nonce`. |
+| Several agents | Each device or server can hold its own agent with its own grant. |
+| Signature | An agent signs as a plain key (ECDSA), not a contract wallet. |
+| Refused | An accept, cash-out or `Exit` signed by an agent without a live grant that outlasts the message's expiry is `422 WRONG_AUTHORITY`. Nothing trades. Grant again, or sign with the wallet. |
+
+An agent cannot send cash anywhere but the account's own wallet or HyperCore. It can still spend the account's
+vault cash on positions, including against a maker its holder controls, and sell the account's positions at any
+price. Make a separate agent for each account, keep its key secret, and revoke it when the user disconnects or
+the key may have leaked.
+
+### Agent on your server, wallet on the device
+
+Your server can hold the account's API key and its agent while the wallet stays on the user's device. Give
+`createTotalis` a `signer` that names the account and sends each wallet message to the device:
+
+```ts
+import type { TotalisSigner } from "@totalis/hip4-client/signer";
+
+// askDevice is your round trip to the user's wallet on their device.
+const wallet: TotalisSigner = {
+  address: async () => user.wallet,
+  signTypedData: (typedData) => askDevice(user, typedData),
+  signMessage: (message) => askDevice(user, message),
+};
+
+const totalis = createTotalis({
+  environment: "production",
+  accessToken: user.apiKey,
+  signer: wallet,
+  agent: user.agent,
+});
+```
+
+An entry from free vault cash, a cash-out and an exit to HyperCore never call the device. An entry funded from the
+wallet or HyperCore asks the device for its funding before the quote is picked, so the round trip does not spend
+the quote's `accept_before`. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
+key need a wallet session, so run them while the user is signed in.
+
 ## Every signature
 
-Each action the wallet signs, and what it signs. Typed data is `eth_signTypedData_v4`; the full domains and types
+Each action the wallet signs, and what it signs. With a [vault agent](#vault-agents), the agent signs the messages
+in the Agent column in the wallet's place. Typed data is `eth_signTypedData_v4`; the full domains and types
 are on [Domain](/hyperliquid/authentication#domain) and [Types](/hyperliquid/authentication#types). Read the
 values from [Get deployment](/hyperliquid/api-reference/deployment/get-deployment).
 
-| Action | SDK | Message | `chainId` | `verifyingContract` |
-| --- | --- | --- | --- | --- |
-| Consent to your partner slug | `signAdmissionConsent` | `personal_sign` | In the text | |
-| Sign in | `signInWithWallet` | `personal_sign` (Sign-In with Ethereum) | In the text | |
-| Issue an API key | `issueApiKey`, `rotateApiKey` | `personal_sign` (Sign-In with Ethereum) | In the text | |
-| Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | `chain_id` | `vault_address` |
-| Fund an entry from the wallet | `openPosition`, `signEntry` | `ReceiveWithAuthorization` | `usdc.eip712_domain.chain_id` | `usdc.address` |
-| Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | `chain_id` | `0x0000000000000000000000000000000000000000` |
-| Cash out | `cashOut`, `signCashout` | `SellBack` or `CashoutTransfer` | `chain_id` | `vault_address` |
-| Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | `chain_id` | `vault_address` |
-| Withdraw: payout | `withdraw`, `signWithdrawal` | `TransferWithAuthorization` | `usdc.eip712_domain.chain_id` | `usdc.address` |
-| Deposit, sponsored | `signDeposit` | `ReceiveWithAuthorization` | `usdc.eip712_domain.chain_id` | `usdc.address` |
-| Exit to HyperCore | `exitToCore`, `signCoreExit` | `Exit` | `chain_id` | `vault_address` |
-| Return to HyperCore | `returnToCore`, `signReturnToCore` | `ReceiveWithAuthorization`, then `Exit` | As above | As above |
-| Deposit, self-sent | `directDepositCalls` | Two transactions: `approve` to `usdc.address`, `depositUser` to `vault_address` | `chain_id` | |
+| Action | SDK | Message | Agent | `chainId` | `verifyingContract` |
+| --- | --- | --- | --- | --- | --- |
+| Consent to your partner slug | `signAdmissionConsent` | `personal_sign` | No | In the text | |
+| Sign in | `signInWithWallet` | `personal_sign` (Sign-In with Ethereum) | No | In the text | |
+| Issue an API key | `issueApiKey`, `rotateApiKey` | `personal_sign` (Sign-In with Ethereum) | No | In the text | |
+| Grant or revoke a vault agent | `grantVaultAgent`, `revokeVaultAgent` | `AgentGrant` | No | `chain_id` | `vault_address` |
+| Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | Yes | `chain_id` | `vault_address` |
+| Fund an entry from the wallet | `openPosition`, `signEntry` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | No | `chain_id` | `0x0000000000000000000000000000000000000000` |
+| Cash out | `cashOut`, `signCashout` | `SellBack` or `CashoutTransfer` | Yes | `chain_id` | `vault_address` |
+| Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | Yes | `chain_id` | `vault_address` |
+| Withdraw: payout | `withdraw`, `signWithdrawal` | `TransferWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Deposit, sponsored | `signDeposit` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Exit to HyperCore | `exitToCore`, `signCoreExit` | `Exit` | Yes | `chain_id` | `vault_address` |
+| Return to HyperCore | `returnToCore`, `signReturnToCore` | `ReceiveWithAuthorization`, then `Exit` | `Exit` | As above | As above |
+| Deposit, self-sent | `directDepositCalls` | Two transactions: `approve` to `usdc.address`, `depositUser` to `vault_address` | No | `chain_id` | |
 
 The bridge's domain is Hyperliquid's: its `verifyingContract` is the zero address. If your signing policy
 allowlists verifying contracts, add the zero address on `chain_id` for `HyperliquidTransaction:SendAsset` only.
@@ -313,6 +412,7 @@ of that type: an allowed `TransferWithAuthorization` pays anyone.
   | `SellBack`, `CashoutTransfer` | The terms of the bid the user chose, with the owner or seller the user's wallet |
   | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `deployment.router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
   | `TransferWithAuthorization` | `from` the user's wallet, and the `to` and `value` the user entered. The `nonce` is `payoutNonce`, derived from the user's wallet and the withdrawal's `Idempotency-Key`, which binds the payout to that one withdrawal. Derive it yourself. |
+  | `AgentGrant` | `account` the user's wallet, `agent` the key you made for that user, and `validUntil` the end the user approved, or `0` for a revoke |
 
 - **One user, one signer.** Resolve the wallet from the user's own authenticated request every time. Never fall
   back to a shared or default wallet. Each user signs in with their own wallet and keeps their own Totalis session

@@ -72,6 +72,16 @@ For accounts that sign in with their own wallet ([Your users' own wallets](/hype
 | `builder_authorization_expiry` | In the future, at most 300 seconds ahead |
 | Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
 
+## Vault agents
+
+For [vault agents](/hyperliquid/build/partner-frontend#vault-agents).
+
+| Item | Value |
+| --- | --- |
+| Grant lifetime (`validUntil`) | In the future, at most 180 days ahead. `0` revokes. |
+| Grant `nonce` | Higher than the agent's last grant or revoke |
+| Agents per account | No fixed limit. Each has its own grant. |
+
 ## Deposits and exits
 
 For every account. A sponsored deposit needs a wallet session, and a wallet that controls a maker cannot deposit.

@@ -1,7 +1,7 @@
 ---
 title: 'Wallets and partners'
 icon: 'wallet'
-description: 'Sign a user in with their own wallet, admit wallets from a partner server, deposit, move cash to HyperCore and issue keys from a session.'
+description: 'Sign a user in with their own wallet, admit wallets from a partner server, deposit, move cash to HyperCore, grant vault agents and issue keys from a session.'
 ---
 
 In your own frontend, each user trades with their own wallet. They sign in to get a session, and that session
@@ -93,6 +93,18 @@ and `sendCoreExit` split it into sign and send.
 `returnToCore` throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`). A wallet embedded in
 your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, so both functions throw
 `ExitUnavailableError` there, before anything is signed.
+
+## Vault agents
+
+| Function | Does |
+| --- | --- |
+| `totalis.grantVaultAgent({ agent, validUntil })` | The wallet signs an `AgentGrant` for `agent` and Totalis relays it. Returns `operation_id`; follow it with `waitForOperation`. Needs a wallet session. |
+| `totalis.revokeVaultAgent({ agent })` | The same with `validUntil` `0`. The agent keeps signing until its operation is `COMMITTED`. |
+| `totalis.vaultAgents()` | The account's live agents, each with `valid_until` and `nonce`. Needs a wallet session. |
+| `createTotalis({ ..., signer, agent })` | The agent signs `TakerAccept`, `SellBack`, `CashoutTransfer` and an `Exit` back to the account in place of `signer`. `signer` names the account and signs the rest. |
+
+`agent` takes the same signer shapes as `signer`. Its grant rules, risk and a server-side setup are on
+[Vault agents](/hyperliquid/build/partner-frontend#vault-agents).
 
 ## Issue a key from a session
 
