@@ -9,8 +9,8 @@ curl https://hip4-api.totalis.trade/v1/me \
   -H "Authorization: Bearer $TOTALIS_API_KEY"
 ```
 
-A key authenticates the call. The vault contract only moves funds with a signature from the funds' owner,
-sent in the request body. Market reads need no key and ignore one. Get deployment and the RFQ reads need no key
+A key authenticates the call. The vault contract only moves funds with a signature from the funds' owner, or
+from a [vault agent](/hyperliquid/build/partner-frontend#vault-agents) the owner granted, sent in the request body. Market reads need no key and ignore one. Get deployment and the RFQ reads need no key
 either, but an invalid, expired or revoked key on them returns `401`.
 
 | Credential | For | Issued by |
@@ -137,18 +137,23 @@ and [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 
 | Action | Signer | Message | Body field |
 | --- | --- | --- | --- |
-| Accept an entry quote | Your wallet | `TakerAccept` | `taker_signature` |
-| Accept a cash-out quote | The owner | `SellBack` or `CashoutTransfer` | `taker_signature` |
+| Accept an entry quote | Your wallet, or its vault agent | `TakerAccept` | `taker_signature` |
+| Accept a cash-out quote | The owner, or its vault agent | `SellBack` or `CashoutTransfer` | `taker_signature` |
 | Confirm an entry quote | The maker wallet | `Quote` | `maker_signature` |
 | Confirm a cash-out quote | The maker wallet | `SellBack` or `CashoutTransfer` | `maker_signature` |
 | Fund an accept | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
 | Bridge USDC from HyperCore into an entry | Your wallet | `HyperliquidTransaction:SendAsset` | None. Sent to Hyperliquid after the maker confirms, before the acceptance's `fund_by`. |
 | Deposit | Your wallet | USDC `ReceiveWithAuthorization` | [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) body (wallet session only) |
-| Withdraw: vault shortfall | Your wallet | `Exit` | `vault_withdrawal.signature` |
+| Withdraw: vault shortfall | Your wallet, or its vault agent | `Exit` | `vault_withdrawal.signature` |
 | Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |
+| Exit to HyperCore | Your wallet, or its vault agent | `Exit` | [Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit) `command.signature` |
+| Grant or revoke a vault agent | Your wallet | `AgentGrant` | `POST /v1/me/vault-agents` body (wallet session only) |
+
+A vault agent signs only the rows that name it, and an agent's `Exit` only pays the account's own wallet or its
+HyperCore spot balance ([Vault agents](/hyperliquid/build/partner-frontend#vault-agents)).
 
 Settling and claiming need no signature. Send signatures as lowercase hex with `v` of 27 or 28. EOA and
-ERC-1271 signatures are accepted.
+ERC-1271 signatures are accepted from your wallet. A vault agent signs as an EOA.
 
 ## Domain
 
@@ -170,7 +175,7 @@ fees before each quote.
 
 | Messages | EIP-712 domain |
 | --- | --- |
-| `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit` | `{ name: "TotalisParlay", version: "1", chainId: chain_id, verifyingContract: vault_address }` |
+| `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit`, `AgentGrant` | `{ name: "TotalisParlay", version: "1", chainId: chain_id, verifyingContract: vault_address }` |
 | `ReceiveWithAuthorization`, `TransferWithAuthorization` | `usdc.eip712_domain` |
 | `HyperliquidTransaction:SendAsset`, the HyperCore bridge into an entry | `{ name: "HyperliquidSignTransaction", version: "1", chainId: chain_id, verifyingContract: "0x0000000000000000000000000000000000000000" }` |
 
@@ -183,6 +188,7 @@ Leg(uint32 outcomeId,uint8 side)
 SellBack(bytes32 ticketId,uint128 price,address owner,uint64 expiry,uint256 salt,bytes32 legState)
 CashoutTransfer(bytes32 ticketId,uint128 price,address seller,address buyer,uint64 expiry,uint256 salt,bytes32 legState)
 Exit(address account,address to,uint128 amount,uint64 expiry,uint256 salt)
+AgentGrant(address account,address agent,uint64 validUntil,uint64 nonce)
 ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
 TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
 HyperliquidTransaction:SendAsset(string hyperliquidChain,string destination,string sourceDex,string destinationDex,string token,string amount,string fromSubAccount,uint64 nonce)

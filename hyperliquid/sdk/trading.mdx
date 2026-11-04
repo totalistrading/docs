@@ -151,7 +151,8 @@ if (sale.operationId) await totalis.waitForOperation(sale.operationId);
 ```
 
 `cashOut` requests bids for the position, picks one with `bestBid()` (by default, the best bid with at least 25
-seconds left), has the owner sign it, and sends one accept. It takes `choose` and `collectMs` like
+seconds left), has the owner, or its [vault agent](/hyperliquid/build/partner-frontend#vault-agents), sign it, and
+sends one accept. It takes `choose` and `collectMs` like
 `openPosition`.
 
 ## Withdraw

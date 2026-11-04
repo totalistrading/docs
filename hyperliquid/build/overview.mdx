@@ -10,11 +10,12 @@ Totalis is open to builders. Pick the path that matches what you ship.
 | --- | --- | --- | --- | --- |
 | A bot or script | You | Your own Totalis account | An API key (`ttk_`) and your wallet key | [Quickstart](/hyperliquid/quickstart) |
 | A market maker | Your maker | Your maker | A maker API key (`ttk_`) and the maker wallet | [Market making](/hyperliquid/guides/market-making) |
-| A frontend | Your users | Each user's own wallet | Partner credentials: server key, browser key, registered origins and a builder signer | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
+| A frontend | Your users | Each user's own wallet | Partner credentials: server key, browser key and registered origins | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
 | Attribution on accounts you did not admit | Users of your page | Any account no partner admitted | A builder code for your origin and a builder signer | [Builder codes](/hyperliquid/build/builder-codes) |
 
 Every path uses the same API and the [TypeScript SDK](/hyperliquid/sdk/overview). Totalis never holds a user's key:
-every bet, cash-out and withdrawal is signed by the account's own wallet.
+every bet, cash-out and withdrawal is signed by the account's own wallet, or by a
+[vault agent](/hyperliquid/build/partner-frontend#vault-agents) the wallet approved.
 
 ## Credentials
 
@@ -34,7 +35,7 @@ Staging keys carry `stg` instead of `prd`: see [Staging](/hyperliquid/build/stag
 ## Get access
 
 Email [founders@totalis.trade](mailto:founders@totalis.trade). There is no self-serve signup for partner
-credentials or the SDK.
+credentials. The [SDK](/hyperliquid/sdk/overview) is public on npm.
 
 <Steps>
   <Step title="Send us">
@@ -44,10 +45,8 @@ credentials or the SDK.
     | Partner slug you want | `acme`: lowercase letters, digits and hyphens, up to 63 characters, starting with a letter or digit | Partner credentials |
     | Production origins | `https://app.acme.com` | Partner credentials |
     | Staging origins | `https://staging.acme.com` | Staging credentials |
-    | Builder signer address | `0x...`, a key your server holds | Partner credentials. Required to register you; used to sign origin builder codes. |
-    | Payout address on HyperEVM | `0x...` | Revenue share |
-    | GitHub account | `acme-bot` | SDK access |
-    | Expected volume | Users, RFQs per day, typical stake | Sizing your rate limits |
+    | Payout address on HyperEVM | `0x...` | Revenue share on production |
+    | Builder signer address | `0x...`, a key your server holds | Origin builder codes only. Skip it if every account you serve is one you admit. |
   </Step>
   <Step title="You receive">
     | Item | Over |
@@ -66,7 +65,7 @@ Incidents and planned maintenance are posted on [status.totalis.trade](https://s
 Subscribe there to hear about them by email.
 
 A bot on your own account needs none of this. Create an API key in the
-[Totalis app](https://app.totalis.trade/account/api-keys) and email us only for SDK access.
+[Totalis app](https://app.totalis.trade/account/api-keys).
 
 ## Next
 
