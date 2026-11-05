@@ -91,6 +91,33 @@ or pass `quoteTimeoutMs`.
 Funding comes from free vault cash first, then the wallet, then a bridge of `core`. 0.05 USDC stays behind for
 the bridge's gas.
 
+### How much one Combo can stake
+
+`readComboCash()` reads the account's balances and the signer's HyperCore cash together, and answers the largest
+stake `openPosition` can fund now:
+
+```ts
+const cash = await totalis.readComboCash();
+if (cash.allowance === null) throw new Error("Cash could not be read; try again");
+if (stake > cash.allowance) throw new Error("Not enough cash for this stake");
+
+await totalis.openPosition({ legs, stake, cash, core: cash.offeredCore });
+```
+
+| Field | Is |
+| --- | --- |
+| `vault` | Free vault cash |
+| `wallet` | The wallet's HyperEVM USDC, less what pending work has reserved |
+| `core` | HyperCore spot USDC less its hold |
+| `coreMode` | `STANDARD`, `UNIFIED` or `PORTFOLIO_MARGIN`. A Portfolio Margin account offers no HyperCore cash. |
+| `setupFee` | Whether a bridge from HyperCore still pays Hyperliquid's one-time 1 USDC setup fee |
+| `offeredCore` | The HyperCore USDC to pass as `core`: `core`, less the setup fee while it is owed |
+| `allowance` | `vault` + `wallet` + what a bridge can move of `offeredCore`: all of it less 0.05 USDC for the bridge's gas, and nothing when that leaves less than zero |
+
+All amounts are atomic USDC. A field is `null` when it could not be read, and `allowance` is then `null` too:
+an unread balance is never counted as zero. Pass the read as `cash` and `offeredCore` as `core` so
+`openPosition`, `signEntry` and `prepareEntryFunding` plan from the same numbers.
+
 ### Why an entry did not trade
 
 An entry can fail before it is sent, or after it is accepted.
