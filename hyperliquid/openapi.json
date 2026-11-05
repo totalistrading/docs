@@ -17133,10 +17133,8 @@
                     {
                       "action": "MAKER_QUOTE",
                       "route": "MAKER_VAULT",
-                      "available": null,
-                      "blockers": [
-                        "PRIVATE_QUOTE_CAPACITY_UNAVAILABLE"
-                      ]
+                      "available": "4735000000",
+                      "blockers": []
                     }
                   ],
                   "reservations": [
@@ -23858,7 +23856,7 @@
             "items": {
               "$ref": "#/components/schemas/ActionAvailability"
             },
-            "description": "Decisions for MAKER_WITHDRAW and MAKER_QUOTE on the MAKER_VAULT route. MAKER_WITHDRAW is the amount a new withdrawal request may ask for: free_after_pending, so it never takes collateral from fills already admitted. The vault re-checks free collateral when the request executes after its delay; it is null with MAKER_WITHDRAW_PENDING while a request is live, or with a reconciliation blocker. MAKER_QUOTE is always null with one blocker, because quoting capacity depends on state only the maker's bot holds, such as its other live quotes. PRIVATE_QUOTE_CAPACITY_UNAVAILABLE means only that Totalis cannot compute that amount; it does not mean quoting is off, and the maker can keep quoting. A reconciliation blocker replaces it while the vault read and venue records disagree."
+            "description": "Decisions for MAKER_WITHDRAW and MAKER_QUOTE on the MAKER_VAULT route. MAKER_WITHDRAW is the amount a new withdrawal request may ask for: free_after_pending, so it never takes collateral from fills already admitted. The vault re-checks free collateral when the request executes after its delay; it is null with MAKER_WITHDRAW_PENDING while a request is live, or with a reconciliation blocker. MAKER_QUOTE is the most new quotes may promise: free_after_pending less a live v1 withdrawal request's amount, never below zero. Quotes reserve nothing, so it does not count the maker's other live quotes; if several are accepted at once, a confirm past it fails QUOTE_CAPACITY_EXCEEDED. Both are null with a reconciliation blocker while the vault read and venue records disagree."
           },
           "reservations": {
             "type": "array",
