@@ -172,6 +172,11 @@ const calls = await totalis.directDepositCalls(10_000_000n); // 10 USDC
 for (const call of calls) await walletClient.sendTransaction(call);
 ```
 
+To show how much one Combo can stake, and to cap the stake field, use `readComboCash()`. Its `allowance` counts
+vault cash, HyperEVM USDC and the HyperCore USDC a bridge can move, after Hyperliquid's setup fee and the bridge's
+gas. Pass the read as `cash` and its `offeredCore` as `core` to `openPosition`
+([How much one Combo can stake](/hyperliquid/sdk/trading#how-much-one-combo-can-stake)).
+
 ## Signatures and quote life
 
 An entry takes one to three signatures, depending on where the stake comes from. `openPosition` asks for the
