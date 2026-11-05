@@ -112,7 +112,7 @@ await totalis.openPosition({ legs, stake, cash, core: cash.offeredCore });
 | `coreMode` | `STANDARD`, `UNIFIED` or `PORTFOLIO_MARGIN`. A Portfolio Margin account offers no HyperCore cash. |
 | `setupFee` | Whether a bridge from HyperCore still pays Hyperliquid's one-time 1 USDC setup fee |
 | `offeredCore` | The HyperCore USDC to pass as `core`: `core`, less the setup fee while it is owed |
-| `allowance` | `vault` + `wallet` + `offeredCore` less 0.05 USDC for the bridge's gas |
+| `allowance` | `vault` + `wallet` + what a bridge can move of `offeredCore`: all of it less 0.05 USDC for the bridge's gas, and nothing when that leaves less than zero |
 
 All amounts are atomic USDC. A field is `null` when it could not be read, and `allowance` is then `null` too:
 an unread balance is never counted as zero. Pass the read as `cash` and `offeredCore` as `core` so
