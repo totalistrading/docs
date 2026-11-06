@@ -44,7 +44,7 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
   "deployment_digest": "0x40452ed111ecbd2a2c5bc4200002747a19eb0f8d62e602c38e34204d3f609910",
   "actions": [
     { "action": "MAKER_WITHDRAW", "route": "MAKER_VAULT", "available": "4735000000", "blockers": [] },
-    { "action": "MAKER_QUOTE", "route": "MAKER_VAULT", "available": null, "blockers": ["PRIVATE_QUOTE_CAPACITY_UNAVAILABLE"] }
+    { "action": "MAKER_QUOTE", "route": "MAKER_VAULT", "available": "4735000000", "blockers": [] }
   ],
   "reservations": [
     { "reservation_id": "entry:0xb2f6...f013", "operation_ids": ["0x1ba1...9c8c"], "value": "25000000", "status": "ACTIVE" }
@@ -64,9 +64,9 @@ curl https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/capital \
 | `free_collateral` | `vault_gross - stake_escrow - payable_owed - requirement`, never below zero. What can back new fills, or be withdrawn. |
 | `capital_net_of_senior_liabilities` | `vault_gross - stake_escrow - payable_owed`, signed. It does not value your open positions. |
 | `pending_commitments` | Fills you confirmed that are not yet on-chain: the sum of `reservations`. |
-| `free_after_pending` | `free_collateral - pending_commitments`, never below zero. Size new quotes from this. |
+| `free_after_pending` | `free_collateral - pending_commitments`, never below zero. |
 | `reservations` | One row per confirmed fill not yet on-chain. `status` `UNKNOWN` means its outcome is not known yet; it still counts. |
-| `actions` | `MAKER_WITHDRAW`: the most a new [withdrawal request](#move-maker-funds) may ask for, or `null` with a blocker such as `MAKER_WITHDRAW_PENDING`. `MAKER_QUOTE` is always `null`: only your bot knows its other live quotes. |
+| `actions` | `MAKER_WITHDRAW`: the most a new [withdrawal request](#move-maker-funds) may ask for, or `null` with a blocker such as `MAKER_WITHDRAW_PENDING`. `MAKER_QUOTE`: the most your new quotes may promise, `free_after_pending` less a pending withdrawal, never below zero. Size quotes from it. It does not count your other live quotes. Both are `null` with a `RECONCILIATION_*` blocker when the read does not match the chain. |
 | `deployment_digest` | The hash of the deployment this read is bound to. |
 | `signer` | Your maker's quote signer. It equals `owner`: a maker is one wallet. The zero address means the maker cannot quote. |
 | `context.status` | `CURRENT`, or `STALE` or `UNAVAILABLE` when a source lags. A stale read never authorizes an action. |
@@ -105,7 +105,7 @@ A quote reserves nothing until you confirm it. From your confirm until the fill 
 
 Each entry and `SELL_BACK` confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. A `TRANSFER` confirm is checked against your wallet's own vault balance instead. If
 several of your quotes are accepted at once, a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and
-nothing fills. Quote only what `free_after_pending` covers. A maker whose free capital is short of its
+nothing fills. Quote only what `MAKER_QUOTE` covers. A maker whose free capital is short of its
 requirement, but whose vault still covers stakes and owed winnings, can still buy back a position whose close
 restores its coverage.
 
@@ -114,8 +114,7 @@ after `ACCEPTED`: on an RFQ without `intent_id`, the confirm check is skipped wh
 lags, and the vault decides.
 
 A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the
-withdrawal then reverts. While one is pending, subtract its `pending.amount`
-([Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal)) from what you quote with.
+withdrawal then reverts. `MAKER_QUOTE` already leaves its amount out.
 
 ## What a reduction nets
 

@@ -104,7 +104,7 @@ The example shows a few fields; a frame carries all of them.
 
 A frame arrives right after you subscribe, again when your capital changes (a fill, a hold from a quote, a deposit or a
 withdrawal), and at least every 5 seconds. Each is usually about a second behind the change. Keep the latest frame
-and check `free_after_pending` against it before you quote, instead of reading capital in your quote path. Check
+and check its `MAKER_QUOTE` action against it before you quote, instead of reading capital in your quote path. Check
 `context.status` too: treat anything but `CURRENT` as you would on the HTTP read.
 
 If no `capital` frame arrives for 15 seconds, read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)

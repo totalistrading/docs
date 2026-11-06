@@ -359,7 +359,7 @@ are on [Limits](/hyperliquid/limits-and-fees).
   RFQ stops taking new quotes at `expires_at`, but a live quote stays acceptable until its `accept_before`. Neither
   sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
-  `free_after_pending` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
+  `MAKER_QUOTE` in your capital's `actions` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
 - A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.
 - While a taker's acceptance of your live quote on an RFQ waits for your answer and its `deadline` has not
   passed, a new quote on that RFQ (entry or cash-out) returns `409 STATE_CONFLICT`. Nothing changes: the
