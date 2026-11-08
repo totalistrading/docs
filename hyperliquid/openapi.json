@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, and `GET /v1/partner/report`, your fees, terms and payouts. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "181.0.0-partner-report"
+    "version": "213.0.0-league-shelves"
   },
   "servers": [
     {
@@ -30,7 +30,7 @@
     },
     {
       "name": "Account",
-      "description": "The account a key acts for: identity, balances, activity, operations, withdrawals, deposits and HyperCore exits."
+      "description": "The account a key acts for: identity, balances, activity, operations, withdrawals, deposits, the wallet approval and HyperCore exits."
     },
     {
       "name": "Makers",
@@ -680,41 +680,6 @@
                               "description": "The retry rule the registry fixes for the returned code.",
                               "enum": [
                                 "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "- `STALE_CURSOR` (retry `REFRESH`): The cursor belongs to an older catalog or browse generation; restart from the first page.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "STALE_CURSOR"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "REFRESH"
                               ]
                             }
                           }
@@ -1444,7 +1409,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1460,7 +1425,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -2746,322 +2712,6 @@
         }
       }
     },
-    "/v1/rfqs/{rfq_id}/declines": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/RfqId"
-        }
-      ],
-      "post": {
-        "operationId": "declineRfq",
-        "summary": "Decline RFQ",
-        "description": "Decline an RFQ you will not quote, so its taker does not wait out the collection window.\n\nRequires a key for a maker with `quote:write`.",
-        "tags": [
-          "RFQs & Quotes"
-        ],
-        "security": [
-          {
-            "apiKey": [
-              "quote:write"
-            ]
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Your decline is recorded. The RFQ ends `DECLINED` once every maker with a live telemetry lease on the vault has declined it, no quote on it can still be accepted and no acceptance awaits an answer: `status` is `DECLINED` then, `OPEN` while another maker can still answer. Send no `Idempotency-Key`: the RFQ and your key's maker identify the one decline, so resending it answers again with the RFQ's current status and keeps your first `detail`. A quote you create on the RFQ after declining it withdraws the decline until you decline again.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeclineRfqResult"
-                },
-                "example": {
-                  "rfq_id": "0198a78f-4d62-7abc-a188-613d1f7ccad2",
-                  "status": "DECLINED"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`detail` is not an uppercase code of at most 64 letters, digits and underscores, named in `field_violations`.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "INVALID_REQUEST"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "UNAUTHENTICATED"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "FORBIDDEN"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "NOT_FOUND"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`RFQ_NOT_OPEN`: the RFQ is past `expires_at` or no longer open, and nothing waits on your answer. `STATE_CONFLICT`: your quote on this RFQ is live or a taker's acceptance of it awaits your answer; withdraw the quote or answer the acceptance first.\n\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "RFQ_NOT_OPEN",
-                                "STATE_CONFLICT"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "REFRESH"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
-            "headers": {
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "RATE_LIMITED"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "BACKOFF"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.",
-            "headers": {
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "AUTHORIZATION_UNAVAILABLE",
-                                "DEPENDENCY_STALE"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "BACKOFF"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": false,
-          "description": "Optional; no body declines as `{}` does. Decline every RFQ you will not quote: the optional `detail` tells Totalis why, and the taker never sees it.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeclineRfqCommand"
-              },
-              "example": {
-                "detail": "CATEGORY_NOT_QUOTED"
-              }
-            }
-          }
-        },
-        "x-mint": {
-          "href": "/hyperliquid/api-reference/rfqs/decline-rfq",
-          "metadata": {
-            "title": "Decline RFQ",
-            "sidebarTitle": "Decline RFQ"
-          }
-        }
-      }
-    },
     "/v1/quotes/{quote_id}/accept": {
       "parameters": [
         {
@@ -3214,7 +2864,7 @@
             }
           },
           "404": {
-            "description": "- `QUOTE_NOT_FOUND` (retry `NEVER`): The quote does not exist.\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `QUOTE_NOT_FOUND` (retry `NEVER`): The quote does not exist.\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3231,7 +2881,8 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "QUOTE_NOT_FOUND",
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -3250,7 +2901,7 @@
             }
           },
           "409": {
-            "description": "A quote can be accepted once: a new `Idempotency-Key` on an RFQ that already has a live acceptance returns `STATE_CONFLICT`.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote is past its accept_before or expired.\n- `QUOTE_CANCELLED` (retry `REFRESH`): The maker cancelled the quote.\n- `QUOTE_REPLACED` (retry `REFRESH`): A newer quote from the same maker replaced this one.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `CORE_MOVE_IN_FLIGHT` (retry `REFRESH`): A HyperCore transfer for this account is still in flight.",
+            "description": "A quote can be accepted once: a new `Idempotency-Key` on an RFQ that already has a live acceptance returns `STATE_CONFLICT`, or `ACCEPTANCE_IN_FLIGHT` while an entry acceptance awaits its maker or its trade. An account has one entry acceptance in flight at a time, so accepting any other entry quote meanwhile returns `ACCEPTANCE_IN_FLIGHT` too.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `RFQ_NOT_OPEN` (retry `REFRESH`): The RFQ is no longer open.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote is past its accept_before or expired.\n- `QUOTE_CANCELLED` (retry `REFRESH`): The maker cancelled the quote.\n- `QUOTE_REPLACED` (retry `REFRESH`): A newer quote from the same maker replaced this one.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `CORE_MOVE_IN_FLIGHT` (retry `REFRESH`): A HyperCore transfer for this account is still in flight.\n- `ACCEPTANCE_IN_FLIGHT` (retry `REFRESH`): Another entry acceptance by this account still awaits its maker or its trade, and an account has one in flight at a time. Nothing was created; once that acceptance's operation ends, accept a fresh quote.\n- `GOLDEN_CASHOUT_REFUSED` (retry `NEVER`): This position was a golden gift, which is never sold back to its maker, whoever holds it now.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3274,7 +2925,9 @@
                                 "QUOTE_SIGNER_CHANGED",
                                 "QUOTE_CAPACITY_EXCEEDED",
                                 "STATE_CONFLICT",
-                                "CORE_MOVE_IN_FLIGHT"
+                                "CORE_MOVE_IN_FLIGHT",
+                                "ACCEPTANCE_IN_FLIGHT",
+                                "GOLDEN_CASHOUT_REFUSED"
                               ]
                             },
                             "retry": {
@@ -3371,7 +3024,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.",
+            "description": "`EXECUTION_BACKLOG_FULL`: the venue's on-chain queue could not send this trade before the quote expires, so nothing was created and the maker was not asked. Wait `Retry-After` seconds and accept a fresh quote. `CONTRACT_UNAVAILABLE`: funding `WALLET_APPROVAL` on a deployment with no WalletAccept.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.\n- `EXECUTION_BACKLOG_FULL` (retry `BACKOFF`): The venue's on-chain queue cannot send this trade before its quote expires; nothing was created. Retry after Retry-After with a fresh quote.\n- `GAS_PRICE_ABOVE_CEILING` (retry `BACKOFF`): The HyperEVM gas price is above the level at which Totalis accepts quotes; nothing was placed or accepted. Quotes keep coming; retry once the price falls.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -3395,7 +3048,10 @@
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
                                 "FINANCIAL_ACTIONS_DISABLED",
-                                "CONTRACT_SIGNATURE_OVERLOADED"
+                                "CONTRACT_SIGNATURE_OVERLOADED",
+                                "EXECUTION_BACKLOG_FULL",
+                                "GAS_PRICE_ABOVE_CEILING",
+                                "CONTRACT_UNAVAILABLE"
                               ]
                             },
                             "retry": {
@@ -4139,7 +3795,7 @@
             }
           },
           "400": {
-            "description": "`INVALID_REQUEST`: the body is malformed, or a leg's market refuses new positions now. A refused leg is named in `field_violations` as `/legs/{i}/outcome_id`, and the message gives the reason, such as `REFERENCE_UNAVAILABLE` or `OUTSIDE_WINDOW`; the market's `eligibility` and `combo` show when it clears.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "`INVALID_REQUEST`: the body is malformed, or a leg's market refuses new positions now. A refused leg is named in `field_violations` as `/legs/{i}/outcome_id`, and the message gives the reason, such as `REFERENCE_UNAVAILABLE`, `OUTSIDE_WINDOW`, `CHANCE_UNAVAILABLE` for a side whose `chance` is null, or `SAME_QUESTION` for a leg whose `native_question_id` an earlier leg already has; the market's `eligibility` and `combo` show when it clears.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4246,7 +3902,7 @@
             }
           },
           "404": {
-            "description": "`NOT_FOUND`: a cash-out names a position this account does not hold.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "`NOT_FOUND`: a cash-out names a position this account does not hold.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4262,7 +3918,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -4361,7 +4018,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `COMBO_AUTOMATIC_DISABLED` (retry `BACKOFF`): Automatic combo quoting is disabled.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `GAS_PRICE_ABOVE_CEILING` (retry `BACKOFF`): The HyperEVM gas price is above the ceiling at which Totalis starts new sponsored trades; nothing was created. Retry once the price falls.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `COMBO_AUTOMATIC_DISABLED` (retry `BACKOFF`): Automatic combo quoting is disabled.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -4385,8 +4042,7 @@
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
                                 "COMBO_AUTOMATIC_DISABLED",
-                                "FINANCIAL_ACTIONS_DISABLED",
-                                "GAS_PRICE_ABOVE_CEILING"
+                                "FINANCIAL_ACTIONS_DISABLED"
                               ]
                             },
                             "retry": {
@@ -4575,7 +4231,7 @@
             }
           },
           "404": {
-            "description": "`NOT_FOUND`: this account holds no position with this ID.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "`NOT_FOUND`: this account holds no position with this ID.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4591,7 +4247,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -4610,7 +4267,7 @@
             }
           },
           "409": {
-            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `GOLDEN_CASHOUT_REFUSED` (retry `NEVER`): This position was a golden gift, which is never sold back to its maker, whoever holds it now.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4627,7 +4284,8 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "IDEMPOTENCY_KEY_REUSED",
-                                "STATE_CONFLICT"
+                                "STATE_CONFLICT",
+                                "GOLDEN_CASHOUT_REFUSED"
                               ]
                             },
                             "retry": {
@@ -4688,7 +4346,7 @@
             }
           },
           "503": {
-            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `GAS_PRICE_ABOVE_CEILING` (retry `BACKOFF`): The HyperEVM gas price is above the ceiling at which Totalis starts new sponsored trades; nothing was created. Retry once the price falls.",
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -4711,8 +4369,7 @@
                               "enum": [
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
-                                "FINANCIAL_ACTIONS_DISABLED",
-                                "GAS_PRICE_ABOVE_CEILING"
+                                "FINANCIAL_ACTIONS_DISABLED"
                               ]
                             },
                             "retry": {
@@ -4881,7 +4538,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4897,7 +4554,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -5193,7 +4851,7 @@
             }
           },
           "404": {
-            "description": "No accept was admitted yet. Cancel the RFQ, which blocks any accept still on its way, then read again: a `404` after the cancel is final.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "No accept was admitted yet. Cancel the RFQ, which blocks any accept still on its way, then read again: a `404` after the cancel is final.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5209,7 +4867,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -5786,6 +5445,41 @@
               }
             }
           },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "429": {
             "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
             "headers": {
@@ -6037,7 +5731,7 @@
             }
           },
           "404": {
-            "description": "The operation does not exist or belongs to another account.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "The operation does not exist or belongs to another account.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6053,7 +5747,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -6321,7 +6016,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6337,7 +6032,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -7006,7 +6702,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7022,7 +6718,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -7377,7 +7074,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7393,7 +7090,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -7671,6 +7369,41 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -8015,7 +7748,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8031,7 +7764,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -8177,6 +7911,613 @@
         }
       }
     },
+    "/v1/me/wallet-approval": {
+      "get": {
+        "operationId": "getWalletApproval",
+        "summary": "Get wallet approval",
+        "description": "The account wallet's USDC approval to WalletAccept, which pays a `WALLET_APPROVAL` acceptance's shortfall from the wallet, and its USDC permit nonce, read together at one HyperEVM block.\n\nRequires a key for your account with `account:read`.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "tags": [
+          "Account"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "account:read"
+            ]
+          },
+          {
+            "walletSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The approval and permit nonce; `approved`, `nonce` and `block` are null when HyperEVM could not be read, never 0.",
+            "headers": {
+              "Cache-Control": {
+                "description": "no-store: the approval is read fresh from HyperEVM for each request.",
+                "schema": {
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletApproval"
+                },
+                "example": {
+                  "chain_id": "999",
+                  "vault": "0xf1461f93a1c20dea830153cb66222e98c87e8402",
+                  "token": "0xb88339cb7199b77e23db6e890353e22632ba630f",
+                  "spender": "0x98066c726578c505ec920e797cd1fa0220c5675b",
+                  "account": "0x1111111111111111111111111111111111111111",
+                  "approved": "9994000000",
+                  "nonce": "1",
+                  "block": "50612345"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "RATE_LIMITED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`CONTRACT_UNAVAILABLE`: this deployment has no WalletAccept.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "AUTHORIZATION_UNAVAILABLE",
+                                "DEPENDENCY_STALE",
+                                "CONTRACT_UNAVAILABLE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/wallet-approval/get-wallet-approval",
+          "metadata": {
+            "title": "Get wallet approval",
+            "sidebarTitle": "Get wallet approval"
+          }
+        }
+      },
+      "post": {
+        "operationId": "approveWallet",
+        "summary": "Set wallet approval",
+        "description": "Relays the account wallet's USDC permit setting its approval to the active vault's WalletAccept to `value`, with Totalis paying the gas; `value` 0 revokes it.\n\nRequires a key for your account with `funding:deposit`, `sponsorship:use`.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "tags": [
+          "Account"
+        ],
+        "security": [
+          {
+            "apiKey": [
+              "funding:deposit",
+              "sponsorship:use"
+            ]
+          },
+          {
+            "walletSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletApprovalCommand"
+              },
+              "example": {
+                "value": "10000000000",
+                "nonce": "1",
+                "deadline": "1794153600",
+                "signature": "0xabababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab1b"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Admitted, not yet on chain: the permit request as it stands. The approval, or a revoke, takes effect only once its operation is COMMITTED; until then the old approval stands. Follow the operation on the account stream (`OPERATION_UPDATED`, kind `USDC_PERMIT`) or resend this request: the same Idempotency-Key and body return the request as it stands before anything else is checked, so save both before the first send. The same permit under another key returns the request it already started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletApprovalRequest"
+                },
+                "example": {
+                  "request_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a41",
+                  "operation_id": "0x3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d",
+                  "value": "10000000000",
+                  "nonce": "1",
+                  "deadline": "1794153600",
+                  "status": "QUEUED",
+                  "transaction_hash": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_REQUEST`: a malformed body. The deadline is USDC's to judge: a permit whose `deadline` has passed is admitted, and its operation ends `PERMIT_EXPIRED` having changed nothing.\n\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "ORIGIN_REQUIRED",
+                                "INVALID_REQUEST",
+                                "INVALID_IDEMPOTENCY_KEY"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sessions and the account's own participant keys only; a partner server key cannot approve.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDEMPOTENCY_KEY_REUSED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`INVALID_SIGNATURE`: the signature does not recover to the account wallet over this permit.\n\n- `INVALID_SIGNATURE` (retry `NEVER`): The signature does not verify for the signed terms.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_SIGNATURE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "RATE_LIMITED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`CONTRACT_UNAVAILABLE`: this deployment has no WalletAccept. `FINANCIAL_ACTIONS_DISABLED`: financial actions are disabled.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "AUTHORIZATION_UNAVAILABLE",
+                                "DEPENDENCY_STALE",
+                                "FINANCIAL_ACTIONS_DISABLED",
+                                "CONTRACT_UNAVAILABLE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/wallet-approval/set-wallet-approval",
+          "metadata": {
+            "title": "Set wallet approval",
+            "sidebarTitle": "Set wallet approval"
+          }
+        }
+      }
+    },
     "/v1/me/balances": {
       "get": {
         "operationId": "getBalances",
@@ -8295,6 +8636,41 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -8573,6 +8949,41 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -8899,7 +9310,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8915,7 +9326,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -9196,7 +9608,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9212,7 +9624,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -9489,6 +9902,41 @@
               }
             }
           },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "429": {
             "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
             "headers": {
@@ -9639,7 +10087,7 @@
             }
           },
           "400": {
-            "description": "A deposit moves at least 1 USDC, and a wallet that controls a maker cannot deposit (`INVALID_REQUEST`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "A deposit moves at least 0.10 USDC from a Privy login wallet, embedded or external, and 1 USDC from any other, and a wallet that controls a maker cannot deposit (`INVALID_REQUEST`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9728,6 +10176,41 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -10089,6 +10572,41 @@
               }
             }
           },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "409": {
             "description": "- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
             "content": {
@@ -10416,6 +10934,41 @@
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
                                 "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -10823,7 +11376,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The account's ID, status, username, avatar seed, wallet and wallet kind.",
+            "description": "The account's ID, status, username, avatar seed, X picture, wallet and wallet kind.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11076,7 +11629,7 @@
       "post": {
         "operationId": "createWalletChallenge",
         "summary": "Create wallet challenge",
-        "description": "Starts signing in a user's own wallet from a partner's web page, returning the exact EIP-4361 message to sign with personal_sign.\n\nNo API key required.",
+        "description": "Starts signing in a user's own wallet from a partner's web page, returning the exact EIP-4361 message to sign with personal_sign.\n\nRequires your partner server key (`tpk_`), sent from your server with no `Origin`; an API key cannot call it.",
         "tags": [
           "Partners & wallet sign-in"
         ],
@@ -11117,7 +11670,7 @@
             }
           },
           "400": {
-            "description": "Send exactly one `Origin` header, equal to the body's `origin`, and no `Authorization` header.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "Send exactly one `Origin` header, equal to the body's `origin`, and no `Authorization` header but a partner server key (`Bearer tpk_...`), which a partner signing its users in from its own servers sends, with an `Origin` that partner owns, to be rate limited per partner instead of per source address; the wallet still signs.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11153,8 +11706,43 @@
               }
             }
           },
+          "401": {
+            "description": "`UNAUTHENTICATED`: the partner server key is unknown or revoked.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "403": {
-            "description": "`ORIGIN_NOT_ALLOWED`: the `Origin` is not one Totalis allows to sign wallets in, such as a partner's registered origin.\n\n- `ORIGIN_NOT_ALLOWED` (retry `NEVER`): The browser origin is not allowed to call this route.",
+            "description": "`ORIGIN_NOT_ALLOWED`: the `Origin` is not one Totalis allows to sign wallets in, such as a partner's registered origin, or not one the partner server key's partner owns.\n\n- `ORIGIN_NOT_ALLOWED` (retry `NEVER`): The browser origin is not allowed to call this route.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11342,7 +11930,10 @@
           }
         },
         "security": [
-          {}
+          {},
+          {
+            "partnerServerKey": []
+          }
         ],
         "x-mint": {
           "href": "/hyperliquid/api-reference/wallet-sessions/create-wallet-challenge",
@@ -11357,7 +11948,7 @@
       "post": {
         "operationId": "createWalletSession",
         "summary": "Create wallet session",
-        "description": "Exchanges the signed challenge for a wallet session: a bearer token for the account the wallet already owns, never a merge with another account.\n\nNo API key required.",
+        "description": "Exchanges the signed challenge for a wallet session: a bearer token for the account the wallet already owns, never a merge with another account.\n\nRequires your partner server key (`tpk_`), sent from your server with no `Origin`; an API key cannot call it.",
         "tags": [
           "Partners & wallet sign-in"
         ],
@@ -11400,7 +11991,7 @@
             }
           },
           "400": {
-            "description": "Send exactly one `Origin` header, the one the challenge named, and no `Authorization` header.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "Send exactly one `Origin` header, the one the challenge named, and no `Authorization` header but a partner server key (`Bearer tpk_...`), which a partner signing its users in from its own servers sends, with an `Origin` that partner owns, to be rate limited per partner instead of per source address; the wallet still signs.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11419,6 +12010,41 @@
                                 "INVALID_REQUEST",
                                 "INVALID_IDEMPOTENCY_KEY",
                                 "ORIGIN_REQUIRED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`UNAUTHENTICATED`: the partner server key is unknown or revoked.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
                               ]
                             },
                             "retry": {
@@ -11626,7 +12252,10 @@
           }
         },
         "security": [
-          {}
+          {},
+          {
+            "partnerServerKey": []
+          }
         ],
         "x-mint": {
           "href": "/hyperliquid/api-reference/wallet-sessions/create-wallet-session",
@@ -12169,7 +12798,7 @@
       "get": {
         "operationId": "getPartnerReport",
         "summary": "Get partner report",
-        "description": "Your partner's fees by UTC day for one range, with your terms, what you have earned, been paid and are owed, and every payout to you, as Totalis pays from them.\n\nRequires your partner server key (`tpk_`), sent from your server with no `Origin`; an API key cannot call it.",
+        "description": "Your partner's fees, cash-outs, active traders and new accounts by UTC day for one range, with your users, open positions and terms, what you have earned, been paid and are owed, and every payout to you, as Totalis pays from them.\n\nRequires your partner server key (`tpk_`), sent from your server with no `Origin`; an API key cannot call it.",
         "tags": [
           "Partners & wallet sign-in"
         ],
@@ -12204,7 +12833,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Your report. Balance, terms and payouts are all time; days and totals cover the range. No caching.",
+            "description": "Your report. Balance, users, terms and payouts are all time and open positions are now; days and totals cover the range. No caching.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12221,6 +12850,14 @@
                     "paid": "60000000",
                     "owed": "22500000"
                   },
+                  "users": {
+                    "admitted_wallets": 180,
+                    "accounts": 152
+                  },
+                  "open_tickets": {
+                    "tickets": 37,
+                    "stake": "3663000000"
+                  },
                   "terms": [
                     {
                       "effective_from": "2026-10-01",
@@ -12235,7 +12872,11 @@
                     "taker_fees": "321000000",
                     "winnings_fees": "61500000",
                     "buyback_fees": "30000000",
-                    "total_fees": "412500000"
+                    "total_fees": "412500000",
+                    "cashouts": 18,
+                    "cashout_volume": "2250000000",
+                    "active_traders": 96,
+                    "new_accounts": 31
                   },
                   "days": [
                     {
@@ -12246,7 +12887,11 @@
                       "taker_fees": "180000000",
                       "winnings_fees": "40000000",
                       "buyback_fees": "20000000",
-                      "total_fees": "240000000"
+                      "total_fees": "240000000",
+                      "cashouts": 11,
+                      "cashout_volume": "1400000000",
+                      "active_traders": 71,
+                      "new_accounts": 19
                     },
                     {
                       "day": "2026-10-02",
@@ -12256,7 +12901,11 @@
                       "taker_fees": "141000000",
                       "winnings_fees": "21500000",
                       "buyback_fees": "10000000",
-                      "total_fees": "172500000"
+                      "total_fees": "172500000",
+                      "cashouts": 7,
+                      "cashout_volume": "850000000",
+                      "active_traders": 58,
+                      "new_accounts": 12
                     }
                   ],
                   "payouts": [
@@ -16930,7 +17579,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16946,7 +17595,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -17257,7 +17907,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17273,7 +17923,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -17545,7 +18196,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17561,7 +18212,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -17830,7 +18482,7 @@
             }
           },
           "404": {
-            "description": "No maker whose controller and quote signer are the account's wallet is indexed yet.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "No maker whose controller and quote signer are the account's wallet is indexed yet.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17846,7 +18498,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -18012,7 +18665,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The maker's withdrawal schedule as the projection last saw it. Your maker wallet sends requestMakerWithdraw, executeMakerWithdraw and cancelMakerWithdraw itself and pays the gas in HYPE; Totalis never relays or sponsors them. The amount a new request may ask for is the MAKER_WITHDRAW action in Get maker capital. Read this again after each call your wallet sends: none of them has a stream event of its own.",
+            "description": "The maker's withdrawal schedule as the projection last saw it. Your maker wallet sends requestMakerWithdraw, executeMakerWithdraw and cancelMakerWithdraw (vault v1) or withdrawMaker (vault v1.1, which pays at once, so pending is always null) itself and pays the gas in HYPE; Totalis never relays or sponsors them. The amount a new request may ask for is the MAKER_WITHDRAW action in Get maker capital. Read this again after each call your wallet sends: none of them has a stream event of its own.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18143,7 +18796,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18159,7 +18812,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -18747,7 +19401,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18763,7 +19417,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -19317,8 +19972,7 @@
                   "fill_rate": {
                     "submitted_count": "4",
                     "filled_count": "1",
-                    "fill_rate_bps": "2500",
-                    "declined_count": "2"
+                    "fill_rate_bps": "2500"
                   },
                   "items": [
                     {
@@ -19529,7 +20183,7 @@
             }
           },
           "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19545,7 +20199,8 @@
                             "code": {
                               "description": "One of the registered codes listed in this response's description.",
                               "enum": [
-                                "NOT_FOUND"
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
                               ]
                             },
                             "retry": {
@@ -19690,6 +20345,331 @@
           }
         }
       }
+    },
+    "/v1/makers/{maker_id}/performance": {
+      "get": {
+        "operationId": "getMakerPerformance",
+        "summary": "Get maker performance",
+        "tags": [
+          "Makers"
+        ],
+        "description": "Get your maker's trading P&L per period between `from` and `through`.\n\nRequires a key for a maker with `vault:read`.",
+        "security": [
+          {
+            "apiKey": [
+              "vault:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MakerIdPathRequired"
+          },
+          {
+            "$ref": "#/components/parameters/FromQueryRequired"
+          },
+          {
+            "$ref": "#/components/parameters/ThroughQueryRequired"
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for browser sessions; API keys do not require an Origin.",
+            "example": "https://totalis.trade"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete periods aggregate the positions that closed economically in them; incomplete periods return unavailable metrics. Gas stays unavailable until the payer of every transaction receipt is attributed. Scoped read with one freshness status; amounts are atomic USDC strings or null. No shared caching.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Performance"
+                },
+                "example": {
+                  "context": {
+                    "as_of": "2026-09-17T12:00:00Z",
+                    "status": "CURRENT"
+                  },
+                  "from": "2026-09-17T00:00:00Z",
+                  "through": "2026-09-17T12:00:00Z",
+                  "recognition": "REALIZED_AT_ECONOMIC_CLOSE_V1",
+                  "history_from": "2026-09-01T00:00:00Z",
+                  "closed_ticket_count": "1",
+                  "won_ticket_count": "0",
+                  "lost_ticket_count": "0",
+                  "even_ticket_count": "1",
+                  "settled_net_stake": "100000000",
+                  "gross_trading_pnl": "0",
+                  "gross_winning_pnl": "0",
+                  "gross_losing_pnl": "0",
+                  "attributed_fees": "0",
+                  "net_trading_pnl": "0",
+                  "external_inflows": "0",
+                  "external_outflows": "0",
+                  "series": [
+                    {
+                      "at": "2026-09-17T00:00:00Z",
+                      "net_trading_pnl": "0",
+                      "closed_ticket_count": "0",
+                      "net_trading_pnl_change": "0"
+                    },
+                    {
+                      "at": "2026-09-17T12:00:00Z",
+                      "net_trading_pnl": "0",
+                      "closed_ticket_count": "1",
+                      "net_trading_pnl_change": "0"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_QUERY"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.\n- `IDENTITY_NOT_FOUND` (retry `NEVER`): The account has no venue identity yet; bind the embedded wallet first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "NOT_FOUND",
+                                "IDENTITY_NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "RATE_LIMITED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `SOURCE_UNAVAILABLE` (retry `BACKOFF`): The account-read or stream source is unavailable.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "AUTHORIZATION_UNAVAILABLE",
+                                "DEPENDENCY_STALE",
+                                "SOURCE_UNAVAILABLE",
+                                "CONTRACT_UNAVAILABLE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/makers/get-maker-performance",
+          "metadata": {
+            "title": "Get maker performance",
+            "sidebarTitle": "Get maker performance"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -19703,7 +20683,7 @@
           "format": "uuid",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
-        "description": "Lowercase UUIDv7 that names this acceptance: it becomes the `acceptance_id`. Choose it before the first send and reuse it on every retry. The same key, quote and body returns the stored acceptance without restarting its deadline; the same key with another quote or body returns `409 IDEMPOTENCY_KEY_REUSED`. Keys are unique per taker account, across all quotes. A quote can be accepted once: a new key on an RFQ that already has a live acceptance returns `409 STATE_CONFLICT`. Lost the response? Read `GET /v1/quotes/{quote_id}/acceptance` instead of accepting again.",
+        "description": "Lowercase UUIDv7 that names this acceptance: it becomes the `acceptance_id`. Choose it before the first send and reuse it on every retry. The same key, quote and body returns the stored acceptance without restarting its deadline; the same key with another quote or body returns `409 IDEMPOTENCY_KEY_REUSED`. Keys are unique per taker account, across all quotes. A quote can be accepted once: a new key on an RFQ that already has a live acceptance returns `409 STATE_CONFLICT`, or `409 ACCEPTANCE_IN_FLIGHT` while an entry acceptance awaits its maker or its trade; the same answer refuses any other entry quote the account accepts meanwhile. Lost the response? Read `GET /v1/quotes/{quote_id}/acceptance` instead of accepting again.",
         "example": "01994f3d-3c4d-7e5f-8a61-7b8c9d0e1f2a"
       },
       "ActivityKindQueryOptional": {
@@ -19807,6 +20787,17 @@
         "in": "query",
         "required": false,
         "description": "Inclusive RFC3339 lower bound on occurred_at (recorded_at for workflow entries without one). Chain activity whose occurrence time is unknown is always included.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "example": "2026-09-01T00:00:00Z"
+      },
+      "FromQueryRequired": {
+        "name": "from",
+        "in": "query",
+        "required": true,
+        "description": "Inclusive RFC3339 start of the performance period.",
         "schema": {
           "type": "string",
           "format": "date-time"
@@ -20096,15 +21087,18 @@
             "mlb",
             "ufc",
             "lol",
+            "counter_strike",
             "epl",
             "ucl",
             "uel",
             "efl",
             "la_liga",
-            "world_cup",
+            "serie_a",
             "bundesliga",
-            "liga_portugal",
             "ligue_1",
+            "liga_portugal",
+            "nations_league",
+            "world_cup",
             "f1",
             "ipl",
             "cricket",
@@ -20140,6 +21134,17 @@
         },
         "example": "2026-09-26T00:00:00Z"
       },
+      "ThroughQueryRequired": {
+        "name": "through",
+        "in": "query",
+        "required": true,
+        "description": "Exclusive RFC3339 end of the performance period; must be after from.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "example": "2026-09-26T00:00:00Z"
+      },
       "To": {
         "name": "to",
         "in": "query",
@@ -20164,8 +21169,15 @@
             "description": "Your EIP-712 signature over the quote. For an entry quote, sign its `entry` terms as `TakerAccept`. For a cash-out quote, the owner signs `quote_id` as `SellBack` or `CashoutTransfer`, the same digest the maker signs."
           },
           "funding": {
-            "$ref": "#/components/schemas/WalletFunding",
-            "description": "Entry quotes only; not allowed on a cash-out. A USDC authorization from your wallet for the part of the stake your vault balance is short. Omit it when your vault balance covers the stake."
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WalletFunding"
+              },
+              {
+                "$ref": "#/components/schemas/WalletApprovalFunding"
+              }
+            ],
+            "description": "Entry quotes only; not allowed on a cash-out. Pays the part of the stake your vault balance is short from your account wallet: `WALLET` with a USDC authorization for the exact shortfall, or `WALLET_APPROVAL` from the wallet's approval to WalletAccept. Omit it when your vault balance covers the stake. The acceptance keeps the route it was admitted with; a replay never switches it."
           }
         },
         "description": "The taker's accept of the quote in the path. The `Idempotency-Key` header becomes the `acceptance_id`."
@@ -20177,6 +21189,13 @@
           }
         ],
         "properties": {
+          "funding_failure_reason": {
+            "enum": [
+              "INSUFFICIENT_APPROVAL",
+              "INSUFFICIENT_WALLET_USDC"
+            ],
+            "description": "Only on an acceptance funded `WALLET_APPROVAL` whose operation ended `EXPIRED_UNEXECUTED` with `failure_reason` INSUFFICIENT_CASH because the wallet fell short. `INSUFFICIENT_APPROVAL`: the wallet's approval to WalletAccept was below the shortfall; approve more (GET /v1/me/wallet-approval). `INSUFFICIENT_WALLET_USDC`: the wallet held less USDC than the shortfall, including a HyperCore move that did not land by `fund_by`. Absent when vault cash fell short or the venue could not tell."
+          },
           "server_time": {
             "$ref": "#/components/schemas/CommonTimestamp",
             "description": "The database clock that sets `fund_by` and `deadline`, read with this acceptance, as an RFC3339 UTC timestamp. Judge them against it, not the local clock: the venue's time now is at most `server_time` plus the time elapsed since you sent the request (take the larger of a monotonic and a wall clock's elapsed time). Setting your clock to `server_time` when the response arrives reads early by the response's delay and can send too late. The accept response is held for the maker's answer, so a `GET /v1/rfqs/{rfq_id}/quotes` sent alongside it gives a tighter bound from its own `server_time`; keep the tightest. Send nothing timed by `fund_by` without a response to judge it by."
@@ -20232,7 +21251,7 @@
           },
           "fund_by": {
             "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "For an acceptance with `funding`, once the maker confirmed: send any HyperCore to wallet transfer that funds it before this time, two seconds after the confirm, as an RFC3339 UTC timestamp. Send the transfer only after the accept answers `ACCEPTED`, never before it: an accept answered any other way trades nothing. Save the signed transfer before its first send and resend the same bytes while Hyperliquid has not answered, until `fund_by`. After it, discard an unsent transfer; if the wallet still lacks the funding, the operation ends EXPIRED_UNEXECUTED with `failure_reason` INSUFFICIENT_CASH. Judge `fund_by` by the bound `server_time` describes, never the local clock. Never sent to the maker."
+            "description": "For an acceptance with `funding`, once the maker confirmed: send any HyperCore to wallet transfer that funds it before this time, two seconds after the confirm, as an RFC3339 UTC timestamp. Send the transfer only after the accept answers `ACCEPTED`, never before it: an accept answered any other way trades nothing. Save the signed transfer before its first send and resend the same bytes while Hyperliquid has not answered, until `fund_by`. After it, discard an unsent transfer. A transfer sent in time has two more seconds to land; if the wallet still lacks the funding then, the operation ends EXPIRED_UNEXECUTED with `failure_reason` INSUFFICIENT_CASH, or SIMULATION_REVERTED at once if the funding authorization was already used or canceled. Judge `fund_by` by the bound `server_time` describes, never the local clock. Never sent to the maker."
           }
         }
       },
@@ -21949,7 +22968,7 @@
             "items": {
               "$ref": "#/components/schemas/CommonLeg"
             },
-            "description": "1 to 5 legs in strictly increasing outcome_id order."
+            "description": "1 to 5 legs in strictly increasing outcome_id order, at most one per native question. Every leg's market must have eligibility ENABLED and combo OPEN, and a chance on each side."
           },
           "builder_code": {
             "type": "string",
@@ -22026,40 +23045,6 @@
             "description": "When the event happens, in Unix seconds."
           }
         }
-      },
-      "DeclineRfqCommand": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "detail": {
-            "type": "string",
-            "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
-            "description": "Optional: your own short code for why you will not quote it, such as `CHAIN_READ_STALE` or `CATEGORY_NOT_QUOTED`. Stored and logged so Totalis can see why RFQs go unquoted; never shown to the taker."
-          }
-        },
-        "description": "Your decline of an open RFQ you will not quote. Every field is optional; `{}` declines without a detail."
-      },
-      "DeclineRfqResult": {
-        "type": "object",
-        "required": [
-          "rfq_id",
-          "status"
-        ],
-        "properties": {
-          "rfq_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "The RFQ you declined."
-          },
-          "status": {
-            "enum": [
-              "OPEN",
-              "DECLINED"
-            ],
-            "description": "DECLINED: your decline ended the RFQ. OPEN: another maker can still answer it."
-          }
-        },
-        "description": "The RFQ after your decline."
       },
       "Deployer": {
         "type": "object",
@@ -22249,7 +23234,7 @@
             ],
             "properties": {
               "account": {
-                "description": "Vault account the deposit credits; the caller's account wallet, equal to from.",
+                "description": "Vault account the deposit credits; the caller's account wallet, equal to `from`.",
                 "$ref": "#/components/schemas/LowercaseNonZeroAddress"
               },
               "from": {
@@ -22257,7 +23242,7 @@
                 "$ref": "#/components/schemas/LowercaseNonZeroAddress"
               },
               "value": {
-                "description": "Deposit amount in atomic USDC (6 decimals); at least \"1000000\" (1 USDC), and no more than the wallet's USDC not already committed to other pending work.",
+                "description": "Deposit amount in atomic USDC (6 decimals); at least \"100000\" (0.10 USDC) from a Totalis embedded wallet and \"1000000\" (1 USDC) from any other, and no more than the wallet's USDC not already committed to other pending work.",
                 "$ref": "#/components/schemas/CommonAmount"
               },
               "valid_after": {
@@ -22265,15 +23250,15 @@
                 "$ref": "#/components/schemas/UInt64String"
               },
               "valid_before": {
-                "description": "EIP-3009 validBefore in Unix seconds; must be at least 5 seconds ahead and at most 900 seconds after valid_after.",
+                "description": "EIP-3009 validBefore in Unix seconds; must be at least 5 seconds ahead and at most 900 seconds after `valid_after`.",
                 "$ref": "#/components/schemas/UInt64String"
               },
               "salt": {
-                "description": "Random 32 bytes; the EIP-3009 nonce is keccak256(abi.encode(vault, chainId, from, salt, account)).",
+                "description": "Random 32 bytes; the EIP-3009 nonce is `keccak256(abi.encode(vault, chainId, from, salt, account))`.",
                 "$ref": "#/components/schemas/Bytes32"
               },
               "authorization_signature": {
-                "description": "65-byte ECDSA signature by from over the USDC ReceiveWithAuthorization message, with the vault as payee.",
+                "description": "65-byte ECDSA signature by `from` over the USDC ReceiveWithAuthorization message, with the vault as payee.",
                 "$ref": "#/components/schemas/Signature65"
               }
             }
@@ -22341,7 +23326,7 @@
           },
           "catalog_generation": {
             "$ref": "#/components/schemas/PositiveInt64",
-            "description": "Catalog generation every item was read from; pages from different generations must not be mixed."
+            "description": "Catalog generation every item in this page was read from. Discovery without a browse contract continues by native ID when a new generation is published, so a later page can name a newer generation; a search cursor stays bound to its generation and returns STALE_CURSOR after one, and a browse-contract cursor keeps reading the publication it came from while that is retained (five minutes), then returns STALE_CURSOR."
           },
           "next_cursor": {
             "$ref": "#/components/schemas/NextCursor",
@@ -22655,6 +23640,10 @@
             "pattern": "^[1-9][0-9]{0,38}$",
             "description": "Stake in atomic USDC (6 decimals), before taker fees."
           },
+          "net_stake": {
+            "$ref": "#/components/schemas/CommonAmount",
+            "description": "What the vault backs if a quote is accepted, in atomic USDC (6 decimals): stake - floor(stake * taker_fee_bps / 10000), with the taker_fee_bps every quote must carry (the vault's current taker fee). Price the position on this; quotes still sign the gross stake. Absent while the taker fee is unknown."
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -22756,6 +23745,7 @@
           "FORBIDDEN",
           "ORIGIN_NOT_ALLOWED",
           "ACCESS_REQUIRED",
+          "SIGN_IN_REQUIRED",
           "NOT_FOUND",
           "IDENTITY_NOT_FOUND",
           "QUOTE_NOT_FOUND",
@@ -22784,13 +23774,26 @@
           "CORE_ACCOUNT_ACTIVATION_REQUIRED",
           "CORE_EXIT_ABANDONED",
           "CORE_MOVE_IN_FLIGHT",
+          "ACCEPTANCE_IN_FLIGHT",
           "USERNAME_TAKEN",
           "USERNAME_ALREADY_SET",
+          "USERNAME_REQUIRED",
+          "GOLDEN_TICKET_NONE",
+          "GOLDEN_TICKET_USED",
+          "GOLDEN_TICKET_EXPIRED",
+          "GOLDEN_PLACEMENT_IN_FLIGHT",
+          "GOLDEN_PROMO_BUSY",
+          "GOLDEN_CASHOUT_REFUSED",
           "INVALID_SIGNATURE",
           "WALLET_CONTRACT_UNSUPPORTED",
           "WRONG_AUTHORITY",
           "KEY_LIMIT_REACHED",
           "USERNAME_NOT_ALLOWED",
+          "FOLLOW_SELF",
+          "FOLLOW_LIMIT_REACHED",
+          "GOLDEN_LEG_COUNT",
+          "GOLDEN_LEG_NOT_ELIGIBLE",
+          "GOLDEN_QUOTE_NOT_HOUSE",
           "RATE_LIMITED",
           "CONNECTION_LIMIT",
           "RFQ_INTENT_LIMIT",
@@ -22809,7 +23812,9 @@
           "QUOTE_EXPOSURE_STALE",
           "COMBO_AUTOMATIC_DISABLED",
           "GAS_PRICE_ABOVE_CEILING",
+          "EXECUTION_BACKLOG_FULL",
           "EMBEDDED_WALLET_UNAVAILABLE",
+          "GOLDEN_PROMO_FUNDS_LOW",
           "CONNECTION_DRAIN"
         ],
         "type": "string"
@@ -23299,7 +24304,7 @@
         "minimum": 0,
         "maximum": 90,
         "default": 30,
-        "description": "0 means Forever (no expiry); 1–90 sets a finite lifetime in days. Omission defaults to 30."
+        "description": "0 means Forever (no expiry); 1-90 sets a finite lifetime in days. Omission defaults to 30."
       },
       "KeyLabel": {
         "type": "string",
@@ -23974,7 +24979,7 @@
           },
           "controller": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "Maker wallet: the only wallet that can request, execute or cancel a withdrawal (requestMakerWithdraw, executeMakerWithdraw, cancelMakerWithdraw). It sends each call itself and pays the gas in HYPE."
+            "description": "Maker wallet: the only wallet that can withdraw (withdrawMaker on vault v1.1; requestMakerWithdraw, executeMakerWithdraw and cancelMakerWithdraw on vault v1). It sends each call itself and pays the gas in HYPE."
           },
           "pending": {
             "oneOf": [
@@ -23985,7 +24990,7 @@
                 "type": "null"
               }
             ],
-            "description": "The live withdrawal request, or null when none is pending. A maker has at most one: a new request reverts until this one executes or is cancelled."
+            "description": "The live v1 withdrawal request, or null when none is pending; always null on vault v1.1, which pays at once. A maker has at most one: a new request reverts until this one executes or is cancelled."
           },
           "as_of_block": {
             "$ref": "#/components/schemas/UInt64String",
@@ -24701,7 +25706,7 @@
           },
           "catalog_generation": {
             "$ref": "#/components/schemas/PositiveInt64",
-            "description": "Catalog generation every item was read from; pages from different generations must not be mixed."
+            "description": "Catalog generation every item in this page was read from. A cursor continues by native ID when a new generation is published, so a later page can name a newer generation than an earlier one."
           },
           "next_cursor": {
             "$ref": "#/components/schemas/NextCursor",
@@ -24872,7 +25877,7 @@
           "QUARANTINE_EXPIRED",
           "ATTESTATION_EXPIRED"
         ],
-        "description": "Why an operation ended EXPIRED_UNEXECUTED; nothing it would have done happened. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its funding draws) did not cover the stake when it was to execute, for a funded accept by its `fund_by`; the RFQ fails with the same `terminal_reason`. DEADLINE_BEFORE_CLAIM: the venue reached it too late, with too little of its signed deadline left to sign and send it. AUTHORIZATION_TOO_CLOSE: when the venue took it, the chain's clock left too little of its signed deadline to send it. SIGNER_QUOTE_LIFE: its signed deadline could not cover the wait for its place in the sender's queue. SIMULATION_REVERTED: simulated before sending, the vault would have rejected it, for a reason other than INSUFFICIENT_CASH. QUARANTINE_EXPIRED: it was held for review after the signer refused it or its retries ran out, and its signed deadline passed meanwhile. ATTESTATION_EXPIRED: a maker's self-funded attestation expired before its signed transaction arrived. For an ACCEPT every reason but INSUFFICIENT_CASH fails the RFQ as EXPIRED_UNEXECUTED."
+        "description": "Why an operation ended EXPIRED_UNEXECUTED; nothing it would have done happened. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its funding draws) did not cover the stake when it was to execute, for a funded accept by two seconds after its `fund_by`; the RFQ fails with the same `terminal_reason`. DEADLINE_BEFORE_CLAIM: the venue reached it too late, with too little of its signed deadline left to sign and send it. AUTHORIZATION_TOO_CLOSE: when the venue took it, the chain's clock left too little of its signed deadline to send it. SIGNER_QUOTE_LIFE: its signed deadline could not cover the wait for its place in the sender's queue. SIMULATION_REVERTED: simulated before sending, the vault would have rejected it, for a reason other than INSUFFICIENT_CASH. QUARANTINE_EXPIRED: it was held for review after the signer refused it or its retries ran out, and its signed deadline passed meanwhile. ATTESTATION_EXPIRED: a maker's self-funded attestation expired before its signed transaction arrived. For an ACCEPT every reason but INSUFFICIENT_CASH fails the RFQ as EXPIRED_UNEXECUTED."
       },
       "OperationList": {
         "type": "object",
@@ -25131,7 +26136,11 @@
           "taker_fees",
           "winnings_fees",
           "buyback_fees",
-          "total_fees"
+          "total_fees",
+          "cashouts",
+          "cashout_volume",
+          "active_traders",
+          "new_accounts"
         ],
         "properties": {
           "tickets": {
@@ -25158,6 +26167,25 @@
           "total_fees": {
             "$ref": "#/components/schemas/CommonAmount",
             "description": "All three together, atomic USDC: what your share is of."
+          },
+          "cashouts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Times the account that opened one of these positions cashed it out, whether the vault bought it back or a maker bought it."
+          },
+          "cashout_volume": {
+            "$ref": "#/components/schemas/CommonAmount",
+            "description": "What those cash-outs paid, atomic USDC."
+          },
+          "active_traders": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Accounts that opened a position through your codes. In totals, each account counts once over the range."
+          },
+          "new_accounts": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Accounts your admissions created."
           }
         }
       },
@@ -25250,6 +26278,8 @@
           "partner",
           "as_of",
           "balance",
+          "users",
+          "open_tickets",
           "terms",
           "from",
           "to",
@@ -25271,6 +26301,45 @@
             "$ref": "#/components/schemas/PartnerBalance",
             "description": "What you have earned, been paid and are owed, all time."
           },
+          "users": {
+            "type": "object",
+            "required": [
+              "admitted_wallets",
+              "accounts"
+            ],
+            "description": "Your users, all time. Active traders and new accounts in the range are in totals and days.",
+            "properties": {
+              "admitted_wallets": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Wallets you admitted."
+              },
+              "accounts": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Totalis accounts your admissions created."
+              }
+            }
+          },
+          "open_tickets": {
+            "type": "object",
+            "required": [
+              "tickets",
+              "stake"
+            ],
+            "description": "Positions opened through your codes that are open now and still held by the account that opened them.",
+            "properties": {
+              "tickets": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "How many."
+              },
+              "stake": {
+                "$ref": "#/components/schemas/CommonAmount",
+                "description": "Their stake after the taker fee, atomic USDC."
+              }
+            }
+          },
           "terms": {
             "type": "array",
             "items": {
@@ -25290,14 +26359,14 @@
           },
           "totals": {
             "$ref": "#/components/schemas/PartnerFees",
-            "description": "The range's days added up."
+            "description": "The range's days added up, except active_traders, which counts each account once."
           },
           "days": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PartnerDay"
             },
-            "description": "Each UTC day in the range with fees, oldest first; days without fees are absent."
+            "description": "Each UTC day in the range with fees, cash-outs, traders or new accounts, oldest first; other days are absent."
           },
           "payouts": {
             "type": "array",
@@ -25378,6 +26447,266 @@
             "description": "When it was found landed or dead, or null while pending."
           }
         }
+      },
+      "Performance": {
+        "type": "object",
+        "required": [
+          "context",
+          "from",
+          "through",
+          "recognition",
+          "closed_ticket_count",
+          "settled_net_stake",
+          "gross_trading_pnl",
+          "attributed_fees",
+          "net_trading_pnl",
+          "external_inflows",
+          "external_outflows",
+          "won_ticket_count",
+          "lost_ticket_count",
+          "even_ticket_count",
+          "history_from",
+          "gross_winning_pnl",
+          "gross_losing_pnl"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/ReadContext",
+            "description": "Freshness of this read: the oldest source observation and one status for every amount in the response."
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inclusive RFC3339 start of the requested period, echoed from the query."
+          },
+          "through": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive RFC3339 end of the requested period, echoed from the query."
+          },
+          "recognition": {
+            "const": "REALIZED_AT_ECONOMIC_CLOSE_V1",
+            "description": "P&L recognition rule: realized at economic close (settlement or sell-back), version 1. Claims do not recognize P&L again."
+          },
+          "history_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Earliest from this maker's periods can start at and still be complete: the later of where retained vault history and venue workflows begin, or the maker's opening block if later still. Request from=history_from for an all-time period. Null while vault history is unavailable."
+          },
+          "closed_ticket_count": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,77})$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tickets economically closed in the period, as a decimal string; null when settled_net_stake is null."
+          },
+          "won_ticket_count": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,77})$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Closes in the period the maker won (positive maker P&L), as a decimal string; null exactly when closed_ticket_count is null."
+          },
+          "lost_ticket_count": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,77})$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Closes in the period the maker lost (negative maker P&L), as a decimal string; null exactly when closed_ticket_count is null."
+          },
+          "even_ticket_count": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,77})$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Closes in the period with zero maker P&L, as a decimal string; null exactly when closed_ticket_count is null. Won, lost and even add up to closed_ticket_count."
+          },
+          "settled_net_stake": {
+            "$ref": "#/components/schemas/UnsignedMetric",
+            "description": "Net stake released by economic closes in the period."
+          },
+          "gross_trading_pnl": {
+            "$ref": "#/components/schemas/Metric",
+            "description": "Signed maker trading P&L from closes in the period (net stake minus effective payout)."
+          },
+          "gross_winning_pnl": {
+            "$ref": "#/components/schemas/Metric",
+            "description": "Sum of the maker P&L of the period's closes the maker won (each positive), so never negative. gross_winning_pnl + gross_losing_pnl = gross_trading_pnl; profit factor is gross_winning_pnl / -gross_losing_pnl."
+          },
+          "gross_losing_pnl": {
+            "$ref": "#/components/schemas/Metric",
+            "description": "Sum of the maker P&L of the period's closes the maker lost (each negative), so never positive."
+          },
+          "attributed_fees": {
+            "$ref": "#/components/schemas/UnsignedMetric",
+            "description": "Fees the maker paid in the period. Taker fees are not maker expenses."
+          },
+          "net_trading_pnl": {
+            "$ref": "#/components/schemas/Metric",
+            "description": "Signed gross_trading_pnl minus attributed_fees."
+          },
+          "external_inflows": {
+            "$ref": "#/components/schemas/UnsignedMetric",
+            "description": "Deposits into the maker vault in the period; never P&L."
+          },
+          "external_outflows": {
+            "$ref": "#/components/schemas/UnsignedMetric",
+            "description": "Executed maker withdrawals in the period; never P&L."
+          },
+          "series": {
+            "type": "array",
+            "description": "Cumulative net realized P&L at UTC day boundaries within the requested interval, from the same revision as totals, in atomic USDC (6 decimals, \"1000000\" = 1 USDC): the opening zero point at from, one point per UTC day with closes or maker-paid fees, then through if no day ends there. Each point carries the closes since the previous one, so a day with closes is told apart from the synthetic endpoints. Empty when net_trading_pnl is null.",
+            "items": {
+              "type": "object",
+              "required": [
+                "at",
+                "net_trading_pnl",
+                "closed_ticket_count",
+                "net_trading_pnl_change"
+              ],
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Point time: from for the opening zero point, then the end of each UTC day with closes (capped at through), then through."
+                },
+                "net_trading_pnl": {
+                  "type": "string",
+                  "pattern": "^-?(0|[1-9][0-9]{0,77})$",
+                  "description": "Cumulative signed net trading P&L from from up to at, in atomic USDC (6 decimals, \"1000000\" = 1 USDC)."
+                },
+                "closed_ticket_count": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]{0,77})$",
+                  "description": "Closes since the previous point, as a decimal string: the day's closes for a day point (\"0\" only on a day whose maker-paid fees moved P&L); \"0\" for the opening point and for a through point added after the last such day."
+                },
+                "net_trading_pnl_change": {
+                  "type": "string",
+                  "pattern": "^(0|-?[1-9][0-9]{0,77})$",
+                  "description": "Net trading P&L of those closes: net_trading_pnl minus the previous point's. A day point with closes is a real close day even when this is \"0\"."
+                }
+              }
+            }
+          }
+        },
+        "description": "Maker realized performance for a period. Every period aggregate is null unless the whole period is covered by reconciled history.",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "settled_net_stake": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "closed_ticket_count": {
+                  "type": "null"
+                },
+                "won_ticket_count": {
+                  "type": "null"
+                },
+                "lost_ticket_count": {
+                  "type": "null"
+                },
+                "even_ticket_count": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "closed_ticket_count": {
+                  "$ref": "#/components/schemas/Amount"
+                },
+                "won_ticket_count": {
+                  "$ref": "#/components/schemas/Amount"
+                },
+                "lost_ticket_count": {
+                  "$ref": "#/components/schemas/Amount"
+                },
+                "even_ticket_count": {
+                  "$ref": "#/components/schemas/Amount"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "gross_trading_pnl": {
+                      "type": "null"
+                    }
+                  },
+                  "title": "Gross trading pnl"
+                },
+                {
+                  "properties": {
+                    "attributed_fees": {
+                      "type": "null"
+                    }
+                  },
+                  "title": "Attributed fees"
+                }
+              ]
+            },
+            "then": {
+              "properties": {
+                "net_trading_pnl": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "settled_net_stake": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "gross_trading_pnl": {
+                  "type": "null"
+                },
+                "gross_winning_pnl": {
+                  "type": "null"
+                },
+                "gross_losing_pnl": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
       },
       "Permission": {
         "type": "string",
@@ -26150,8 +27479,7 @@
         "required": [
           "submitted_count",
           "filled_count",
-          "fill_rate_bps",
-          "declined_count"
+          "fill_rate_bps"
         ],
         "properties": {
           "submitted_count": {
@@ -26175,14 +27503,9 @@
               }
             ],
             "description": "floor(filled_count * 10000 / submitted_count) in basis points; null when submitted_count is 0."
-          },
-          "declined_count": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]{0,77})$",
-            "description": "RFQs of the requested kind the maker declined in the period, by decline time. A decline is not a quote, so submitted_count and fill_rate_bps leave it out."
           }
         },
-        "description": "Fill rate of the period's quotes and the RFQs the maker declined; status filters do not apply to it."
+        "description": "Fill rate of the period's quotes; status filters do not apply to it."
       },
       "QuoteHistory": {
         "type": "object",
@@ -28269,7 +29592,7 @@
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
       },
       "VaultWithdrawal": {
-        "description": "Owner-signed EIP-712 Exit that moves the withdrawal's shortfall from the vault to the embedded wallet; Totalis relays it and pays gas. The signed Exit's account and to are both the caller's embedded wallet, which the venue fills in.",
+        "description": "Owner-signed EIP-712 Exit that moves the withdrawal's shortfall from the vault to the embedded wallet; Totalis relays it and pays gas. The signed Exit's `account` and `to` are both the caller's embedded wallet, which the venue fills in.",
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -28292,7 +29615,7 @@
             "$ref": "#/components/schemas/Uint"
           },
           "signature": {
-            "description": "Signature by the embedded wallet over the EIP-712 Exit(account,to,amount,expiry,salt) digest, with account and to the wallet; ECDSA or ERC-1271 contract signature bytes.",
+            "description": "Signature by the embedded wallet over the EIP-712 `Exit(account,to,amount,expiry,salt)` digest, with `account` and `to` the wallet; ECDSA or ERC-1271 contract signature bytes.",
             "$ref": "#/components/schemas/ContractSignature"
           }
         }
@@ -28333,6 +29656,10 @@
             "$ref": "#/components/schemas/AvatarSeed",
             "description": "Random seed assigned when the account is created; the account can change it with PUT /v1/me/avatar. Clients draw the account's generated avatar from it, so the avatar is the same on every device. Servers before contract 134 omit it."
           },
+          "picture_url": {
+            "$ref": "#/components/schemas/XPictureUrl",
+            "description": "The profile picture of the X account linked to the account's Privy login, which clients show in place of the generated avatar, the same on every device. The server reads it from Privy on the first GET /v1/me after each sign-in and on POST /v1/me/picture, and serves what it last read: if Privy does not answer, the earlier picture stays until a later GET /v1/me reads it. Absent when the server has no picture: none is linked, it is not on X's profile picture hosts, it has not been read yet, or the server has no Privy app secret. Servers before contract 186 omit it."
+          },
           "wallet": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
             "description": "The account's wallet: its Privy embedded wallet, or the one wallet of an account that signs in with an external wallet. It is the account's owner, which signs API-key issuance, and its signer, which signs its financial actions."
@@ -28343,6 +29670,18 @@
               "EXTERNAL"
             ],
             "description": "EMBEDDED for a Privy embedded wallet, whose free vault cash Totalis moves to HyperCore in the background; EXTERNAL for an account that signs in with an external wallet, which has no such sweep. Servers before contract 147 omit it."
+          },
+          "public_profile": {
+            "type": "boolean",
+            "description": "Whether the account turned on its public trader profile with PUT /v1/me/public-profile. Servers before contract 190 omit it."
+          },
+          "x_username": {
+            "$ref": "#/components/schemas/XUsername",
+            "description": "The handle of the X account linked to the account's Privy login, read from Privy with picture_url and served the same way. Absent when the server has none: none is linked, X does not allow it, it has not been read yet, or the server has no Privy app secret. Servers before contract 210 omit it."
+          },
+          "x_shown": {
+            "type": "boolean",
+            "description": "Whether the public trader profile shows x_username: true until the account hides it with PUT /v1/me/public-profile/x, whether or not X is linked. Servers before contract 210 omit it."
           }
         }
       },
@@ -28396,6 +29735,176 @@
           }
         }
       },
+      "WalletApproval": {
+        "title": "WalletApproval",
+        "type": "object",
+        "required": [
+          "chain_id",
+          "vault",
+          "token",
+          "spender",
+          "account",
+          "approved",
+          "nonce",
+          "block"
+        ],
+        "properties": {
+          "chain_id": {
+            "$ref": "#/components/schemas/UInt64String",
+            "description": "HyperEVM chain the approval is on."
+          },
+          "vault": {
+            "$ref": "#/components/schemas/Address",
+            "description": "The vault whose WalletAccept is `spender`, GET /v1/deployment `vault_address`; an approval read for another vault does not fund an accept through this one."
+          },
+          "token": {
+            "$ref": "#/components/schemas/Address",
+            "description": "The USDC contract the permit is signed for; its EIP-712 domain is GET /v1/deployment `usdc.eip712_domain`."
+          },
+          "spender": {
+            "$ref": "#/components/schemas/Address",
+            "description": "WalletAccept, the permit's spender."
+          },
+          "account": {
+            "$ref": "#/components/schemas/Address",
+            "description": "The account wallet, the permit's owner."
+          },
+          "approved": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Uint"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Atomic USDC (6 decimals) the wallet still lets WalletAccept pull, as USDC `allowance(account, spender)`; null when unread."
+          },
+          "nonce": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Uint"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The wallet's next USDC permit nonce, as USDC `nonces(account)`; null when unread."
+          },
+          "block": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UInt64String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HyperEVM block both values were read at; null when unread."
+          }
+        }
+      },
+      "WalletApprovalCommand": {
+        "title": "WalletApprovalCommand",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "nonce",
+          "deadline",
+          "signature"
+        ],
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/Uint",
+            "description": "Atomic USDC (6 decimals) the approval becomes; 0 revokes it."
+          },
+          "nonce": {
+            "$ref": "#/components/schemas/Uint",
+            "description": "The permit nonce signed, GET /v1/me/wallet-approval `nonce`."
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/UInt64String",
+            "description": "Unix seconds after which USDC refuses the permit; a permit sent after it ends PERMIT_EXPIRED."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Signature65",
+            "description": "The account wallet's EIP-712 signature over USDC's EIP-2612 Permit(owner, spender, value, nonce, deadline) in the USDC domain GET /v1/deployment publishes, with the account wallet as owner and GET /v1/me/wallet-approval `spender` and `nonce`."
+          }
+        }
+      },
+      "WalletApprovalFunding": {
+        "description": "Pays the part of the stake your vault balance is short at execution from your account wallet's USDC approval to WalletAccept (GET /v1/me/wallet-approval), with no signature. It routes the accept through WalletAccept; it is not consent the chain checks: once the approval exists, anyone can relay any live acceptance named to your account through WalletAccept.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "const": "WALLET_APPROVAL",
+            "description": "Funding source: WALLET_APPROVAL pays the shortfall from the account wallet's approval to WalletAccept."
+          }
+        }
+      },
+      "WalletApprovalRequest": {
+        "title": "WalletApprovalRequest",
+        "type": "object",
+        "required": [
+          "request_id",
+          "operation_id",
+          "value",
+          "nonce",
+          "deadline",
+          "status",
+          "transaction_hash"
+        ],
+        "properties": {
+          "request_id": {
+            "$ref": "#/components/schemas/Uuid",
+            "description": "The Idempotency-Key that first sent this permit."
+          },
+          "operation_id": {
+            "$ref": "#/components/schemas/Hash32",
+            "description": "The USDC_PERMIT operation that relays it."
+          },
+          "value": {
+            "$ref": "#/components/schemas/Uint",
+            "description": "The approval it sets, atomic USDC; 0 is a revoke."
+          },
+          "nonce": {
+            "$ref": "#/components/schemas/Uint",
+            "description": "The permit nonce it was signed with."
+          },
+          "deadline": {
+            "$ref": "#/components/schemas/UInt64String",
+            "description": "The permit's deadline, Unix seconds."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationState",
+            "description": "Its operation's status. Only COMMITTED set the approval; REVERTED and EXPIRED_UNEXECUTED changed nothing."
+          },
+          "transaction_hash": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Hash32"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HyperEVM hash of the transaction carrying it; null before it is broadcast."
+          },
+          "failure_reason": {
+            "enum": [
+              "PERMIT_EXPIRED",
+              "PERMIT_NONCE_USED",
+              "PERMIT_REVERTED"
+            ],
+            "description": "Why it changed nothing, present only once status is REVERTED or EXPIRED_UNEXECUTED. `PERMIT_EXPIRED`: its deadline passed first. `PERMIT_NONCE_USED`: another permit used its nonce first; read the approval before signing again, as it may already be what you wanted. `PERMIT_REVERTED`: USDC refused it for another reason."
+          }
+        }
+      },
       "WalletChallenge": {
         "type": "object",
         "required": [
@@ -28438,13 +29947,20 @@
             "description": "The wallet signing in. An address holding contract code is refused with WALLET_CONTRACT_UNSUPPORTED."
           },
           "origin": {
-            "$ref": "#/components/schemas/Origin",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Origin"
+              },
+              {
+                "const": "capacitor://localhost"
+              }
+            ],
             "description": "Must equal the request's Origin header exactly."
           }
         }
       },
       "WalletFunding": {
-        "description": "A USDC EIP-3009 ReceiveWithAuthorization moving value from the caller's embedded wallet into the vault. The venue fills from and account with that wallet; sign the message with both set to it.",
+        "description": "A USDC EIP-3009 ReceiveWithAuthorization moving value from the caller's account wallet into the vault. The venue fills `from` and `account` with that wallet; sign the message with both set to it.",
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -28458,7 +29974,7 @@
         "properties": {
           "kind": {
             "const": "WALLET",
-            "description": "Funding source: WALLET pays the shortfall from the caller's embedded wallet."
+            "description": "Funding source: WALLET pays the shortfall from the caller's account wallet with a signed authorization."
           },
           "value": {
             "description": "Atomic USDC (6 decimals) drawn from the wallet into the vault. It must equal the exact stake shortfall over free vault cash at admission.",
@@ -28469,15 +29985,15 @@
             "$ref": "#/components/schemas/UInt64String"
           },
           "valid_before": {
-            "description": "EIP-3009 validBefore in Unix seconds; must be at or after the quote's `entry.expiry`, as the accept can execute until then, and at most 900 seconds after valid_after.",
+            "description": "EIP-3009 validBefore in Unix seconds; must be at or after the quote's `entry.expiry`, as the accept can execute until then, and at most 900 seconds after `valid_after`.",
             "$ref": "#/components/schemas/UInt64String"
           },
           "salt": {
-            "description": "Random 32 bytes; the EIP-3009 nonce is keccak256(abi.encode(vault, chainId, from, salt, account)), with from and account the embedded wallet.",
+            "description": "Random 32 bytes; the EIP-3009 nonce is `keccak256(abi.encode(vault, chainId, from, salt, account))`, with `from` and `account` the account wallet.",
             "$ref": "#/components/schemas/Bytes32"
           },
           "authorization_signature": {
-            "description": "65-byte ECDSA signature by the embedded wallet over the USDC ReceiveWithAuthorization message, with the vault as payee.",
+            "description": "65-byte ECDSA signature by the account wallet over the USDC ReceiveWithAuthorization message, with the vault as payee.",
             "$ref": "#/components/schemas/Signature65"
           }
         }
@@ -28671,6 +30187,17 @@
             }
           }
         }
+      },
+      "XPictureUrl": {
+        "type": "string",
+        "maxLength": 512,
+        "pattern": "^https://(pbs\\.twimg\\.com/profile_images|abs\\.twimg\\.com/sticky/default_profile_images)(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+$",
+        "description": "An X profile picture on pbs.twimg.com or abs.twimg.com, at the size X gave Privy, usually the 48-pixel file ending in _normal; X also serves _bigger (73 px) and _400x400 under the same name."
+      },
+      "XUsername": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_]{1,15}$",
+        "description": "An X handle without the @, in the case X gave Privy: 1 to 15 letters, digits or underscores. Clients link it as https://x.com/{handle}."
       }
     },
     "headers": {

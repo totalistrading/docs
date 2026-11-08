@@ -37,6 +37,7 @@ a quote.
 | Cash-out RFQ open | 30 seconds |
 | Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
 | Bridge from HyperCore into an entry (SDK) | Sent only after the maker confirms, before the acceptance's `fund_by`: 2 seconds after the confirm. |
+| Wallet approval an entry asks for (SDK `defaultWalletApproval`) | 10,000 USDC, or the shortfall when that is larger |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
 | Quote lease `lease_ms` | 1,000 to 60,000 milliseconds |
@@ -45,6 +46,7 @@ a quote.
 | Signing | Window |
 | --- | --- |
 | Accept funding | `valid_after` at or before now; `valid_before` no earlier than the quote's `expiry`, and at most 900 seconds after `valid_after` |
+| Wallet approval permit | Totalis sets no limit on `deadline`. The SDK signs 1,800 seconds ahead. |
 | Withdrawal `Exit` | `expiry` 5 to 3,600 seconds ahead, less a 5 second margin |
 | Withdrawal payout | At most 4,500 seconds from `valid_after` to `valid_before`; `valid_before` at least 300 seconds after the `Exit` `expiry`, or after now with no `Exit` |
 | Maker vault withdrawal delay | 86,400 seconds on mainnet. `ready_at` gives the exact time. |

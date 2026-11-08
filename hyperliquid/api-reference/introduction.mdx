@@ -110,6 +110,7 @@ Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-rou
 | --- | --- |
 | Find markets | [`GET /v1/markets`](/hyperliquid/api-reference/markets/list-markets), [`GET /v1/markets/{outcome_id}`](/hyperliquid/api-reference/markets/get-market) |
 | Check your balance | [`GET /v1/me/balances`](/hyperliquid/api-reference/account/get-balances) |
+| Fund entries from a wallet approval | [`GET /v1/me/wallet-approval`](/hyperliquid/api-reference/wallet-approval/get-wallet-approval), [`POST /v1/me/wallet-approval`](/hyperliquid/api-reference/wallet-approval/set-wallet-approval) |
 | Follow your account | [`GET /v1/stream`](/hyperliquid/api-reference/websocket/account), `account` subscription |
 | Ask for quotes | [`POST /v1/rfqs`](/hyperliquid/api-reference/rfqs/create-rfq), then `QUOTE_CREATED` |
 | Accept one | [`POST /v1/quotes/{quote_id}/accept`](/hyperliquid/api-reference/quotes/accept-quote) |

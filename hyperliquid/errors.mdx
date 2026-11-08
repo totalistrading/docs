@@ -46,6 +46,7 @@ Content-Type: application/json
 | [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | None. Safe to repeat: it returns the quote's status. On a quote you already confirmed it returns `409` with `{ "status": "ACCEPTED" }`, not an error body. `409 STATE_CONFLICT`: an acceptance of your quote awaits your answer. |
 | [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | None. A repeated keep renews again. A repeated release is safe and returns `released: false` once none is armed. |
 | [Admit own maker](/hyperliquid/api-reference/makers/admit-own-maker) | None. A repeat returns the current ownership unchanged. |
+| [Set wallet approval](/hyperliquid/api-reference/wallet-approval/set-wallet-approval) | Required. A resend with the same key and body returns the permit request as it stands, before anything else is checked. The same permit under another key returns the request it already started. |
 | [Create withdrawal](/hyperliquid/api-reference/withdrawals/create-withdrawal) | Required. A resend with the same key and body returns the withdrawal as it is now, still `202`, however long ago it was signed. |
 
 ## Pagination
@@ -147,7 +148,8 @@ closes use the same codes.
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
-| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote expired. |
+| `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
+| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote is past its accept_before or expired. |
 | `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
 | `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |
@@ -155,6 +157,8 @@ closes use the same codes.
 | `CORE_ACCOUNT_NOT_READY` | 409 | - | `REFRESH` | The HyperCore account is not an initialized user. |
 | `CORE_ACCOUNT_ACTIVATION_REQUIRED` | 409 | - | `NEVER` | The HyperCore account does not exist yet, and its first credit pays a 1 USDC activation fee. Resend with `activation_fee_accepted` once the user accepts it. |
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
+| `ACCEPTANCE_IN_FLIGHT` | 409 | - | `REFRESH` | Another entry acceptance by this account still awaits its maker or its trade, and an account has one in flight at a time. Nothing was created; once that acceptance's operation ends, accept a fresh quote. |
+| `GOLDEN_CASHOUT_REFUSED` | 409 | - | `NEVER` | This position was a golden gift, which is never sold back to its maker, whoever holds it now. |
 | `INVALID_SIGNATURE` | 422 | - | `NEVER` | The signature does not verify for the signed terms. |
 | `WALLET_CONTRACT_UNSUPPORTED` | 422 | - | `NEVER` | Wallet sign-in needs an externally owned account; this address holds contract code. |
 | `WRONG_AUTHORITY` | 422 | - | `REFRESH` | The signature is not from the current authority: the taker wallet for an accept, or the maker's current quote signer for a confirm. |
@@ -176,6 +180,8 @@ closes use the same codes.
 | `CONTRACT_SIGNATURE_OVERLOADED` | 503 | - | `BACKOFF` | Contract signature verification is at capacity. |
 | `QUOTE_EXPOSURE_STALE` | 503 | - | `BACKOFF` | The maker's exposure projection is stale. |
 | `COMBO_AUTOMATIC_DISABLED` | 503 | - | `BACKOFF` | Automatic combo quoting is disabled. |
+| `GAS_PRICE_ABOVE_CEILING` | 503 | - | `BACKOFF` | The HyperEVM gas price is above the level at which Totalis accepts quotes; nothing was placed or accepted. Quotes keep coming; retry once the price falls. |
+| `EXECUTION_BACKLOG_FULL` | 503 | - | `BACKOFF` | The venue's on-chain queue cannot send this trade before its quote expires; nothing was created. Retry after Retry-After with a fresh quote. |
 | `EMBEDDED_WALLET_UNAVAILABLE` | 503 | - | `BACKOFF` | The bound embedded wallet is unavailable. |
 | `CONNECTION_DRAIN` | 503 | 1012 | `BACKOFF` | The stream replica is draining; reconnect and resume from the last applied cursor. |
 | `INVALID_SUBSCRIPTION` | - | 1008 | `NEVER` | The first stream frame is not a valid subscribe. |
@@ -187,3 +193,14 @@ closes use the same codes.
 | `SNAPSHOT_TOO_LARGE` | - | 1013 | `BACKOFF` | The snapshot exceeds the frame ceiling. |
 
 {/* error-registry:end */}
+
+### Failure reasons
+
+A command can be admitted and still change nothing on chain. These reasons are fields on the result, not error
+codes:
+
+| Field | On | Values |
+| --- | --- | --- |
+| `failure_reason` | An operation that ended `EXPIRED_UNEXECUTED` | Such as `INSUFFICIENT_CASH`. See [Follow the fill](/hyperliquid/guides/trading#follow-the-fill). |
+| `funding_failure_reason` | An acceptance funded `WALLET_APPROVAL` whose trade ended `INSUFFICIENT_CASH` | `INSUFFICIENT_APPROVAL`, `INSUFFICIENT_WALLET_USDC`. See [Follow the fill](/hyperliquid/guides/trading#follow-the-fill). |
+| `failure_reason` | A wallet approval request that ended `REVERTED` or `EXPIRED_UNEXECUTED` | `PERMIT_EXPIRED`, `PERMIT_NONCE_USED`, `PERMIT_REVERTED`. See [Wallet approval](/hyperliquid/guides/trading#wallet-approval). |

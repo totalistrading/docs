@@ -20,6 +20,7 @@ the root exports `bridgeAction` and `hyperliquidNetwork`.
 | `agentGrantTypedData(deployment, grant)` | `AgentGrant` |
 | `receiveWithAuthorizationTypedData(deployment, authorization)` | USDC `ReceiveWithAuthorization` |
 | `transferWithAuthorizationTypedData(deployment, payout)` | USDC `TransferWithAuthorization` |
+| `walletPermitTypedData(deployment, { owner, spender, value, nonce, deadline })` | USDC `Permit` for the [wallet approval](/hyperliquid/authentication#wallet-approval-permit) |
 | `issueKeyMessage`, `parseIssueKeyMessage` | The Sign-In with Ethereum key approval |
 | `sendAssetTypedData(bridgeAction(hyperliquidNetwork(chain_id), amount))` | Hyperliquid `SendAsset` |
 

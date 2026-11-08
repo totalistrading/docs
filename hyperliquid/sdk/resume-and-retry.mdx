@@ -30,6 +30,7 @@ them, so the less time between the pick and the send, the less often a quote is 
 
 ```ts
 const prepared = await totalis.prepareEntryFunding({ stake, core, cash });   // while quotes arrive
+// Or { stake, core, cash, funding: "approval", onApproval: save }: a permit only when the approval left is short
 const signed = await totalis.signEntry({ quote: best, prepared });           // TakerAccept only
 await save(signed);
 const result = await totalis.sendAcceptance(signed, { onRecord: save });
@@ -37,7 +38,8 @@ const result = await totalis.sendAcceptance(signed, { onRecord: save });
 
 A prepared funding is for one accept. If the venue refuses it with `QUOTE_REPLACED` or `QUOTE_EXPIRED`, or the
 maker answers `DECLINED` or `TIMED_OUT`, nothing traded and any bridge was discarded. Prepare again for the
-next quote. Before you sign the next one, mark a refused record with `refused: error.code` and persist it, so
+next quote. A `funding: "approval"` funding is the exception: it signs nothing for the quote, so `openPosition`
+reuses it for the next quote unless its bridge was sent. Before you sign the next one, mark a refused record with `refused: error.code` and persist it, so
 `recoverAcceptance` answers it `NOT_ADMITTED` from the record without cancelling the RFQ the next accept uses.
 
 ### `signEntry({ quote, core, cash })`
@@ -87,6 +89,29 @@ The result never waits for Hyperliquid:
 See [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)
 for what to show the user.
 
+## Wallet approval records
+
+A permit that sets the [wallet approval](/hyperliquid/sdk/wallets#wallet-approval) is a `SignedWalletApproval`:
+plain JSON with its `requestId` (the `Idempotency-Key`), the account, chain, vault, token, spender and the signed `body`.
+`body.nonce` is the permit nonce it was signed at.
+
+```ts
+// openPosition({ funding: "approval", onApproval: save }) and approveWallet({ onSigned: save }) hand you the record
+// before it is first sent. After a reload:
+const request = await totalis.recoverWalletApproval(await load()); // resends the same body and key; never signs again
+```
+
+| Step | What the SDK does |
+| --- | --- |
+| Before the first send | Awaits `onApproval` or `onSigned` with the record. Persist it there. |
+| Lost answer or reload | `recoverWalletApproval` resends the stored body under its `requestId`. The venue answers with the request as it stands, or admits it if the first send never arrived. Pass `wait: false` to read it without following it. |
+| The permit lands | Resolves with the `COMMITTED` request. |
+| The permit changed nothing | Throws `WalletApprovalError` with the request's `failure_reason`. |
+| `PERMIT_NONCE_USED` during an entry | Reads the approval again. If it covers the entry, the entry goes ahead; if not, it throws. It never signs the same intent again on its own. |
+
+Before you sign a new permit after `PERMIT_NONCE_USED`, read the approval: another permit may already have set
+what you wanted.
+
 ## Retries
 
 Each command is built once with its `Idempotency-Key`. After a network failure or a `BACKOFF` error, the SDK
@@ -132,6 +157,7 @@ mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have r
 | --- | --- |
 | `EntryError` | An entry cannot be funded, before anything is sent ([Why an entry did not trade](/hyperliquid/sdk/trading#why-an-entry-did-not-trade)) |
 | `BalanceUnknownError` | A withdrawal or return to HyperCore needs a balance that has not been read |
+| `WalletApprovalError` | The wallet approval did not become what was asked. `code` is `PERMIT_EXPIRED`, `PERMIT_NONCE_USED` or `PERMIT_REVERTED` when a sent permit changed nothing, a late one included ([Wallet approval records](#wallet-approval-records)); `APPROVAL_UNKNOWN` when the approval or its nonce could not be read, so no permit was signed and nothing was sent, though the wallet may already have been asked to sign the accept or a bridge; `INSUFFICIENT_APPROVAL` when an entry with `funding: "approval"` needs more approval than is left and may not ask for a permit (`signEntry` with no `prepared`, or `approvalValue: null`). `normalizeError` marks every code but `PERMIT_REVERTED` retryable. |
 | `ExitUnavailableError` | `exitToCore` or `returnToCore` runs on staging, which has no exits to HyperCore |
 | `AcceptancePendingError` | A maker quotes an RFQ while one of its acceptances waits ([Make markets](/hyperliquid/sdk/making#when-an-acceptance-is-waiting)) |
 | `StreamClosedError` | A stream closes with `retry` `NEVER` |
