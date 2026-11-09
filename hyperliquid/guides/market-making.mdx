@@ -433,7 +433,7 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 | `status` | Meaning |
 | --- | --- |
 | `ACCEPTED` | Queued as `operation_id`, not yet on-chain. |
-| `FILLED` | The trade landed. `POSITION_OPENED` follows an entry, `POSITION_CLOSED` a `sell_back`, and `POSITION_TRANSFERRED` a `transfer`. |
+| `FILLED` | The trade landed. `POSITION_OPENED` follows an entry, and `POSITION_CLOSED` a `sell_back`. |
 | `FAILED` | The trade reverted on-chain, or expired before it was sent. Nothing filled. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing filled. |
 
