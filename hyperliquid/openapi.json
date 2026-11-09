@@ -1598,7 +1598,7 @@
             }
           },
           "400": {
-            "description": "A term no confirm could fill, named in `field_violations`: `quote_id` that is not the digest of `entry`, `maker_id` other than your key's, `legs`, `stake` or `taker` other than the RFQ's, a net stake under the minimum (`stake`), `payout` not above `stake` or over the maximum payout, `fee_bps` or `taker_fee_bps` other than Get deployment's, or `expiry` not more than 14 and at most 30 seconds ahead. On a cash-out, a `transfer` whose `price` is more than the buyer's free vault balance (`transfer.price`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
+            "description": "A term no confirm could fill, named in `field_violations`: `quote_id` that is not the digest of `entry`, `maker_id` other than your key's, `legs`, `stake` or `taker` other than the RFQ's, a net stake under the minimum (`stake`), `payout` not above `stake` or over the maximum payout, `fee_bps` or `taker_fee_bps` other than Get deployment's, or `expiry` not more than 14 and at most 30 seconds ahead.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3621,7 +3621,7 @@
             }
           },
           "409": {
-            "description": "Resending the same answer replays the result; a different answer to the same acceptance returns `IDEMPOTENCY_KEY_REUSED`. An answer after the acceptance's `deadline` cannot reopen it. `QUOTE_CAPACITY_EXCEEDED`: your free capital, less the fills you have confirmed that are not yet on chain, does not cover this fill (for a transfer, your own vault balance does not cover its price). Nothing filled.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote is past its accept_before or expired.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.",
+            "description": "Resending the same answer replays the result; a different answer to the same acceptance returns `IDEMPOTENCY_KEY_REUSED`. An answer after the acceptance's `deadline` cannot reopen it. `QUOTE_CAPACITY_EXCEEDED`: your free capital, less the fills you have confirmed that are not yet on chain, does not cover this fill. Nothing filled.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `QUOTE_EXPIRED` (retry `REFRESH`): The quote is past its accept_before or expired.\n- `QUOTE_SIGNER_CHANGED` (retry `REFRESH`): The maker's quote signer changed after the quote was signed.\n- `QUOTE_CAPACITY_EXCEEDED` (retry `REFRESH`): The maker's current capacity does not cover the quote.\n- `RFQ_GENERATION_STALE` (retry `REFRESH`): The RFQ generation the quote targets was superseded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20161,7 +20161,7 @@
         "properties": {
           "taker_signature": {
             "$ref": "#/components/schemas/ContractSignature",
-            "description": "Your EIP-712 signature over the quote. For an entry quote, sign its `entry` terms as `TakerAccept`. For a cash-out quote, the owner signs `quote_id` as `SellBack` or `CashoutTransfer`, the same digest the maker signs."
+            "description": "Your EIP-712 signature over the quote. For an entry quote, sign its `entry` terms as `TakerAccept`. For a cash-out quote, the owner signs `quote_id` as `SellBack`, the same digest the maker signs."
           },
           "funding": {
             "$ref": "#/components/schemas/WalletFunding",
@@ -20909,7 +20909,7 @@
           },
           "payout": {
             "$ref": "#/components/schemas/CommonAmount",
-            "description": "What the position pays if every leg wins, in atomic USDC (6 decimals): tickets(position_id).payout, which the vault fixes when the position opens, so it is also the value at decision_block. A transfer moves the position whole, so the buyer owns this payout. The position's payout."
+            "description": "What the position pays if every leg wins, in atomic USDC (6 decimals): tickets(position_id).payout, which the vault fixes when the position opens, so it is also the value at decision_block. The position's payout."
           },
           "status": {
             "type": "string",
@@ -20921,7 +20921,7 @@
               "FAILED",
               "DECLINED"
             ],
-            "description": "OPEN collects cash-out quotes until expires_at; EXPIRED means that window passed without an accepted quote; CANCELLED means the owner cancelled it or a newer intent generation replaced it; ACCEPTED means a quote was accepted and confirmed; FAILED means the accepted sell-back or transfer failed on chain (see terminal_reason); DECLINED means every maker that could answer declined to quote it before expires_at."
+            "description": "OPEN collects cash-out quotes until expires_at; EXPIRED means that window passed without an accepted quote; CANCELLED means the owner cancelled it or a newer intent generation replaced it; ACCEPTED means a quote was accepted and confirmed; FAILED means the accepted sell-back failed on chain (see terminal_reason); DECLINED means every maker that could answer declined to quote it before expires_at."
           },
           "terminal_reason": {
             "$ref": "#/components/schemas/RfqTerminalReason",
@@ -21367,7 +21367,7 @@
               },
               "maker_signature": {
                 "$ref": "#/components/schemas/ContractSignature",
-                "description": "Your quote signer's EIP-712 signature over the accepted terms: `entry` as `Quote`, `sell_back` as `SellBack`, `transfer` as `CashoutTransfer`. Your capital stays reserved for as long as this signature can execute."
+                "description": "Your quote signer's EIP-712 signature over the accepted terms: `entry` as `Quote`, `sell_back` as `SellBack`. Your capital stays reserved for as long as this signature can execute."
               }
             },
             "title": "Confirm"
@@ -21911,28 +21911,9 @@
               }
             },
             "title": "Sell back"
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "quote_id",
-              "transfer"
-            ],
-            "properties": {
-              "quote_id": {
-                "$ref": "#/components/schemas/Bytes32",
-                "description": "EIP-712 digest of `transfer`, as the `CashoutTransfer` struct. It must match the terms exactly; you (the buyer) and the owner (the seller) both sign it."
-              },
-              "transfer": {
-                "$ref": "#/components/schemas/TransferTerms",
-                "description": "Transfer terms, from any maker other than the one that backs the position: `buyer`, your quote signer, pays `seller` the `price` and takes the position. `position_id`, `seller` and `leg_state` must match the RFQ, and `expiry` is 25 to 60 seconds ahead."
-              }
-            },
-            "title": "Transfer"
           }
         ],
-        "description": "Your quote on the RFQ: `quote_id` plus exactly one set of terms. Send `entry` for an entry RFQ, and `sell_back` or `transfer` for a cash-out RFQ. It replaces your live quote on the RFQ."
+        "description": "Your quote on the RFQ: `quote_id` plus exactly one set of terms. Send `entry` for an entry RFQ, and `sell_back` for a cash-out RFQ, which only the maker that backs the position may quote. It replaces your live quote on the RFQ."
       },
       "CreateRfqCommand": {
         "type": "object",
@@ -23691,9 +23672,6 @@
           },
           {
             "$ref": "#/components/schemas/SellBackMakerAcceptance"
-          },
-          {
-            "$ref": "#/components/schemas/TransferMakerAcceptance"
           }
         ],
         "description": "A taker's accept of your quote, waiting for your confirm until `deadline`, told apart by `kind`. `QUOTE_ACCEPTED`, the maker snapshot's `acceptances` and List pending acceptances carry the same item. It never includes the taker's signature or `acceptance_id`."
@@ -24818,7 +24796,7 @@
             "$ref": "#/components/schemas/Bytes32"
           },
           "kind": {
-            "description": "Operation type, named after the contract call: DEPOSIT_USER_AUTHORIZED, WITHDRAW_USER, ACCEPT, SETTLE, CLAIM, SELL_BACK, POSITION_TRANSFER, CASHOUT_TRANSFER, TOTALIS_PAYOUT, CORE_EXIT or ATTEST. Treat unlisted values as opaque.",
+            "description": "Operation type, named after the contract call: DEPOSIT_USER_AUTHORIZED, WITHDRAW_USER, ACCEPT, SETTLE, CLAIM, SELL_BACK, POSITION_TRANSFER, TOTALIS_PAYOUT, CORE_EXIT or ATTEST. Treat unlisted values as opaque.",
             "type": "string"
           },
           "amount": {
@@ -26105,9 +26083,6 @@
           },
           {
             "$ref": "#/components/schemas/SellBackQuote"
-          },
-          {
-            "$ref": "#/components/schemas/TransferQuote"
           }
         ],
         "description": "One live, unsigned quote on an RFQ, told apart by `kind`. List quotes, the account snapshot's quotes and `QUOTE_CREATED` carry the same item."
@@ -26277,7 +26252,7 @@
               "ENTRY",
               "CASHOUT"
             ],
-            "description": "ENTRY opens a position; CASHOUT buys one back (SELL_BACK) or buys it (TRANSFER)."
+            "description": "ENTRY opens a position; CASHOUT buys one back (SELL_BACK)."
           },
           "cashout_kind": {
             "type": [
@@ -26286,10 +26261,9 @@
             ],
             "enum": [
               "SELL_BACK",
-              "TRANSFER",
               null
             ],
-            "description": "For a CASHOUT quote, SELL_BACK when the position's own maker buys it back, TRANSFER when another maker buys it; null for ENTRY."
+            "description": "For a CASHOUT quote, SELL_BACK: the position's own maker buys it back. null for ENTRY."
           },
           "status": {
             "$ref": "#/components/schemas/QuoteHistoryStatus",
@@ -28073,119 +28047,6 @@
             "description": "Native value in wei; always zero."
           }
         }
-      },
-      "TransferMakerAcceptance": {
-        "type": "object",
-        "required": [
-          "quote_id",
-          "rfq_id",
-          "kind",
-          "deadline",
-          "transfer"
-        ],
-        "properties": {
-          "quote_id": {
-            "$ref": "#/components/schemas/Bytes32",
-            "description": "The accepted quote. Confirm with `POST /v1/quotes/{quote_id}/confirm`."
-          },
-          "rfq_id": {
-            "$ref": "#/components/schemas/Uuid",
-            "description": "RFQ this quote answers."
-          },
-          "kind": {
-            "const": "TRANSFER",
-            "description": "Always `TRANSFER`: you take over the position."
-          },
-          "deadline": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Confirm before this instant, an RFC3339 UTC timestamp. A later answer cannot reopen the acceptance."
-          },
-          "transfer": {
-            "$ref": "#/components/schemas/TransferTerms",
-            "description": "Accepted transfer terms; sign them as `CashoutTransfer`."
-          }
-        },
-        "description": "An owner's accept of your transfer quote.",
-        "title": "Transfer acceptance"
-      },
-      "TransferQuote": {
-        "type": "object",
-        "required": [
-          "quote_id",
-          "rfq_id",
-          "kind",
-          "sequence",
-          "transfer"
-        ],
-        "properties": {
-          "quote_id": {
-            "$ref": "#/components/schemas/Bytes32",
-            "description": "Quote ID: the EIP-712 digest of `transfer` as the `CashoutTransfer` struct, which the owner signs to accept."
-          },
-          "rfq_id": {
-            "$ref": "#/components/schemas/Uuid",
-            "description": "RFQ this quote answers."
-          },
-          "kind": {
-            "const": "TRANSFER",
-            "description": "Always `TRANSFER`: another maker takes over the position."
-          },
-          "sequence": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Venue-wide publication sequence number; a higher value was created later."
-          },
-          "transfer": {
-            "$ref": "#/components/schemas/TransferTerms",
-            "description": "Transfer terms the owner accepts by signing `quote_id` as `CashoutTransfer`."
-          }
-        },
-        "description": "A cash-out offer from another maker: it pays the owner `price` and takes over the position.",
-        "title": "Transfer quote"
-      },
-      "TransferTerms": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "position_id",
-          "price",
-          "seller",
-          "buyer",
-          "expiry",
-          "salt",
-          "leg_state"
-        ],
-        "properties": {
-          "position_id": {
-            "$ref": "#/components/schemas/Hash32",
-            "description": "Position the quote is for; the signed CashoutTransfer names it ticketId."
-          },
-          "price": {
-            "$ref": "#/components/schemas/CommonAmount",
-            "description": "Price the buyer pays the seller for the whole position, in atomic USDC (6 decimals)."
-          },
-          "seller": {
-            "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "Current position owner, who sells the ticket."
-          },
-          "buyer": {
-            "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "The bidding maker's current quote signer, which becomes the owner and pays from its own vault balance."
-          },
-          "expiry": {
-            "$ref": "#/components/schemas/UInt64String",
-            "description": "Unix seconds after which the quote can no longer be executed."
-          },
-          "salt": {
-            "$ref": "#/components/schemas/Uint256",
-            "description": "Random uint256, as a decimal string, that makes each signed quote unique."
-          },
-          "leg_state": {
-            "$ref": "#/components/schemas/Hash32",
-            "description": "Position leg state the quote was priced against; must equal the RFQ's leg_state."
-          }
-        },
-        "description": "Transfer terms: another maker buys the position and becomes its owner. They mirror the signed CashoutTransfer struct."
       },
       "UInt32String": {
         "type": "string",

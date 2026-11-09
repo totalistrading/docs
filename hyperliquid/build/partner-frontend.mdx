@@ -318,7 +318,7 @@ HyperCore or to another address.
     });
 
     await totalis.openPosition({ legs, stake: 5_000_000n }); // agent: TakerAccept
-    await totalis.cashOut({ positionId });                   // agent: SellBack or CashoutTransfer
+    await totalis.cashOut({ positionId });                   // agent: SellBack
     ```
 
     `signer` stays required: the SDK reads the account from it, and asks it for every message the agent cannot
@@ -386,7 +386,7 @@ values from [Get deployment](/hyperliquid/api-reference/deployment/get-deploymen
 | Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | Yes | `chain_id` | `vault_address` |
 | Fund an entry from the wallet | `openPosition`, `signEntry` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
 | Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | No | `chain_id` | `0x0000000000000000000000000000000000000000` |
-| Cash out | `cashOut`, `signCashout` | `SellBack` or `CashoutTransfer` | Yes | `chain_id` | `vault_address` |
+| Cash out | `cashOut`, `signCashout` | `SellBack` | Yes | `chain_id` | `vault_address` |
 | Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | Yes | `chain_id` | `vault_address` |
 | Withdraw: payout | `withdraw`, `signWithdrawal` | `TransferWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
 | Deposit, sponsored | `signDeposit` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
@@ -414,7 +414,7 @@ of that type: an allowed `TransferWithAuthorization` pays anyone.
   | `TakerAccept` | The `entry` terms of the quote the user chose, with `taker` the user's wallet |
   | `ReceiveWithAuthorization` | `from` the user's wallet, `to` `vault_address`, and the `value` the user approved. The `nonce` is `depositNonce`, derived from `vault`, `chainId`, `from`, `salt` and `account` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)). `account` is the vault balance the deposit credits and appears nowhere else in the message. Derive the nonce yourself with the user's wallet as both `from` and `account`; never sign a nonce you did not derive. |
   | `SendAsset` | `bridgeAction` for the amount the user approved. Its `destination`, `0x2000000000000000000000000000000000000000`, credits the signer's own HyperEVM address. |
-  | `SellBack`, `CashoutTransfer` | The terms of the bid the user chose, with the owner or seller the user's wallet |
+  | `SellBack` | The terms of the bid the user chose, with the owner the user's wallet |
   | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `deployment.router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
   | `TransferWithAuthorization` | `from` the user's wallet, and the `to` and `value` the user entered. The `nonce` is `payoutNonce`, derived from the user's wallet and the withdrawal's `Idempotency-Key`, which binds the payout to that one withdrawal. Derive it yourself. |
   | `AgentGrant` | `account` the user's wallet, `agent` the key you made for that user, and `validUntil` the end the user approved, or `0` for a revoke |

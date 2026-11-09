@@ -410,8 +410,8 @@ is on [Limits](/hyperliquid/limits-and-fees).
 ## Confirm
 
 `QUOTE_ACCEPTED` carries the exact terms, named by `kind`. Check them against what you quoted, and check your
-price and your capital still hold. Then sign them (`entry` as `Quote`, `sell_back` as `SellBack`, `transfer`
-as `CashoutTransfer`) and answer with no `Idempotency-Key`:
+price and your capital still hold. Then sign them (`entry` as `Quote`, `sell_back` as `SellBack`) and answer
+with no `Idempotency-Key`:
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
@@ -451,7 +451,7 @@ fill can still revert. Keep following `OPERATION_UPDATED`.
 
 | Error | Means | Do |
 | --- | --- | --- |
-| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed fills not yet on-chain, does not cover this fill. For a `transfer`, your wallet's own vault balance does not cover its `price`. | Nothing filled. Quote smaller, or add capital. |
+| `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed fills not yet on-chain, does not cover this fill. | Nothing filled. Quote smaller, or add capital. |
 | `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
 | `409 RFQ_GENERATION_STALE` | RFQs with `intent_id` only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
 | `409 STATE_CONFLICT` | The deadline passed, or the trade can no longer open, for example because a leg resolved. | Nothing filled. |
@@ -485,7 +485,6 @@ win, `0` for a loss, or a fraction ([Settlement](/hyperliquid/guides/trading#set
 | Every leg wins | Pay `payout - net stake`. |
 | A leg resolves to a fraction | Pay `effective - net stake` if `effective` is at least the net stake (`WIN`). Otherwise keep `net stake - effective` (`PARTIAL`). |
 | You buy it back | Pay the `sell_back` price, and the net stake you held is freed. Net, you pay `price - net stake`. The position closes. |
-| Another maker buys it | Nothing. You still back it, for the new owner. |
 
 The profit fee comes out of the owner's winnings, and a sell-back's fee out of the owner's proceeds
 ([Cash out](/hyperliquid/guides/trading#cash-out)). Neither comes from your vault.
@@ -504,24 +503,13 @@ to reduce it.
 
 ## Cash-outs
 
-A taker can sell an open position before it settles. Totalis opens a cash-out RFQ to every maker:
-`RFQ_CREATED` with `kind: CASHOUT`, the `position_id`, its `owner`, the backing `maker_id`, its `net_stake`
-and `payout`, and the leg state to price against.
+A taker can sell an open position before it settles. Totalis opens a cash-out RFQ to the maker that backs
+the position, and only to it: `RFQ_CREATED` with `kind: CASHOUT`, the `position_id`, its `owner`, your
+`maker_id`, its `net_stake` and `payout`, and the leg state to price against. Other makers never see it.
 
-| You | Quote | You pay from | The position |
-| --- | --- | --- | --- |
-| Back the position (`maker_id` is yours) | `sell_back` terms, a `price` | Your maker vault | Closes |
-| Do not back it | `transfer` terms, a `price` | Your maker wallet's own vault balance, not the maker vault | Moves to your wallet's account. Its original maker still backs it. |
-
-Bid only on positions you back: your maker wallet cannot hold its own vault balance.
-[Create deposit](/hyperliquid/api-reference/deposits/create-deposit) refuses a wallet that controls a maker, and
-Totalis moves an [embedded wallet's](/hyperliquid/glossary) free vault cash to HyperCore in the background. A
-`transfer` your wallet's free vault balance cannot cover is refused when you publish it (`400 INVALID_REQUEST`
-naming `transfer.price`). While Totalis's view of the vault lags the chain, publishing skips that check;
-confirm then answers `QUOTE_CAPACITY_EXCEEDED` once the view is current, or the vault refuses the transfer
-on-chain. A position you buy by
-transfer belongs to your wallet's account, not your maker: read it and its settlement with a key for
-[your account](/hyperliquid/authentication#keys).
+| Quote | You pay from | The position |
+| --- | --- | --- |
+| `sell_back` terms, a `price` | Your maker vault | Closes |
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
@@ -542,8 +530,7 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 ```
 
 `position_id`, `owner` and `leg_state` are copied from the RFQ. `quote_id` is the EIP-712 digest of
-`sell_back` as `SellBack`. A `transfer` body has `seller` (the owner) and `buyer` (your maker wallet) in place
-of `owner`, and is signed as `CashoutTransfer`. The `expiry` window is on [Limits](/hyperliquid/limits-and-fees).
+`sell_back` as `SellBack`. The `expiry` window is on [Limits](/hyperliquid/limits-and-fees).
 
 ### Price a cash-out
 

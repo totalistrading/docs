@@ -101,7 +101,7 @@ your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, s
 | `totalis.grantVaultAgent({ agent, validUntil })` | The wallet signs an `AgentGrant` for `agent` and Totalis relays it. Returns `operation_id`; follow it with `waitForOperation`. Needs a wallet session. |
 | `totalis.revokeVaultAgent({ agent })` | The same with `validUntil` `0`. The agent keeps signing until its operation is `COMMITTED`. |
 | `totalis.vaultAgents()` | The account's live agents, each with `valid_until` and `nonce`. Needs a wallet session. |
-| `createTotalis({ ..., signer, agent })` | The agent signs `TakerAccept`, `SellBack`, `CashoutTransfer` and an `Exit` back to the account in place of `signer`. `signer` names the account and signs the rest. |
+| `createTotalis({ ..., signer, agent })` | The agent signs `TakerAccept`, `SellBack` and an `Exit` back to the account in place of `signer`. `signer` names the account and signs the rest. |
 
 `agent` takes the same signer shapes as `signer`. Its grant rules, risk and a server-side setup are on
 [Vault agents](/hyperliquid/build/partner-frontend#vault-agents).

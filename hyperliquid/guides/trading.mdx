@@ -208,7 +208,7 @@ curl https://hip4-api.totalis.trade/v1/me/positions/$POSITION_ID/cashout \
 { "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f" }
 ```
 
-Quotes arrive as `QUOTE_CREATED`. `kind` is `SELL_BACK` or `TRANSFER` and names the terms it carries:
+Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind` is `SELL_BACK` and the quote carries `sell_back` terms:
 
 ```json
 {
@@ -227,19 +227,11 @@ Quotes arrive as `QUOTE_CREATED`. `kind` is `SELL_BACK` or `TRANSFER` and names 
 }
 ```
 
-| `kind` | Terms | Buyer | The position |
-| --- | --- | --- | --- |
-| `SELL_BACK` | `sell_back` | The maker that backs it | Closes (`close_reason: SELL_BACK`) |
-| `TRANSFER` | `transfer` | Another maker | Moves to the buyer |
-
-Sign `sell_back` as `SellBack` or `transfer` as `CashoutTransfer`, then accept it like an entry quote,
-with no `funding`. On `COMMITTED` you receive `POSITION_CLOSED` or `POSITION_TRANSFERRED`, and the
-proceeds land in your vault balance:
-
-| `kind` | You receive |
-| --- | --- |
-| `SELL_BACK` | `price` less the profit fee on the part above the position's `net_stake`: `floor((price - net_stake) * fee_bps / 10000)`, no fee when `price` is at or below `net_stake` ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it. |
-| `TRANSFER` | `price`, with no fee |
+Sign `sell_back` as `SellBack`, then accept it like an entry quote, with no `funding`. On `COMMITTED` the
+position closes (`POSITION_CLOSED`, `close_reason: SELL_BACK`), and the proceeds land in your vault balance:
+`price` less the profit fee on the part above the position's `net_stake`,
+`floor((price - net_stake) * fee_bps / 10000)`, with no fee when `price` is at or below `net_stake`
+([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it.
 
 ## Settlement
 

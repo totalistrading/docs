@@ -86,7 +86,6 @@ Re-read capital on every `MAKER_CAPITAL_UPDATED` on the [maker channel](/hyperli
 | A position pays part (`PARTIAL`) | What it pays leaves `vault_gross` for the owner, and you keep the rest of the stake. It leaves `stake_escrow`. `gross_open` falls. |
 | A position closes either way | `discount` falls by the part of the closed position's worst case you did not pay, so the credit it earned leaves with it. |
 | You buy a position back (`SELL_BACK`) | The price comes out of `vault_gross`. The net stake leaves `stake_escrow`, so it is yours again. The position closes as above. |
-| Another maker buys it (`TRANSFER`) | Nothing changes for you. You still back it, for its new owner. |
 | You deposit or withdraw | `vault_gross` moves. A withdrawal executes only if its amount is within `free_collateral` at that time. |
 
 The profit fee comes out of the taker's winnings, not your vault. The entry fee comes out of the
@@ -101,9 +100,8 @@ A quote reserves nothing until you confirm it. From your confirm until the fill 
 | --- | --- |
 | Entry | Its worst case, `payout - net stake`. |
 | `SELL_BACK` | Its `price`, less the position's net stake and the worst case it releases. Never below zero: a buyback that frees capital holds nothing. |
-| `TRANSFER` | Its `price`, against your wallet's own vault balance, not the maker vault. |
 
-Each entry and `SELL_BACK` confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. A `TRANSFER` confirm is checked against your wallet's own vault balance instead. If
+Each entry and `SELL_BACK` confirm is checked against `free_collateral` less the fills you confirmed that are not yet on-chain. If
 several of your quotes are accepted at once, a later confirm can fail with `QUOTE_CAPACITY_EXCEEDED`, and
 nothing fills. Quote only what `MAKER_QUOTE` covers. A maker whose free capital is short of its
 requirement, but whose vault still covers stakes and owed winnings, can still buy back a position whose close
