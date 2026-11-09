@@ -64,8 +64,8 @@ until it is live. After a truncated snapshot or a cursor resume, it first pages
 
 ### `bid(rfq, { price })`
 
-Publishes `sell_back` terms when this maker backs the position. Otherwise it publishes `transfer` terms, paid from
-the maker wallet's own vault balance ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
+Publishes `sell_back` terms. Totalis sends a cash-out RFQ only to the maker that backs the position
+([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
 
 ### `cancelQuote(quoteId)`
 

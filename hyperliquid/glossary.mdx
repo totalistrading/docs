@@ -13,12 +13,12 @@ description: 'Every term the Hyperliquid API uses, from leg and RFQ to acceptanc
 | Taker | The account that creates an RFQ and accepts a quote. For a cash-out, the position's owner. |
 | Maker | A market maker (`maker_id`) that quotes, confirms and backs positions from its maker vault. |
 | RFQ | Request for quote. `ENTRY` prices new legs for a stake; `CASHOUT` prices an existing position. |
-| Quote | A maker's unsigned offer on one RFQ: `entry` terms (a `payout`), or `sell_back` or `transfer` terms (a `price`). |
+| Quote | A maker's unsigned offer on one RFQ: `entry` terms (a `payout`), or `sell_back` terms (a `price`). |
 | Acceptance | The record of one accept on one quote, named by the accept's `Idempotency-Key` (`acceptance_id`). A quote has at most one. |
 | Confirm | The maker's answer to an acceptance before its `deadline`, 2 seconds after the accept: `CONFIRM` with a signature, or `DECLINE`. |
 | Position | A filled trade on-chain: legs, stake, payout, owner and backing maker. An entry position's `position_id` is its `quote_id`. |
 | Stake, payout | What the taker pays, before the entry fee (`taker_fee_bps`); what the position pays if every leg wins, before the profit fee (`fee_bps`). |
-| Cash-out | Selling an open position: a `sell_back` to its maker, or a `transfer` to another maker. |
+| Cash-out | Selling an open position back to the maker that backs it (`sell_back`). Only that maker bids. |
 | Leg state | A cash-out RFQ's hash of every leg's on-chain state (`leg_state`). A cash-out lands only while the position's legs still hash to it; otherwise the trade reverts. See [Price a cash-out](/hyperliquid/guides/market-making#price-a-cash-out). |
 | Settlement, claim | Grading a resolved position, then paying its winnings into the owner's vault balance. Totalis runs both. |
 | Operation | One on-chain action Totalis relays for you, with a `status` (`operation_id`, `OPERATION_UPDATED`). |
