@@ -141,13 +141,21 @@ The response waits for the maker's answer:
 | `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded. Create a new RFQ. |
 
-Read later, an acceptance can also be `FILLED` or `FAILED`. With `funding`, an `ACCEPTED` acceptance also carries
-`fund_by`, 2 seconds after the confirm. Judge `deadline` and `fund_by` against `server_time`, not your clock.
+Read later, an acceptance can also be `FILLED` or `FAILED`. When its `funding` owes a shortfall, an `ACCEPTED`
+acceptance also carries `fund_by`, 2 seconds after the confirm. Judge `deadline` and `fund_by` against
+`server_time`, not your clock.
 
 ### Funding
 
-If your free vault balance is short of the stake, add `funding` to the accept. The vault draws exactly
-the shortfall in the same transaction as the trade. It needs `funding:deposit`.
+If your free vault balance is short of the stake, add `funding` to the accept. The shortfall comes from your
+wallet's USDC on HyperEVM, in the same transaction as the trade. Either `kind` needs `funding:deposit`.
+
+| `kind` | You sign with the accept | The shortfall comes from |
+| --- | --- | --- |
+| `WALLET` | A USDC `ReceiveWithAuthorization` for the exact shortfall | That authorization |
+| `WALLET_APPROVAL` | Nothing | Your wallet's [approval](#wallet-approval) to [WalletAccept](/hyperliquid/glossary), which the wallet signs once ahead of time |
+
+#### `WALLET`
 
 ```json
 {
@@ -164,10 +172,136 @@ the shortfall in the same transaction as the trade. It needs `funding:deposit`.
 ```
 
 `value` is the stake minus `VAULT_FREE` in [Get balances](/hyperliquid/api-reference/account/get-balances),
-signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`. Sign
-`valid_after` at or before now and `valid_before` no earlier than the quote's `expiry`, at most 900 seconds apart. If
-you bridge USDC from HyperCore to fund it, send the bridge only after the accept returns `ACCEPTED` and before
-`fund_by`. `WALLET_FUNDING_UPDATED` reports the funding's progress.
+signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. Sign `valid_after` at or before now and
+`valid_before` no earlier than the quote's `expiry`, at most 900 seconds apart.
+
+#### `WALLET_APPROVAL`
+
+```json
+{
+  "taker_signature": "0xabab...ab1b",
+  "funding": { "kind": "WALLET_APPROVAL" }
+}
+```
+
+Totalis sends the trade through WalletAccept. In one transaction, WalletAccept pulls the stake minus your vault
+balance from your wallet, deposits it into your vault balance, and opens the position. It pulls nothing if your
+vault balance covers the stake by then. The pull, the deposit and the trade land together or not at all.
+
+| Case | Result |
+| --- | --- |
+| The approval left is below the shortfall | The trade fails as soon as it is tried. |
+| The wallet holds less USDC than the shortfall | The trade waits for USDC to arrive, such as a bridge from HyperCore. Send it before `fund_by` ([Limits](/hyperliquid/limits-and-fees#limits)). The wait runs a little past `fund_by`, so only the operation's end says whether the trade failed. |
+| The deployment has no WalletAccept | `503 CONTRACT_UNAVAILABLE`. Nothing was admitted. |
+
+An acceptance keeps the `kind` it was admitted with. A resend under the same `Idempotency-Key` never switches it.
+
+#### Funding from HyperCore
+
+Either `kind` works with USDC on HyperCore. Accept first, then bridge the USDC to your own wallet on HyperEVM
+after the accept returns `ACCEPTED` and before `fund_by`. `WALLET_FUNDING_UPDATED` reports the funding's progress.
+
+### Wallet approval
+
+Set your wallet's [wallet approval](/hyperliquid/glossary) once, then fund `WALLET_APPROVAL` accepts from it. Your wallet signs a USDC permit. Totalis relays the permit and pays the gas.
+
+1. Read [Get wallet approval](/hyperliquid/api-reference/wallet-approval/get-wallet-approval).
+2. Sign a USDC `Permit` for `spender` at `nonce` from that read ([Signing](/hyperliquid/authentication#wallet-approval-permit)).
+3. Save the body and a new `Idempotency-Key`, then send them to
+   [Set wallet approval](/hyperliquid/api-reference/wallet-approval/set-wallet-approval).
+4. Follow the operation until it ends. Until it is `COMMITTED`, the old approval stands.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me/wallet-approval \
+  -H "Authorization: Bearer $TOTALIS_API_KEY"
+```
+
+```json
+{
+  "chain_id": "999",
+  "vault": "0xf1461f93a1c20dea830153cb66222e98c87e8402",
+  "token": "0xb88339cb7199b77e23db6e890353e22632ba630f",
+  "spender": "0x98066c726578c505ec920e797cd1fa0220c5675b",
+  "account": "0x1111111111111111111111111111111111111111",
+  "approved": "9994000000",
+  "nonce": "1",
+  "block": "50612345"
+}
+```
+
+| Field | Is |
+| --- | --- |
+| `vault` | The vault whose WalletAccept is `spender`: `vault_address` in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). Never `null`. |
+| `spender` | WalletAccept. Sign the permit for this address. |
+| `approved` | The USDC WalletAccept may still pull from the wallet, in atomic units |
+| `nonce` | The wallet's next USDC permit nonce |
+| `block` | The HyperEVM block both values were read at |
+
+`approved`, `nonce` and `block` are `null` when HyperEVM could not be read, never `0`. Read again.
+
+```bash
+curl https://hip4-api.totalis.trade/v1/me/wallet-approval \
+  -H "Authorization: Bearer $TOTALIS_API_KEY" \
+  -H "Idempotency-Key: 01a0df4f-1b2c-7d3e-8f40-5a6b7c8d9e0f" \
+  -H "Content-Type: application/json" \
+  -d '{ "value": "10000000000", "nonce": "1", "deadline": "1794153600", "signature": "0xabab...ab1b" }'
+```
+
+```json
+{
+  "request_id": "01a0df4f-1b2c-7d3e-8f40-5a6b7c8d9e0f",
+  "operation_id": "0x3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d",
+  "value": "10000000000",
+  "nonce": "1",
+  "deadline": "1794153600",
+  "status": "QUEUED",
+  "transaction_hash": null
+}
+```
+
+`value` is the approval the permit sets, in atomic USDC. It replaces the current approval; it does not add to it.
+The operation is kind `USDC_PERMIT` on `OPERATION_UPDATED`. To learn where a permit stands after a lost answer,
+resend the same body under the same key ([Idempotency](/hyperliquid/errors#idempotency)).
+
+USDC judges the `deadline`. Set wallet approval admits a permit whose `deadline` has passed like any other, and its
+operation ends with `failure_reason` `PERMIT_EXPIRED`.
+
+| `status` | Meaning |
+| --- | --- |
+| `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. The old approval stands. |
+| `COMMITTED` | The approval is `value`. |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing changed. `failure_reason` says why. |
+
+| `failure_reason` | Meaning | Do |
+| --- | --- | --- |
+| `PERMIT_EXPIRED` | Its `deadline` passed before it landed. That includes a permit sent late, and one never sent because sponsored gas stayed above its ceiling or its vault stopped taking Combos. | Read the approval again, then sign a new permit for the `spender` it returns. |
+| `PERMIT_NONCE_USED` | Another permit used its nonce first. | Read the approval before you sign again. It may already be what you wanted. |
+| `PERMIT_REVERTED` | USDC refused it for another reason. | Read the approval and the nonce, then decide. |
+
+Each `WALLET_APPROVAL` trade lowers the approval by what it pulls. Approve again when the approval left is below
+the next shortfall.
+
+#### What the approval allows
+
+| Item | Rule |
+| --- | --- |
+| Scope | The approval covers the whole account, not one trade. Once it exists, any valid signed acceptance named to the account can be paid from the wallet, up to the approval left. Anyone can send such an acceptance through WalletAccept. |
+| `kind` | `WALLET_APPROVAL` on the accept chooses how Totalis sends the trade. It is not consent the chain checks. |
+| Vault agents | A [vault agent](/hyperliquid/build/partner-frontend#vault-agents) signs the account's acceptances, so a stolen agent key can spend the wallet's USDC up to the approval left. |
+| Revoke | Send a permit with `value` `"0"`. The approval ends only when that operation is `COMMITTED`. While financial actions are switched off, Set wallet approval refuses every permit, revokes included, with `503 FINANCIAL_ACTIONS_DISABLED`. |
+| A token `approve(0)` sent from another tool | Clears the current approval, but a signed permit that has not landed yet can still set it again. A landed revoke through Set wallet approval also uses up the nonce such a permit was signed at. The wallet can send `approve(0)` or `permit(0)` itself at any time, paying its own gas. |
+| A new vault | Each vault has its own WalletAccept, and Get and Set wallet approval serve only the current vault's. Once a vault is permanently retired on chain, its WalletAccept can no longer pull USDC, so an approval left to it cannot move funds. It stays on chain until the wallet clears it with its own `approve(0)` or `permit(0)`. Approve the new `spender` to keep using approval funding. |
+
+[Get balances](/hyperliquid/api-reference/account/get-balances) counts all of the wallet's USDC, whatever the
+approval. A `WALLET_APPROVAL` trade whose shortfall is above the approval left fails with `funding_failure_reason`
+`INSUFFICIENT_APPROVAL` ([Follow the fill](#follow-the-fill)).
+
+| Deployment | WalletAccept |
+| --- | --- |
+| Production | `0x98066c726578c505ec920e797cd1fa0220c5675b` |
+| [Staging](/hyperliquid/build/staging) | `0xa65d574564d7955b1b8ec6016f14ba8a6451b92c` |
+
+Sign for the `spender` that Get wallet approval returns, not a copied address.
 
 ### Lost response
 
@@ -183,6 +317,15 @@ is final. Never accept the same quote under a second key.
 | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
 | `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
 | `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
+
+When a `WALLET_APPROVAL` trade ends `EXPIRED_UNEXECUTED` with `failure_reason` `INSUFFICIENT_CASH`, the acceptance
+([Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance)) names the part of the wallet that fell short:
+
+| `funding_failure_reason` | Meaning |
+| --- | --- |
+| `INSUFFICIENT_APPROVAL` | The [approval](#wallet-approval) left was below the shortfall. Approve more. |
+| `INSUFFICIENT_WALLET_USDC` | The wallet held less USDC than the shortfall, including when a bridge from HyperCore did not land by `fund_by`. |
+| Absent | Vault cash fell short, or Totalis could not tell which part did. |
 
 The position's ID is the `quote_id` you accepted:
 

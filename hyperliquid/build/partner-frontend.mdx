@@ -162,7 +162,8 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 
 | From | How | Who pays gas |
 | --- | --- | --- |
-| The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
+| The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept, with a USDC authorization the wallet signs for each entry. | Totalis |
+| The wallet's USDC on HyperEVM, at bet time, from a [wallet approval](/hyperliquid/guides/trading#wallet-approval) | Pass `funding: "approval"` to `openPosition`. The wallet signs one USDC permit that approves WalletAccept, and entries then draw their shortfall from it with no funding prompt. The SDK asks for a new permit only when the approval left is below an entry's shortfall ([Fund from a wallet approval](/hyperliquid/sdk/trading#fund-from-a-wallet-approval)). | Totalis, for the permit and the entries |
 | The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the maker confirms, and the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
 | The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
@@ -171,6 +172,10 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 const calls = await totalis.directDepositCalls(10_000_000n); // 10 USDC
 for (const call of calls) await walletClient.sendTransaction(call);
 ```
+
+The approval covers the whole account, not one entry, and a vault agent's acceptances can spend it too. Read
+[What the approval allows](/hyperliquid/guides/trading#what-the-approval-allows) before you offer it, and give your
+users a way to revoke it (`revokeWalletApproval`).
 
 To show how much one Combo can stake, and to cap the stake field, use `readComboCash()`. Its `allowance` counts
 vault cash, HyperEVM USDC and the HyperCore USDC a bridge can move, after Hyperliquid's setup fee and the bridge's
@@ -190,6 +195,12 @@ at once. In your own flow, use `prepareEntryFunding`, then `signEntry({ quote, p
 | Free vault cash | `TakerAccept` | 1 | 0 |
 | The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, USDC `ReceiveWithAuthorization` | 2 | 1 |
 | The wallet's HyperCore USDC, for what HyperEVM lacks (`core`) | `TakerAccept`, Hyperliquid `SendAsset`, USDC `ReceiveWithAuthorization` | 3 | 2 |
+| The wallet's HyperEVM USDC, with `funding: "approval"` | `TakerAccept` | 1 | 0 |
+| The wallet's HyperCore USDC, with `funding: "approval"` | `TakerAccept`, Hyperliquid `SendAsset` | 2 | 1 |
+
+With `funding: "approval"`, the wallet also signs a USDC `Permit` the first time, and again whenever the
+approval left is below the entry's shortfall. That entry has one more prompt, and waits for the permit to land
+before it picks a quote.
 
 Every one of them, the Hyperliquid bridge included, names the deployment's chain: `chain_id` in
 [Get deployment](/hyperliquid/api-reference/deployment/get-deployment), `999` in production and `998` on staging.
@@ -210,7 +221,9 @@ consider one attempt and let the user press again.
 The accept goes first. The bridge from HyperCore goes only after the maker confirms, and only before the
 acceptance's `fund_by`, two seconds after the confirm. An accept the maker declines, or that times out, moves
 nothing. If the wallet still lacks the funding when the trade is sent, nothing trades: the operation ends
-`EXPIRED_UNEXECUTED` and the RFQ `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. Pass `cash`, a `spendableCash` read you already hold, to skip a balances read
+`EXPIRED_UNEXECUTED` and the RFQ `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. With `funding: "approval"`,
+the acceptance's `funding_failure_reason` says whether the approval or the wallet's USDC fell short
+([Follow the fill](/hyperliquid/guides/trading#follow-the-fill)). Pass `cash`, a `spendableCash` read you already hold, to skip a balances read
 on the press.
 
 ### If an entry fails after its bridge
@@ -279,7 +292,8 @@ A vault agent is a key the account's wallet approves once. Until the grant ends,
 entry accepts, cash-outs and moves of vault cash back to the account, so those need no wallet prompt. It works for the Totalis
 vault the way a Hyperliquid agent wallet works for HyperCore orders. Which messages it can sign is in
 [Every signature](#every-signature). The wallet still signs everything that moves USDC out of the wallet, out of
-HyperCore or to another address.
+HyperCore or to another address. The one exception is a wallet approval the wallet already signed: an agent's
+acceptance draws on it.
 
 <Steps>
   <Step title="The wallet grants the agent, from a wallet session">
@@ -339,7 +353,8 @@ HyperCore or to another address.
 
 An agent cannot send cash anywhere but the account's own wallet or HyperCore. It can still spend the account's
 vault cash on positions, including against a maker its holder controls, and sell the account's positions at any
-price. Make a separate agent for each account, keep its key secret, and revoke it when the user disconnects or
+price. While the account has a [wallet approval](/hyperliquid/guides/trading#what-the-approval-allows), the agent's
+acceptances can also spend the wallet's USDC, up to the approval left. Make a separate agent for each account, keep its key secret, and revoke it when the user disconnects or
 the key may have leaked.
 
 ### Agent on your server, wallet on the device
@@ -365,9 +380,10 @@ const totalis = createTotalis({
 });
 ```
 
-An entry from free vault cash, a cash-out and an exit to HyperCore never call the device. An entry funded from the
-wallet or HyperCore asks the device for its funding before the quote is picked, so the round trip does not spend
-the quote's `accept_before`. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
+An entry from free vault cash, a cash-out and an exit to HyperCore never call the device. With
+`funding: "approval"`, neither does an entry funded from the wallet while the approval left covers it. Any other
+entry funded from the wallet or HyperCore asks the device for its funding, or for a new permit, before the quote is
+picked, so the round trip does not spend the quote's `accept_before`. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
 key need a wallet session, so run them while the user is signed in.
 
 ## Every signature
@@ -385,6 +401,7 @@ values from [Get deployment](/hyperliquid/api-reference/deployment/get-deploymen
 | Grant or revoke a vault agent | `grantVaultAgent`, `revokeVaultAgent` | `AgentGrant` | No | `chain_id` | `vault_address` |
 | Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | Yes | `chain_id` | `vault_address` |
 | Fund an entry from the wallet | `openPosition`, `signEntry` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Set or revoke the wallet approval | `approveWallet`, `revokeWalletApproval`, or `openPosition` and `prepareEntryFunding` with `funding: "approval"` | `Permit` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
 | Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | No | `chain_id` | `0x0000000000000000000000000000000000000000` |
 | Cash out | `cashOut`, `signCashout` | `SellBack` or `CashoutTransfer` | Yes | `chain_id` | `vault_address` |
 | Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | Yes | `chain_id` | `vault_address` |
@@ -418,6 +435,7 @@ of that type: an allowed `TransferWithAuthorization` pays anyone.
   | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `deployment.router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
   | `TransferWithAuthorization` | `from` the user's wallet, and the `to` and `value` the user entered. The `nonce` is `payoutNonce`, derived from the user's wallet and the withdrawal's `Idempotency-Key`, which binds the payout to that one withdrawal. Derive it yourself. |
   | `AgentGrant` | `account` the user's wallet, `agent` the key you made for that user, and `validUntil` the end the user approved, or `0` for a revoke |
+  | `Permit` | `owner` the user's wallet, `spender` and `nonce` from Get wallet approval read with that user's credential, and the `value` the user approved, or `0` for a revoke. A `Permit` to any other `spender` lets that address move the user's USDC. |
 
 - **One user, one signer.** Resolve the wallet from the user's own authenticated request every time. Never fall
   back to a shared or default wallet. Each user signs in with their own wallet and keeps their own Totalis session

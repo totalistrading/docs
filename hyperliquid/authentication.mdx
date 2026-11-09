@@ -1,7 +1,7 @@
 ---
 title: 'Authentication & signing'
 icon: 'key'
-description: 'Scoped API keys, the scopes each route needs, and the EIP-712 and EIP-3009 signatures that move funds.'
+description: 'Scoped API keys, the scopes each route needs, and the EIP-712, EIP-3009 and EIP-2612 signatures that move funds.'
 ---
 
 ```bash
@@ -39,7 +39,7 @@ A maker key calls these, each with the scope in [Scopes](#scopes):
 
 | Route | Scope |
 | --- | --- |
-| [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital), [Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal), [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction), [List quote history](/hyperliquid/api-reference/makers/list-quote-history) | `vault:read` |
+| [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital), [Get maker performance](/hyperliquid/api-reference/makers/get-maker-performance), [Get maker withdrawal](/hyperliquid/api-reference/makers/get-maker-withdrawal), [Get collateral reduction](/hyperliquid/api-reference/makers/get-collateral-reduction), [List quote history](/hyperliquid/api-reference/makers/list-quote-history) | `vault:read` |
 | [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `quote:read` |
 | [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote), [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote), [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | `quote:write` |
 | [Create collateral reduction](/hyperliquid/api-reference/makers/create-collateral-reduction) | `vault:write` |
@@ -48,8 +48,8 @@ A maker key calls these, each with the scope in [Scopes](#scopes):
 A maker key reads `/v1/me/positions`, `/v1/me/activity`, `/v1/me/operations` and its capital only if it holds
 `vault:read`. Totalis grants nothing else.
 
-The maker's position, exposure, performance and activity pages in the app read `/v1/makers/{maker_id}/...`
-routes that only the app's session can call. A maker key gets `403` on them.
+The app's maker position and exposure pages read `/v1/makers/{maker_id}/...` routes not documented here. A maker
+key reads the same positions from `/v1/me/positions`.
 
 ## Create, rotate, revoke
 
@@ -90,16 +90,16 @@ expiry (30 when omitted), and `overlap_seconds` is 0 to 86400 (3600 when omitted
 | Scope | Account | Grants |
 | --- | --- | --- |
 | `identity:read` | Yours | Your identity and wallet |
-| `account:read` | Yours | Balances, positions, activity, operations, withdrawals |
+| `account:read` | Yours | Balances, positions, activity, operations, withdrawals, the [wallet approval](/hyperliquid/guides/trading#wallet-approval) |
 | `account:stream` | Yours | The [account channel](/hyperliquid/api-reference/websocket/account) |
 | `rfq:read` | Either | Open RFQs and RFQ events |
 | `rfq:write` | Yours | Create and cancel RFQs |
 | `quote:read` | Either | Yours: quotes on your RFQs, your acceptances. A maker: acceptances of its quotes. |
 | `quote:accept` | Yours | Accept a quote |
 | `position:cashout` | Yours | Accept a cash-out quote |
-| `funding:deposit` | Yours | Fund an accept's shortfall from your wallet |
+| `funding:deposit` | Yours | Fund an accept's shortfall from your wallet, either `kind`. Set the wallet approval. |
 | `funding:withdraw` | Yours | Withdraw |
-| `sponsorship:use` | Yours | Required on every accept and cash-out made with an API key, and on withdrawals. Totalis relays them and pays the gas. |
+| `sponsorship:use` | Yours | Required on every accept and cash-out made with an API key, on withdrawals, and on setting the wallet approval. Totalis relays them and pays the gas. |
 | `quote:write` | Maker | Create, cancel and confirm quotes |
 | `replay:read` | Either | Resume the WebSocket from a cursor |
 | `vault:read` | Maker | Capital, positions, activity, operations, collateral reductions |
@@ -141,7 +141,9 @@ and [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 | Accept a cash-out quote | The owner, or its vault agent | `SellBack` or `CashoutTransfer` | `taker_signature` |
 | Confirm an entry quote | The maker wallet | `Quote` | `maker_signature` |
 | Confirm a cash-out quote | The maker wallet | `SellBack` or `CashoutTransfer` | `maker_signature` |
-| Fund an accept | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
+| Fund an accept, `kind` `WALLET` | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
+| Fund an accept, `kind` `WALLET_APPROVAL` | Nobody | None. It draws on the wallet approval. | None |
+| Set or revoke the wallet approval | Your wallet | USDC `Permit` | `signature` ([Wallet approval permit](#wallet-approval-permit)) |
 | Bridge USDC from HyperCore into an entry | Your wallet | `HyperliquidTransaction:SendAsset` | None. Sent to Hyperliquid after the maker confirms, before the acceptance's `fund_by`. |
 | Deposit | Your wallet | USDC `ReceiveWithAuthorization` | [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) body (wallet session only) |
 | Withdraw: vault shortfall | Your wallet, or its vault agent | `Exit` | `vault_withdrawal.signature` |
@@ -153,7 +155,8 @@ A vault agent signs only the rows that name it, and an agent's `Exit` only pays 
 HyperCore spot balance ([Vault agents](/hyperliquid/build/partner-frontend#vault-agents)).
 
 Settling and claiming need no signature. Send signatures as lowercase hex with `v` of 27 or 28. EOA and
-ERC-1271 signatures are accepted from your wallet. A vault agent signs as an EOA.
+ERC-1271 signatures are accepted from your wallet, except on the USDC `Permit`, which takes only an EOA
+signature. A vault agent signs as an EOA.
 
 ## Domain
 
@@ -176,7 +179,7 @@ fees before each quote.
 | Messages | EIP-712 domain |
 | --- | --- |
 | `Quote`, `TakerAccept`, `SellBack`, `CashoutTransfer`, `Exit`, `AgentGrant` | `{ name: "TotalisParlay", version: "1", chainId: chain_id, verifyingContract: vault_address }` |
-| `ReceiveWithAuthorization`, `TransferWithAuthorization` | `usdc.eip712_domain` |
+| `ReceiveWithAuthorization`, `TransferWithAuthorization`, `Permit` | `usdc.eip712_domain` |
 | `HyperliquidTransaction:SendAsset`, the HyperCore bridge into an entry | `{ name: "HyperliquidSignTransaction", version: "1", chainId: chain_id, verifyingContract: "0x0000000000000000000000000000000000000000" }` |
 
 ## Types
@@ -191,6 +194,7 @@ Exit(address account,address to,uint128 amount,uint64 expiry,uint256 salt)
 AgentGrant(address account,address agent,uint64 validUntil,uint64 nonce)
 ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
 TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)
+Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)
 HyperliquidTransaction:SendAsset(string hyperliquidChain,string destination,string sourceDex,string destinationDex,string token,string amount,string fromSubAccount,uint64 nonce)
 ```
 
@@ -215,3 +219,30 @@ Signed field names differ from the API's. This is the only place they do.
 | Withdrawal payout | `keccak256(abi.encode(keccak256("TOTALIS_PAYOUT_NONCE_V1"), chainId, vault, account, uint128(Idempotency-Key)))`. Not sent. |
 
 Signature windows are on [Limits](/hyperliquid/limits-and-fees).
+
+## Wallet approval permit
+
+The wallet sets its [wallet approval](/hyperliquid/guides/trading#wallet-approval) with an EIP-2612 USDC
+`Permit` in the `usdc.eip712_domain` of [Get deployment](/hyperliquid/api-reference/deployment/get-deployment):
+`{ name: "USDC", version: "2", chainId, verifyingContract }`, where `verifyingContract` is the USDC contract.
+Read `spender` and `nonce` from [Get wallet approval](/hyperliquid/api-reference/wallet-approval/get-wallet-approval)
+right before you sign.
+
+| Field | Value |
+| --- | --- |
+| `owner` | Your account's wallet (`account` in Get wallet approval) |
+| `spender` | `spender` in Get wallet approval: WalletAccept |
+| `value` | The approval it sets, in atomic USDC. `0` revokes. |
+| `nonce` | `nonce` in Get wallet approval, which is USDC `nonces(owner)` |
+| `deadline` | Unix seconds. USDC refuses the permit after it. |
+
+Send `value`, `nonce`, `deadline` and `signature` to
+[Set wallet approval](/hyperliquid/api-reference/wallet-approval/set-wallet-approval). Totalis sets `owner` to your
+account's wallet and `spender` to WalletAccept, and refuses a signature that does not recover to your wallet over
+that permit (`422 INVALID_SIGNATURE`).
+
+| Caller | Get wallet approval | Set wallet approval |
+| --- | --- | --- |
+| Wallet session | Yes | Yes |
+| The account's own API key (`ttk_`) | With `account:read` | With `funding:deposit` and `sponsorship:use` |
+| Partner server key (`tpk_`) | No | No: `403 FORBIDDEN` |

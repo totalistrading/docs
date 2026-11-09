@@ -13,6 +13,7 @@ app-only routes. This script:
   regrouping never breaks a link (x-mint);
 - drops `additionalProperties: false` from response-only schemas, so a client generated from the spec
   accepts fields added later (requests stay strict);
+- writes descriptions with ASCII ellipses and hyphens (STYLE.md);
 - writes the API reference tab: an Overview group (OVERVIEW), then one group per PAGES entry, led
   by its hand-written pages (LEADS).
 
@@ -60,7 +61,6 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POST /v1/me/positions/{position_id}/cashout", "Cash out position", "Positions"),
             ("POST /v1/rfqs/{rfq_id}/quotes", "Create quote", "Quotes"),
             ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
-            ("POST /v1/rfqs/{rfq_id}/declines", "Decline RFQ", "RFQs"),
             ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
             ("PUT /v1/makers/{maker_id}/quote-lease", "Keep quote lease", "Quotes"),
@@ -79,7 +79,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "Account": (
-        "The account a key acts for: identity, balances, activity, operations, withdrawals, deposits and HyperCore exits.",
+        "The account a key acts for: identity, balances, activity, operations, withdrawals, deposits, the wallet approval and HyperCore exits.",
         [
             ("GET /v1/me", "Get identity", "Account"),
             ("GET /v1/me/balances", "Get balances", "Account"),
@@ -91,6 +91,8 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POST /v1/me/run-off-claims", "Create run-off claim", "Withdrawals"),
             ("GET /v1/me/withdrawals/{withdrawal_id}", "Get withdrawal", "Withdrawals"),
             ("POST /v1/me/deposits", "Create deposit", "Deposits"),
+            ("GET /v1/me/wallet-approval", "Get wallet approval", "Wallet approval"),
+            ("POST /v1/me/wallet-approval", "Set wallet approval", "Wallet approval"),
             ("POST /v1/core-exits", "Create HyperCore exit", "Core exits"),
             ("GET /v1/me/core-exits", "List HyperCore exits", "Core exits"),
             ("GET /v1/core-exits/{exit_id}", "Get HyperCore exit", "Core exits"),
@@ -104,6 +106,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("POST /v1/me/maker", "Admit own maker", "Makers"),
             ("GET /v1/makers/{maker_id}/quote-history", "List quote history", "Makers"),
             ("GET /v1/makers/{maker_id}/capital", "Get maker capital", "Makers"),
+            ("GET /v1/makers/{maker_id}/performance", "Get maker performance", "Makers"),
             ("POST /v1/makers/{maker_id}/collateral-reductions", "Create collateral reduction", "Makers"),
             ("GET /v1/makers/{maker_id}/collateral-reductions/{job_id}", "Get collateral reduction", "Makers"),
             ("GET /v1/makers/{maker_id}/withdrawal", "Get maker withdrawal", "Makers"),
@@ -177,7 +180,7 @@ def operations(spec: dict):
 
 # The one group both sides use, split so a taker and a maker each find their calls together.
 SUBGROUPS: dict[str, list[tuple[str, int]]] = {
-    "RFQs & Quotes": [("Taking", 4), ("Making", 7), ("Reads", 4)],
+    "RFQs & Quotes": [("Taking", 4), ("Making", 6), ("Reads", 4)],
 }
 
 
@@ -323,6 +326,22 @@ def open_responses(spec: dict) -> dict:
     return spec
 
 
+ASCII_PROSE = str.maketrans({"…": "...", "–": "-"})
+
+
+def ascii_prose(node):
+    """STYLE.md bans ellipses and en dashes in public text, and descriptions render as pages."""
+    if isinstance(node, list):
+        return [ascii_prose(item) for item in node]
+    if isinstance(node, dict):
+        return {
+            key: value.translate(ASCII_PROSE) if key in ("description", "summary") and isinstance(value, str)
+            else ascii_prose(value)
+            for key, value in node.items()
+        }
+    return node
+
+
 def titles(node, path: str = ""):
     """Every schema title under node with where it is, skipping example data."""
     if isinstance(node, list):
@@ -411,7 +430,7 @@ def main() -> int:
     else:
         spec = json.loads((args.spec or SPEC).read_text())
 
-    spec = open_responses(readable(publish(spec)))
+    spec = ascii_prose(open_responses(readable(publish(spec))))
     unique_titles(spec)
     spec_text = dump(spec)
     docs_text = dump(with_tab(json.loads(DOCS.read_text())))

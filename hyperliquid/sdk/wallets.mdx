@@ -1,7 +1,7 @@
 ---
 title: 'Wallets and partners'
 icon: 'wallet'
-description: 'Sign a user in with their own wallet, admit wallets from a partner server, deposit, move cash to HyperCore, grant vault agents and issue keys from a session.'
+description: 'Sign a user in with their own wallet, admit wallets from a partner server, deposit, set the wallet approval, move cash to HyperCore, grant vault agents and issue keys from a session.'
 ---
 
 In your own frontend, each user trades with their own wallet. They sign in to get a session, and that session
@@ -74,6 +74,35 @@ await partner.admitWallet(address, consent);
 | --- | --- |
 | `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself, paying its own gas |
 | `totalis.signDeposit`, `totalis.sendDeposit` | A deposit the wallet signs and Totalis relays, paying the gas |
+
+## Wallet approval
+
+The [wallet approval](/hyperliquid/guides/trading#wallet-approval) lets entries with `funding: "approval"` draw
+their shortfall from the wallet with no funding prompt. `openPosition` sets it when it needs to. To set, read or
+revoke it yourself:
+
+```ts
+const approval = await totalis.readWalletApproval(); // { spender, approved, nonce, block, ... }
+await totalis.approveWallet({ value: 50_000_000_000n, onSigned: (record) => save("approval", record) }); // 50,000 USDC
+await totalis.revokeWalletApproval({ onSigned: (record) => save("approval", record) });
+```
+
+| Function | Does |
+| --- | --- |
+| `readWalletApproval()` | [Get wallet approval](/hyperliquid/api-reference/wallet-approval/get-wallet-approval): the approval left (`approved`) and the permit `nonce`, read at one block. `null` fields mean unread, never `0`. |
+| `approveWallet({ value, onSigned })` | Signs a permit at the current nonce, awaits `onSigned` with the record, sends it and waits until it lands. Resolves with the `COMMITTED` request; throws `WalletApprovalError` when it changed nothing. `value` replaces the approval. |
+| `revokeWalletApproval({ onSigned })` | `approveWallet` with `value` `0`. The approval ends only when this resolves. |
+| `signWalletApproval({ value, approval })` | Signs a permit without sending it, at the nonce of `approval` or of a fresh read. Send it before its `deadline` ([Limits](/hyperliquid/limits-and-fees#limits)); one sent later is admitted and ends `PERMIT_EXPIRED`. |
+| `sendWalletApproval(signed)` | Sends a signed permit under its request ID, and resends the same bytes after a lost answer. ([Wallet approval records](/hyperliquid/sdk/resume-and-retry#wallet-approval-records)) |
+| `recoverWalletApproval(signed, { wait })` | Finishes a stored permit after a restart: resends it and follows it until it ends. Signs nothing. |
+
+The signer must be the account's wallet: a vault agent cannot sign a permit. Use the SDK's revoke, not a token
+`approve(0)` from another tool, which a signed permit that has not landed yet can undo
+([What the approval allows](/hyperliquid/guides/trading#what-the-approval-allows)).
+
+These functions serve the current vault's WalletAccept only. An approval left to an earlier vault's WalletAccept
+cannot move funds once that vault is permanently retired on chain. The wallet clears it with its own `approve(0)` or
+`permit(0)` ([What the approval allows](/hyperliquid/guides/trading#what-the-approval-allows)).
 
 ## Move cash to HyperCore
 

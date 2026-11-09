@@ -76,7 +76,10 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 | `quoteTimeoutMs` | 20,000 | Cancels the RFQ and throws if no acceptable quote arrives in time |
 | `collectMs` | 1,000 | How long to keep collecting after the first quote `choose` would take. `0` takes it at once. |
 | `choose` | `bestQuote()` | Picks a quote from `(quotes, serverNowMs)`, or returns `undefined` to keep waiting |
-| `funding` | `"wallet"` | `"wallet"` funds the exact shortfall from the wallet; `"none"` never funds; a funding command you built is sent as is |
+| `funding` | `"wallet"` | `"wallet"` funds the exact shortfall from the wallet with a USDC authorization; `"approval"` draws it from the [wallet approval](#fund-from-a-wallet-approval); `"none"` never funds; a funding command you built is sent as is |
+| `approvalValue` | [`defaultWalletApproval`](#fund-from-a-wallet-approval), or the shortfall when larger | With `"approval"`: the approval a new permit sets when one is needed. `null` never asks for a permit. |
+| `approval` | | With `"approval"`: an approval you already hold, so the SDK skips its read ([Fund from a wallet approval](#fund-from-a-wallet-approval)) |
+| `onApproval` | | With `"approval"`: awaited with a signed permit record before it is first sent. Persist it. |
 | `core` | | HyperCore spot USDC you offer to bridge to the wallet when its HyperEVM USDC falls short |
 | `cash` | | A `spendableCash()` read to plan from. Left out, balances are read while quotes arrive. |
 | `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. If the venue refuses the accept for a replaced or expired quote, it is called with the record marked `refused`. Persist the latest record. |
@@ -90,6 +93,51 @@ or pass `quoteTimeoutMs`.
 
 Funding comes from free vault cash first, then the wallet, then a bridge of `core`. 0.05 USDC stays behind for
 the bridge's gas.
+
+### Fund from a wallet approval
+
+With `funding: "approval"`, the wallet's part of the stake comes from its USDC
+[approval](/hyperliquid/guides/trading#wallet-approval) to WalletAccept, so an entry needs no USDC authorization.
+An entry that bridges from HyperCore still signs its bridge.
+
+```ts
+const opened = await totalis.openPosition({
+  legs,
+  stake: 5_000_000n,
+  funding: "approval",
+  onApproval: (record) => save("approval", record), // recoverWalletApproval(record) after a restart
+});
+```
+
+| The approval left | `openPosition` and `prepareEntryFunding` |
+| --- | --- |
+| Covers the shortfall | Sign nothing for the funding. |
+| Below the shortfall | Sign one permit for `approvalValue`, hand it to `onApproval`, send it and wait until it lands, then pick the quote. |
+| Below the shortfall, with `approvalValue: null` | Sign nothing. Throw `WalletApprovalError` `INSUFFICIENT_APPROVAL`. |
+
+`approvalValue` defaults to `defaultWalletApproval`, or the shortfall when that is larger
+([Limits](/hyperliquid/limits-and-fees#limits)). A retry
+for another quote reuses the landed approval and asks for no new permit. `signEntry({ quote, funding: "approval" })`
+without `prepared` sends no permit: it throws `WalletApprovalError` `INSUFFICIENT_APPROVAL` when the approval left
+does not cover the shortfall. Set the approval with `approveWallet` first
+([Wallet approval](/hyperliquid/sdk/wallets#wallet-approval)).
+
+The SDK reads the approval before it funds the entry. To skip that read when the entry needs no bridge, pass
+`approval` (`KnownWalletApproval`) to `openPosition` or `prepareEntryFunding`:
+
+| `approval` | Used |
+| --- | --- |
+| A `WalletApproval` you just read with `readWalletApproval()` | In place of the read. |
+| A `LandedWalletApproval`, `{ signed, landed }`: a permit this client signed and the `COMMITTED` request it landed as | In place of the read. Its `value` counts as the approval left. |
+
+It must be for the signer's wallet, on this deployment, for its vault (`vault`, the deployment's `vault_address`) and
+its USDC. Otherwise the SDK throws before it signs.
+With a bridge from HyperCore, which can't be undone, the SDK reads the approval while the wallet signs the bridge
+whatever you pass, and that read decides.
+
+The approval stays after the entry, for the whole account. Read
+[What the approval allows](/hyperliquid/guides/trading#what-the-approval-allows), and revoke it with
+`revokeWalletApproval()` when the user is done.
 
 ### How much one Combo can stake
 
@@ -137,9 +185,13 @@ import { entryFailure } from "@totalis/hip4-client";
 
 const operation = await totalis.waitForOperation(opened.operationId!);
 if (operation.status !== "COMMITTED") {
-  switch (entryFailure(opened.record, operation)) {
+  const { outcome } = await totalis.recoverAcceptance(opened.record, { wait: false }); // the acceptance as it ended
+  switch (entryFailure(opened.record, operation, outcome)) {
     case "INSUFFICIENT_CASH":
       show("Not enough cash to cover the stake.");
+      break;
+    case "INSUFFICIENT_APPROVAL":
+      show("Your wallet approval is too low for this stake.");
       break;
     case "CORE_MOVE_MISSED":
       show("Hyperliquid did not confirm the move from HyperCore in time. Your USDC may still be there.");
@@ -150,7 +202,9 @@ if (operation.status !== "COMMITTED") {
 }
 ```
 
-Pass the latest record, as `onSigned` or `onRecord` last handed it to you. When the entry bridged and failed,
+Pass the latest record, as `onSigned` or `onRecord` last handed it to you. The acceptance, the third argument, is
+needed only for a `funding: "approval"` entry: it tells `INSUFFICIENT_APPROVAL` apart from `INSUFFICIENT_CASH`.
+When the entry bridged and failed,
 see [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
 
 ### Watch quotes yourself
