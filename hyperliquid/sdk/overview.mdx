@@ -15,14 +15,40 @@ keeps a WebSocket in sync. It never holds a key: every signature goes to the sig
 npm install @totalis/hip4-client viem
 ```
 
-The package is public on npm under Apache-2.0. It is ESM, runs in Node 22 or later and in browsers, and has no
-wallet dependency. `viem` (or ethers) is only there to turn a private key into a signer.
+The package is public on npm under Apache-2.0. It is ESM and has no wallet dependency. `viem` (or ethers) is only
+there to turn a private key into a signer.
 
 <Note>
 The package used to be `@totalistrading/hip4-client`, and versions up to 0.65.0 were published to GitHub
 Packages under that name. Change your imports to `@totalis/hip4-client`, and remove any
 `@totalistrading:registry=https://npm.pkg.github.com` line from your `.npmrc`.
 </Note>
+
+## Runtimes
+
+| Runtime | Versions |
+| --- | --- |
+| Node | 22 or later |
+| Browsers | Current Chrome, Firefox, Safari and Edge |
+| React Native | 0.81 or later (Expo SDK 54 or later), from SDK 0.93.1 |
+
+On React Native, install `react-native-get-random-values` and import it once, before the SDK:
+
+```bash
+npx expo install react-native-get-random-values   # Expo
+npm install react-native-get-random-values        # bare React Native, then pod install
+```
+
+```ts
+import "react-native-get-random-values";
+import { createClient } from "@totalis/hip4-client";
+```
+
+React Native has no secure random source of its own. The SDK needs one for request IDs, idempotency keys and
+signed nonces, and throws an error naming the package if it is missing. Most wallet libraries need it too.
+
+A partner server key (`tpk_`) is a secret. `createPartnerServer` and `signInWithWallet`'s `serverKey` accept it
+only on a server, never in a browser or an app.
 
 ## Make a first call
 

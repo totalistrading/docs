@@ -66,7 +66,7 @@ await partner.admitWallet(address, consent);
 ```
 
 `signAdmissionConsent` returns the wallet's `address` and its `consent`, and takes an optional
-`lifetimeSeconds`. `createPartnerServer` refuses to run in a browser, so the server key cannot leak there. See [Partner frontend](/hyperliquid/build/partner-frontend).
+`lifetimeSeconds`. `createPartnerServer` refuses to run in a browser or a React Native app, so the server key cannot leak there. See [Partner frontend](/hyperliquid/build/partner-frontend).
 
 ## Deposit
 
