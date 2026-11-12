@@ -28,8 +28,8 @@ The stream applies the snapshot or replay, drops duplicates, and reconnects from
 - `serverNow()` is the venue clock.
 - On close it follows the close reason's `retry`: `BACKOFF` resumes, `REFRESH` (or a `reset` frame) emits `reset`
   and takes a fresh snapshot, and `NEVER` ends it with `StreamClosedError`.
-- In a browser it authenticates with the `auth.<token>` subprotocol and the page's origin. In Node it sends the
-  bearer header ([Connection](/hyperliquid/api-reference/websocket/connection)).
+- In a browser it authenticates with the `auth.<token>` subprotocol and the page's origin. In Node and React
+  Native it sends the bearer header ([Connection](/hyperliquid/api-reference/websocket/connection)).
 
 What each event means is on [Real time](/hyperliquid/guides/realtime).
 
