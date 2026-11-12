@@ -47,8 +47,8 @@ import { createClient } from "@totalis/hip4-client";
 React Native has no secure random source of its own. The SDK needs one for request IDs, idempotency keys and
 signed nonces, and throws an error naming the package if it is missing. Most wallet libraries need it too.
 
-A partner server key (`tpk_`) is a secret. `createPartnerServer` and `signInWithWallet`'s `serverKey` accept it
-only on a server, never in a browser or an app.
+A partner server key (`tpk_`) is a secret, so `createPartnerServer` runs only on a server, never in a browser
+or an app.
 
 ## Make a first call
 
