@@ -78,7 +78,7 @@ For [partner webhooks](/hyperliquid/build/webhooks).
 | Item | Value |
 | --- | --- |
 | Timeout | 10 seconds per attempt |
-| Retry schedule | After 5 seconds, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and 10 hours: 8 attempts over about 28 hours, then the event is dropped |
+| Retry schedule | 8 attempts. The wait after each failed attempt is 5 seconds, then 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and 10 hours: about 28 hours from first to last. After the eighth failure the event is dropped. |
 | URL | `https://`, at most 2048 bytes, on a public address |
 
 ## Vault agents
