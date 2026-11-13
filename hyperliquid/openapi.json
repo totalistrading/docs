@@ -31392,7 +31392,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "tpk_",
-        "description": "Partner server key (`tpk_...`), issued by Totalis to a registered partner. It calls only `POST /v1/partner/wallet-admissions`, `GET /v1/partner/report` and `GET /v1/partner/fills`, from the partner's server with no `Origin`; it cannot act for an account. Never ship it to a browser: pages use the publishable browser key (`X-Totalis-Partner: tpb_...`), which labels traffic but authorizes nothing."
+        "description": "Partner server key (`tpk_...`), issued by Totalis to a registered partner. It calls only `POST /v1/partner/wallet-admissions`, `GET /v1/partner/report`, `GET /v1/partner/fills` and `GET /v1/partner/webhook-events`, from the partner's server with no `Origin`; it cannot act for an account. Never ship it to a browser: pages use the publishable browser key (`X-Totalis-Partner: tpb_...`), which labels traffic but authorizes nothing."
       }
     }
   }
