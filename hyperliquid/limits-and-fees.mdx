@@ -71,6 +71,16 @@ For accounts that sign in with their own wallet ([Your users' own wallets](/hype
 | `builder_authorization_expiry` | In the future, at most 300 seconds ahead |
 | Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
 
+## Partner webhooks
+
+For [partner webhooks](/hyperliquid/build/webhooks).
+
+| Item | Value |
+| --- | --- |
+| Timeout | 10 seconds per attempt |
+| Retry schedule | After 5 seconds, 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and 10 hours: 8 attempts over about 28 hours, then the event is dropped |
+| URL | `https://`, at most 2048 bytes, on a public address |
+
 ## Vault agents
 
 For [vault agents](/hyperliquid/build/partner-frontend#vault-agents).

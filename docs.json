@@ -58,6 +58,7 @@
                   "hyperliquid/build/overview",
                   "hyperliquid/build/partner-frontend",
                   "hyperliquid/build/builder-codes",
+                  "hyperliquid/build/webhooks",
                   "hyperliquid/build/staging"
                 ]
               },
