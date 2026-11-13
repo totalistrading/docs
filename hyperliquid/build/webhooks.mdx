@@ -1,11 +1,12 @@
 ---
 title: 'Partner webhooks'
 icon: 'webhook'
-description: 'Get sign-ups, positions and account updates for your users pushed to your server, signed per Standard Webhooks: the events, their data, verification and delivery.'
+description: 'Get sign-ups, positions, balances and account updates for your users pushed to your server, signed per Standard Webhooks: the events, their data, verification, delivery and replay.'
 ---
 
 Totalis posts events about your users to one HTTPS URL on your server: new accounts, positions opened, claimed,
-sold back and settled, and operation and withdrawal updates. You stop polling for them. Delivery follows
+sold back and settled, balance changes with the account's whole value, and operation and withdrawal updates. You
+stop polling for them. Delivery follows
 [Standard Webhooks](https://www.standardwebhooks.com/), so any Standard Webhooks library verifies it.
 
 ## Set up
@@ -21,7 +22,8 @@ Email [founders@totalis.trade](mailto:founders@totalis.trade) with your HTTPS UR
 | Stop | Email us. Undelivered events are dropped. |
 
 The URL must be `https://` on a public address, with no credentials or fragment. You get events Totalis records
-while your webhook is set. Nothing from before is replayed, though the first events can be from shortly before.
+while your webhook is set. Nothing from before is sent, though the first events can be from shortly before. Every
+event stays readable for 30 days: see [Replay](#replay).
 
 ## Events
 
@@ -47,9 +49,10 @@ Each event is one `POST` with a JSON body:
 | --- | --- | --- |
 | `account.created` | A wallet you admitted created its Totalis account | `wallet`, `created_at` |
 | `position.opened` | A position opened with one of your [builder codes](/hyperliquid/build/builder-codes) | A fill, `kind` `ACCEPT` |
-| `position.claimed` | Such a position was claimed | A fill, `kind` `CLAIM` |
+| `position.claimed` | Such a position was claimed | A fill, `kind` `CLAIM`. `amount` is before the profit fee; the owner received `amount` − `fee`. |
 | `position.sold_back` | Such a position was cashed out to the vault | A fill, `kind` `CASH_OUT` |
-| `position.settled` | Such a position settled. A win is claimed later; a loss closes at once. | A settlement |
+| `position.settled` | Such a position settled. A win's profit is claimed later; anything else pays out or closes at once. | A [settlement](#settlement) |
+| `balance.updated` | The vault balance or wallet USDC of an account you admitted changed | A [balance](#balance) |
 | `operation.updated` | An operation of an account you admitted changed status | `wallet`, `occurred_at`, and `payload`: the stream's [`OPERATION_UPDATED`](/hyperliquid/api-reference/websocket/account#event) payload |
 | `withdrawal.updated` | A withdrawal of such an account changed | `wallet`, `occurred_at`, and `payload`: the stream's [`WITHDRAWAL_UPDATED`](/hyperliquid/api-reference/websocket/account#event) payload |
 | `ping` | Totalis tested your webhook | `{}` |
@@ -82,7 +85,7 @@ do not recognise.
 | `kind` | `ACCEPT` (the position opened), `CLAIM` or `CASH_OUT` |
 | `wallet` | The wallet that acted, lowercase hex |
 | `position_id`, `legs` | The position and its legs |
-| `amount` | The gross stake, claim or cash-out price |
+| `amount` | The gross stake, claim or cash-out price. A claim's `amount` is before the profit fee. |
 | `fee` | The fee this fill paid |
 | `stake`, `payout` | The position's net stake and what it pays if every leg wins, fixed when it opened. On every fill, so a claim reads without its opening. |
 | `share_bps` | Your [revenue share](/hyperliquid/build/builder-codes#reports-and-payouts) on the fill's day, in basis points. `null` before your first terms. |
@@ -90,14 +93,82 @@ do not recognise.
 
 ### Settlement
 
+```json
+{
+  "position_id": "0x6f1d2c0e9b4a7d3f8e2b1c5a9d0e4f7b3a6c8d1e2f5a9b0c4d7e1f3a5b8c2d6e",
+  "owner": "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be",
+  "legs": [{ "outcome_id": "1209", "side": "YES" }],
+  "settlement_kind": "WIN",
+  "stake": "4925000",
+  "payout": "12500000",
+  "settled_amount": "12500000",
+  "credited": "4925000",
+  "claimable": "7575000",
+  "claim_fee": "113625",
+  "share_bps": 2000,
+  "time": "2026-11-14T02:10:41Z",
+  "block_number": 48390112,
+  "log_index": 2,
+  "transaction_hash": "0x2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e4a"
+}
+```
+
 | Field | Value |
 | --- | --- |
 | `position_id`, `legs` | The position and its legs |
 | `owner` | The wallet it settled for |
 | `settlement_kind` | `WIN`, `LOSS`, `PARTIAL` or `EARLY_LOST` |
 | `stake`, `payout` | As on a fill |
+| `settled_amount` | What the position settled for, gross |
+| `credited` | What settlement paid into the owner's vault balance at once |
+| `claimable` | Profit left to claim, gross. Only a `WIN` has any. |
+| `claim_fee` | The fee the claims take from `claimable`, in total: `floor(claimable × fee_bps / 10000)` |
 | `share_bps` | As on a fill |
 | `time`, `block_number`, `log_index`, `transaction_hash` | Where it settled on HyperEVM |
+
+The owner receives `credited` + `claimable` − `claim_fee` in all, and every amount is known when the position
+settles:
+
+| `settlement_kind` | `credited` | `claimable` |
+| --- | --- | --- |
+| `WIN` | The stake | `settled_amount` − stake, paid by a later claim (`position.claimed`) less `claim_fee` |
+| `PARTIAL` | `settled_amount` | `0`: nothing to claim |
+| `LOSS`, `EARLY_LOST` | `0` | `0` |
+
+### Balance
+
+`balance.updated` carries the account's whole value at one HyperEVM block, read when Totalis sees the change, in
+the shape [`GET /v1/me/account-value`](/hyperliquid/api-reference/account/get-account-value) returns:
+
+```json
+{
+  "account": "0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be",
+  "state": "CURRENT",
+  "amount": "26886375",
+  "block_number": "48390113",
+  "wallet_usdc": "2000000",
+  "vault_cash": "12425000",
+  "run_off_cash": "0",
+  "open_positions": 1,
+  "open_cost": "5000000",
+  "claimable_profit": "7461375",
+  "checkpoint": { "block_number": "48390113", "projection_state": "CURRENT" }
+}
+```
+
+| Field | Value |
+| --- | --- |
+| `account` | The account's wallet |
+| `state` | `CURRENT`, or `UNKNOWN` when the value could not be read at one block. Then every amount is `null`: read `GET /v1/me/account-value`. |
+| `amount` | The total of the five amounts below |
+| `block_number` | The block every amount was read at |
+| `wallet_usdc` | USDC in the wallet |
+| `vault_cash` | The account's cash in the vault |
+| `run_off_cash` | Its cash in vaults running off |
+| `open_positions`, `open_cost` | Its open positions and what they cost |
+| `claimable_profit` | Profit its settled wins can still claim, net of the claim fee |
+
+Several changes close together can share one event. The highest `block_number` is the current value.
 
 Amounts are atomic USDC decimal strings, 6 decimals: `"1500000"` is 1.50 USDC. Wallets are lowercase hex.
 
@@ -140,8 +211,34 @@ const event = webhook.verify(rawBody, {
 
 Answer `2xx` as soon as you have stored the event, and do the work after. A slow handler times out and is retried.
 
+## Replay
+
+If your endpoint is down longer than the retries, read what you missed from your server with your partner server
+key: [`GET /v1/partner/webhook-events`](/hyperliquid/api-reference/partners/list-webhook-events). It
+lists every event Totalis queued for you in the last 30 days, delivered or not, oldest first. Each item has the
+`event` exactly as it was posted, its delivery `status` (`PENDING`, `DELIVERED` or `FAILED`), `attempts`,
+`queued_at` and `delivered_at`.
+
+```ts
+import { createPartnerServer } from "@totalis/hip4-client/partner";
+
+const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY });
+
+let cursor = savedCursor; // the last next_cursor you processed, or undefined
+for (;;) {
+  const page = await partner.webhookEvents({ cursor, since: outageStart, limit: 200 });
+  for (const item of page.events) await handle(item.event); // dedupe on item.event.id
+  cursor = page.next_cursor ?? cursor;
+  if (!page.has_more) break;
+}
+```
+
+`next_cursor` follows the last event even on the last page, so keep it and read again later for new events. A
+cursor never skips an event: one still being written appears after it. Handle each `event` as if it had been posted,
+and dedupe on its `id`.
+
 ## Your users' balances
 
-Webhooks cover what happens through Totalis. A USDC transfer into or out of a user's wallet outside Totalis sends no
-event. For a live view of one account, use the [account stream](/hyperliquid/guides/realtime), which also sends
-`WALLET_BALANCE_CHANGED` and `VAULT_BALANCE_CHANGED`.
+`balance.updated` follows every change to an admitted account's vault balance or wallet USDC, including a USDC
+transfer into or out of the wallet outside Totalis. For a live view of one account in a browser or app, use the
+[account stream](/hyperliquid/guides/realtime), which sends `WALLET_BALANCE_CHANGED` and `VAULT_BALANCE_CHANGED`.
