@@ -159,7 +159,7 @@ the shape [`GET /v1/me/account-value`](/hyperliquid/api-reference/account/get-ac
 | Field | Value |
 | --- | --- |
 | `account` | The account's wallet |
-| `state` | `CURRENT`, or `UNKNOWN` when the value could not be read at one block. Then every amount is `null`: read `GET /v1/me/account-value`. |
+| `state` | `CURRENT`, or `UNKNOWN` when the value could not be read at one block. Then every amount is `null`: read `GET /v1/me/account-value`. When Totalis could not read the account at all, `checkpoint` is block `0`, `STALE`. |
 | `amount` | The total of the five amounts below |
 | `block_number` | The block every amount was read at |
 | `wallet_usdc` | USDC in the wallet |
