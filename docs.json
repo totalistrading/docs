@@ -189,6 +189,7 @@
                   "GET /v1/partner/report",
                   "GET /v1/partner/fills",
                   "GET /v1/partner/webhook-events",
+                  "GET /v1/partner/accounts/{wallet}/account-value",
                   "POST /v1/auth/wallet-challenges",
                   "POST /v1/auth/wallet-sessions",
                   "DELETE /v1/auth/wallet-sessions/current"

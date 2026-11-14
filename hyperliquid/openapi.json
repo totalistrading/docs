@@ -2,8 +2,8 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Totalis Hyperliquid API",
-    "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, and `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "231.0.0-partner-webhook-events"
+    "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
+    "version": "232.0.0-partner-account-value"
   },
   "servers": [
     {
@@ -38,7 +38,7 @@
     },
     {
       "name": "Partners & wallet sign-in",
-      "description": "A partner admits its users' own wallets, which sign in from the partner's pages, and reads its own report, fills and webhook events."
+      "description": "A partner admits its users' own wallets, which sign in from the partner's pages, and reads its own report, fills, webhook events and its users' account values."
     },
     {
       "name": "API keys",
@@ -14002,6 +14002,290 @@
           "metadata": {
             "title": "List webhook events",
             "sidebarTitle": "List webhook events"
+          }
+        }
+      }
+    },
+    "/v1/partner/accounts/{wallet}/account-value": {
+      "get": {
+        "operationId": "getPartnerAccountValue",
+        "summary": "Get user account value",
+        "description": "The value of an account your admission of this wallet opened, the body Get account value returns to the user, read with your server key so you can keep a user's history after their own key lapses.\n\nRequires your partner server key (`tpk_`), sent from your server with no `Origin`; an API key cannot call it.",
+        "tags": [
+          "Partners & wallet sign-in"
+        ],
+        "security": [
+          {
+            "partnerServerKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Address"
+            },
+            "description": "The wallet you admitted, still signing for the account it opened.",
+            "example": "0x8ba1f109551bD432803012645Ac136ddd64DBA72"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's value and its parts. When state is UNKNOWN every amount is null; read again later. No caching.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountValue"
+                },
+                "example": {
+                  "account": "0x8ba1f109551bd432803012645ac136ddd64dba72",
+                  "state": "CURRENT",
+                  "amount": "64357000",
+                  "block_number": "31552212",
+                  "wallet_usdc": "12500000",
+                  "vault_cash": "35000000",
+                  "run_off_cash": "4200000",
+                  "open_positions": 2,
+                  "open_cost": "10857000",
+                  "claimable_profit": "1800000",
+                  "checkpoint": {
+                    "block_number": "31552212",
+                    "projection_state": "CURRENT"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_REQUEST`: wallet is not a 0x-prefixed 20-byte hex address.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_REQUEST"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The partner server key is missing, unknown or revoked, or your partner is suspended.\n\n- `UNAUTHENTICATED` (retry `NEVER`): The credential is missing, invalid, expired or revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "UNAUTHENTICATED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Any credential but a partner server key, or any request with an `Origin`, is refused: read account values from your server.\n\n- `FORBIDDEN` (retry `NEVER`): The credential is valid but lacks the scope, permission or role this operation needs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "FORBIDDEN"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND`: you did not admit this wallet, it has no account yet, or it no longer signs for the account it opened. A wallet another partner admitted, or no partner, answers the same.\n\n- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "NOT_FOUND"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "- `RATE_LIMITED` (retry `BACKOFF`): The request quota for this credential or route is exhausted.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "RATE_LIMITED"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The value is temporarily unavailable; resend after `Retry-After`.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `SOURCE_UNAVAILABLE` (retry `BACKOFF`): The account-read or stream source is unavailable.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "AUTHORIZATION_UNAVAILABLE",
+                                "DEPENDENCY_STALE",
+                                "SOURCE_UNAVAILABLE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/partners/get-user-account-value",
+          "metadata": {
+            "title": "Get user account value",
+            "sidebarTitle": "Get user account value"
           }
         }
       }
