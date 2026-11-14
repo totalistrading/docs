@@ -118,12 +118,13 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
         ],
     ),
     "Partners & wallet sign-in": (
-        "A partner admits its users' own wallets, which sign in from the partner's pages, and reads its own report, fills and webhook events.",
+        "A partner admits its users' own wallets, which sign in from the partner's pages, and reads its own report, fills, webhook events and its users' account values.",
         [
             ("POST /v1/partner/wallet-admissions", "Admit wallet", "Partners"),
             ("GET /v1/partner/report", "Get partner report", "Partners"),
             ("GET /v1/partner/fills", "List partner fills", "Partners"),
             ("GET /v1/partner/webhook-events", "List webhook events", "Partners"),
+            ("GET /v1/partner/accounts/{wallet}/account-value", "Get user account value", "Partners"),
             ("POST /v1/auth/wallet-challenges", "Create wallet challenge", "Wallet sessions"),
             ("POST /v1/auth/wallet-sessions", "Create wallet session", "Wallet sessions"),
             ("DELETE /v1/auth/wallet-sessions/current", "End wallet session", "Wallet sessions"),

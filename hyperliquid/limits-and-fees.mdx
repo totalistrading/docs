@@ -81,6 +81,7 @@ For [partner webhooks](/hyperliquid/build/webhooks).
 | Retry schedule | 8 attempts. The wait after each failed attempt is 5 seconds, then 5 minutes, 30 minutes, 2 hours, 5 hours, 10 hours and 10 hours: about 28 hours from first to last. After the eighth failure the event is dropped. |
 | URL | `https://`, at most 2048 bytes, on a public address |
 | Replay | Every event readable with `GET /v1/partner/webhook-events` for 30 days; 60 reads a minute per partner, up to 200 events a read |
+| User account value | `GET /v1/partner/accounts/{wallet}/account-value`: 600 reads a minute per partner |
 
 ## Vault agents
 

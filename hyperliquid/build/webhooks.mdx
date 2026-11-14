@@ -159,7 +159,7 @@ the shape [`GET /v1/me/account-value`](/hyperliquid/api-reference/account/get-ac
 | Field | Value |
 | --- | --- |
 | `account` | The account's wallet |
-| `state` | `CURRENT`, or `UNKNOWN` when the value could not be read at one block. Then every amount is `null`: read `GET /v1/me/account-value`. When Totalis could not read the account at all, `checkpoint` is block `0`, `STALE`. |
+| `state` | `CURRENT`, or `UNKNOWN` when the value could not be read at one block. Then every amount is `null`: read it again with [`GET /v1/partner/accounts/{wallet}/account-value`](/hyperliquid/api-reference/partners/get-user-account-value). When Totalis could not read the account at all, `checkpoint` is block `0`, `STALE`. |
 | `amount` | The total of the five amounts below |
 | `block_number` | The block every amount was read at |
 | `wallet_usdc` | USDC in the wallet |
@@ -242,3 +242,14 @@ and dedupe on its `id`.
 `balance.updated` follows every change to an admitted account's vault balance or wallet USDC, including a USDC
 transfer into or out of the wallet outside Totalis. For a live view of one account in a browser or app, use the
 [account stream](/hyperliquid/guides/realtime), which sends `WALLET_BALANCE_CHANGED` and `VAULT_BALANCE_CHANGED`.
+
+To read an admitted account's value on demand, call
+[`GET /v1/partner/accounts/{wallet}/account-value`](/hyperliquid/api-reference/partners/get-user-account-value)
+from your server with your partner server key. It returns the same body as `balance.updated` and needs no key or
+session of the user's, so it keeps working after theirs lapse. Use it for a first value when you start tracking a
+wallet, or to re-read one that arrived `UNKNOWN`. It reads only wallets you admitted that still sign for the account
+they opened. Any other wallet returns `404 NOT_FOUND`.
+
+```ts
+const value = await partner.accountValue("0x3f5ce5fbfe3e9af3971dd833d26ba9b5c936f0be");
+```
