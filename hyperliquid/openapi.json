@@ -14239,7 +14239,7 @@
             }
           },
           "503": {
-            "description": "The value is temporarily unavailable; resend after `Retry-After`.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `SOURCE_UNAVAILABLE` (retry `BACKOFF`): The account-read or stream source is unavailable.",
+            "description": "The value is temporarily unavailable; resend after `Retry-After`.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `SOURCE_UNAVAILABLE` (retry `BACKOFF`): The account-read or stream source is unavailable.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -14262,6 +14262,7 @@
                               "enum": [
                                 "AUTHORIZATION_UNAVAILABLE",
                                 "DEPENDENCY_STALE",
+                                "FINANCIAL_ACTIONS_DISABLED",
                                 "SOURCE_UNAVAILABLE"
                               ]
                             },
@@ -31676,7 +31677,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "tpk_",
-        "description": "Partner server key (`tpk_...`), issued by Totalis to a registered partner. It calls only `POST /v1/partner/wallet-admissions`, `GET /v1/partner/report`, `GET /v1/partner/fills` and `GET /v1/partner/webhook-events`, from the partner's server with no `Origin`; it cannot act for an account. Never ship it to a browser: pages use the publishable browser key (`X-Totalis-Partner: tpb_...`), which labels traffic but authorizes nothing."
+        "description": "Partner server key (`tpk_...`), issued by Totalis to a registered partner. It calls only `POST /v1/partner/wallet-admissions`, `GET /v1/partner/report`, `GET /v1/partner/fills`, `GET /v1/partner/webhook-events` and `GET /v1/partner/accounts/{wallet}/account-value`, from the partner's server with no `Origin`. It reads the value of an account the partner admitted but cannot act for an account. Never ship it to a browser: pages use the publishable browser key (`X-Totalis-Partner: tpb_...`), which labels traffic but authorizes nothing."
       }
     }
   }
