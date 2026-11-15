@@ -1,6 +1,6 @@
 ---
 title: 'API overview'
-description: 'The Totalis Hyperliquid REST and WebSocket API: base URL, authentication, requests, pagination, units, errors, and rate limits.'
+description: 'The Totalis Hyperliquid REST and WebSocket API: base URL, authentication, requests, pagination, units, errors, rate limits and response times.'
 ---
 
 The Hyperliquid API is REST over HTTPS with JSON bodies, in `snake_case`, plus a
@@ -101,6 +101,20 @@ code and the error `code` as its reason instead. Every code is on [Errors](/hype
 
 Over quota returns `429 RATE_LIMITED` with `Retry-After` in seconds. The per-route limits are on
 [Rate limits](/hyperliquid/limits-and-fees#rate-limits).
+
+## Response times
+
+The API is served from Singapore. Most of a request's time is the network trip between your client and
+Singapore, so a caller in Asia sees far shorter response times than one in the Americas or Europe. The first
+request on a new connection is slower than the ones after it.
+
+| Do | Why |
+| --- | --- |
+| Reuse connections. Browsers do this on their own. On a server, keep one shared HTTP client with keep-alive and HTTP/2 instead of a new client per request. | Later requests on an open connection skip the slower first request. |
+| In a browser app, show live prices from the [market data socket](/hyperliquid/api-reference/websocket/market-data), not by polling [List markets](/hyperliquid/api-reference/markets/list-markets). | Price changes reach you as they happen, with no request per update. |
+| Follow your account on the [WebSocket](/hyperliquid/guides/realtime), not by polling `/v1/me/...`. Read over HTTP only what an event points to. | Each change arrives once, in order, without a request. |
+| Send independent reads in parallel. | Five reads in parallel take about one trip. Five in a row take five. |
+| Run latency-sensitive servers, such as a market maker, in or near Singapore. | The trip is shortest there. |
 
 ## Endpoints by task
 
