@@ -112,7 +112,7 @@ request on a new connection is slower than the ones after it.
 | --- | --- |
 | Reuse connections. Browsers do this on their own. On a server, keep one shared HTTP client with keep-alive and HTTP/2 instead of a new client per request. | Later requests on an open connection skip the slower first request. |
 | In a browser app, show live prices from the [market data socket](/hyperliquid/api-reference/websocket/market-data), not by polling [List markets](/hyperliquid/api-reference/markets/list-markets). | Price changes reach you as they happen, with no request per update. |
-| Follow your account on the [WebSocket](/hyperliquid/guides/realtime), not by polling `/v1/me/...`. Read over HTTP only what an event points to. | Each change arrives once, in order, without a request. |
+| Follow your account on the [WebSocket](/hyperliquid/guides/realtime), not by polling `/v1/me/...`. Read over HTTP only what an event points to. | Committed changes arrive in order as they happen, without a request. Expiries send no event ([Real time](/hyperliquid/guides/realtime)). |
 | Send independent reads in parallel. | Five reads in parallel take about one trip. Five in a row take five. |
 | Run latency-sensitive servers, such as a market maker, in or near Singapore. | The trip is shortest there. |
 
