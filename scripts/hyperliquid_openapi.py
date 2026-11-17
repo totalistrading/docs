@@ -49,6 +49,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/discovery", "List questions", "Markets"),
             ("GET /v1/markets/{outcome_id}", "Get market", "Markets"),
             ("GET /v1/markets/{outcome_id}/history", "Get market history", "Markets"),
+            ("GET /v1/market-display", "Get market display", "Markets"),
         ],
     ),
     "RFQs & Quotes": (

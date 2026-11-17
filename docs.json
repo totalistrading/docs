@@ -57,6 +57,7 @@
                 "pages": [
                   "hyperliquid/build/overview",
                   "hyperliquid/build/partner-frontend",
+                  "hyperliquid/build/market-pictures",
                   "hyperliquid/build/builder-codes",
                   "hyperliquid/build/webhooks",
                   "hyperliquid/build/staging"
@@ -102,7 +103,8 @@
                   "GET /v1/markets",
                   "GET /v1/discovery",
                   "GET /v1/markets/{outcome_id}",
-                  "GET /v1/markets/{outcome_id}/history"
+                  "GET /v1/markets/{outcome_id}/history",
+                  "GET /v1/market-display"
                 ]
               },
               {

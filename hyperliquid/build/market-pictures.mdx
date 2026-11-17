@@ -1,0 +1,139 @@
+---
+title: 'Market pictures'
+icon: 'image'
+description: 'Show the team crests, league logos, coins and portraits the Totalis app shows on every HIP-4 market, from outcome IDs alone, with one public read.'
+---
+
+`GET /v1/market-display` returns the name and pictures of up to 100 markets, given their outcome IDs. It
+needs no key and allows every origin, so your page can call it from the browser. Live, resolved and delisted
+markets all answer, so a position's legs and an old fill keep their pictures.
+
+These are the pictures the Totalis app draws, picked by the same rules, so a market looks the same on your page
+as in the app.
+
+## Ask
+
+```bash
+curl "https://hip4-api.totalis.trade/v1/market-display?outcome_ids=1473,1474"
+```
+
+`outcome_ids` holds the IDs comma-separated, in ascending order, with no repeats. Anything else
+is `400 INVALID_QUERY`. Ask once per screen with every market it shows.
+
+With the [SDK](/hyperliquid/sdk/overview):
+
+```ts
+import { createClient, unwrap } from "@totalis/hip4-client";
+
+const client = createClient("production");
+const display = unwrap(
+  await client.GET("/v1/market-display", { params: { query: { outcome_ids: "1473,1474" } } }),
+);
+```
+
+## Read the answer
+
+```json
+{
+  "network": "HYPEREVM_MAINNET",
+  "imagery_publication": "3fc23426ca51c48258cfa983013036a704173348fffcf2f67b176a8ac96cc34c",
+  "outcomes": [
+    {
+      "outcome_id": "1473",
+      "title": "Arsenal",
+      "native": { "name": "template:sportsTournamentParticipant", "...": "..." },
+      "pictures": {
+        "market": { "type": "SUBJECT", "key": "league:english premier league" },
+        "pick": [
+          { "type": "SUBJECT", "key": "team:arsenal" },
+          { "type": "SUBJECT", "key": "team:arsenal" }
+        ],
+        "pick_no_side": { "type": "SUBJECT", "key": "team:arsenal" },
+        "own": [
+          { "type": "SUBJECT", "key": "team:arsenal" },
+          { "type": "SUBJECT", "key": "team:arsenal" }
+        ],
+        "row": { "type": "SUBJECT", "key": "team:arsenal" },
+        "teams": null
+      }
+    }
+  ],
+  "subjects": {
+    "team:arsenal": {
+      "label": "Arsenal",
+      "monogram": "ARS",
+      "image": {
+        "fit": "ICON",
+        "variants": [
+          { "size": 64, "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-arsenal/ee4b...-64.webp" },
+          { "size": 128, "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-arsenal/ee4b...-128.webp" },
+          { "size": 256, "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-arsenal/ee4b...-256.webp" }
+        ],
+        "palette": [{ "l": 0.5718, "c": 0.2124, "h": 22.2142 }]
+      }
+    },
+    "league:english premier league": { "label": "Premier League", "monogram": "EPL", "image": { "...": "..." } }
+  },
+  "not_recorded": [],
+  "pending": [],
+  "templates": []
+}
+```
+
+| Field | What it holds |
+| --- | --- |
+| `outcomes[].title` | The market's English title, the same as on [Get market](/hyperliquid/api-reference/markets/get-market) |
+| `outcomes[].pictures` | Which picture to draw in each place the market appears: [Which picture where](#which-picture-where) |
+| `subjects` | Each team, league, person or asset the pictures name, once, by key |
+| `native`, `templates` | The market exactly as Hyperliquid lists it, to name markets yourself, in your own language |
+| `pending` | IDs listed moments ago that Totalis has not recorded yet. Ask again shortly. |
+| `not_recorded` | IDs Totalis holds nothing for. Nothing names or pictures them. |
+| `imagery_publication` | The set of pictures the answer was drawn from. It changes when Totalis adds or replaces pictures. |
+
+## Which picture where
+
+| Picture | Draw it on |
+| --- | --- |
+| `market` | The market as a whole: a card or a page header. The question's subject, such as the league, or `TOTAL` for an over/under line. |
+| `pick[0]`, `pick[1]` | Holding or buying Yes, then No: a position, a bet slip, a fill. |
+| `pick_no_side` | The market before a side is chosen. |
+| `own[0]`, `own[1]` | Each side's own subject, such as the team a side of a game backs. `null` where a side has none. Use it for team crests. |
+| `row` | The market as one option in its question's list. Show the list's picture column only while some row has a picture. |
+| `teams` | Both participants of a game, for a matchup or a share image. `null` unless the market names both. |
+
+## Draw a picture
+
+A picture is one of three things:
+
+| Picture | Draw |
+| --- | --- |
+| `{ "type": "SUBJECT", "key": ... }` | `subjects[key]`. With `image: null`, draw a coin with its `monogram`. |
+| `{ "type": "GLYPH", "glyph": "DRAW" }` | Your own mark for a draw. |
+| `{ "type": "GLYPH", "glyph": "TOTAL" }` | Your own mark for an over/under line: Over on Yes, Under on No. |
+| `null` | Nothing. If your layout needs a picture, draw a coin with the initials of `title`. |
+
+For a subject with an image:
+
+- `fit: "ICON"` is a logo on a transparent square. Draw it whole, inset in its circle.
+- `fit: "PHOTO"` covers the whole square, such as a portrait or a flag. Let it fill the circle.
+- `variants` are square WebP files at 64, 128 and 256 pixels. Pick the smallest one at least as large as the
+  rendered size times the device pixel ratio. A URL never changes content, so cache it forever.
+- Show the coin with its `monogram` while the image loads, and keep it if the image fails.
+- Use `label` as alternative text.
+
+`palette`, when present, lists up to three of the image's colors in Oklch, most used first, such as
+`oklch(0.5718 0.2124 22.2142)` in CSS. Color a chart line with its side's `own` subject's first color. A chart
+with one line and no `own` image takes `market`'s colors. A side whose `pick` is a glyph, or whose image has no
+`palette`, keeps your default color.
+
+Pictures are decoration. They never carry prices, state or results.
+
+## Caching
+
+An answer with nothing `pending` and an `imagery_publication` is `Cache-Control: public, max-age=60`. Any other
+answer is `no-store`. A browser caches by these headers on its own. From a server, send an answer's `ETag` back
+as `If-None-Match` to get `304` when nothing changed. Picture files are immutable.
+
+[List markets](/hyperliquid/api-reference/markets/list-markets) and
+[List questions](/hyperliquid/api-reference/markets/list-questions) give you the outcome IDs to ask for. The full
+schema is on [Get market display](/hyperliquid/api-reference/markets/get-market-display).

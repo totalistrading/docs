@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "232.0.0-partner-account-value"
+    "version": "239.0.0-maker-opened-via"
   },
   "servers": [
     {
@@ -1237,6 +1237,410 @@
           "metadata": {
             "title": "Get market history",
             "sidebarTitle": "Get market history"
+          }
+        }
+      }
+    },
+    "/v1/market-display": {
+      "get": {
+        "operationId": "getMarketDisplay",
+        "summary": "Get market display",
+        "description": "Name and picture up to 100 outcomes from their IDs alone, live or departed, such as the legs of a position or the fills of an account.\n\nNo API key required.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OutcomeIds"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Each asked outcome Totalis recorded with its English title, its native definition exactly as Hyperliquid listed it, and finished pictures for each place it is drawn, resolved from the published imagery manifest. Pictures are decoration: they never carry prices, state or results. IDs Totalis holds no definition of are in `not_recorded`; IDs newer than every outcome it recorded are in `pending`.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Shared caches may reuse an answer with an imagery publication and nothing pending for 60 seconds; any other answer is no-store.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "public, max-age=60",
+                    "no-store"
+                  ]
+                }
+              },
+              "ETag": {
+                "$ref": "#/components/headers/MarketDisplayETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketDisplay"
+                },
+                "example": {
+                  "network": "HYPEREVM_MAINNET",
+                  "imagery_publication": "3fc23426ca51c48258cfa983013036a704173348fffcf2f67b176a8ac96cc34c",
+                  "outcomes": [
+                    {
+                      "outcome_id": "32336",
+                      "title": "France",
+                      "native": {
+                        "name": "template:sportsContestParticipant2",
+                        "description": "participant:France",
+                        "side_names": [
+                          "Yes",
+                          "No"
+                        ],
+                        "question": {
+                          "native_question_id": "632",
+                          "name": "template:sportsContestResult",
+                          "description": "competition:UEFA Nations League|contestType:Match|countedPlay:regulation time, 90 minutes plus stoppage time|officialSource:Union of European Football Associations|participantA:France|participantB:Turkiye|resolutionDeadline:20261122-1945|scheduledStart:20261115-1945|season:2026/27|sport:Soccer|stage:A, Matchday 6"
+                        }
+                      },
+                      "pictures": {
+                        "market": {
+                          "type": "SUBJECT",
+                          "key": "league:uefa nations league"
+                        },
+                        "pick": [
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          },
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          }
+                        ],
+                        "pick_no_side": {
+                          "type": "SUBJECT",
+                          "key": "team:france"
+                        },
+                        "own": [
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          },
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          }
+                        ],
+                        "row": {
+                          "type": "SUBJECT",
+                          "key": "team:france"
+                        },
+                        "teams": [
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          },
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:turkiye"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "outcome_id": "32337",
+                      "title": "Draw",
+                      "native": {
+                        "name": "template:sportsContestDraw2",
+                        "description": "",
+                        "side_names": [
+                          "Yes",
+                          "No"
+                        ],
+                        "question": {
+                          "native_question_id": "632",
+                          "name": "template:sportsContestResult",
+                          "description": "competition:UEFA Nations League|contestType:Match|countedPlay:regulation time, 90 minutes plus stoppage time|officialSource:Union of European Football Associations|participantA:France|participantB:Turkiye|resolutionDeadline:20261122-1945|scheduledStart:20261115-1945|season:2026/27|sport:Soccer|stage:A, Matchday 6"
+                        }
+                      },
+                      "pictures": {
+                        "market": {
+                          "type": "SUBJECT",
+                          "key": "league:uefa nations league"
+                        },
+                        "pick": [
+                          {
+                            "type": "GLYPH",
+                            "glyph": "DRAW"
+                          },
+                          {
+                            "type": "GLYPH",
+                            "glyph": "DRAW"
+                          }
+                        ],
+                        "pick_no_side": {
+                          "type": "GLYPH",
+                          "glyph": "DRAW"
+                        },
+                        "own": [
+                          null,
+                          null
+                        ],
+                        "row": {
+                          "type": "GLYPH",
+                          "glyph": "DRAW"
+                        },
+                        "teams": [
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          },
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:turkiye"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "outcome_id": "32338",
+                      "title": "France v Turkiye: Total goals",
+                      "native": {
+                        "name": "template:sportsTotal",
+                        "description": "sport:Soccer|participantA:France|participantB:Turkiye",
+                        "side_names": [
+                          "Over",
+                          "Under"
+                        ],
+                        "question": null
+                      },
+                      "pictures": {
+                        "market": {
+                          "type": "GLYPH",
+                          "glyph": "TOTAL"
+                        },
+                        "pick": [
+                          {
+                            "type": "GLYPH",
+                            "glyph": "TOTAL"
+                          },
+                          {
+                            "type": "GLYPH",
+                            "glyph": "TOTAL"
+                          }
+                        ],
+                        "pick_no_side": {
+                          "type": "GLYPH",
+                          "glyph": "TOTAL"
+                        },
+                        "own": [
+                          null,
+                          null
+                        ],
+                        "row": null,
+                        "teams": [
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:france"
+                          },
+                          {
+                            "type": "SUBJECT",
+                            "key": "team:turkiye"
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "subjects": {
+                    "league:uefa nations league": {
+                      "label": "Nations League",
+                      "monogram": "UNL",
+                      "image": {
+                        "fit": "ICON",
+                        "variants": [
+                          {
+                            "size": 64,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/league-uefa-nations-league/4b897840463355514d1f43d2f07c416eaff86eabe411c5910f513c1b4da05d97-64.webp"
+                          },
+                          {
+                            "size": 128,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/league-uefa-nations-league/4b897840463355514d1f43d2f07c416eaff86eabe411c5910f513c1b4da05d97-128.webp"
+                          },
+                          {
+                            "size": 256,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/league-uefa-nations-league/4b897840463355514d1f43d2f07c416eaff86eabe411c5910f513c1b4da05d97-256.webp"
+                          }
+                        ],
+                        "palette": [
+                          {
+                            "l": 0.4285,
+                            "c": 0.0404,
+                            "h": 249.3298
+                          },
+                          {
+                            "l": 0.8007,
+                            "c": 0.051,
+                            "h": 48.6489
+                          },
+                          {
+                            "l": 0.807,
+                            "c": 0.151,
+                            "h": 88.8175
+                          }
+                        ]
+                      }
+                    },
+                    "team:france": {
+                      "label": "France",
+                      "monogram": "FRA",
+                      "image": {
+                        "fit": "ICON",
+                        "variants": [
+                          {
+                            "size": 64,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-france/b2a489550e6fdbb275ee282314605df33b0211717f5b9a9f3807e8614ef8d57d-64.webp"
+                          },
+                          {
+                            "size": 128,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-france/b2a489550e6fdbb275ee282314605df33b0211717f5b9a9f3807e8614ef8d57d-128.webp"
+                          },
+                          {
+                            "size": 256,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-france/b2a489550e6fdbb275ee282314605df33b0211717f5b9a9f3807e8614ef8d57d-256.webp"
+                          }
+                        ],
+                        "palette": [
+                          {
+                            "l": 0.5376,
+                            "c": 0.2108,
+                            "h": 24.8486
+                          },
+                          {
+                            "l": 0.2738,
+                            "c": 0.0922,
+                            "h": 255.8193
+                          }
+                        ]
+                      }
+                    },
+                    "team:turkiye": {
+                      "label": "Turkiye",
+                      "monogram": "TUR",
+                      "image": {
+                        "fit": "ICON",
+                        "variants": [
+                          {
+                            "size": 64,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-turkiye/c5eb885f310872774f0d24ffb8ec92ec88ffb7ce6bc3992a0ad26b4187247fe2-64.webp"
+                          },
+                          {
+                            "size": 128,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-turkiye/c5eb885f310872774f0d24ffb8ec92ec88ffb7ce6bc3992a0ad26b4187247fe2-128.webp"
+                          },
+                          {
+                            "size": 256,
+                            "url": "https://ghrh5hp4dz1xsm9l.public.blob.vercel-storage.com/entities/team-turkiye/c5eb885f310872774f0d24ffb8ec92ec88ffb7ce6bc3992a0ad26b4187247fe2-256.webp"
+                          }
+                        ],
+                        "palette": [
+                          {
+                            "l": 0.5793,
+                            "c": 0.2333,
+                            "h": 27.7418
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "not_recorded": [],
+                  "pending": [],
+                  "templates": []
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The answer matches the `If-None-Match` ETag."
+          },
+          "400": {
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_QUERY"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "- `MARKET_DATA_UNAVAILABLE` (retry `BACKOFF`): No complete market catalog is available.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "MARKET_DATA_UNAVAILABLE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/markets/get-market-display",
+          "metadata": {
+            "title": "Get market display",
+            "sidebarTitle": "Get market display"
           }
         }
       }
@@ -6522,6 +6926,7 @@
                       "maker_id": "7",
                       "owner": "0x1111111111111111111111111111111111111111",
                       "owner_username": null,
+                      "opened_via": null,
                       "status": "OPEN",
                       "close_reason": null,
                       "fee_bps": 100,
@@ -6562,6 +6967,7 @@
                       "maker_id": "7",
                       "owner": "0x1111111111111111111111111111111111111111",
                       "owner_username": null,
+                      "opened_via": null,
                       "status": "SETTLED_UNCLAIMED",
                       "close_reason": null,
                       "fee_bps": 100,
@@ -6940,6 +7346,7 @@
                     "maker_id": "7",
                     "owner": "0x1111111111111111111111111111111111111111",
                     "owner_username": null,
+                    "opened_via": null,
                     "status": "SETTLED_UNCLAIMED",
                     "close_reason": null,
                     "fee_bps": 100,
@@ -22073,6 +22480,17 @@
         "description": "HIP-4 outcome ID of the market, as a decimal string.",
         "example": "1209"
       },
+      "OutcomeIds": {
+        "name": "outcome_ids",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,9})(,(0|[1-9][0-9]{0,9})){0,99}$"
+        },
+        "description": "1 to 100 HIP-4 outcome IDs as decimal strings, comma-separated, strictly ascending, so one set of outcomes is always one URL. Any other order, a repeat or an ID above 4294967295 is 400 INVALID_QUERY.",
+        "example": "35280,36412"
+      },
       "PnlRangeQueryOptional": {
         "name": "range",
         "in": "query",
@@ -25069,6 +25487,7 @@
           "GOLDEN_CODE_DISABLED",
           "X_REQUIRED",
           "X_ALREADY_CLAIMED",
+          "GOLDEN_NOT_ELIGIBLE",
           "INVALID_SIGNATURE",
           "WALLET_CONTRACT_UNSUPPORTED",
           "WRONG_AUTHORITY",
@@ -26659,6 +27078,76 @@
         },
         "description": "This market's row of the stats snapshot, refreshed about every minute from Hyperliquid asset contexts. Display data only; it never gates trading."
       },
+      "MarketDisplay": {
+        "type": "object",
+        "required": [
+          "network",
+          "imagery_publication",
+          "outcomes",
+          "subjects",
+          "not_recorded",
+          "pending",
+          "templates"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "enum": [
+              "HYPEREVM_TESTNET",
+              "HYPEREVM_MAINNET"
+            ],
+            "description": "Hyperliquid network the outcomes are listed on."
+          },
+          "imagery_publication": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The imagery manifest publication every subject was resolved from. null while market-data holds no manifest: every picture that would name a subject is then null and `subjects` is empty, the Draw and Total glyphs still show, and the answer is never cached."
+          },
+          "outcomes": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/OutcomeDisplay"
+            },
+            "description": "Every asked outcome Totalis recorded, live or departed, ascending by outcome ID."
+          },
+          "subjects": {
+            "$ref": "#/components/schemas/Subjects",
+            "description": "Each subject the outcomes' pictures name, once, by key."
+          },
+          "not_recorded": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/UInt32String"
+            },
+            "description": "Asked outcome IDs Totalis holds no definition of although it recorded a newer one, such as one no catalog listed and Hyperliquid has not settled yet: nothing names or pictures them. Ascending."
+          },
+          "pending": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/UInt32String"
+            },
+            "description": "Asked outcome IDs newer than every outcome Totalis recorded, such as one listed seconds ago: ask again shortly. An answer with any is never cached. Ascending."
+          },
+          "templates": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+              "description": "One template object in Hyperliquid's own shape."
+            },
+            "description": "The entries of Hyperliquid's info `outcomeTemplates` answer, unchanged, that these outcomes and their questions are instances of, from the current catalog generation's template list, ascending by `id`. A template Hyperliquid no longer lists is left out: name that outcome by `title`."
+          }
+        }
+      },
       "MarketGame": {
         "type": "object",
         "allOf": [
@@ -27115,6 +27604,28 @@
           }
         ]
       },
+      "OklchColor": {
+        "type": "object",
+        "required": [
+          "l",
+          "c",
+          "h"
+        ],
+        "properties": {
+          "l": {
+            "type": "number",
+            "description": "Oklch lightness, 0 to 1."
+          },
+          "c": {
+            "type": "number",
+            "description": "Oklch chroma."
+          },
+          "h": {
+            "type": "number",
+            "description": "Hue in degrees."
+          }
+        }
+      },
       "Operation": {
         "type": "object",
         "required": [
@@ -27252,6 +27763,221 @@
         "format": "uri",
         "pattern": "^https://[^/?#@]+$",
         "maxLength": 255
+      },
+      "OutcomeDisplay": {
+        "type": "object",
+        "required": [
+          "outcome_id",
+          "title",
+          "native",
+          "pictures"
+        ],
+        "properties": {
+          "outcome_id": {
+            "$ref": "#/components/schemas/UInt32String",
+            "description": "Hyperliquid outcome ID."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "English display title, the market's `title`."
+          },
+          "native": {
+            "$ref": "#/components/schemas/OutcomeNative",
+            "description": "The outcome as Hyperliquid listed it, for a client that names markets itself."
+          },
+          "pictures": {
+            "$ref": "#/components/schemas/OutcomePictures",
+            "description": "Finished pictures for each place the outcome is drawn."
+          }
+        }
+      },
+      "OutcomeNative": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "side_names",
+          "question"
+        ],
+        "description": "The outcome exactly as Hyperliquid listed it in the last catalog Totalis recorded it in (the current one while it is listed) or, for an outcome no kept catalog copy holds, as Hyperliquid's settlement record names it.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "description": "Native outcome name, for example template:sportsContestWinner or Recurring."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Native outcome description; a template instance holds its keyword values as key:value pairs separated by a vertical bar."
+          },
+          "side_names": {
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Native side names, Yes then No, as listed (template:Yes, template:{shortNameA}); null where the copy Totalis kept predates side names."
+          },
+          "question": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OutcomeNativeQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The question the outcome belongs to, from the same catalog; null for a standalone outcome."
+          }
+        }
+      },
+      "OutcomeNativeQuestion": {
+        "type": "object",
+        "required": [
+          "native_question_id",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "native_question_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RealQuestionId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hyperliquid question ID; null for an outcome known only from a settlement record that names its question without the ID."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "description": "Native question name, for example template:sportsContestResult."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Native question description."
+          }
+        }
+      },
+      "OutcomePictures": {
+        "type": "object",
+        "required": [
+          "market",
+          "pick",
+          "pick_no_side",
+          "own",
+          "row",
+          "teams"
+        ],
+        "description": "Finished pictures for each place an outcome is drawn. null: nothing to picture there; a caller that needs a picture draws a coin from the title's initials.",
+        "properties": {
+          "market": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Picture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The market as a whole, for a card or a header: its question's subject, or the TOTAL glyph for an over/under line."
+          },
+          "pick": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Picture"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Holding or buying Yes, then No: the side's own subject when it has an image, else the question's subject when it has one, else whichever of them is known (drawn as its coin). A draw carries the DRAW glyph, an over/under line the TOTAL glyph."
+          },
+          "pick_no_side": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Picture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Holding or buying the outcome before a side is chosen, by the same rule as `pick` with the option's own subject only: a winner's or spread's sides are its teams, so with no side it shows the question's subject."
+          },
+          "own": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Picture"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Yes's and No's own subject with no fallback: the team a side of a winner or spread backs, or the option's own subject (a team, a candidate); null where the side has none. Never a glyph."
+          },
+          "row": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Picture"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The outcome as one option in its question's list: its own subject when it has an image, the DRAW glyph, or, for an option with no subject of its own (Other), the question's subject when it has an image and another option of the question has an image of its own; else null. Decided from the whole question, so a row reads the same alone as in its list. Its subject always has an image; show a list's picture column only while some row has a subject."
+          },
+          "teams": {
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PictureSubject"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Participant A's and B's subjects in the outcome's sport when its keywords name both (a game's winner, spread or total, or an option of a contest between them); null otherwise."
+          }
+        }
       },
       "OwnMaker": {
         "type": "object",
@@ -28310,6 +29036,80 @@
           }
         ]
       },
+      "Picture": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PictureSubject"
+          },
+          {
+            "$ref": "#/components/schemas/PictureGlyph"
+          }
+        ]
+      },
+      "PictureGlyph": {
+        "type": "object",
+        "required": [
+          "type",
+          "glyph"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "GLYPH",
+            "description": "GLYPH: a mark of the client's own, never artwork."
+          },
+          "glyph": {
+            "type": "string",
+            "enum": [
+              "DRAW",
+              "TOTAL"
+            ],
+            "description": "DRAW: a contest's draw outcome. TOTAL: an over/under line, drawn as Over for Yes and Under for No where the side is known."
+          }
+        }
+      },
+      "PictureSubject": {
+        "type": "object",
+        "required": [
+          "type",
+          "key"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "SUBJECT",
+            "description": "SUBJECT: a subject described once in the answer's `subjects`."
+          },
+          "key": {
+            "$ref": "#/components/schemas/SubjectKey",
+            "description": "The subject's key in `subjects`."
+          }
+        }
+      },
+      "PictureVariant": {
+        "type": "object",
+        "required": [
+          "size",
+          "url"
+        ],
+        "properties": {
+          "size": {
+            "type": "integer",
+            "enum": [
+              64,
+              128,
+              256
+            ],
+            "description": "Width and height in pixels."
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://",
+            "maxLength": 2048,
+            "description": "Public WebP image URL."
+          }
+        }
+      },
       "PnL": {
         "type": "object",
         "required": [
@@ -28386,6 +29186,7 @@
           "maker_id",
           "owner",
           "owner_username",
+          "opened_via",
           "status",
           "close_reason",
           "fee_bps",
@@ -28439,6 +29240,19 @@
               }
             ],
             "description": "On a maker's read, the owner's username when the owner wallet is the account wallet of a participant whose public trader profile is on, the pair GET /v1/traders/{username} shows; otherwise null, as for a participant's other linked wallets, and always null on a personal read."
+          },
+          "opened_via": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a maker's read, the display name of the partner whose builder code opened the position; null when it was opened without one, and always null on a personal read."
           },
           "status": {
             "type": "string",
@@ -30895,6 +31709,87 @@
           }
         ]
       },
+      "Subject": {
+        "type": "object",
+        "required": [
+          "label",
+          "monogram",
+          "image"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The subject's name, for alternative text."
+          },
+          "monogram": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 6,
+            "description": "The subject's short mark, drawn on a coin when it has no image, while its image loads or when it fails."
+          },
+          "image": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SubjectImage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The subject's artwork; null for a known subject without any, drawn as its coin."
+          }
+        }
+      },
+      "SubjectImage": {
+        "type": "object",
+        "required": [
+          "fit",
+          "variants"
+        ],
+        "properties": {
+          "fit": {
+            "type": "string",
+            "enum": [
+              "ICON",
+              "PHOTO"
+            ],
+            "description": "ICON: a logo inset on a transparent square, drawn whole. PHOTO: a photo that fills its circle."
+          },
+          "variants": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/PictureVariant"
+            },
+            "description": "Square WebP renditions at 64, 128 and 256 pixels, in that order. Their URLs never change content."
+          },
+          "palette": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/OklchColor"
+            },
+            "description": "The image's chromatic colors, most used first, for team and chart line colors; absent where imagery recorded none. A line wears its side's `own` subject's palette when that subject has an image, or, when it is a chart's only line and its side's own subject has none, `market`'s; a line whose `pick` is a glyph wears none."
+          }
+        }
+      },
+      "SubjectKey": {
+        "type": "string",
+        "pattern": "^(asset|institution|team|league|person):.",
+        "maxLength": 512,
+        "description": "An imagery subject's key: its kind, a colon and its normalized name, such as team:detroit lions."
+      },
+      "Subjects": {
+        "type": "object",
+        "patternProperties": {
+          "^(asset|institution|team|league|person):.": {
+            "$ref": "#/components/schemas/Subject"
+          }
+        },
+        "description": "Each subject a picture of the answer names, once, by key."
+      },
       "Timestamp": {
         "type": "string",
         "format": "date-time"
@@ -31645,6 +32540,13 @@
         "schema": {
           "type": "string",
           "const": "no-store"
+        }
+      },
+      "MarketDisplayETag": {
+        "description": "Strong validator of the whole answer; send it as `If-None-Match` to get 304 when the answer is unchanged",
+        "schema": {
+          "type": "string",
+          "pattern": "^\"[0-9a-f]{32}\"$"
         }
       },
       "RetryAfter": {
