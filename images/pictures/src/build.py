@@ -110,8 +110,8 @@ page('integration-models',
      None, zoom=1.15)
 
 
-# Referrals: you, then three tiers top to bottom. Each person sits under whoever
-# invited them: 3, 9, 27 people as the share falls 40%, 10%, 3%.
+# Referrals: a Genesis account, then three tiers top to bottom. Each person sits
+# under whoever invited them: 3, 9, 27 people as the share falls 40%, 10%, 3%.
 def tot(size, c): return f'<div class="avatar a{c}" style="width:{size}px;height:{size}px"></div>'
 def kin(gap, *x): return f'<div class="kin" style="--g:{gap}px">' + ''.join(x) + '</div>'
 def band(n, t, cols, hi=False):
@@ -119,7 +119,7 @@ def band(n, t, cols, hi=False):
             + ''.join(cols) + '</div>')
 hue = iter([2, 3, 4, 5, 6] * 9)
 page('referrals',
-     '<div class="tree">' + who(1, 'You') + vl(72) +
+     '<div class="tree">' + who(1, 'You, with Genesis') + vl(72) +
      band('40%', 'Invited by you', [tot(72, next(hue)) for _ in range(3)], hi=True) + vl(72) +
      band('10%', 'Invited by them', [kin(72, *(tot(48, next(hue)) for _ in range(3))) for _ in range(3)]) + vl(72) +
      band('3%', 'One step further', [kin(26, *(kin(8, *(tot(26, next(hue)) for _ in range(3))) for _ in range(3))) for _ in range(3)]) +
