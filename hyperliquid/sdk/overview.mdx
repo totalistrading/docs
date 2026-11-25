@@ -101,7 +101,8 @@ Every client takes the same options.
 | `headers` | Extra headers on every request and stream, such as `Origin` outside a browser |
 | `retry` | The resend policy, or `false` to send once ([Retries](/hyperliquid/sdk/resume-and-retry#retries)) |
 
-`createMaker` takes `apiKey` (the maker's `ttk_` key) and `makerId` in place of `accessToken`.
+`createMaker` takes `apiKey` (the maker's `ttk_` key) and `makerId` in place of `accessToken`, and `chain`, a
+HyperEVM RPC, to read cash-out positions ([`bid`](/hyperliquid/sdk/making#quote)).
 
 A signer can be a viem account or wallet client, an EIP-1193 provider such as `window.ethereum`, or an ethers
 signer. `toTotalisSigner`, from `.../signer`, converts any of them yourself when you need to.

@@ -390,8 +390,8 @@ values from [Get deployment](/hyperliquid/api-reference/deployment/get-deploymen
 | Issue an API key | `issueApiKey`, `rotateApiKey` | `personal_sign` (Sign-In with Ethereum) | No | In the text | |
 | Grant or revoke a vault agent | `grantVaultAgent`, `revokeVaultAgent` | `AgentGrant` | No | `chain_id` | `vault_address` |
 | Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | Yes | `chain_id` | `vault_address` |
-| Approve WalletAccept for entries | `openPosition`, `approveWallet`, `signWalletApproval` | USDC `Permit` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
-| Fund an entry from the wallet, per entry | `openPosition` with `funding: "wallet"`, `signEntry` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Approve WalletAccept for entries | `openPosition`, `prepareEntryFunding`, `approveWallet`, `signWalletApproval` | USDC `Permit` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Fund an entry from the wallet, per entry | `openPosition` or `prepareEntryFunding` with `funding: "wallet"`, `signEntry` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
 | Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | No | `chain_id` | `0x0000000000000000000000000000000000000000` |
 | Cash out | `cashOut`, `signCashout` | `SellBack` | Yes | `chain_id` | `vault_address` |
 | Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | Yes | `chain_id` | `vault_address` |
@@ -445,8 +445,10 @@ uses: its session, or an API key it issued. You send no builder fields for it. I
 rate limits.
 
 An account you did not admit is attributed only RFQ by RFQ, from your registered origin, with a
-`builder_attribution` token your server mints with `attributeRfq`. Its API key RFQs are never yours. The cases,
-the token and revocation are on [Builder codes](/hyperliquid/build/builder-codes), with payouts and reports.
+`builder_attribution` token your server mints with `attributeRfq`. Your page passes it to `openPosition` with
+`builderCode` and the `rfqIdempotencyKey` it was minted for
+([Mint a token](/hyperliquid/build/builder-codes#mint-a-token)). Its API key RFQs are never yours. The cases, the
+token and revocation are on [Builder codes](/hyperliquid/build/builder-codes), with payouts and reports.
 
 ## If something is switched off
 

@@ -75,38 +75,43 @@ bid takeable until the RFQ closes or you replace or cancel it. Totalis sends a c
 that backs the position ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
 
 A cash-out RFQ names the position (`position_id`), its owner as `taker`, your `maker_id`, its `legs`, `net_stake`
-and `payout`. It carries no chain state: read the legs' state yourself, and pass it as `legState`. The SDK then
+and `payout`. It carries no chain state: read the legs' state on chain, and pass it as `legState`. The SDK then
 confirms only a sale at that leg state. Without `legState` it confirms at whatever leg state the accept carries,
 which can differ from the one you priced if a leg resolved in between. Pass it whenever your price depends on the
 legs' state, which for a cash-out it nearly always does.
 
-```ts
-import type { CashoutRfq } from "@totalis/hip4-client/maker";
-import { signedLeg, totalisTypes } from "@totalis/hip4-client/typed-data";
-import { concat, createPublicClient, hashStruct, http, keccak256, parseAbi, type Hex } from "viem";
+`readCashoutPosition(rfq)` does the reading. Give `createMaker` a HyperEVM RPC as `chain`: a JSON-RPC URL, or an
+EIP-1193 provider such as a viem public client. The SDK sends it only `eth_call`.
 
-const vaultAbi = parseAbi([
-  "function tickets(bytes32 positionId) view returns (uint64 makerId, address owner, uint128 stake, uint128 payout, uint128 worst0, uint16 feeBps, uint8 status, uint128 residual, bytes32 legsHash)",
-  "function legStateOf((uint32 outcomeId, uint8 side)[] legs, uint256 readGas) view returns (bytes32)",
-]);
-const chain = createPublicClient({ transport: http("https://rpc.hyperliquid.xyz/evm") });
+```ts
+import { createMaker, type CashoutRfq } from "@totalis/hip4-client/maker";
+import { privateKeyToAccount } from "viem/accounts";
+
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!,
+  makerId: process.env.TOTALIS_MAKER_ID!,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+  chain: "https://rpc.hyperliquid.xyz/evm",
+});
 
 async function bidOnCashout(rfq: CashoutRfq) {
-  const vault = (await maker.deployment()).vault_address as Hex;
-  const legs = rfq.legs.map(signedLeg);
-  // The legs hash is the EIP-712 encoding of legs as Leg[]: check they are the position's.
-  const legsHash = keccak256(concat(legs.map((leg) => hashStruct({ types: { Leg: totalisTypes.Leg }, primaryType: "Leg", data: leg }))));
-  const [, , , , , , , , onChain] = await chain.readContract({ address: vault, abi: vaultAbi, functionName: "tickets", args: [rfq.position_id as Hex] });
-  if (onChain !== legsHash) return;
-  const legState = await chain.readContract({ address: vault, abi: vaultAbi, functionName: "legStateOf", args: [legs, 500_000n] });
-  const price = priceCashout(rfq, legState); // your model; undefined to pass
-  if (price !== undefined) await maker.bid(rfq, { price, legState });
+  const position = await maker.readCashoutPosition(rfq); // { ticket, legsHash, legState }
+  const price = priceCashout(rfq, position.ticket, position.legState); // your model; undefined to pass
+  if (price !== undefined) await maker.bid(rfq, { price, legState: position.legState });
 }
 ```
 
-`legStateOf` takes the legs and a read gas of `500000`. What its value encodes, and how to price from it, is on
+`readCashoutPosition` reads the vault's `tickets(position_id)` and `legStateOf(legs, 500000)` at the latest block.
+It throws when the RFQ's `legs` don't hash to the ticket's `legsHash`, as they then aren't that position's legs.
+`ticket` holds the position as the vault records it: `stake`, `payout`, `feeBps`, `status` and `residual`, with
+amounts as atomic USDC decimal strings. What `legState` encodes, and how to price from it, is on
 [Price a cash-out](/hyperliquid/guides/market-making#price-a-cash-out). The sale lands only while every leg's state
 still equals the one signed. If a leg moves first, the trade reverts and nothing moves.
+
+To read the chain your own way, `@totalis/hip4-client/maker` also exports the pieces: `legsHash(legs)`, the
+legs hash a ticket records; `readLegState(chain, deployment, legs)`; and `legStateReadGas`, the `500000` read gas
+the venue uses, so your read matches its read.
 
 While a taker's accept of your quote on the RFQ waits for your answer, `quote` and `bid` wait for that answer,
 then publish.

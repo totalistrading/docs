@@ -44,7 +44,7 @@ prices move, so the less time between the pick and the send, the less often a qu
 arrives. `openPosition` works this way.
 
 ```ts
-const prepared = await totalis.prepareEntryFunding({ stake, core, cash, funding: "approval" }); // while quotes arrive
+const prepared = await totalis.prepareEntryFunding({ stake, core, cash }); // while quotes arrive
 const signed = await totalis.signEntry({ quote: best, prepared });           // TakerAccept only
 await save(signed);
 const result = await totalis.sendAcceptance(signed, { onRecord: save });
@@ -59,13 +59,15 @@ next accept uses.
 ### `prepareEntryFunding({ stake, core, cash, funding })`
 
 Signs the funding for `stake` without a quote, and returns it to pass to `signEntry` as `prepared`. It plans like
-`signEntry`, below. With `funding: "approval"`, as `openPosition` does by default, it draws the wallet's part from
-its [approval](#wallet-approval), and asks a permit first when the approval left is short. Unlike `openPosition`,
-it defaults to `"wallet"`: a USDC authorization for the wallet's part.
+`signEntry`, below. Like `openPosition`, it defaults to `funding: "approval"`: it draws the wallet's part from its
+[approval](#wallet-approval), and when the approval left is short it asks a permit first and waits until it lands.
+`funding: "wallet"` signs a USDC authorization for the wallet's part instead.
 
 ### `signEntry({ quote, core, cash, funding })`
 
-Without `prepared`, asks the wallet for every signature the entry needs, at once. It plans the funding from `cash` (a
+Without `prepared`, asks the wallet for every signature the entry needs, at once, and defaults to
+`funding: "wallet"`, a USDC authorization: signing sends nothing, so it can't land the permit a first approval
+entry needs. It plans the funding from `cash` (a
 `spendableCash()` read) or, without it, from current balances: free vault cash first, then the wallet, then a
 bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
 
@@ -176,10 +178,10 @@ about 10 minutes. Past that, sign a new return.
 
 An entry draws the wallet's share of the stake from the wallet's USDC approval to WalletAccept instead of a USDC
 authorization signed for each entry
-([Get wallet approval](/hyperliquid/api-reference/deposits/get-wallet-approval)). `openPosition` does this by
-default; pass `funding: "approval"` to `prepareEntryFunding` or `signEntry` for the same, and `funding: "wallet"`
-to `openPosition` for an authorization per entry instead. When the approval left is short, `openPosition` and
-`prepareEntryFunding` ask the wallet for one permit, wait until it lands, then fund the entry.
+([Get wallet approval](/hyperliquid/api-reference/deposits/get-wallet-approval)). `openPosition` and
+`prepareEntryFunding` do this by default; pass `funding: "approval"` to `signEntry` for the same, and
+`funding: "wallet"` to any of them for an authorization per entry instead. When the approval left is short,
+`openPosition` and `prepareEntryFunding` ask the wallet for one permit, wait until it lands, then fund the entry.
 
 | Option | Does |
 | --- | --- |

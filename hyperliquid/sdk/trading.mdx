@@ -88,22 +88,17 @@ A Combo can include a market whose `eligibility.state` is `ENABLED` and whose `c
 those:
 
 ```ts
-import { createClient, items, unwrap } from "@totalis/hip4-client";
-
-const client = createClient("production");
-for await (const market of items(
-  (query) => client.GET("/v1/markets", { params: { query: { ...query, combo: "OPEN", eligibility: "ENABLED" } } }).then(unwrap),
-  (page) => page.items,
-)) {
+for await (const market of totalis.listMarkets({ combo: "OPEN", eligibility: "ENABLED" })) {
   console.log(market.outcome_id, market.title);
 }
 ```
 
-This is [List markets](/hyperliquid/api-reference/markets/list-markets) with `?combo=OPEN&eligibility=ENABLED`.
-The filters apply after paging, so a page can be short or empty while `has_more` is true: follow `next_cursor`
-until it is `null`, as `items` does. Both states are live. A market's `combo.state` opens when its event is
-within 7 days, and closes with `reason: "EVENT_PASSED"` once its event starts (a game's kickoff, a policy
-decision) or its result can be known. Makers refuse such a leg, so a game is not offered in play.
+`listMarkets(filters)` is [List markets](/hyperliquid/api-reference/markets/list-markets) with those filters
+(`combo`, `eligibility`, `category`, `subcategory`), as an async iterator in `outcome_id` order. `createMaker` has
+it too. The filters apply after paging, so a page can be short or empty while `has_more` is true: `listMarkets`
+reads on until it is `false`. Both states are live. A market's `combo.state` opens when its event is within 7
+days, and closes with `reason: "EVENT_PASSED"` once its event starts (a game's kickoff, a policy decision) or its
+result can be known. Makers refuse such a leg, so a game is not offered in play.
 
 ## Open a position
 
@@ -158,8 +153,11 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 
 | Option | Default | Does |
 | --- | --- | --- |
-| `legs` | | The legs, in ascending `outcome_id` order |
+| `legs` | | The legs. They are sent sorted by numeric `outcome_id`. |
 | `stake` | | The stake in atomic USDC |
+| `builderCode` | | Your partner builder code, sent as `builder_code` ([Builder codes](/hyperliquid/build/builder-codes)) |
+| `builderAttribution` | | With `builderCode`, for an account you did not admit: the token your server minted with `attributeRfq` for this exact request ([Mint a token](/hyperliquid/build/builder-codes#mint-a-token)) |
+| `rfqIdempotencyKey` | A new UUIDv7 | The create RFQ's `Idempotency-Key`: the one `builderAttribution` was minted for |
 | `quoteTimeoutMs` | 20,000 | How long to wait for an acceptable quote, the first and each later one. With none in time, the RFQ is cancelled. |
 | `collectMs` | 1,000 | How long to keep collecting after the first quote `choose` would take. `0` takes it at once. |
 | `choose` | `bestQuote()` | `(quotes) => quote`: picks one of the listed quotes, or returns `undefined` to keep waiting |
@@ -282,9 +280,22 @@ each time the list changes. A quote stays takeable while it is listed, so show i
 
 Each quote leads with what to show: `payout` on an entry quote, `price` on a cash-out bid, both atomic USDC. The
 terms the wallet signs are under `signing` (`signing.entry`, or `signing.sell_back` for a bid); the SDK signs
-them for you. `netPayout(quote)` is what the quote pays after the profit fee, and `netCashout(bid, position)`
-what a bid leaves the owner after it. To
-take one yourself, see [Advanced: custom signing and recovery](/hyperliquid/sdk/resume-and-retry#entry-and-cash-out).
+them for you. `netPayout(quote)` is what an entry quote pays after the profit fee. `netCashout(bid, position)`
+is what a cash-out bid leaves the owner after it: it takes the bid itself and the `position` of the position read
+([Get position](/hyperliquid/api-reference/positions/get-position)), for its `net_stake` and `fee_bps`, and returns
+`null` while `net_stake` is unknown.
+
+```ts
+import { netCashout, unwrap, type SellBackQuote } from "@totalis/hip4-client";
+
+const { position } = unwrap(await totalis.client.GET("/v1/me/positions/{position_id}", {
+  params: { path: { position_id: positionId } },
+}));
+const net = (bid: SellBackQuote) => netCashout(bid, position); // atomic USDC, or null
+```
+
+To take a quote yourself, see
+[Advanced: custom signing and recovery](/hyperliquid/sdk/resume-and-retry#entry-and-cash-out).
 
 ## Settlement
 

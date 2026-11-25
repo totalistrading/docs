@@ -541,6 +541,9 @@ The RFQ carries no chain state. Read it yourself from the vault, at the block yo
 2. Read the legs' state with the vault's view `legStateOf(Leg[] legs, uint256 readGas)`, with `readGas`
    `500000`.
 
+The SDK's `maker.readCashoutPosition(rfq)` does both and returns the ticket and the leg state
+([`bid`](/hyperliquid/sdk/making#quote)).
+
 The leg state is `keccak256(abi.encode(states))`, with one `uint256` per leg in order:
 `(code << 64) | value`. `code` is `0` for an open leg, `1` for a resolved leg and `2` for a pruned leg.
 For a resolved leg, `value` is the outcome's resolved value out of `100000000`, the same for either side: a
