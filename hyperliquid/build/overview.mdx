@@ -11,7 +11,7 @@ Totalis is open to builders. Pick the path that matches what you ship.
 | A bot or script | You | Your own Totalis account | An API key (`ttk_`) and your wallet key | [Quickstart](/hyperliquid/quickstart) |
 | A market maker | Your maker | Your maker | A maker API key (`ttk_`) and the maker wallet | [Market making](/hyperliquid/guides/market-making) |
 | A frontend | Your users | Each user's own wallet | Partner credentials: server key, browser key and registered origins | [Your users' own wallets](/hyperliquid/build/partner-frontend) |
-| Attribution on accounts you did not admit | Users of your page | Any account no partner admitted | A builder code for your origin and a builder signer | [Builder codes](/hyperliquid/build/builder-codes) |
+| Attribution on accounts you did not admit | Users of your page | Any account no partner admitted | A builder code for your origin | [Builder codes](/hyperliquid/build/builder-codes) |
 
 Every path uses the same API and the [TypeScript SDK](/hyperliquid/sdk/overview). Totalis never holds a user's key:
 every bet, cash-out and withdrawal is signed by the account's own wallet, or by a
@@ -28,7 +28,6 @@ every bet, cash-out and withdrawal is signed by the account's own wallet, or by 
 | Partner slug | `acme` | Totalis, from your request | Your frontend | Named in the consent each new wallet signs |
 | Account code | `tot_rfq_production_...` | Totalis | Totalis's records | Recorded on every RFQ from an account you admitted |
 | Origin builder code | `tot_rfq_production_...` | Totalis | Your frontend | Attributing RFQs from accounts you did not admit |
-| Builder signer | Your `0x` address | You | Your server holds its key | Signing origin builder codes per RFQ |
 
 Staging keys carry `stg` instead of `prd`: see [Staging](/hyperliquid/build/staging).
 
@@ -46,7 +45,6 @@ credentials. The [SDK](/hyperliquid/sdk/overview) is public on npm.
     | Production origins | `https://app.acme.com` | Partner credentials |
     | Staging origins | `https://staging.acme.com` | Staging credentials |
     | Payout address on HyperEVM | `0x...` | Revenue share on production |
-    | Builder signer address | `0x...`, a key your server holds | Origin builder codes only. Skip it if every account you serve is one you admit. |
   </Step>
   <Step title="You receive">
     | Item | Over |

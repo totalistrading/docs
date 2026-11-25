@@ -73,8 +73,8 @@ The same trade, seen from each side:
 | Capital moves | `VAULT_BALANCE_CHANGED`, `WALLET_BALANCE_CHANGED` | `MAKER_CAPITAL_UPDATED` | Re-read balances or [capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 | It settles or closes | `POSITION_SETTLED`, `POSITION_CLOSED` | The same | Read the position |
 
-An RFQ that reaches `expires_at`, and an entry quote that reaches `accept_before`, send no event. Track both
-timestamps yourself.
+An RFQ that reaches `expires_at`, and an entry quote that leaves the list 14 seconds before its `expiry`, send no
+event. Track both yourself.
 
 Position, capital and wallet balance events are pointers. They name what changed and the block it
 changed in, not the new state. Read [Get position](/hyperliquid/api-reference/positions/get-position),

@@ -110,8 +110,8 @@ signer. `toTotalisSigner`, from `.../signer`, converts any of them yourself when
 ## Conventions
 
 - **Money** is atomic USDC (6 decimals), as a `bigint` or a decimal string. `25_000_000n` is 25 USDC.
-- **Time** comes from the venue. Deadlines such as `fund_by` are judged on the venue clock, which
-  `stream.serverNow()` gives you.
+- **Time** comes from the venue. HTTP responses in the RFQ flow carry durations, such as `fund_within_ms`, never
+  clocks. Stream timestamps are on the venue clock, which `stream.serverNow()` gives you.
 - **Commands are idempotent.** Each one is built once with its `Idempotency-Key` and resent byte for byte, so a
   retry never trades twice.
 - **Clean up.** Call `close()` on `createTotalis` and `createMaker` when you are done, to stop their streams. A

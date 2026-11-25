@@ -39,7 +39,6 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
       "rfq_id": "0199a1c9-0a11-7c3e-9f20-5b7d8e9fa001",
       "kind": "ENTRY",
       "sequence": 8812,
-      "accept_before": "2026-09-26T20:00:11Z",
       "entry": {
         "maker_id": "3",
         "legs": [{ "outcome_id": "1209", "side": "YES" }],
@@ -60,8 +59,8 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | --- | --- | --- |
 | `RFQ_CREATED` | You created an RFQ, or any RFQ opened (with `open_rfqs`) | The open RFQ, as [Get RFQ](/hyperliquid/api-reference/rfqs/get-rfq), without `status` |
 | `RFQ_ACCEPTED`, `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended | `rfq_id`, `status`, `terminal_reason`, `created_at` and `expires_at`. `terminal_reason` is set only on `RFQ_FAILED`: `REVERTED`, `EXPIRED_UNEXECUTED` or `INSUFFICIENT_CASH`. |
-| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, `accept_before` (entry quotes: accept before it, 14 seconds before `signing.entry.expiry`), `payout` (entry) or `price` (bid), and `signing` with the `entry` or `sell_back` terms you sign to accept |
-| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. An entry quote stops being acceptable at its `accept_before`, which sends no event. |
+| `QUOTE_CREATED` | A maker quoted your RFQ | The quote: `quote_id`, `rfq_id`, `kind`, `sequence`, `payout` (entry) or `price` (bid), and `signing` with the `entry` or `sell_back` terms you sign to accept |
+| `QUOTE_REMOVED` | A quote left your RFQ | `rfq_id`, `quote_id`, `status`: `CANCELLED`, `REPLACED` or `ACCEPTED`. An entry quote also stops being listed 14 seconds before `signing.entry.expiry`, which sends no event. |
 | `OPERATION_UPDATED` | An operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position changed on-chain | `position_id`, `block_number`, `log_index`. Read the position. |
 | `VAULT_BALANCE_CHANGED` | Your vault balance changed | `address`, `amount` (the new balance), `transaction_hash`, `status` |

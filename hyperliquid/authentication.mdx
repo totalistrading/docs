@@ -145,7 +145,7 @@ and [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 | Confirm a cash-out quote | The maker wallet that backs the position | `SellBack` | `maker_signature` |
 | Fund an accept, per entry | Your wallet | USDC `ReceiveWithAuthorization` | `funding.authorization_signature` |
 | Set your wallet's approval for entries | Your wallet | USDC `Permit` | `POST /v1/me/wallet-approval` `signature`. An accept then funds with `funding: { "kind": "WALLET_APPROVAL" }` and no signature. |
-| Bridge USDC from HyperCore into an entry | Your wallet | `HyperliquidTransaction:SendAsset` | None. Sent to Hyperliquid after the maker confirms, before the acceptance's `fund_by`. |
+| Bridge USDC from HyperCore into an entry | Your wallet | `HyperliquidTransaction:SendAsset` | None. Sent to Hyperliquid after the maker confirms, within the acceptance's `fund_within_ms`. |
 | Deposit | Your wallet | USDC `ReceiveWithAuthorization` | [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) `authorization_signature` |
 | Withdraw: vault shortfall | Your wallet, or its vault agent | `Exit` | `vault_withdrawal.signature` |
 | Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |

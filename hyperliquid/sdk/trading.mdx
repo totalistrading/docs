@@ -155,9 +155,7 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 | --- | --- | --- |
 | `legs` | | The legs. They are sent sorted by numeric `outcome_id`. |
 | `stake` | | The stake in atomic USDC |
-| `builderCode` | | Your partner builder code, sent as `builder_code` ([Builder codes](/hyperliquid/build/builder-codes)) |
-| `builderAttribution` | | With `builderCode`, for an account you did not admit: the token your server minted with `attributeRfq` for this exact request ([Mint a token](/hyperliquid/build/builder-codes#mint-a-token)) |
-| `rfqIdempotencyKey` | A new UUIDv7 | The create RFQ's `Idempotency-Key`: the one `builderAttribution` was minted for |
+| `builderCode` | | Your partner builder code, sent as `builder_code`. It credits you with your revenue share and costs the user nothing ([Builder codes](/hyperliquid/build/builder-codes)). |
 | `quoteTimeoutMs` | 20,000 | How long to wait for an acceptable quote, the first and each later one. With none in time, the RFQ is cancelled. |
 | `collectMs` | 1,000 | How long to keep collecting after the first quote `choose` would take. `0` takes it at once. |
 | `choose` | `bestQuote()` | `(quotes) => quote`: picks one of the listed quotes, or returns `undefined` to keep waiting |

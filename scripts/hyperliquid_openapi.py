@@ -49,7 +49,10 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("GET /v1/discovery", "List questions", "Markets"),
             ("GET /v1/markets/{outcome_id}", "Get market", "Markets"),
             ("GET /v1/markets/{outcome_id}/history", "Get market history", "Markets"),
+            ("GET /v1/markets/{outcome_id}/trades", "List market trades", "Markets"),
             ("GET /v1/market-display", "Get market display", "Markets"),
+            ("GET /v1/live-marks", "Get live marks", "Markets"),
+            ("GET /v1/charts/{series}", "Get chart", "Markets"),
         ],
     ),
     "RFQs & Quotes": (
@@ -63,8 +66,7 @@ PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
             ("DELETE /v1/quotes/{quote_id}", "Cancel quote", "Quotes"),
             ("POST /v1/quotes/{quote_id}/confirm", "Confirm quote", "Quotes"),
             ("GET /v1/makers/{maker_id}/acceptances", "List acceptances", "Quotes"),
-            ("PUT /v1/makers/{maker_id}/quote-lease", "Keep quote lease", "Quotes"),
-            ("DELETE /v1/makers/{maker_id}/quote-lease", "Release quote lease", "Quotes"),
+            ("DELETE /v1/makers/{maker_id}/quotes", "Cancel all quotes", "Quotes"),
             ("GET /v1/rfqs", "List RFQs", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}", "Get RFQ", "RFQs"),
             ("GET /v1/rfqs/{rfq_id}/quotes", "List quotes", "Quotes"),
@@ -184,7 +186,7 @@ def operations(spec: dict):
 
 # The one group both sides use, split so a taker and a maker each find their calls together.
 SUBGROUPS: dict[str, list[tuple[str, int]]] = {
-    "RFQs & Quotes": [("Taking", 4), ("Making", 6), ("Reads", 4)],
+    "RFQs & Quotes": [("Taking", 4), ("Making", 5), ("Reads", 4)],
 }
 
 

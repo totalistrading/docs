@@ -32,10 +32,10 @@ a quote.
 | Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
 | Maximum bet amount | Currently 1,000 USDC |
 | Maximum payout multiplier | 1,000x |
-| Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
+| Entry RFQ open | 20 seconds for new quotes. A quote still listed stays acceptable after that. |
 | Cash-out RFQ open | 30 seconds |
-| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
-| Bridge from HyperCore into an entry (SDK) | Sent only after the maker confirms, before the acceptance's `fund_by`: 2 seconds after the confirm. |
+| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
+| Bridge from HyperCore into an entry (SDK) | Sent only after the maker confirms, within the acceptance's `fund_within_ms`: 2 seconds from the confirm. |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
 | Quote lease `lease_ms` | 1,000 to 60,000 milliseconds |
@@ -68,7 +68,6 @@ For accounts that sign in with their own wallet ([Your users' own wallets](/hype
 | Sign-in message | 5 minutes, single use |
 | Wallet session | At most 30 days. Ends after 7 days unused. |
 | Admission consent `Expires At` | At most 1 day ahead. The SDK default is 1 hour. |
-| `builder_attribution` expiry | In the future, at most 300 seconds ahead. `attributeRfq` takes 5 to 295 seconds, 240 by default. |
 | Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
 
 ## Partner webhooks

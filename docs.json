@@ -105,7 +105,10 @@
                   "GET /v1/discovery",
                   "GET /v1/markets/{outcome_id}",
                   "GET /v1/markets/{outcome_id}/history",
-                  "GET /v1/market-display"
+                  "GET /v1/markets/{outcome_id}/trades",
+                  "GET /v1/market-display",
+                  "GET /v1/live-marks",
+                  "GET /v1/charts/{series}"
                 ]
               },
               {
@@ -127,8 +130,7 @@
                       "DELETE /v1/quotes/{quote_id}",
                       "POST /v1/quotes/{quote_id}/confirm",
                       "GET /v1/makers/{maker_id}/acceptances",
-                      "PUT /v1/makers/{maker_id}/quote-lease",
-                      "DELETE /v1/makers/{maker_id}/quote-lease"
+                      "DELETE /v1/makers/{maker_id}/quotes"
                     ]
                   },
                   {

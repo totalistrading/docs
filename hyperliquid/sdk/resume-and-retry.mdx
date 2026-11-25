@@ -88,13 +88,14 @@ display.
 ### `sendAcceptance(signed, { onRecord })`
 
 Sends either kind of record under its acceptance ID, and checks the answer echoes the record's IDs. An entry's
-bridge is sent only after the accept answers `ACCEPTED` with its `fund_by` still ahead. Any other answer
+bridge is sent only after the accept answers `ACCEPTED` with time left in its `fund_within_ms`, counted from
+when the accept was sent. Any other answer
 discards it.
 
 ### `recoverAcceptance(signed, { wait, onRecord })`
 
 Reads and fences the acceptance. It signs nothing. It sends a never-sent bridge only if the acceptance is
-`ACCEPTED` before its `fund_by`, and resends a sent one that got no answer, with the same bytes, in that same
+`ACCEPTED` with time left in its `fund_within_ms`, and resends a sent one that got no answer, with the same bytes, in that same
 window. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
 
 ### Entry records and the bridge
@@ -107,7 +108,7 @@ only reads it.
 The result never waits for Hyperliquid:
 
 - `bridging` is set when this call sent the bridge. It resolves to Hyperliquid's answer, or `unknown` when none
-  came before `fund_by`.
+  came within `fund_within_ms`.
 - `bridged` is `{ amount, landed }` (amount in atomic USDC) once a bridge was sent, and never for one
   Hyperliquid refused. `landed: "yes"` means Hyperliquid answered `ok`: unless the operation `COMMITTED`, that
   cash is now in the wallet on HyperEVM, not on HyperCore. `"unknown"` means read the balances rather than
