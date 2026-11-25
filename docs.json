@@ -81,6 +81,7 @@
                 "pages": [
                   "hyperliquid/glossary",
                   "hyperliquid/referrals",
+                  "hyperliquid/liquidity-rewards",
                   "hyperliquid/limits-and-fees",
                   "hyperliquid/errors"
                 ]

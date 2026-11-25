@@ -1,0 +1,137 @@
+---
+title: 'Market Maker Liquidity Rewards Program'
+sidebarTitle: 'Liquidity rewards'
+icon: 'gift'
+description: 'Daily rewards for competitive quotes and fills on Totalis RFQs.'
+---
+
+Makers earn daily rewards on Totalis RFQs. Scores and payouts are in the Totalis Rewards API.
+
+## Summary
+
+| Item | Rule |
+| --- | --- |
+| Pool | One pool per UTC day: 30% quote pool, 70% fill pool |
+| Quote points | 1 point per scored RFQ, shared by the top 3 quotes within 5 s and within 5% of the best payout, weighted by speed |
+| Fill points | Earned by the maker of each filled quote; a larger stake or a higher multiplier earns more |
+| Fill pool cap | A maker's fill pool reward is capped at 50% of their net stake filled that day |
+| Honour multiplier | Declines and time-outs lower both pools' points; at a 20% decline rate the maker is excluded for the next 3 UTC days |
+
+## Terms
+
+- **RFQ Time:** when Totalis sends the RFQ to makers.
+- **Entry RFQ:** an RFQ that opens a position. Cash-out RFQs are not scored.
+- **Net stake:** the stake less the Totalis entry fee.
+- **Payout:** what the position pays if every leg wins.
+- **Day:** a UTC day. A fill counts on the UTC day of its acceptance.
+
+## Scored RFQs
+
+An entry RFQ is scored when it was filled and:
+
+- stake (before the Totalis entry fee) is at least $1;
+- it has 1 to 5 legs, each a sports, esports or price market.
+
+At the RFQ Time, from Hyperliquid order books (YES and NO books combined):
+
+- every leg mid is between 3% and 97% inclusive;
+- every leg's spread at $500 of depth (average buy price − average sell price) is 5¢ or less;
+- the fair multiplier, 1 ÷ product of leg mids, is 1,000 or less.
+
+## Quote Points
+
+```text
+gap          = (best payout − payout) ÷ best payout
+price score  = (1 − gap ÷ 5%)², or 0 when the gap is 5% or more
+price share  = price score ÷ sum of the top 3 price scores
+speed        = 1.5 − t ÷ 10 s
+quote points = price share × speed
+```
+
+- `t` is the time from the RFQ Time to Totalis receiving the quote. Only quotes received within 5 s rank.
+- Your last quote before the taker accepted the winning quote ranks, with its own price and received time.
+- A quote ranks only if a taker could still accept it when the winning quote was accepted. Other quotes earn 0 and do not set the best payout.
+- Declined and timed-out quotes, and quotes blocked by maker error, earn 0 and leave the ranking. The best payout is taken without them.
+- At the top-3 cut-off, the earlier quote ranks first. Equal scores split equally.
+
+## Fill Points
+
+```text
+fill points = √(net stake × (payout − net stake))
+```
+
+The maker of the filled quote earns fill points. A quote received after 5 s earns fill points but no quote points.
+
+## Self-Trading and Wash Trading
+
+Self-trading earns nothing. A self-quote is a quote whose maker wallet is the wallet that sent the RFQ.
+
+- A self-quote earns 0 quote points and 0 fill points, and leaves the ranking.
+- If a self-quote fills, the RFQ is not scored for any maker.
+- An accept on a self-quote does not count for the honour multiplier.
+
+Related-wallet churn, wash trading and circular volume are reviewed daily, and lose some or all of the day's reward.
+
+## Honour Multiplier
+
+```text
+decline rate = misses ÷ max(accepted quotes, 20), over the trailing 7 UTC days
+
+multiplier   = 1                           at a rate of 3% or less
+             = 1 − (rate − 3%) ÷ 17%       above 3%
+             = 0                           at 20% or more
+```
+
+Each day's multiplier uses the decline rate at the end of that UTC day.
+
+At 20% or more, the day pays 0 and you are excluded for the next 3 UTC days. When the exclusion ends, your misses and accepted quotes reset to zero. Excluded makers' quotes earn 0 and leave the ranking.
+
+Misses count on every entry RFQ a taker tried to accept, scored or not. Each RFQ counts at most once per maker: one accepted quote and at most one miss.
+
+| After a taker accepts | Accepted quote | Miss |
+| --- | --- | --- |
+| Filled | Yes | No |
+| Declined | Yes | Yes, unless excused |
+| Timed out | Yes | Yes, unless excused or during a Totalis outage |
+| Other maker error, e.g. lack of capacity, and you did not fill the RFQ | Yes | Yes; a capacity error during a Totalis outage is not a miss |
+| Failed because of the taker or Totalis, and not filled | No | No |
+| On a self-quote | No | No |
+
+**Excused:** the product of the leg mids rose by 2% or more of its value between the quote's received time and the acceptance. Example: legs at 50%, 60% and 40% give a product of 12.0%. The decline is excused if the product is 12.24% or more at acceptance.
+
+**Totalis outage:** any period when Totalis is down or degraded.
+
+| Decline rate | Multiplier | Misses at 20 or fewer accepted quotes | at 40 | at 100 |
+| --- | --- | --- | --- | --- |
+| 3% or less | 1 | 0 | 1 | 3 |
+| 5% | 0.88 | 1 | 2 | 5 |
+| 10% | 0.59 | 2 | 4 | 10 |
+| 15% | 0.29 | 3 | 6 | 15 |
+| 20% | 0, excluded for next 3 UTC days | 4 | 8 | 20 |
+
+Accepted quotes are counted over the trailing 7 UTC days. Rates between rows follow the formula, e.g. 3 misses in 40 accepted quotes is 7.5%, a multiplier of 0.74.
+
+## Payout
+
+Your points are the sum over the day's scored RFQs.
+
+```text
+daily payout =
+    quote pool × (multiplier × quote points) ÷ sum of (multiplier × quote points) across makers
+  + fill pool  × (multiplier × fill points)  ÷ sum of (multiplier × fill points) across makers
+```
+
+- Amounts are rounded down to 6 decimal USDC.
+- A pool with no points is not paid.
+- Scores are provisional until the day is final. Only final days are paid.
+
+### Fill pool cap
+
+```text
+fill pool cap = 50% × your net stake filled that day
+```
+
+- Your net stake filled is the sum of net stakes on the day's scored RFQs that you filled.
+- If your fill pool reward is above your cap, you're paid your cap. The excess goes to makers below their caps, pro rata by multiplier × fill points. This repeats until no maker is above their cap.
+- If every maker reaches their cap, the rest of the fill pool is not paid.
+- The quote pool is not capped.
