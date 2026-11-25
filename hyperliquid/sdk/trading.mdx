@@ -120,8 +120,8 @@ if (opened.operationId) {
 Legs go in strictly ascending `outcome_id` order. `openPosition`:
 
 1. Waits for the account stream, then creates the RFQ.
-2. Plans any funding the vault is short of, while quotes arrive. By default it draws the wallet's part from the
-   wallet's [approval](#wallet-approval), and asks the wallet for a permit only when the approval left is short.
+2. Plans any funding the vault is short of, while quotes arrive. The venue draws the wallet's part from the
+   wallet's [approval](#wallet-approval), so it asks the wallet for a permit only when the approval left is short.
 3. Collects quotes for `collectMs` and picks one with `choose`.
 4. Has the wallet sign `TakerAccept` for it and sends the accept at once. If the answer is lost, it recovers
    the accept.
@@ -159,9 +159,8 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 | `quoteTimeoutMs` | 20,000 | How long to wait for an acceptable quote, the first and each later one. With none in time, the RFQ is cancelled. |
 | `collectMs` | 1,000 | How long to keep collecting after the first quote `choose` would take. `0` takes it at once. |
 | `choose` | `bestQuote()` | `(quotes) => quote`: picks one of the listed quotes, or returns `undefined` to keep waiting |
-| `funding` | `"approval"` | `"approval"` draws the shortfall from the wallet's [approval](#wallet-approval), with no per-entry signature; `"wallet"` has the wallet sign a USDC authorization for the exact shortfall on each entry; `"none"` never funds; a funding command you built is sent as is |
-| `approvalValue` | `defaultWalletApproval`, or the shortfall when larger | With `"approval"`: the approval a permit sets when one is needed. `null` never asks a permit and throws `WalletApprovalError` `INSUFFICIENT_APPROVAL` instead. |
-| `onApproval` | | With `"approval"`: awaited with the signed permit before it is sent. Persist it to [recover](/hyperliquid/sdk/resume-and-retry#wallet-approval). |
+| `approvalValue` | `defaultWalletApproval`, or the shortfall when larger | The approval a permit sets when the approval left is short of the wallet's part. `null` never asks a permit and throws `WalletApprovalError` `INSUFFICIENT_APPROVAL` instead. |
+| `onApproval` | | Awaited with the signed permit before it is sent. Persist it to [recover](/hyperliquid/sdk/resume-and-retry#wallet-approval). |
 | `core` | | HyperCore spot USDC you offer to bridge to the wallet when its HyperEVM USDC falls short |
 | `cash` | | A `spendableCash()` read to plan from. Left out, balances are read while quotes arrive. |
 | `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. If the venue refuses the accept because its quote was just replaced, it is called with the record marked `refused`. Persist the latest record. |
@@ -176,23 +175,19 @@ the bridge's gas.
 
 ### Wallet approval
 
-By default an entry draws the wallet's part of the stake from the wallet's USDC approval to WalletAccept, the
-vault's funding contract. The wallet signs a permit once, Totalis relays it and pays the gas, and later entries
-need no funding signature until the approval is spent. `openPosition` asks for the permit itself when the approval
+An entry draws the wallet's part of the stake from the wallet's USDC approval to WalletAccept, the vault's
+funding contract. The accept carries nothing for it. The wallet signs a permit once, Totalis relays it and pays
+the gas, and later entries need no funding signature until the approval is spent. `openPosition` asks for the permit itself when the approval
 left is short. To approve ahead of time, for example at sign-up, so the first entry asks nothing extra:
 
 ```ts
 await totalis.approveWallet({ value: 1_000_000_000n }); // 1,000 USDC; resolves once the permit lands
 ```
 
-| You want | Pass |
-| --- | --- |
-| The default: approve once, then no funding signature per entry | Nothing, or `funding: "approval"` |
-| A USDC authorization signed for each entry, and no standing approval | `funding: "wallet"` |
-| To end the approval | `revokeWalletApproval()` |
+To end the approval, call `revokeWalletApproval()`. Without an approval, an entry trades only on free vault cash.
 
-A permit and an approval-funded entry need the same key scopes as a wallet-funded one: `funding:deposit` and
-`sponsorship:use`, which `preset: "TAKER"` includes. The step functions are on
+The venue draws the wallet only for the account's linked wallet, under a session or a key with `funding:deposit`.
+A permit also needs `sponsorship:use`. `preset: "TAKER"` includes both. A cash-out never draws the wallet. The step functions are on
 [Wallet approval](/hyperliquid/sdk/resume-and-retry#wallet-approval).
 
 ### How much one Combo can stake

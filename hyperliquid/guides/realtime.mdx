@@ -67,7 +67,7 @@ The same trade, seen from each side:
 | A quote leaves | `QUOTE_REMOVED` | | Taker: drop it |
 | The taker accepts | The accept response holds the maker's answer | `QUOTE_ACCEPTED`, with a `deadline` | Maker: [confirm](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline` |
 | The RFQ ends | `RFQ_ACCEPTED`, `RFQ_CANCELLED` or `RFQ_FAILED` | The same | Maker: stop quoting it |
-| A funded accept is confirmed | `WALLET_FUNDING_UPDATED` with `fund_by` | | Taker: send any HyperCore bridge before `fund_by` |
+| A wallet-funded accept is confirmed | `WALLET_FUNDING_UPDATED` | | Taker: send any HyperCore bridge on the `ACCEPTED` answer, within 4 seconds of sending the accept |
 | The trade lands | `OPERATION_UPDATED` to `COMMITTED` | | Taker: the position is on-chain |
 | The position opens | `POSITION_OPENED` | `POSITION_OPENED` | Read the position |
 | Capital moves | `VAULT_BALANCE_CHANGED`, `WALLET_BALANCE_CHANGED` | `MAKER_CAPITAL_UPDATED` | Re-read balances or [capital](/hyperliquid/api-reference/makers/get-maker-capital) |

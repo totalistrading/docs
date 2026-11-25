@@ -38,7 +38,7 @@ quote stays takeable while it is listed.
 
 ### Sign the funding first
 
-The funding depends only on the stake, so it can be signed before a quote is chosen. Then only `TakerAccept`
+The funding depends only on the stake, so it can be readied before a quote is chosen. Then only `TakerAccept`
 is left to sign once you pick, and the accept goes out straight after. Makers replace their quotes as their
 prices move, so the less time between the pick and the send, the less often a quote is gone when the accept
 arrives. `openPosition` works this way.
@@ -56,18 +56,17 @@ Prepare again for the next quote. Before you sign the next one, mark a refused r
 and persist it, so `recoverAcceptance` answers it `NOT_ADMITTED` from the record without cancelling the RFQ the
 next accept uses.
 
-### `prepareEntryFunding({ stake, core, cash, funding })`
+### `prepareEntryFunding({ stake, core, cash })`
 
-Signs the funding for `stake` without a quote, and returns it to pass to `signEntry` as `prepared`. It plans like
-`signEntry`, below. Like `openPosition`, it defaults to `funding: "approval"`: it draws the wallet's part from its
-[approval](#wallet-approval), and when the approval left is short it asks a permit first and waits until it lands.
-`funding: "wallet"` signs a USDC authorization for the wallet's part instead.
+Readies the funding for `stake` without a quote, and returns it to pass to `signEntry` as `prepared`. It plans like
+`signEntry`, below. The venue draws the wallet's part from its [approval](#wallet-approval). When the approval left
+is short, it asks a permit first and waits until it lands. It signs any bridge from `core`.
 
-### `signEntry({ quote, core, cash, funding })`
+### `signEntry({ quote, core, cash })`
 
-Without `prepared`, asks the wallet for every signature the entry needs, at once, and defaults to
-`funding: "wallet"`, a USDC authorization: signing sends nothing, so it can't land the permit a first approval
-entry needs. It plans the funding from `cash` (a
+Without `prepared`, asks the wallet for every signature the entry needs, at once: `TakerAccept`, and any bridge.
+Signing sends nothing, so it can't land a permit: the approval left must already cover the wallet's part. It plans
+the funding from `cash` (a
 `spendableCash()` read) or, without it, from current balances: free vault cash first, then the wallet, then a
 bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
 
@@ -76,8 +75,8 @@ bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
 - Pass `cash` to plan before the wallet prompt. Without it, the wallet is asked for `TakerAccept` while the
   balances load, so a plan that fails throws after the prompt.
 - Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current.
-- With `funding: "approval"` and no `prepared`, the approval left must already cover the wallet's part.
-  Otherwise it throws `WalletApprovalError` `INSUFFICIENT_APPROVAL`.
+- Without `prepared`, throws `WalletApprovalError` `INSUFFICIENT_APPROVAL` when the approval left is short of the
+  wallet's part. Call `prepareEntryFunding` or `approveWallet` first.
 
 ### `signCashout({ quote })`
 
@@ -88,15 +87,15 @@ display.
 ### `sendAcceptance(signed, { onRecord })`
 
 Sends either kind of record under its acceptance ID, and checks the answer echoes the record's IDs. An entry's
-bridge is sent only after the accept answers `ACCEPTED` with time left in its `fund_within_ms`, counted from
-when the accept was sent. Any other answer
-discards it.
+bridge is sent only once the accept answers `ACCEPTED`, and only within `fundWindowMs` (4 seconds) of sending the
+accept. The venue waits at least 6 seconds from the accept's arrival for wallet USDC, so a bridge sent in that
+window keeps time to land. Any other answer discards it. It reads nothing after the answer.
 
 ### `recoverAcceptance(signed, { wait, onRecord })`
 
-Reads and fences the acceptance. It signs nothing. It sends a never-sent bridge only if the acceptance is
-`ACCEPTED` with time left in its `fund_within_ms`, and resends a sent one that got no answer, with the same bytes, in that same
-window. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
+Reads and fences the acceptance. It signs nothing, and never sends a bridge: the accept went out in another flow,
+so its window can't be shown to be open. A never-sent bridge is discarded, and a sent one with no answer stays
+`SENT`. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
 
 ### Entry records and the bridge
 
@@ -108,7 +107,7 @@ only reads it.
 The result never waits for Hyperliquid:
 
 - `bridging` is set when this call sent the bridge. It resolves to Hyperliquid's answer, or `unknown` when none
-  came within `fund_within_ms`.
+  came within `fundWindowMs` of the accept.
 - `bridged` is `{ amount, landed }` (amount in atomic USDC) once a bridge was sent, and never for one
   Hyperliquid refused. `landed: "yes"` means Hyperliquid answered `ok`: unless the operation `COMMITTED`, that
   cash is now in the wallet on HyperEVM, not on HyperCore. `"unknown"` means read the balances rather than
@@ -177,12 +176,11 @@ about 10 minutes. Past that, sign a new return.
 
 ## Wallet approval
 
-An entry draws the wallet's share of the stake from the wallet's USDC approval to WalletAccept instead of a USDC
-authorization signed for each entry
-([Get wallet approval](/hyperliquid/api-reference/deposits/get-wallet-approval)). `openPosition` and
-`prepareEntryFunding` do this by default; pass `funding: "approval"` to `signEntry` for the same, and
-`funding: "wallet"` to any of them for an authorization per entry instead. When the approval left is short,
-`openPosition` and `prepareEntryFunding` ask the wallet for one permit, wait until it lands, then fund the entry.
+When free vault cash is short of an entry's stake, the venue draws the wallet's share from the wallet's USDC
+approval to WalletAccept, with nothing in the accept
+([Get wallet approval](/hyperliquid/api-reference/deposits/get-wallet-approval)). There is no per-entry USDC
+authorization. When the approval left is short, `openPosition` and `prepareEntryFunding` ask the wallet for one
+permit, wait until it lands, then fund the entry. `signEntry` without `prepared` asks none.
 
 | Option | Does |
 | --- | --- |
@@ -225,8 +223,9 @@ changed nothing:
 | `APPROVAL_UNKNOWN` | The approval or its nonce could not be read. Read it again. |
 | `INSUFFICIENT_APPROVAL` | The approval left is below what the entry needs, and no permit was asked |
 
-An approval-funded entry that fails for its approval names `INSUFFICIENT_APPROVAL` from
-`entryFailure(record, operation, opened.outcome)`.
+An entry that fails for its approval names `INSUFFICIENT_APPROVAL` from
+`entryFailure(record, operation, opened.outcome)`. One that fails for the wallet's USDC names `INSUFFICIENT_CASH`,
+and the acceptance's `reason` is `INSUFFICIENT_WALLET_USDC`.
 
 ## Retries
 
@@ -274,5 +273,5 @@ mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have r
 | `EntryError` | An entry cannot be funded, before anything is sent ([Why an entry did not trade](/hyperliquid/sdk/trading#why-an-entry-did-not-trade)) |
 | `BalanceUnknownError` | A withdrawal or return to HyperCore needs a balance that has not been read |
 | `ExitUnavailableError` | `exitToCore` or `returnToCore` runs on staging, which has no exits to HyperCore |
-| `WalletApprovalError` | A permit changed nothing, or an approval-funded entry's approval is short or unread ([Wallet approval](#wallet-approval)) |
+| `WalletApprovalError` | A permit changed nothing, or the approval an entry draws is short or unread ([Wallet approval](#wallet-approval)) |
 | `StreamClosedError` | A stream closes with `retry` `NEVER` |

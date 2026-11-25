@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "272.0.0-lean-rfq-flow"
+    "version": "273.0.0-implicit-accept-funding"
   },
   "servers": [
     {
@@ -26080,20 +26080,9 @@
           "taker_signature": {
             "$ref": "#/components/schemas/ContractSignature",
             "description": "Your EIP-712 signature over the quote's `signing` terms: `entry` as `TakerAccept`, or `sell_back` as `SellBack` (its digest is `quote_id`)."
-          },
-          "funding": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/WalletFunding"
-              },
-              {
-                "$ref": "#/components/schemas/WalletApprovalFunding"
-              }
-            ],
-            "description": "Entry quotes only; not allowed on a cash-out. Pays the part of the stake your vault balance is short from your account wallet: `WALLET` with a USDC authorization for the exact shortfall, or `WALLET_APPROVAL` from the wallet's approval to WalletAccept. Omit it when your vault balance covers the stake. The acceptance keeps the route it was admitted with; a replay never switches it."
           }
         },
-        "description": "The taker's accept of the quote in the path. The `Idempotency-Key` header becomes the `acceptance_id`."
+        "description": "The taker's accept of the quote in the path. The `Idempotency-Key` header becomes the `acceptance_id`. For an entry, any part of the stake your free vault cash does not cover comes from your account wallet, through its USDC approval to WalletAccept (`POST /v1/me/wallet-approval`): approve once and each entry draws what it needs. Without an approval and wallet USDC that cover the shortfall, the trade fails with `reason` `INSUFFICIENT_APPROVAL` or `INSUFFICIENT_WALLET_USDC`. A scoped key draws the wallet only with `funding:deposit`."
       },
       "Acceptance": {
         "type": "object",
@@ -26144,11 +26133,6 @@
               "INSUFFICIENT_WALLET_USDC"
             ],
             "description": "Why a `FAILED` acceptance funded from the wallet failed, when the venue can tell: the wallet's approval (`INSUFFICIENT_APPROVAL`) or USDC (`INSUFFICIENT_WALLET_USDC`) fell short."
-          },
-          "fund_within_ms": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "For an entry a HyperCore to wallet transfer funds, once the maker confirmed: milliseconds left, when the venue read the acceptance, to send that transfer. Count it from when you sent the request, so a slow answer never stretches it; the venue gives a transfer sent in time two more seconds to land. The SDK times it for you."
           }
         },
         "description": "The one record of a taker accepting a quote."
@@ -26182,10 +26166,6 @@
           "reason": {
             "$ref": "#/components/schemas/reason",
             "description": "Why a `FAILED` wallet-funded acceptance failed, when the venue can tell."
-          },
-          "fund_within_ms": {
-            "$ref": "#/components/schemas/fund_within_ms",
-            "description": "Only for an entry a HyperCore transfer funds: milliseconds left, when the venue answered, to send that transfer. The SDK times it for you."
           }
         },
         "description": "The accept response: the acceptance after the maker answered or its two seconds passed. For an entry, the position's `position_id` is the accepted `quote_id`."
@@ -31352,7 +31332,7 @@
           "QUARANTINE_EXPIRED",
           "ATTESTATION_EXPIRED"
         ],
-        "description": "Why an operation ended EXPIRED_UNEXECUTED; nothing it would have done happened. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its funding draws) did not cover the stake when it was to execute, for a funded accept by two seconds after its `fund_by`; the RFQ fails with the same `terminal_reason`. DEADLINE_BEFORE_CLAIM: the venue reached it too late, with too little of its signed deadline left to sign and send it. AUTHORIZATION_TOO_CLOSE: when the venue took it, the chain's clock left too little of its signed deadline to send it. SIGNER_QUOTE_LIFE: its signed deadline could not cover the wait for its place in the sender's queue. SIMULATION_REVERTED: simulated before sending, the vault would have rejected it, for a reason other than INSUFFICIENT_CASH. QUARANTINE_EXPIRED: it was held for review after the signer refused it or its retries ran out, and its signed deadline passed meanwhile. ATTESTATION_EXPIRED: a maker's self-funded attestation expired before its signed transaction arrived. For an ACCEPT every reason but INSUFFICIENT_CASH fails the RFQ as EXPIRED_UNEXECUTED."
+        "description": "Why an operation ended EXPIRED_UNEXECUTED; nothing it would have done happened. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its approval draws) did not cover the stake when it was to execute; one drawing the wallet waits at least six seconds after the accept arrived for a HyperCore transfer to land; the RFQ fails with the same `terminal_reason`. DEADLINE_BEFORE_CLAIM: the venue reached it too late, with too little of its signed deadline left to sign and send it. AUTHORIZATION_TOO_CLOSE: when the venue took it, the chain's clock left too little of its signed deadline to send it. SIGNER_QUOTE_LIFE: its signed deadline could not cover the wait for its place in the sender's queue. SIMULATION_REVERTED: simulated before sending, the vault would have rejected it, for a reason other than INSUFFICIENT_CASH. QUARANTINE_EXPIRED: it was held for review after the signer refused it or its retries ran out, and its signed deadline passed meanwhile. ATTESTATION_EXPIRED: a maker's self-funded attestation expired before its signed transaction arrived. For an ACCEPT every reason but INSUFFICIENT_CASH fails the RFQ as EXPIRED_UNEXECUTED."
       },
       "OperationList": {
         "type": "object",
@@ -35796,20 +35776,6 @@
           }
         }
       },
-      "WalletApprovalFunding": {
-        "description": "Pays the part of the stake your vault balance is short at execution from your account wallet's USDC approval to WalletAccept (GET /v1/me/wallet-approval), with no signature. It routes the accept through WalletAccept; it is not consent the chain checks: once the approval exists, anyone can relay any live acceptance named to your account through WalletAccept.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind"
-        ],
-        "properties": {
-          "kind": {
-            "const": "WALLET_APPROVAL",
-            "description": "Funding source: WALLET_APPROVAL pays the shortfall from the account wallet's approval to WalletAccept."
-          }
-        }
-      },
       "WalletApprovalRequest": {
         "title": "WalletApprovalRequest",
         "type": "object",
@@ -35919,45 +35885,6 @@
               }
             ],
             "description": "Must equal the request's Origin header exactly."
-          }
-        }
-      },
-      "WalletFunding": {
-        "description": "A USDC EIP-3009 ReceiveWithAuthorization moving value from the caller's account wallet into the vault. The venue fills `from` and `account` with that wallet; sign the message with both set to it.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "value",
-          "valid_after",
-          "valid_before",
-          "salt",
-          "authorization_signature"
-        ],
-        "properties": {
-          "kind": {
-            "const": "WALLET",
-            "description": "Funding source: WALLET pays the shortfall from the caller's account wallet with a signed authorization."
-          },
-          "value": {
-            "description": "Atomic USDC (6 decimals) drawn from the wallet into the vault. It must equal the exact stake shortfall over free vault cash at admission.",
-            "$ref": "#/components/schemas/CommonAmount"
-          },
-          "valid_after": {
-            "description": "EIP-3009 validAfter in Unix seconds; must not be in the future.",
-            "$ref": "#/components/schemas/UInt64String"
-          },
-          "valid_before": {
-            "description": "EIP-3009 validBefore in Unix seconds; must be at or after the quote's `entry.expiry`, as the accept can execute until then, and at most 900 seconds after `valid_after`.",
-            "$ref": "#/components/schemas/UInt64String"
-          },
-          "salt": {
-            "description": "Random 32 bytes; the EIP-3009 nonce is `keccak256(abi.encode(vault, chainId, from, salt, account))`, with `from` and `account` the account wallet.",
-            "$ref": "#/components/schemas/Bytes32"
-          },
-          "authorization_signature": {
-            "description": "65-byte ECDSA signature by the account wallet over the USDC ReceiveWithAuthorization message, with the vault as payee.",
-            "$ref": "#/components/schemas/Signature65"
           }
         }
       },
@@ -36165,11 +36092,6 @@
       "acceptance_id": {
         "$ref": "#/components/schemas/Uuid",
         "description": "The accept's `Idempotency-Key`: which of your accepts took the quote."
-      },
-      "fund_within_ms": {
-        "type": "integer",
-        "minimum": 0,
-        "description": "For an entry a HyperCore to wallet transfer funds, once the maker confirmed: milliseconds left, when the venue read the acceptance, to send that transfer. Count it from when you sent the request, so a slow answer never stretches it; the venue gives a transfer sent in time two more seconds to land. The SDK times it for you."
       },
       "operation_id": {
         "$ref": "#/components/schemas/Bytes32",

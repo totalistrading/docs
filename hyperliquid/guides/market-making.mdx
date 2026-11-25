@@ -447,7 +447,7 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
-lands, and an entry with taker `funding` also expires unsent when that funding does not arrive in time. Every confirm is checked against your capacity first
+lands, and an entry that draws the taker's wallet also expires unsent when the wallet's USDC or approval falls short. Every confirm is checked against your capacity first
 ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). That check is skipped
 while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED` fill can still revert. Keep following `OPERATION_UPDATED`.
 

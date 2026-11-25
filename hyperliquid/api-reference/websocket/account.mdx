@@ -65,7 +65,7 @@ Needs a key for your account with `account:stream`. Connecting and resuming are 
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position changed on-chain | `position_id`, `block_number`, `log_index`. Read the position. |
 | `VAULT_BALANCE_CHANGED` | Your vault balance changed | `address`, `amount` (the new balance), `transaction_hash`, `status` |
 | `WALLET_BALANCE_CHANGED` | A USDC transfer touched your wallet | `address`, `transaction_hash`, `block_number` |
-| `WALLET_FUNDING_UPDATED` | An acceptance's wallet funding changed | `acceptance_id`, `status`, `updated_at`, and from `ACCEPT_QUEUED` on, `fund_by`: send any HyperCore-to-wallet transfer that funds it before then |
+| `WALLET_FUNDING_UPDATED` | An acceptance's wallet funding changed | `acceptance_id`, `status`, `updated_at` |
 | `WITHDRAWAL_UPDATED` | A withdrawal changed | The withdrawal, as [Get withdrawal](/hyperliquid/api-reference/withdrawals/get-withdrawal) |
 | `CORE_EXIT_UPDATED` | A HyperCore exit changed | `exit_id`, `status`, `updated_at` |
 
