@@ -19,14 +19,12 @@ const totalis = createTotalis({
   signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
 });
 
-await totalis.deposit({ amount: 50_000_000n }); // 50 USDC from the wallet into the vault
-
 const opened = await totalis.openPosition({
   legs: [
     { outcome_id: "1209", side: "YES" },
     { outcome_id: "1344", side: "NO" },
   ],
-  stake: 25_000_000n, // 25 USDC
+  stake: 25_000_000n, // 25 USDC, funded from the wallet if the vault is short
 });
 const operation = opened.operationId ? await totalis.waitForOperation(opened.operationId) : undefined;
 
@@ -42,7 +40,7 @@ The signer must be the account's wallet. In a browser, pass `window.ethereum` or
 
 | Call | Does | Resolves |
 | --- | --- | --- |
-| `deposit({ amount })` | Moves wallet USDC into the vault. Totalis pays the gas. | The deposit's operation, once it ends |
+| `deposit({ amount })` | Moves wallet USDC into the vault. Totalis pays the gas. Needs a wallet session, not an API key. | The deposit's operation, once it ends |
 | `openPosition({ legs, stake })` | Creates the RFQ, takes the best quote and funds the stake | Once the maker answers |
 | `cashOut({ positionId })` | Requests bids for the position and takes the best one | Once the maker answers |
 | `withdraw({ destination, amount })` | Pays USDC out to any address | At `PAYOUT_COMMITTED` |
@@ -226,7 +224,8 @@ console.log(operation.status); // COMMITTED when the cash is in the vault
 ```
 
 `deposit` has the wallet sign a USDC authorization to the vault, which Totalis relays and pays the gas for. It
-resolves with the deposit's operation once it ends. After a restart, `waitForOperation(operationId)` follows it.
+resolves with the deposit's operation once it ends. It needs a wallet session as `accessToken`
+([`signInWithWallet`](/hyperliquid/sdk/wallets)); an API key cannot deposit. After a restart, `waitForOperation(operationId)` follows it.
 The minimum and rate limits are on [Limits](/hyperliquid/limits-and-fees#deposits-and-exits).
 
 A wallet that pays its own gas sends the deposit itself instead ([Deposit](/hyperliquid/sdk/wallets#deposit)).
