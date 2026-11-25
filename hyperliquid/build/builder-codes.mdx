@@ -1,7 +1,7 @@
 ---
 title: 'Builder codes'
 icon: 'tag'
-description: 'How Totalis attributes RFQs to you: automatically for accounts you admitted, and with a signed builder code for any other account on your page. The signed message, your report API, payouts and revocation.'
+description: 'How Totalis attributes RFQs to you: automatically for accounts you admitted, and with a builder_attribution token your server mints for any other account on your page. Your report API, payouts and revocation.'
 ---
 
 A builder code names you on an RFQ. The positions it opens, and the fees they pay, count toward your revenue
@@ -9,117 +9,103 @@ share. Codes look like `tot_rfq_production_` followed by 32 hex characters, with
 `production` on [Staging](/hyperliquid/build/staging). Totalis issues them: see
 [Get access](/hyperliquid/build/overview#get-access).
 
-| Code | Scope | Signature |
+| Code | Scope | Attribution token |
 | --- | --- | --- |
 | Account code | Every account you admitted. One per environment. | None |
-| Origin code | One of your registered origins | Your builder signer, per RFQ |
+| Origin code | One of your registered origins | Minted on your server for each RFQ |
 
-## Which code an RFQ records
+## When `builder_code` alone works
+
+An account you [admitted](/hyperliquid/build/partner-frontend#onboard-a-user) is yours. Every RFQ it creates
+records your account code, whatever credential it uses: a wallet session on your page, or an API key it issued.
+You send nothing for that. To record a different code of yours, send it as `builder_code` alone; a
+`builder_attribution` is optional there, and one you send must verify.
+
+## When a token is needed
+
+Any other account, one no partner admitted, such as a Totalis app user who signs in on your page with an
+exported wallet key, is attributed only with your origin code and a `builder_attribution` token for that RFQ. You
+mint the token on your server, where your builder signer's key lives.
+
+The token is bound to the browser origin the RFQ comes from, and it must be one of your registered origins. A
+wallet session carries the page's `Origin` on every request; an API key request carries none. So a token cannot
+be used from an API key, or from a page that is not yours, and an API key RFQ from an account you did not admit
+is never attributed to you. A copied token is no use elsewhere either: it covers one account, one
+`Idempotency-Key`, and the exact stake, legs and code of one RFQ.
 
 | The account | `builder_code` you send | Recorded |
 | --- | --- | --- |
 | Admitted by you | None | Your account code |
-| Admitted by you | One of your active codes for this environment | That code. A signature is optional; one you send must be your builder signer's. |
+| Admitted by you | One of your active codes for this environment | That code. A token is optional; one you send must be your builder signer's. |
 | Admitted by you | Another partner's code, or a revoked one | Refused |
 | Admitted by another partner | Any of yours | Refused. The account is theirs. |
 | Admitted by no partner | None | Nothing |
-| Admitted by no partner | Your origin code, signed, from that origin | That code |
-| Admitted by no partner | Your origin code without a signature, from another origin, or from an API key | Refused. Such an account's API key RFQs cannot be attributed. |
+| Admitted by no partner | Your origin code, with a token, from that origin | That code |
+| Admitted by no partner | Your origin code without a token, from another origin, or from an API key | Refused |
 
 A refused code is `400 INVALID_REQUEST` with a field violation on `/builder_code`, and no RFQ is created. A code is
 recorded once, when the RFQ is created, and never changes. Cash-out RFQs take no builder fields: a position keeps
 the attribution of the RFQ that opened it.
 
-An admitted account needs nothing from you on each RFQ. Signing is only for accounts you did not admit.
+### Mint a token
 
-## Sign an origin code
+Your page picks the RFQ's `Idempotency-Key` and sends your server the RFQ exactly as it will create it. Your server
+checks it, for example that the account is the user signed in to your page and the origin is yours, and mints the
+token with `attributeRfq`:
 
-For an account no partner admitted, an origin code works only on a browser request from its origin: a wallet
-session that signed in on your page. An API key request carries no origin, so a signed code is refused there.
-An account you admitted needs no origin code: its API key RFQs record your account code.
-
-[Create RFQ](/hyperliquid/api-reference/rfqs/create-rfq) takes three extra fields:
-
-```json
-{
-  "stake": "5000000",
-  "legs": [{ "outcome_id": "1209", "side": "YES" }],
-  "builder_code": "tot_rfq_production_0198a6f682a57abc9f2a4f0fb4374941",
-  "builder_authorization_expiry": "1792152000",
-  "builder_signature": "0x9e9e...9e1b"
-}
-```
-
-| Field | Value |
-| --- | --- |
-| `builder_code` | Your origin code for the page's origin |
-| `builder_authorization_expiry` | Unix seconds, in the future and within the [window](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners) |
-| `builder_signature` | Your builder signer's `personal_sign` of the message below, as lowercase hex |
-
-The message is six lines joined by `\n`, with no trailing newline:
-
-```text
-Authorize Totalis RFQ builder attribution.
-Environment: production
-Participant: 0198a6f6-82a5-7abc-9f2a-4f0fb4374941
-Idempotency key: 01a0df4e-5dc8-71f2-a3d4-c5b6a7988771
-Request digest: 0x<SHA-256 hex>
-Expiry: 1792152000
-```
-
-| Line | Value |
-| --- | --- |
-| `Environment` | `production`, or `staging` on staging |
-| `Participant` | The account's `account_id`, from [Get identity](/hyperliquid/api-reference/account/get-identity) or the sign-in response |
-| `Idempotency key` | The `Idempotency-Key` header of this Create RFQ request |
-| `Request digest` | Lowercase hex SHA-256 of the request JSON below |
-| `Expiry` | `builder_authorization_expiry`, as sent |
-
-The request JSON is minified, with the keys in this order: `intent_id` and `intent_generation` only when you send
-them, then `stake`, `legs`, `builder_code` and `origin`. Each leg is `{"outcome_id","side"}` in that order.
-`origin` is the page's origin, exactly as the browser sends it in `Origin`. `intent_generation` is a decimal string.
-Send the legs in strictly increasing `outcome_id` order, as Create RFQ requires.
-
-```json
-{"stake":"5000000","legs":[{"outcome_id":"1209","side":"YES"}],"builder_code":"tot_rfq_production_0198a6f682a57abc9f2a4f0fb4374941","origin":"https://app.example.com"}
-```
-
-Sign on your server, where the builder signer's key lives. Your page sends the RFQ terms (with `intent_id` and
-`intent_generation` when the RFQ carries them), its chosen `Idempotency-Key` and the `account_id`; your server
-checks them and returns the two fields.
-
-```js
-import { createHash } from "node:crypto";
+```ts
+// Server
+import { attributeRfq, type AttributedRfq } from "@totalis/hip4-client/partner";
 import { privateKeyToAccount } from "viem/accounts";
 
-const builder = privateKeyToAccount(process.env.TOTALIS_BUILDER_SIGNER_KEY);
+const builderSigner = privateKeyToAccount(process.env.TOTALIS_BUILDER_SIGNER_KEY as `0x${string}`);
 
-export async function authorizeRfq({ accountId, idempotencyKey, intentId, intentGeneration, stake, legs, builderCode, origin, environment = "production" }) {
-  const expiry = String(Math.floor(Date.now() / 1000) + 120);
-  const request = JSON.stringify({
-    ...(intentId === undefined ? {} : { intent_id: intentId }),
-    ...(intentGeneration === undefined ? {} : { intent_generation: intentGeneration }),
-    stake,
-    legs: legs.map(({ outcome_id, side }) => ({ outcome_id, side })),
-    builder_code: builderCode,
-    origin,
-  });
-  const digest = createHash("sha256").update(request).digest("hex");
-  const message = [
-    "Authorize Totalis RFQ builder attribution.",
-    `Environment: ${environment}`,
-    `Participant: ${accountId}`,
-    `Idempotency key: ${idempotencyKey}`,
-    `Request digest: 0x${digest}`,
-    `Expiry: ${expiry}`,
-  ].join("\n");
-  return { builder_authorization_expiry: expiry, builder_signature: (await builder.signMessage({ message })).toLowerCase() };
+export async function attribute(rfq: AttributedRfq): Promise<string> {
+  // rfq: { participant, idempotencyKey, origin, request: { stake, legs, builder_code } }
+  return attributeRfq({ ...rfq, signer: builderSigner }); // "<expiry>.<signature>"
 }
 ```
 
-The SDK's `openPosition` does not send builder fields. Create the RFQ with `totalis.client.POST("/v1/rfqs")`
-under the signed `Idempotency-Key`, then take a quote from `watchQuotes`, and sign and send it with `signEntry` and
-`sendAcceptance` ([Entry and cash-out](/hyperliquid/sdk/resume-and-retry#entry-and-cash-out)).
+| `attributeRfq` input | Value |
+| --- | --- |
+| `participant` | The account's `account_id`, from the sign-in response or [Get identity](/hyperliquid/api-reference/account/get-identity) |
+| `idempotencyKey` | The `Idempotency-Key` the page will send with Create RFQ |
+| `origin` | The page's origin, exactly as the browser sends it in `Origin` |
+| `request` | `stake`, `legs` and `builder_code`, as the page will send them. Legs in strictly increasing `outcome_id` order. |
+| `signer` | Your registered builder signer |
+| `lifetimeSeconds` | Optional. Whole seconds, within the [limit](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners). |
+
+The token is `<expiry>.<signature>`: a Unix-second expiry and your signer's `personal_sign` of the message
+`rfqAttributionMessage(rfq, expiry)` returns. It only has to be valid when the RFQ is created, so mint it right
+before the page sends Create RFQ.
+
+The page then creates the RFQ with the same key and request, and takes a quote with the step functions
+([Entry and cash-out](/hyperliquid/sdk/resume-and-retry#entry-and-cash-out)). `openPosition` sends no builder
+fields.
+
+```ts
+// Browser, signed in on your registered origin
+import { unwrap, uuidv7 } from "@totalis/hip4-client";
+
+const idempotencyKey = uuidv7();
+const request = { stake: "5000000", legs: [{ outcome_id: "1209", side: "YES" as const }], builder_code: originCode };
+const builder_attribution: string = await fetch("/api/attribute-rfq", {
+  method: "POST",
+  body: JSON.stringify({ participant: session.account_id, idempotencyKey, origin: location.origin, request }),
+}).then((response) => response.json());
+
+const { rfq_id } = unwrap(await totalis.client.POST("/v1/rfqs", {
+  params: { header: { "Idempotency-Key": idempotencyKey } },
+  body: { ...request, builder_attribution },
+}));
+const stop = totalis.watchQuotes(rfq_id, (quotes) => render(quotes));
+```
+
+### Revocation and existing RFQs
+
+Attribution is decided once, when the RFQ is created. Revoking a code, rotating your builder signer, or a token
+expiring afterwards never vetoes an RFQ already created: it stays open, its quotes can be accepted, and the
+position it opens keeps your code. Revocation refuses only new RFQs ([Rotation and revocation](#rotation-and-revocation)).
 
 ## Reports and payouts
 
@@ -137,7 +123,7 @@ curl "https://hip4-api.totalis.trade/v1/partner/report?from=2026-10-01&to=2026-1
 ```ts
 import { createPartnerServer } from "@totalis/hip4-client/partner";
 
-const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY });
+const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY! });
 const report = await partner.report({ from: "2026-10-01", to: "2026-11-01" });
 ```
 
@@ -177,7 +163,7 @@ contact.
 | --- | --- |
 | A code is rotated | A new code replaces it. Send the new one; the old one is refused on new RFQs. |
 | A code is revoked | Refused on new RFQs. RFQs and positions already created keep it. |
-| Your builder signer is rotated | Signatures from the old signer are refused. |
+| Your builder signer is rotated | Tokens the old signer minted are refused on new RFQs. |
 | Your partner credentials are suspended | Every code of yours is revoked. Totalis reissues them when you are reinstated. |
 
 To rotate a code or your signer, or to revoke a code, email

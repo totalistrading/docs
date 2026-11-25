@@ -8,6 +8,7 @@ description: 'Get a Hyperliquid API key, make your first reads, and request your
 
 In the [Totalis app](https://app.totalis.trade/account/api-keys), go to Account, then API keys,
 pick the [taker scopes](/hyperliquid/authentication#scopes), and approve with your wallet. The key is shown once.
+From code, issue it with `issueApiKey({ label, preset: "TAKER" })` ([API keys](/hyperliquid/sdk/trading#api-keys)).
 A market maker issues its keys headless instead: [Market making](/hyperliquid/guides/market-making#set-up).
 
 ```bash

@@ -108,8 +108,7 @@ requirement, but whose vault still covers stakes and owed winnings, can still bu
 restores its coverage.
 
 The contract checks again when the trade lands, and a fill it refuses ends `FAILED`. That can still happen
-after `ACCEPTED`: on an RFQ without `intent_id`, the confirm check is skipped while Totalis's view of the chain
-lags, and the vault decides.
+after `ACCEPTED`: the confirm check is skipped while Totalis's view of the chain lags, and the vault decides.
 
 A pending maker withdrawal reserves nothing. Fills during its delay can use that USDC, and executing the
 withdrawal then reverts. `MAKER_QUOTE` already leaves its amount out.

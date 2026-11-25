@@ -72,7 +72,7 @@ await partner.admitWallet(address, consent);
 
 | Function | Does |
 | --- | --- |
-| `totalis.deposit({ amount })` | A deposit the wallet signs and Totalis relays, paying the gas. Resolves once its operation ends ([Deposit](/hyperliquid/sdk/trading#deposit)). |
+| `totalis.deposit({ amount })` | A deposit the wallet signs and Totalis relays, paying the gas. Works with a wallet session or an API key. Resolves once its operation commits ([Deposit](/hyperliquid/sdk/trading#deposit)). |
 | `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself, paying its own gas |
 
 To store the signed deposit before it is sent, use `signDeposit` and `sendDeposit`
@@ -111,6 +111,8 @@ your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, s
 
 ## Issue a key from a session
 
-`totalis.issueApiKey({ label, scopes })` issues the account's own `ttk_` key from a wallet session, with the
-wallet's approval. `rotateApiKey` replaces one. Makers issue their keys with the `.../api-keys` helpers
-instead ([Onboard headless](/hyperliquid/sdk/making#onboard-headless)).
+`totalis.issueApiKey({ label, preset: "TAKER" })` issues the account's own `ttk_` key from a wallet session, with
+the wallet's approval, for a bot that trades the account ([API keys](/hyperliquid/sdk/trading#api-keys)). Pass
+`scopes` instead of `preset` to choose them yourself. `rotateApiKey` replaces a key. Makers issue their keys with
+the `.../api-keys` helpers and `preset: "MAKER"` instead
+([Onboard headless](/hyperliquid/sdk/making#onboard-headless)).

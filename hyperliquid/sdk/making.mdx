@@ -68,11 +68,45 @@ cancels it.
 It starts the stream and waits until it is live. After a truncated snapshot or a cursor resume, it first pages
 [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances), which needs `quote:read`.
 
-### `bid(rfq, { price })`
+### `bid(rfq, { price, legState })`
 
 Publishes your price on a cash-out RFQ and returns `{ quoteId }`. Totalis fills in the other terms and keeps the
 bid takeable until the RFQ closes or you replace or cancel it. Totalis sends a cash-out RFQ only to the maker
 that backs the position ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
+
+A cash-out RFQ names the position (`position_id`), its owner as `taker`, your `maker_id`, its `legs`, `net_stake`
+and `payout`. It carries no chain state: read the legs' state yourself, and pass it as `legState`. The SDK then
+confirms only a sale at that leg state. Without `legState` it confirms at whatever leg state the accept carries,
+which can differ from the one you priced if a leg resolved in between. Pass it whenever your price depends on the
+legs' state, which for a cash-out it nearly always does.
+
+```ts
+import type { CashoutRfq } from "@totalis/hip4-client/maker";
+import { signedLeg, totalisTypes } from "@totalis/hip4-client/typed-data";
+import { concat, createPublicClient, hashStruct, http, keccak256, parseAbi, type Hex } from "viem";
+
+const vaultAbi = parseAbi([
+  "function tickets(bytes32 positionId) view returns (uint64 makerId, address owner, uint128 stake, uint128 payout, uint128 worst0, uint16 feeBps, uint8 status, uint128 residual, bytes32 legsHash)",
+  "function legStateOf((uint32 outcomeId, uint8 side)[] legs, uint256 readGas) view returns (bytes32)",
+]);
+const chain = createPublicClient({ transport: http("https://rpc.hyperliquid.xyz/evm") });
+
+async function bidOnCashout(rfq: CashoutRfq) {
+  const vault = (await maker.deployment()).vault_address as Hex;
+  const legs = rfq.legs.map(signedLeg);
+  // The legs hash is the EIP-712 encoding of legs as Leg[]: check they are the position's.
+  const legsHash = keccak256(concat(legs.map((leg) => hashStruct({ types: { Leg: totalisTypes.Leg }, primaryType: "Leg", data: leg }))));
+  const [, , , , , , , , onChain] = await chain.readContract({ address: vault, abi: vaultAbi, functionName: "tickets", args: [rfq.position_id as Hex] });
+  if (onChain !== legsHash) return;
+  const legState = await chain.readContract({ address: vault, abi: vaultAbi, functionName: "legStateOf", args: [legs, 500_000n] });
+  const price = priceCashout(rfq, legState); // your model; undefined to pass
+  if (price !== undefined) await maker.bid(rfq, { price, legState });
+}
+```
+
+`legStateOf` takes the legs and a read gas of `500000`. What its value encodes, and how to price from it, is on
+[Price a cash-out](/hyperliquid/guides/market-making#price-a-cash-out). The sale lands only while every leg's state
+still equals the one signed. If a leg moves first, the trade reverts and nothing moves.
 
 While a taker's accept of your quote on the RFQ waits for your answer, `quote` and `bid` wait for that answer,
 then publish.
@@ -165,7 +199,7 @@ Both take a client signed in as the account (a wallet session), not a maker key.
 ### Issue the maker's keys
 
 ```ts
-import { createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalis/hip4-client/api-keys";
+import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey } from "@totalis/hip4-client/api-keys";
 import { toTotalisSigner } from "@totalis/hip4-client/signer";
 
 const keys = createApiKeyClient("production", {
@@ -174,21 +208,29 @@ const keys = createApiKeyClient("production", {
 });
 const owner = toTotalisSigner(wallet);
 
-const issued = await issueApiKey(keys, owner, {
+const quoting = await issueApiKey(keys, owner, {
   maker: makerId,
   label: "Quoting bot",
-  scopes: [...QUOTING_BOT_SCOPES],
+  preset: "MAKER", // QUOTING_BOT_SCOPES
   expires_in_days: 90, // 1 to 90, or 0 for no expiry; 30 when left out
+});
+const collateral = await issueApiKey(keys, owner, {
+  maker: makerId,
+  label: "Collateral",
+  scopes: [...COLLATERAL_SCOPES], // no preset: list the scopes
+  expires_in_days: 90,
 });
 ```
 
 | Function | Does |
 | --- | --- |
-| `issueApiKey(keys, owner, { maker, label, scopes, expires_in_days })` | Asks for the maker's key challenge, checks it, has the maker wallet sign it, and creates the key. The secret is returned once. |
+| `issueApiKey(keys, owner, { maker, label, preset or scopes, expires_in_days })` | Asks for the maker's key challenge, checks it grants exactly the preset's or the listed scopes, has the maker wallet sign it, and creates the key. The secret is returned once. |
 | `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | Replaces a key the same way. The old key keeps working for the overlap. |
 | `listApiKeys(keys, { maker })` | Every key of the maker, oldest first, revoked and expired ones included |
 | `revokeApiKey(keys, keyId, { maker })` | Revokes a key at once. No signature. |
 
-`QUOTING_BOT_SCOPES` and `COLLATERAL_SCOPES` are the [maker scope sets](/hyperliquid/authentication#scopes).
-Give the quoting bot `QUOTING_BOT_SCOPES`, which move no vault money, and keep `COLLATERAL_SCOPES` on a separate
-key for reductions.
+Pass either `preset` or `scopes`, not both. `preset: "MAKER"` grants `QUOTING_BOT_SCOPES`, which move no vault
+money; give it to the quoting bot. `COLLATERAL_SCOPES` has no preset: list it, on a separate key for reductions
+([maker scope sets](/hyperliquid/authentication#scopes)). A refused request is `INVALID_REQUEST`, and its
+`field_violations` names the entry it refused, `/preset` or `/scopes/<i>` (under `/request` when the challenge is
+refused), with the reason in the message.

@@ -1,7 +1,7 @@
 ---
 title: 'Trade'
 icon: 'arrow-right-arrow-left'
-description: 'Deposit, open a position, cash out and withdraw with createTotalis, one call per action.'
+description: 'Find Combo markets, deposit, open a position, cash out and withdraw with createTotalis, one call per action.'
 ---
 
 `createTotalis` runs every taker action in one call. Each call gets the signatures it needs from your signer,
@@ -19,12 +19,14 @@ const totalis = createTotalis({
   signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
 });
 
+await totalis.deposit({ amount: 50_000_000n }); // 50 USDC from the wallet into the vault
+
 const opened = await totalis.openPosition({
   legs: [
     { outcome_id: "1209", side: "YES" },
     { outcome_id: "1344", side: "NO" },
   ],
-  stake: 25_000_000n, // 25 USDC, funded from the wallet if the vault is short
+  stake: 25_000_000n, // 25 USDC
 });
 const operation = opened.operationId ? await totalis.waitForOperation(opened.operationId) : undefined;
 
@@ -35,19 +37,73 @@ await totalis.withdraw({ destination: "0x222222222222222222222222222222222222222
 await totalis.close();
 ```
 
-The signer must be the account's wallet. In a browser, pass `window.ethereum` or a wallet client instead
+`TOTALIS_API_KEY` is a `ttk_` key issued with `preset: "TAKER"` ([API keys](#api-keys)). The signer must be the
+account's wallet. In a browser, pass `window.ethereum` or a wallet client instead
 ([Wallets and partners](/hyperliquid/sdk/wallets)).
 
 | Call | Does | Resolves |
 | --- | --- | --- |
-| `deposit({ amount })` | Moves wallet USDC into the vault. Totalis pays the gas. Needs a wallet session, not an API key. | The deposit's operation, once it ends |
-| `openPosition({ legs, stake })` | Creates the RFQ, takes the best quote and funds the stake | Once the maker answers |
+| `deposit({ amount })` | Moves wallet USDC into the vault. Totalis pays the gas. | The deposit's operation, once it ends |
+| `openPosition({ legs, stake })` | Creates the RFQ, takes the best quote and funds any shortfall from the wallet | Once the maker answers |
 | `cashOut({ positionId })` | Requests bids for the position and takes the best one | Once the maker answers |
 | `withdraw({ destination, amount })` | Pays USDC out to any address | At `PAYOUT_COMMITTED` |
 | `exitToCore({ amount })` | Moves vault cash to the account's HyperCore spot balance | Once the exit is admitted |
 
 To store each signed message before it is sent, so a reload never signs twice, use the step-by-step functions
 on [Advanced: custom signing and recovery](/hyperliquid/sdk/resume-and-retry).
+
+## API keys
+
+A bot trades with a `ttk_` key of its account. Issue it once from a wallet session, with a preset instead of a
+list of scopes:
+
+```ts
+import { createTotalis } from "@totalis/hip4-client";
+import { signInWithWallet } from "@totalis/hip4-client/wallet-session";
+import { privateKeyToAccount } from "viem/accounts";
+
+const wallet = privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`);
+const origin = "https://app.totalis.trade";
+const session = await signInWithWallet({ environment: "production", signer: wallet, origin });
+const owner = createTotalis({
+  environment: "production", accessToken: session.access_token, signer: wallet, headers: { Origin: origin },
+});
+
+const { secret } = await owner.issueApiKey({ label: "Taker bot", preset: "TAKER", expires_in_days: 90 });
+```
+
+| `preset` | Grants | For |
+| --- | --- | --- |
+| `"TAKER"` | `TAKER_SCOPES`: open, cash out, fund from the wallet, deposit, withdraw, and read the account | A bot that trades its own account |
+| `"MAKER"` | `QUOTING_BOT_SCOPES`: read RFQs, quote, confirm, and read the maker's capital. Nothing that moves vault money. | A maker's quoting bot ([Issue the maker's keys](/hyperliquid/sdk/making#issue-the-makers-keys)) |
+
+The SDK checks that the challenge the wallet signs grants exactly the preset's scopes. The secret is returned
+once. A request the venue refuses is `INVALID_REQUEST`, and its `field_violations` names the entry it refused,
+`/preset` or `/scopes/<i>` for a scope you listed yourself (under `/request` when the challenge is refused), with
+the reason in the message. Every scope is on [Scopes](/hyperliquid/authentication#scopes).
+
+## Find Combo markets
+
+A Combo can include a market whose `eligibility.state` is `ENABLED` and whose `combo.state` is `OPEN`. List just
+those:
+
+```ts
+import { createClient, items, unwrap } from "@totalis/hip4-client";
+
+const client = createClient("production");
+for await (const market of items(
+  (query) => client.GET("/v1/markets", { params: { query: { ...query, combo: "OPEN", eligibility: "ENABLED" } } }).then(unwrap),
+  (page) => page.items,
+)) {
+  console.log(market.outcome_id, market.title);
+}
+```
+
+This is [List markets](/hyperliquid/api-reference/markets/list-markets) with `?combo=OPEN&eligibility=ENABLED`.
+The filters apply after paging, so a page can be short or empty while `has_more` is true: follow `next_cursor`
+until it is `null`, as `items` does. Both states are live. A market's `combo.state` opens when its event is
+within 7 days, and closes with `reason: "EVENT_PASSED"` once its event starts (a game's kickoff, a policy
+decision) or its result can be known. Makers refuse such a leg, so a game is not offered in play.
 
 ## Open a position
 
@@ -69,13 +125,14 @@ if (opened.operationId) {
 Legs go in strictly ascending `outcome_id` order. `openPosition`:
 
 1. Waits for the account stream, then creates the RFQ.
-2. Has the wallet sign any funding the vault is short of, while quotes arrive.
+2. Plans any funding the vault is short of, while quotes arrive. By default it draws the wallet's part from the
+   wallet's [approval](#wallet-approval), and asks the wallet for a permit only when the approval left is short.
 3. Collects quotes for `collectMs` and picks one with `choose`.
 4. Has the wallet sign `TakerAccept` for it and sends the accept at once. If the answer is lost, it recovers
    the accept.
 5. If the quote was just replaced, or the maker declined it or didn't answer, nothing traded. It takes the best
-   other quote paying at least `minPayout`, waiting up to `quoteTimeoutMs` for one, and tries again with its own
-   funding signature. It stops after `maxAttempts` accepts.
+   other quote paying at least `minPayout`, waiting up to `quoteTimeoutMs` for one, and tries again. It stops
+   after `maxAttempts` accepts.
 
 A quote stays takeable while it is listed. Makers replace their quotes as their prices move, so step 5 is what
 keeps a slow wallet from losing the trade.
@@ -106,7 +163,9 @@ An accepted entry is not open yet. `waitForOperation` ends `COMMITTED` when it o
 | `quoteTimeoutMs` | 20,000 | How long to wait for an acceptable quote, the first and each later one. With none in time, the RFQ is cancelled. |
 | `collectMs` | 1,000 | How long to keep collecting after the first quote `choose` would take. `0` takes it at once. |
 | `choose` | `bestQuote()` | `(quotes) => quote`: picks one of the listed quotes, or returns `undefined` to keep waiting |
-| `funding` | `"wallet"` | `"wallet"` funds the exact shortfall from the wallet; `"approval"` draws it from the wallet's [approval](/hyperliquid/sdk/resume-and-retry#wallet-approval); `"none"` never funds; a funding command you built is sent as is |
+| `funding` | `"approval"` | `"approval"` draws the shortfall from the wallet's [approval](#wallet-approval), with no per-entry signature; `"wallet"` has the wallet sign a USDC authorization for the exact shortfall on each entry; `"none"` never funds; a funding command you built is sent as is |
+| `approvalValue` | `defaultWalletApproval`, or the shortfall when larger | With `"approval"`: the approval a permit sets when one is needed. `null` never asks a permit and throws `WalletApprovalError` `INSUFFICIENT_APPROVAL` instead. |
+| `onApproval` | | With `"approval"`: awaited with the signed permit before it is sent. Persist it to [recover](/hyperliquid/sdk/resume-and-retry#wallet-approval). |
 | `core` | | HyperCore spot USDC you offer to bridge to the wallet when its HyperEVM USDC falls short |
 | `cash` | | A `spendableCash()` read to plan from. Left out, balances are read while quotes arrive. |
 | `onSigned` | | Awaited with the signed record before anything is sent, then on each bridge update. If the venue refuses the accept because its quote was just replaced, it is called with the record marked `refused`. Persist the latest record. |
@@ -118,6 +177,27 @@ depend only on its argument.
 
 Funding comes from free vault cash first, then the wallet, then a bridge of `core`. 0.05 USDC stays behind for
 the bridge's gas.
+
+### Wallet approval
+
+By default an entry draws the wallet's part of the stake from the wallet's USDC approval to WalletAccept, the
+vault's funding contract. The wallet signs a permit once, Totalis relays it and pays the gas, and later entries
+need no funding signature until the approval is spent. `openPosition` asks for the permit itself when the approval
+left is short. To approve ahead of time, for example at sign-up, so the first entry asks nothing extra:
+
+```ts
+await totalis.approveWallet({ value: 1_000_000_000n }); // 1,000 USDC; resolves once the permit lands
+```
+
+| You want | Pass |
+| --- | --- |
+| The default: approve once, then no funding signature per entry | Nothing, or `funding: "approval"` |
+| A USDC authorization signed for each entry, and no standing approval | `funding: "wallet"` |
+| To end the approval | `revokeWalletApproval()` |
+
+A permit and an approval-funded entry need the same key scopes as a wallet-funded one: `funding:deposit` and
+`sponsorship:use`, which `preset: "TAKER"` includes. The step functions are on
+[Wallet approval](/hyperliquid/sdk/resume-and-retry#wallet-approval).
 
 ### How much one Combo can stake
 
@@ -157,6 +237,10 @@ An entry can fail before it is sent, or after it is accepted.
 | `BALANCE_UNKNOWN` | The vault balance, or a HyperCore balance the plan needs, is not current. Read it again. |
 | `INSUFFICIENT_FUNDS` | Vault cash, wallet USDC and `core` (less 0.05 USDC) do not cover the stake. The message names the shortfall. |
 
+A permit the approval needs can fail too: `WalletApprovalError`, with `code` `PERMIT_EXPIRED`,
+`PERMIT_NONCE_USED`, `PERMIT_REVERTED`, `APPROVAL_UNKNOWN` or `INSUFFICIENT_APPROVAL`
+([Wallet approval](/hyperliquid/sdk/resume-and-retry#wallet-approval)).
+
 **After it is accepted**, an operation that ends `REVERTED` or `EXPIRED_UNEXECUTED` traded nothing.
 `entryFailure` names the message to show:
 
@@ -165,9 +249,12 @@ import { entryFailure } from "@totalis/hip4-client";
 
 const operation = await totalis.waitForOperation(opened.operationId!);
 if (operation.status !== "COMMITTED") {
-  switch (entryFailure(opened.record, operation)) {
+  switch (entryFailure(opened.record, operation, opened.outcome)) {
     case "INSUFFICIENT_CASH":
       show("Not enough cash to cover the stake.");
+      break;
+    case "INSUFFICIENT_APPROVAL":
+      show("The wallet's approval no longer covers the stake. Approve again.");
       break;
     case "CORE_MOVE_MISSED":
       show("Hyperliquid did not confirm the move from HyperCore in time. Your USDC may still be there.");
@@ -178,7 +265,8 @@ if (operation.status !== "COMMITTED") {
 }
 ```
 
-Pass the latest record, as `onSigned` last handed it to you. When the entry bridged and failed,
+Pass the latest record, as `onSigned` last handed it to you, and the result's `outcome`, which names an
+approval that fell short. When the entry bridged and failed,
 see [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge).
 
 ### Watch quotes yourself
@@ -190,7 +278,12 @@ const stop = totalis.watchQuotes(rfqId, (quotes) => render(quotes));
 ```
 
 The listener gets the RFQ's listed quotes, oldest first, and `[]` while the stream is down. It is called again
-each time the list changes. A quote stays takeable while it is listed, so show it until it leaves the list. To
+each time the list changes. A quote stays takeable while it is listed, so show it until it leaves the list.
+
+Each quote leads with what to show: `payout` on an entry quote, `price` on a cash-out bid, both atomic USDC. The
+terms the wallet signs are under `signing` (`signing.entry`, or `signing.sell_back` for a bid); the SDK signs
+them for you. `netPayout(quote)` is what the quote pays after the profit fee, and `netCashout(bid, position)`
+what a bid leaves the owner after it. To
 take one yourself, see [Advanced: custom signing and recovery](/hyperliquid/sdk/resume-and-retry#entry-and-cash-out).
 
 ## Settlement
@@ -224,9 +317,15 @@ console.log(operation.status); // COMMITTED when the cash is in the vault
 ```
 
 `deposit` has the wallet sign a USDC authorization to the vault, which Totalis relays and pays the gas for. It
-resolves with the deposit's operation once it ends. It needs a wallet session as `accessToken`
-([`signInWithWallet`](/hyperliquid/sdk/wallets)); an API key cannot deposit. After a restart, `waitForOperation(operationId)` follows it.
-The minimum and rate limits are on [Limits](/hyperliquid/limits-and-fees#deposits-and-exits).
+resolves with the deposit's operation once it is `COMMITTED`, and throws if it ended any other way. It works with
+an API key (`funding:deposit` and `sponsorship:use`, both in `preset: "TAKER"`) or a wallet session; either way
+the signer must be the account's wallet. After a restart, `waitForOperation(operationId)` follows it.
+
+| Refusal | When |
+| --- | --- |
+| `400 INVALID_REQUEST` on `/value` | Under the wallet's [minimum](/hyperliquid/limits-and-fees#deposits-and-exits). The message states it. |
+| `409 INSUFFICIENT_WALLET_BALANCE`, retry `REFRESH` | More than the wallet's available USDC. Read the balances and deposit less. |
+| `429 RATE_LIMITED` | Over the hourly count on [Limits](/hyperliquid/limits-and-fees#deposits-and-exits) |
 
 A wallet that pays its own gas sends the deposit itself instead ([Deposit](/hyperliquid/sdk/wallets#deposit)).
 An entry needs no deposit first: `openPosition` funds any vault shortfall from the wallet.

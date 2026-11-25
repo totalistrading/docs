@@ -68,7 +68,7 @@ For accounts that sign in with their own wallet ([Your users' own wallets](/hype
 | Sign-in message | 5 minutes, single use |
 | Wallet session | At most 30 days. Ends after 7 days unused. |
 | Admission consent `Expires At` | At most 1 day ahead. The SDK default is 1 hour. |
-| `builder_authorization_expiry` | In the future, at most 300 seconds ahead |
+| `builder_attribution` expiry | In the future, at most 300 seconds ahead. `attributeRfq` takes 5 to 295 seconds, 240 by default. |
 | Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
 
 ## Partner webhooks
@@ -95,11 +95,12 @@ For [vault agents](/hyperliquid/build/partner-frontend#vault-agents).
 
 ## Deposits and exits
 
-For every account. A sponsored deposit needs a wallet session, and a wallet that controls a maker cannot deposit.
+For every account. A sponsored deposit takes a wallet session or an API key with `funding:deposit` and
+`sponsorship:use`. A wallet that controls a maker cannot deposit.
 
 | Item | Value |
 | --- | --- |
-| Sponsored deposit | At least 1 USDC. At most 5 per hour per account. |
+| Sponsored deposit | At least 1 USDC (0.1 USDC for a Totalis app wallet), and at most the wallet's available USDC (`409 INSUFFICIENT_WALLET_BALANCE` otherwise). At most 5 per hour per account. |
 | First exit to a new HyperCore account | At least 2 USDC. Hyperliquid takes 1 USDC to activate the account. |
 | Your own HyperCore send to a new account | Hyperliquid takes one quote token (USDC for Totalis's markets) to activate the account ([Activation gas fee](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/activation-gas-fee)). Activate a fresh treasury address once before you collect fees into it. |
 | Exits to HyperCore in flight | 1 per account |
@@ -124,8 +125,6 @@ across all callers, so you can get a `429` below these figures.
 | [Create API key](/hyperliquid/api-reference/api-keys/create-api-key), key rotations and key challenges | 10, shared |
 | [Revoke API key](/hyperliquid/api-reference/api-keys/revoke-api-key) | 60 |
 | [Admit own maker](/hyperliquid/api-reference/makers/admit-own-maker) | 10 |
-
-Too many open automatic RFQs (sent with `intent_id`) on one account returns `429 RFQ_INTENT_LIMIT`.
 
 ### Without a credential
 
