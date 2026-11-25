@@ -164,7 +164,7 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 | --- | --- | --- |
 | The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
 | The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the maker confirms, and the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
-| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
+| The wallet's USDC on HyperEVM, ahead of time | `deposit({ amount })`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
 
 ```js
@@ -182,7 +182,7 @@ gas. Pass the read as `cash` and its `offeredCore` as `core` to `openPosition`
 An entry takes one to three signatures, depending on where the stake comes from. `openPosition` asks for the
 funding ones first, while quotes arrive, then for `TakerAccept` once it has picked the quote, and sends the accept
 at once. In your own flow, use `prepareEntryFunding`, then `signEntry({ quote, prepared })`
-([Resume and retry](/hyperliquid/sdk/resume-and-retry#sign-the-funding-first)).
+([Sign the funding first](/hyperliquid/sdk/resume-and-retry#sign-the-funding-first)).
 `signEntry` without `prepared` asks for them all at once.
 
 | The stake comes from | The wallet signs | Prompts | Prompts with a [vault agent](#vault-agents) |
@@ -196,16 +196,15 @@ Every one of them, the Hyperliquid bridge included, names the deployment's chain
 Some extension wallets refuse to sign for a chain other than the one they are on. Switch the wallet to HyperEVM
 before the first prompt.
 
-An entry quote can be accepted until its `accept_before`, 14 seconds before its `expiry`, which leaves time for the
-maker to confirm and the trade to land. Every prompt spends that time, so sign at once. `bestQuote()` keeps the
-highest payout whose `accept_before` is still ahead on the venue's clock. To pick from your own list, pass that
-clock: `bestQuote()(quotes, totalis.stream.serverNow())`, or the `serverNowMs` that `watchQuotes` gives you.
+The SDK does not time quotes: a quote stays takeable while `watchQuotes` lists it, and `bestQuote()(quotes)` picks
+the highest payout from a list. Over the HTTP API, an entry quote carries `accept_before`, 14 seconds before its
+`expiry` ([Accept](/hyperliquid/guides/trading#accept)).
 
 Makers replace a quote when they renew it, and the venue keeps one live quote per maker, so an accept can arrive
 after its quote was replaced (`QUOTE_REPLACED`). Pick the quote as late as you can, after the funding is signed. If
 it is gone, nothing traded: take the best quote still paying what you showed the user and sign again.
-`openPosition` does this for you, up to `maxAttempts` within `refreshMs`. When every retry needs a wallet prompt,
-consider one attempt and let the user press again.
+`openPosition` does this for you, up to `maxAttempts`, waiting up to `quoteTimeoutMs` for each quote. When every
+retry needs a wallet prompt, consider one attempt and let the user press again.
 
 The accept goes first. The bridge from HyperCore goes only after the maker confirms, and only before the
 acceptance's `fund_by`, two seconds after the confirm. An accept the maker declines, or that times out, moves
@@ -366,8 +365,8 @@ const totalis = createTotalis({
 ```
 
 An entry from free vault cash, a cash-out and an exit to HyperCore never call the device. An entry funded from the
-wallet or HyperCore asks the device for its funding before the quote is picked, so the round trip does not spend
-the quote's `accept_before`. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
+wallet or HyperCore asks the device for its funding while quotes arrive, before the quote is picked, so the round
+trip does not delay the accept. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
 key need a wallet session, so run them while the user is signed in.
 
 ## Every signature

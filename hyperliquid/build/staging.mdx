@@ -110,7 +110,7 @@ confirm, the fill on-chain and settlement.
 | Feature | On staging |
 | --- | --- |
 | Account history: activity, portfolio and P&L, credits, leaderboard | Not available. These read HyperCore history, which Totalis indexes on mainnet only. |
-| Exits to HyperCore: `exitToCore`, `returnToCore` | Not available. `GET /v1/me/core-exits` returns `deployment: null`, the SDK throws before anything is sent, and the API answers `CORE_EXIT_UNAVAILABLE`. To turn wallet USDC into vault cash, use `signDeposit` and `sendDeposit`. |
+| Exits to HyperCore: `exitToCore`, `returnToCore` | Not available. `GET /v1/me/core-exits` returns `deployment: null`, the SDK throws before anything is sent, and the API answers `CORE_EXIT_UNAVAILABLE`. To turn wallet USDC into vault cash, use `deposit`. |
 | Referral fees | Not counted |
 | Data across a rebuild | Gone. Re-admit wallets, sign in again, and use the reissued keys. |
 

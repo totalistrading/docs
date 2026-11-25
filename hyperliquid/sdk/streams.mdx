@@ -66,7 +66,7 @@ For example, a 3 USDC stake quoted at 9.18 USDC, with a 20 bps entry fee and a 1
 `createUiAdapter(totalis, { onInvalidate, onCatalogStale })` gives a frontend what it needs without tying it to
 a framework:
 
-- live quotes, with the best one picked
-- the venue clock, as `serverNow` and `secondsLeft`
+- live quotes, with the best one picked, from `watchQuotes(rfqId, ({ quotes, best }) => ...)`
+- the venue clock, as `serverNow`
 - account invalidations, to refresh a query cache
 - a catalog refresh, only when `catalog_generation` moves

@@ -109,11 +109,12 @@ signer. `toTotalisSigner`, from `.../signer`, converts any of them yourself when
 ## Conventions
 
 - **Money** is atomic USDC (6 decimals), as a `bigint` or a decimal string. `25_000_000n` is 25 USDC.
-- **Time** comes from the venue. Deadlines such as `accept_before` and `fund_by` are judged on the venue clock,
-  which `stream.serverNow()` gives you.
+- **Time** comes from the venue. Deadlines such as `fund_by` are judged on the venue clock, which
+  `stream.serverNow()` gives you.
 - **Commands are idempotent.** Each one is built once with its `Idempotency-Key` and resent byte for byte, so a
   retry never trades twice.
-- **Clean up.** Call `close()` on `createTotalis` and `createMaker` when you are done, to stop their streams.
+- **Clean up.** Call `close()` on `createTotalis` and `createMaker` when you are done, to stop their streams. A
+  maker's `close()` cancels its open quotes first: await it before the process exits.
 
 ## Entry points
 
@@ -138,7 +139,7 @@ The package ships runnable examples in `node_modules/@totalis/hip4-client/exampl
 | File | Shows |
 | --- | --- |
 | `onboard.mjs` | Headless maker onboarding from an exported wallet key: sign in, open and admit the maker, issue the quoting key, make the first deposit and start the bot. A rerun resumes where it stopped. |
-| `node-bot.mjs` | A maker bot that quotes entries, buys back cash-outs of positions it backs, and confirms acceptances only while its own check passes |
+| `node-bot.mjs` | A maker bot that quotes entries, buys back cash-outs of positions it backs, and declines an accept with `lastLook` when its own check fails |
 | `browser-wallet.html`, `browser-wallet.mjs` | Opening and cashing out a position from an injected wallet, with no bundler |
 | `partner-frontend.mjs` | A partner page that collects consent, signs a wallet in and trades |
 | `partner-server.mjs` | A partner server that admits a wallet with its `tpk_` key |
