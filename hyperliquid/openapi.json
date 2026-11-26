@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "273.0.0-implicit-accept-funding"
+    "version": "274.0.0-lean-maker-confirm"
   },
   "servers": [
     {
@@ -4066,7 +4066,7 @@
       "post": {
         "operationId": "acceptQuote",
         "summary": "Accept quote",
-        "description": "Accept a quote to open a position or cash one out.\n\nRequires a key for your account with `quote:accept`, `sponsorship:use`.\n\nAlso requires `funding:deposit` when the request includes a funding authorization.\n\nAlso requires `position:cashout` when the quote is a cash-out.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "Accept a quote to open a position or cash one out.\n\nRequires a key for your account with `quote:accept`, `sponsorship:use`.\n\nAlso requires `funding:deposit` for the stake to draw on your wallet's approval when free vault cash is short.\n\nAlso requires `position:cashout` when the quote is a cash-out.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "tags": [
           "RFQs & Quotes"
         ],
@@ -4405,7 +4405,7 @@
             }
           },
           "503": {
-            "description": "`EXECUTION_BACKLOG_FULL`: the venue's on-chain queue could not send this trade before the quote expires, so nothing was created and the maker was not asked. Wait `Retry-After` seconds and accept a fresh quote. `CONTRACT_UNAVAILABLE`: funding `WALLET_APPROVAL` on a deployment with no WalletAccept.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.\n- `EXECUTION_BACKLOG_FULL` (retry `BACKOFF`): The venue's on-chain queue cannot send this trade before its quote expires; nothing was created. Retry after Retry-After with a fresh quote.\n- `GAS_PRICE_ABOVE_CEILING` (retry `BACKOFF`): The HyperEVM gas price is above the level at which Totalis accepts quotes; nothing was placed or accepted. Quotes keep coming; retry once the price falls.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
+            "description": "`EXECUTION_BACKLOG_FULL`: the venue's on-chain queue could not send this trade before the quote expires, so nothing was created and the maker was not asked. Wait `Retry-After` seconds and accept a fresh quote. `CONTRACT_UNAVAILABLE`: the stake needs your wallet's approval and this deployment has no WalletAccept.\n\n- `AUTHORIZATION_UNAVAILABLE` (retry `BACKOFF`): Identity or credential authority storage is unavailable.\n- `DEPENDENCY_STALE` (retry `BACKOFF`): A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable.\n- `FINANCIAL_ACTIONS_DISABLED` (retry `BACKOFF`): Financial actions are disabled for this deployment.\n- `CONTRACT_SIGNATURE_OVERLOADED` (retry `BACKOFF`): Contract signature verification is at capacity.\n- `EXECUTION_BACKLOG_FULL` (retry `BACKOFF`): The venue's on-chain queue cannot send this trade before its quote expires; nothing was created. Retry after Retry-After with a fresh quote.\n- `GAS_PRICE_ABOVE_CEILING` (retry `BACKOFF`): The HyperEVM gas price is above the level at which Totalis accepts quotes; nothing was placed or accepted. Quotes keep coming; retry once the price falls.\n- `CONTRACT_UNAVAILABLE` (retry `BACKOFF`): This producer is disabled in this environment.",
             "headers": {
               "Retry-After": {
                 "$ref": "#/components/headers/RetryAfter"
@@ -4510,7 +4510,6 @@
                   "status": "ACCEPTED",
                   "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
                   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
-                  "deadline": "2026-09-26T20:00:53.352Z",
                   "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
                 }
               }
@@ -9882,7 +9881,7 @@
       "get": {
         "operationId": "getWalletApproval",
         "summary": "Get wallet approval",
-        "description": "The account wallet's USDC approval to WalletAccept, which pays a `WALLET_APPROVAL` acceptance's shortfall from the wallet, and its USDC permit nonce, read together at one HyperEVM block.\n\nRequires a key for your account with `account:read`.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "The account wallet's USDC approval to WalletAccept, from which an entry accept takes any part of the stake your free vault cash does not cover, and its USDC permit nonce, read together at one HyperEVM block.\n\nRequires a key for your account with `account:read`.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "tags": [
           "Account"
         ],
@@ -27654,8 +27653,7 @@
         "required": [
           "status",
           "quote_id",
-          "rfq_id",
-          "deadline"
+          "rfq_id"
         ],
         "properties": {
           "status": {
@@ -27669,10 +27667,6 @@
           "rfq_id": {
             "$ref": "#/components/schemas/rfq_id",
             "description": "RFQ the quote answers."
-          },
-          "deadline": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "When your time to confirm ends, RFC3339 UTC, on your stream's clock."
           },
           "operation_id": {
             "$ref": "#/components/schemas/operation_id",
