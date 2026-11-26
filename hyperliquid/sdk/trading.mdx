@@ -84,7 +84,7 @@ the reason in the message. Every scope is on [Scopes](/hyperliquid/authenticatio
 
 ## Find Combo markets
 
-A Combo can include a market whose `eligibility.state` is `ENABLED` and whose `combo.state` is `OPEN`. List just
+A Combo can include a market whose `eligibility.status` is `ENABLED` and whose `combo.status` is `OPEN`. List just
 those:
 
 ```ts
@@ -96,7 +96,7 @@ for await (const market of totalis.listMarkets({ combo: "OPEN", eligibility: "EN
 `listMarkets(filters)` is [List markets](/hyperliquid/api-reference/markets/list-markets) with those filters
 (`combo`, `eligibility`, `category`, `subcategory`), as an async iterator in `outcome_id` order. `createMaker` has
 it too. The filters apply after paging, so a page can be short or empty while `has_more` is true: `listMarkets`
-reads on until it is `false`. Both states are live. A market's `combo.state` opens when its event is within 7
+reads on until it is `false`. Both states are live. A market's `combo.status` opens when its event is within 7
 days, and closes with `reason: "EVENT_PASSED"` once its event starts (a game's kickoff, a policy decision) or its
 result can be known. Makers refuse such a leg, so a game is not offered in play.
 
@@ -327,7 +327,7 @@ the signer must be the account's wallet. After a restart, `waitForOperation(oper
 
 | Refusal | When |
 | --- | --- |
-| `400 INVALID_REQUEST` on `/value` | Under the wallet's [minimum](/hyperliquid/limits-and-fees#deposits-and-exits). The message states it. |
+| `400 INVALID_REQUEST` on `/amount` | Under the wallet's [minimum](/hyperliquid/limits-and-fees#deposits-and-exits). The message states it. |
 | `409 INSUFFICIENT_WALLET_BALANCE`, retry `REFRESH` | More than the wallet's available USDC. Read the balances and deposit less. |
 | `429 RATE_LIMITED` | Over the hourly count on [Limits](/hyperliquid/limits-and-fees#deposits-and-exits) |
 

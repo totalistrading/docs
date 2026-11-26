@@ -252,7 +252,7 @@ has every vault call and its reverts.
 | Name | What it is | Where to read it |
 | --- | --- | --- |
 | `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | `waitForMaker`'s `makerId`, or the vault's `makerOf(wallet)` |
-| `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
+| `controller` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 | `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
 
 Your maker is one wallet: your Totalis account's own wallet. Totalis admits a maker only from that wallet, so your
@@ -280,7 +280,7 @@ Before you quote:
 - Read [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) for the current fees. A
   quote with other fees is refused.
 - Check your capital: the latest [`capital` frame](/hyperliquid/api-reference/websocket/maker#capital) if you
-  subscribed with `capital`, otherwise a read. If `context.status` is not `CURRENT`, stop quoting until it is.
+  subscribed with `capital`, otherwise a read. If `context.freshness` is not `CURRENT`, stop quoting until it is.
 
 ### Hedge on Hyperliquid
 

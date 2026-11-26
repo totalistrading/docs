@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "274.0.0-lean-maker-confirm"
+    "version": "276.0.0-one-name-accounts"
   },
   "servers": [
     {
@@ -91,7 +91,7 @@
                       "kind": "QUESTION",
                       "native_question_id": "198",
                       "title": "2026/2027 English Premier League winner",
-                      "state": "ACTIVE",
+                      "status": "ACTIVE",
                       "category": "Sports",
                       "subcategory": "epl",
                       "markets": [
@@ -99,17 +99,17 @@
                           "outcome_id": "1473",
                           "native_question_id": "198",
                           "title": "Arsenal",
-                          "state": "ACTIVE",
+                          "status": "ACTIVE",
                           "result": {
                             "availability": "AVAILABLE",
                             "result_state": "UNRESOLVED"
                           },
                           "metadata_revision": "14269",
                           "eligibility": {
-                            "state": "ENABLED"
+                            "status": "ENABLED"
                           },
                           "combo": {
-                            "state": "CLOSED",
+                            "status": "CLOSED",
                             "reason": "OUTSIDE_WINDOW",
                             "opens_at": "1811592000"
                           },
@@ -172,17 +172,17 @@
                           "outcome_id": "1474",
                           "native_question_id": "198",
                           "title": "Manchester City",
-                          "state": "ACTIVE",
+                          "status": "ACTIVE",
                           "result": {
                             "availability": "AVAILABLE",
                             "result_state": "UNRESOLVED"
                           },
                           "metadata_revision": "14269",
                           "eligibility": {
-                            "state": "ENABLED"
+                            "status": "ENABLED"
                           },
                           "combo": {
-                            "state": "CLOSED",
+                            "status": "CLOSED",
                             "reason": "OUTSIDE_WINDOW",
                             "opens_at": "1811592000"
                           },
@@ -248,7 +248,7 @@
                       "kind": "STANDALONE",
                       "native_question_id": null,
                       "title": "Anthropic IPO confirmed by Oct 31, 2026 23:59 UTC",
-                      "state": "ACTIVE",
+                      "status": "ACTIVE",
                       "category": "Finance",
                       "subcategory": "stocks",
                       "markets": [
@@ -256,17 +256,17 @@
                           "outcome_id": "2597",
                           "native_question_id": null,
                           "title": "Anthropic IPO confirmed by Oct 31, 2026 23:59 UTC",
-                          "state": "ACTIVE",
+                          "status": "ACTIVE",
                           "result": {
                             "availability": "AVAILABLE",
                             "result_state": "UNRESOLVED"
                           },
                           "metadata_revision": "14269",
                           "eligibility": {
-                            "state": "ENABLED"
+                            "status": "ENABLED"
                           },
                           "combo": {
-                            "state": "CLOSED",
+                            "status": "CLOSED",
                             "reason": "OUTSIDE_WINDOW",
                             "opens_at": "1792886340"
                           },
@@ -521,7 +521,7 @@
           {
             "name": "eligibility",
             "in": "query",
-            "description": "Keep only markets whose current eligibility.state is this value: ENABLED for markets that accept new positions now, DISABLED for the rest. Eligibility is live, so a market can change state between pages. The filter applies after paging, so a page can be short or empty while has_more is true; next_cursor being null is the only terminal signal. The cursor is bound to this filter.",
+            "description": "Keep only markets whose current eligibility.status is this value: ENABLED for markets that accept new positions now, DISABLED for the rest. Eligibility is live, so a market can change status between pages. The filter applies after paging, so a page can be short or empty while has_more is true; next_cursor being null is the only terminal signal. The cursor is bound to this filter.",
             "schema": {
               "type": "string",
               "enum": [
@@ -534,7 +534,7 @@
           {
             "name": "combo",
             "in": "query",
-            "description": "Keep only markets whose current combo.state is this value: OPEN for markets a Combo may take as a leg now, CLOSED for the rest. Combo state is live: a market opens when it enters its 7-day window and closes when its event starts, so it can change state between pages. The filter applies after paging, so a page can be short or empty while has_more is true; next_cursor being null is the only terminal signal. The cursor is bound to this filter. Combine with eligibility=ENABLED for markets a Combo can include now.",
+            "description": "Keep only markets whose current combo.status is this value: OPEN for markets a Combo may take as a leg now, CLOSED for the rest. Combo status is live: a market opens when it enters its 7-day window and closes when its event starts, so it can change status between pages. The filter applies after paging, so a page can be short or empty while has_more is true; next_cursor being null is the only terminal signal. The cursor is bound to this filter. Combine with eligibility=ENABLED for markets a Combo can include now.",
             "schema": {
               "type": "string",
               "enum": [
@@ -562,17 +562,17 @@
                       "outcome_id": "1209",
                       "native_question_id": null,
                       "title": "HYPE touches 100 by 20261001-0000",
-                      "state": "ACTIVE",
+                      "status": "ACTIVE",
                       "result": {
                         "availability": "AVAILABLE",
                         "result_state": "UNRESOLVED"
                       },
                       "metadata_revision": "6100",
                       "eligibility": {
-                        "state": "ENABLED"
+                        "status": "ENABLED"
                       },
                       "combo": {
-                        "state": "OPEN"
+                        "status": "OPEN"
                       },
                       "deployer": {
                         "name": "Hyperliquid",
@@ -633,17 +633,17 @@
                       "outcome_id": "1210",
                       "native_question_id": null,
                       "title": "BTC above 100000 at 20261001-0000?",
-                      "state": "ACTIVE",
+                      "status": "ACTIVE",
                       "result": {
                         "availability": "AVAILABLE",
                         "result_state": "UNRESOLVED"
                       },
                       "metadata_revision": "6100",
                       "eligibility": {
-                        "state": "ENABLED"
+                        "status": "ENABLED"
                       },
                       "combo": {
-                        "state": "OPEN"
+                        "status": "OPEN"
                       },
                       "deployer": {
                         "name": "Hyperliquid",
@@ -869,17 +869,17 @@
                     "outcome_id": "1209",
                     "native_question_id": null,
                     "title": "HYPE touches 100 by 20261001-0000",
-                    "state": "ACTIVE",
+                    "status": "ACTIVE",
                     "result": {
                       "availability": "AVAILABLE",
                       "result_state": "UNRESOLVED"
                     },
                     "metadata_revision": "6100",
                     "eligibility": {
-                      "state": "ENABLED"
+                      "status": "ENABLED"
                     },
                     "combo": {
-                      "state": "OPEN"
+                      "status": "OPEN"
                     },
                     "deployer": {
                       "name": "Hyperliquid",
@@ -1874,44 +1874,44 @@
                       },
                       "pictures": {
                         "market": {
-                          "type": "SUBJECT",
+                          "kind": "SUBJECT",
                           "key": "league:uefa nations league"
                         },
                         "pick": [
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           },
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           }
                         ],
                         "pick_no_side": {
-                          "type": "SUBJECT",
+                          "kind": "SUBJECT",
                           "key": "team:france"
                         },
                         "own": [
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           },
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           }
                         ],
                         "row": {
-                          "type": "SUBJECT",
+                          "kind": "SUBJECT",
                           "key": "team:france"
                         },
                         "teams": [
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           },
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:turkiye"
                           }
                         ]
@@ -1935,21 +1935,21 @@
                       },
                       "pictures": {
                         "market": {
-                          "type": "SUBJECT",
+                          "kind": "SUBJECT",
                           "key": "league:uefa nations league"
                         },
                         "pick": [
                           {
-                            "type": "GLYPH",
+                            "kind": "GLYPH",
                             "glyph": "DRAW"
                           },
                           {
-                            "type": "GLYPH",
+                            "kind": "GLYPH",
                             "glyph": "DRAW"
                           }
                         ],
                         "pick_no_side": {
-                          "type": "GLYPH",
+                          "kind": "GLYPH",
                           "glyph": "DRAW"
                         },
                         "own": [
@@ -1957,16 +1957,16 @@
                           null
                         ],
                         "row": {
-                          "type": "GLYPH",
+                          "kind": "GLYPH",
                           "glyph": "DRAW"
                         },
                         "teams": [
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           },
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:turkiye"
                           }
                         ]
@@ -1986,21 +1986,21 @@
                       },
                       "pictures": {
                         "market": {
-                          "type": "GLYPH",
+                          "kind": "GLYPH",
                           "glyph": "TOTAL"
                         },
                         "pick": [
                           {
-                            "type": "GLYPH",
+                            "kind": "GLYPH",
                             "glyph": "TOTAL"
                           },
                           {
-                            "type": "GLYPH",
+                            "kind": "GLYPH",
                             "glyph": "TOTAL"
                           }
                         ],
                         "pick_no_side": {
-                          "type": "GLYPH",
+                          "kind": "GLYPH",
                           "glyph": "TOTAL"
                         },
                         "own": [
@@ -2010,11 +2010,11 @@
                         "row": null,
                         "teams": [
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:france"
                           },
                           {
-                            "type": "SUBJECT",
+                            "kind": "SUBJECT",
                             "key": "team:turkiye"
                           }
                         ]
@@ -4083,7 +4083,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance after the maker answered or the two-second confirm window closed, returned within three seconds. Its status is `ACCEPTED`, `DECLINED`, `TIMED_OUT` or `CANCELLED`, never `PENDING_CONFIRM`. `ACCEPTED` means the trade is queued, not yet on chain: follow `OPERATION_UPDATED` on the account stream until it ends. Only `COMMITTED` opened the position; an operation that ends `EXPIRED_UNEXECUTED` or `REVERTED` traded nothing, and its `failure_reason` says why when known.",
+            "description": "The acceptance after the maker answered or the two-second confirm window closed, returned within three seconds. Its status is `ACCEPTED`, `DECLINED`, `TIMED_OUT` or `CANCELLED`, never `PENDING_CONFIRM`. `ACCEPTED` means the trade is queued, not yet on chain: follow `OPERATION_UPDATED` on the account stream until it ends. Only `COMMITTED` opened the position; an operation that ends `EXPIRED_UNEXECUTED` or `REVERTED` traded nothing, and its `reason` says why when known. For an entry, the position's `position_id` is the accepted `quote_id`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6280,7 +6280,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The acceptance as it stands now, whichever key or session made it. Reading it writes nothing and moves no funds.",
+            "description": "The acceptance as it stands now, whichever key or session made it. Reading it writes nothing and moves no funds. For an entry, the position's `position_id` is the accepted `quote_id`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6937,7 +6937,7 @@
                       "amount": "10000000",
                       "status": "EXPIRED_UNEXECUTED",
                       "transaction_hash": null,
-                      "failure_reason": "INSUFFICIENT_CASH",
+                      "reason": "INSUFFICIENT_CASH",
                       "created_at": "2026-09-26T15:02:11.204Z",
                       "updated_at": "2026-09-26T15:02:19.733Z"
                     },
@@ -6964,7 +6964,7 @@
                   "has_more": true,
                   "checkpoint": {
                     "block_number": "31552210",
-                    "projection_state": "CURRENT"
+                    "freshness": "CURRENT"
                   }
                 }
               }
@@ -7290,7 +7290,7 @@
                   },
                   "checkpoint": {
                     "block_number": "31552210",
-                    "projection_state": "CURRENT"
+                    "freshness": "CURRENT"
                   }
                 }
               }
@@ -8302,7 +8302,7 @@
                 "example": {
                   "context": {
                     "as_of": "2026-09-26T12:00:02Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   },
                   "items": [
                     {
@@ -8315,7 +8315,7 @@
                       "owner_username": null,
                       "opened_via": null,
                       "status": "OPEN",
-                      "close_reason": null,
+                      "reason": null,
                       "fee_bps": 100,
                       "net_stake": "24950000",
                       "acquisition_cost": "25000000",
@@ -8356,7 +8356,7 @@
                       "owner_username": null,
                       "opened_via": null,
                       "status": "SETTLED_UNCLAIMED",
-                      "close_reason": null,
+                      "reason": null,
                       "fee_bps": 100,
                       "net_stake": "49900000",
                       "acquisition_cost": "50000000",
@@ -8763,7 +8763,7 @@
                 "example": {
                   "context": {
                     "as_of": "2026-09-26T12:00:02Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   },
                   "position": {
                     "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
@@ -8775,7 +8775,7 @@
                     "owner_username": null,
                     "opened_via": null,
                     "status": "SETTLED_UNCLAIMED",
-                    "close_reason": null,
+                    "reason": null,
                     "fee_bps": 100,
                     "net_stake": "49900000",
                     "acquisition_cost": "50000000",
@@ -9157,7 +9157,7 @@
                   ],
                   "context": {
                     "as_of": "2026-09-17T12:03:20Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   }
                 }
               }
@@ -9517,7 +9517,7 @@
                 "example": {
                   "context": {
                     "as_of": "2026-09-26T11:59:58Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   },
                   "items": [
                     {
@@ -10163,7 +10163,7 @@
       "post": {
         "operationId": "approveWallet",
         "summary": "Create wallet approval",
-        "description": "Relays the account wallet's USDC permit setting its approval to the active vault's WalletAccept to `value`, with Totalis paying the gas; `value` 0 revokes it.\n\nRequires a key for your account with `funding:deposit`, `sponsorship:use`.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
+        "description": "Relays the account wallet's USDC permit setting its approval to the active vault's WalletAccept to `amount`, with Totalis paying the gas; `amount` 0 revokes it.\n\nRequires a key for your account with `funding:deposit`, `sponsorship:use`.\n\nA wallet session for the account also works, with no scope limit, sent from its `Origin`.",
         "tags": [
           "Account"
         ],
@@ -10191,7 +10191,7 @@
                 "$ref": "#/components/schemas/WalletApprovalCommand"
               },
               "example": {
-                "value": "10000000000",
+                "amount": "10000000000",
                 "nonce": "1",
                 "deadline": "1794153600",
                 "signature": "0xabababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab1b"
@@ -10210,7 +10210,7 @@
                 "example": {
                   "request_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a41",
                   "operation_id": "0x3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d",
-                  "value": "10000000000",
+                  "amount": "10000000000",
                   "nonce": "1",
                   "deadline": "1794153600",
                   "status": "QUEUED",
@@ -10592,17 +10592,17 @@
                 },
                 "example": {
                   "amount": "37500000",
-                  "state": "CURRENT",
+                  "freshness": "CURRENT",
                   "components": [
                     {
                       "kind": "WALLET_USDC",
                       "amount": "12500000",
-                      "state": "CURRENT"
+                      "freshness": "CURRENT"
                     },
                     {
                       "kind": "VAULT_FREE",
                       "amount": "30000000",
-                      "state": "CURRENT"
+                      "freshness": "CURRENT"
                     }
                   ],
                   "pending": {
@@ -10614,14 +10614,14 @@
                   },
                   "checkpoint": {
                     "block_number": "31552210",
-                    "projection_state": "CURRENT"
+                    "freshness": "CURRENT"
                   },
                   "run_off": [
                     {
                       "vault_address": "0x2222222222222222222222222222222222222222",
                       "vault_free": "4200000",
                       "pending_core_exits": "0",
-                      "state": "CURRENT",
+                      "freshness": "CURRENT",
                       "claim": null
                     }
                   ]
@@ -10885,7 +10885,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Your account's value and its parts. When state is UNKNOWN every amount is null; read again later. No caching.",
+            "description": "Your account's value and its parts. When freshness is UNKNOWN every amount is null; read again later. No caching.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10893,7 +10893,7 @@
                 },
                 "example": {
                   "account": "0x1111111111111111111111111111111111111653",
-                  "state": "CURRENT",
+                  "freshness": "CURRENT",
                   "amount": "64357000",
                   "block_number": "31552212",
                   "wallet_usdc": "12500000",
@@ -10904,7 +10904,7 @@
                   "claimable_profit": "1800000",
                   "checkpoint": {
                     "block_number": "31552212",
-                    "projection_state": "CURRENT"
+                    "freshness": "CURRENT"
                   }
                 }
               }
@@ -12588,7 +12588,7 @@
                 "$ref": "#/components/schemas/DepositCommand"
               },
               "example": {
-                "value": "5000000",
+                "amount": "5000000",
                 "valid_after": "1792152000",
                 "valid_before": "1792152600",
                 "salt": "0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
@@ -12607,14 +12607,14 @@
                 },
                 "example": {
                   "operation_id": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
-                  "state": "DURABLE",
+                  "status": "DURABLE",
                   "amount": "5000000"
                 }
               }
             }
           },
           "400": {
-            "description": "A deposit moves at least 0.10 USDC from a Privy login wallet, embedded or external, and 1 USDC from any other; below it `INVALID_REQUEST` names `/value` and the message names this wallet's minimum. An account without exactly one account wallet, or whose wallet controls a maker, cannot deposit (`INVALID_REQUEST`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "A deposit moves at least 0.10 USDC from a Privy login wallet, embedded or external, and 1 USDC from any other; below it `INVALID_REQUEST` names `/amount` and the message names this wallet's minimum. An account without exactly one account wallet, or whose wallet controls a maker, cannot deposit (`INVALID_REQUEST`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12756,7 +12756,7 @@
             }
           },
           "409": {
-            "description": "`INSUFFICIENT_WALLET_BALANCE`: the wallet's USDC, less what its other pending work draws, does not cover `value`. `STATE_CONFLICT`: the authorization was already used or is queued, or the vault release is in run-off.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `INSUFFICIENT_WALLET_BALANCE` (retry `REFRESH`): The wallet's USDC, less what its other pending work already draws, does not cover the deposit. Read the balances and deposit at most what the wallet has available.",
+            "description": "`INSUFFICIENT_WALLET_BALANCE`: the wallet's USDC, less what its other pending work draws, does not cover `amount`. `STATE_CONFLICT`: the authorization was already used or is queued, or the vault release is in run-off.\n\n- `IDEMPOTENCY_KEY_REUSED` (retry `NEVER`): The idempotency key was already used with different input.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.\n- `INSUFFICIENT_WALLET_BALANCE` (retry `REFRESH`): The wallet's USDC, less what its other pending work already draws, does not cover the deposit. Read the balances and deposit at most what the wallet has available.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15742,8 +15742,8 @@
                     "admitted_wallets": 180,
                     "accounts": 152
                   },
-                  "open_tickets": {
-                    "tickets": 37,
+                  "open_positions": {
+                    "positions": 37,
                     "stake": "3663000000"
                   },
                   "terms": [
@@ -15755,7 +15755,7 @@
                   "from": "2026-10-01",
                   "to": "2026-11-01",
                   "totals": {
-                    "tickets": 214,
+                    "positions": 214,
                     "stake_volume": "21400000000",
                     "taker_fees": "321000000",
                     "winnings_fees": "61500000",
@@ -15770,7 +15770,7 @@
                     {
                       "day": "2026-10-01",
                       "share_bps": 2000,
-                      "tickets": 120,
+                      "positions": 120,
                       "stake_volume": "12000000000",
                       "taker_fees": "180000000",
                       "winnings_fees": "40000000",
@@ -15784,7 +15784,7 @@
                     {
                       "day": "2026-10-02",
                       "share_bps": 2000,
-                      "tickets": 94,
+                      "positions": 94,
                       "stake_volume": "9400000000",
                       "taker_fees": "141000000",
                       "winnings_fees": "21500000",
@@ -15804,7 +15804,7 @@
                       "payout_address": "0x1111111111111111111111111111111111111111",
                       "amount": "60000000",
                       "counted": "60000000",
-                      "state": "SETTLED",
+                      "status": "SETTLED",
                       "queued_at": "2026-11-02T15:00:00Z",
                       "closed_at": "2026-11-02T15:06:00Z",
                       "transfers": [
@@ -16462,7 +16462,7 @@
                     {
                       "event": {
                         "id": "settle_7a3c9e1f00000000000000000000000000000000000000000000000000000001",
-                        "type": "position.settled",
+                        "kind": "position.settled",
                         "created_at": "2026-11-13T09:12:40Z",
                         "data": {
                           "position_id": "0x7a3c9e1f00000000000000000000000000000000000000000000000000000001",
@@ -16495,11 +16495,11 @@
                     {
                       "event": {
                         "id": "balance_01933a5e-6f1c-7c3a-9b1e-2f4d5c6b7a81",
-                        "type": "balance.updated",
+                        "kind": "balance.updated",
                         "created_at": "2026-11-13T09:12:41.020Z",
                         "data": {
                           "account": "0x1111111111111111111111111111111111111111",
-                          "state": "CURRENT",
+                          "freshness": "CURRENT",
                           "amount": "61000000",
                           "block_number": "22101878",
                           "wallet_usdc": "0",
@@ -16510,7 +16510,7 @@
                           "claimable_profit": "35496938",
                           "checkpoint": {
                             "block_number": "22101878",
-                            "projection_state": "CURRENT"
+                            "freshness": "CURRENT"
                           }
                         }
                       },
@@ -16798,7 +16798,7 @@
                 },
                 "example": {
                   "account": "0x8ba1f109551bd432803012645ac136ddd64dba72",
-                  "state": "CURRENT",
+                  "freshness": "CURRENT",
                   "amount": "64357000",
                   "block_number": "31552212",
                   "wallet_usdc": "12500000",
@@ -16809,7 +16809,7 @@
                   "claimable_profit": "1800000",
                   "checkpoint": {
                     "block_number": "31552212",
-                    "projection_state": "CURRENT"
+                    "freshness": "CURRENT"
                   }
                 }
               }
@@ -18757,7 +18757,7 @@
                 },
                 "example": {
                   "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
-                  "owner": "0x1111111111111111111111111111111111111111",
+                  "signer": "0x1111111111111111111111111111111111111111",
                   "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x1111111111111111111111111111111111111111\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/me/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:participant:0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30\n- urn:totalis:action:create\n- urn:totalis:scope:account:read\n- urn:totalis:scope:account:stream\n- urn:totalis:scope:quote:accept\n- urn:totalis:scope:rfq:read\n- urn:totalis:scope:rfq:write\n- urn:totalis:expires-in-days:30\n- urn:totalis:request:0xa1b9cf025fe7ed666e08ddd7fe03d7adf02634fb29933a5e85302055f0164567",
                   "expires_at": "2026-10-16T12:05:00Z"
                 }
@@ -20823,7 +20823,7 @@
                 },
                 "example": {
                   "challenge_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33",
-                  "owner": "0x7777777777777777777777777777777777777777",
+                  "signer": "0x7777777777777777777777777777777777777777",
                   "message": "hip4-api.totalis.trade wants you to sign in with your Ethereum account:\n0x7777777777777777777777777777777777777777\n\nIssue a Totalis API key. It grants scoped API access, not financial signing authority.\n\nURI: https://hip4-api.totalis.trade/v1/makers/7/api-keys\nVersion: 1\nChain ID: 999\nNonce: 5e1b9d3a7c2f8e4b6a0d1c9f3e7b5a2d8c4f6e1a9b3d7c5f2e8a4b6d0c1f9e3a\nIssued At: 2026-10-16T12:00:00Z\nExpiration Time: 2026-10-16T12:05:00Z\nRequest ID: 0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a33\nResources:\n- urn:totalis:purpose:issue_key\n- urn:totalis:environment:production\n- urn:totalis:vault:0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83\n- urn:totalis:account:maker:7\n- urn:totalis:owner-version:2\n- urn:totalis:action:create\n- urn:totalis:scope:quote:read\n- urn:totalis:scope:quote:write\n- urn:totalis:scope:rfq:read\n- urn:totalis:scope:vault:read\n- urn:totalis:expires-in-days:30\n- urn:totalis:request:0x40c9c897046dd510eb3f1515c7771fcf731feea2ee945b53477e928f6a689384",
                   "expires_at": "2026-10-16T12:05:00Z"
                 }
@@ -21226,7 +21226,7 @@
                     "id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a30"
                   },
                   "environment": "production",
-                  "owner": "0x1111111111111111111111111111111111111111",
+                  "signer": "0x1111111111111111111111111111111111111111",
                   "scopes": [
                     "identity:read",
                     "account:read",
@@ -21585,7 +21585,7 @@
                     "vault_address": "0x0cbffe7b40b64d5fd04f1288f4c9fe0fc50e2f83"
                   },
                   "environment": "production",
-                  "owner": "0x7777777777777777777777777777777777777777",
+                  "signer": "0x7777777777777777777777777777777777777777",
                   "scopes": [
                     "rfq:read",
                     "quote:read",
@@ -22271,9 +22271,9 @@
                 "example": {
                   "context": {
                     "as_of": "2026-09-26T12:00:02Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   },
-                  "owner": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "controller": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                   "signer": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                   "vault_gross": "5250000000",
                   "stake_escrow": "150000000",
@@ -22307,7 +22307,7 @@
                       "operation_ids": [
                         "0x1ba12138e817b7ca9dc394c6342efb4d0500e9ebd5023e2b97cedd14bb279c8c"
                       ],
-                      "value": "25000000",
+                      "amount": "25000000",
                       "status": "ACTIVE"
                     }
                   ]
@@ -22636,8 +22636,8 @@
                   "vault": "0x2222222222222222222222222222222222222222",
                   "generated_at": "2026-09-17T12:00:00Z",
                   "ownership": {
-                    "state": "SETUP_REQUIRED",
-                    "owner": "0x1111111111111111111111111111111111111111",
+                    "status": "SETUP_REQUIRED",
+                    "controller": "0x1111111111111111111111111111111111111111",
                     "maker": null
                   }
                 }
@@ -22949,12 +22949,12 @@
                   "vault": "0x2222222222222222222222222222222222222222",
                   "generated_at": "2026-09-17T12:00:00Z",
                   "ownership": {
-                    "state": "READY",
-                    "owner": "0x1111111111111111111111111111111111111111",
+                    "status": "READY",
+                    "controller": "0x1111111111111111111111111111111111111111",
                     "maker": {
                       "maker_id": "7",
-                      "owner": "0x1111111111111111111111111111111111111111",
-                      "owner_version": "1",
+                      "controller": "0x1111111111111111111111111111111111111111",
+                      "controller_version": "1",
                       "access_revision": "1",
                       "permissions": [
                         "READ_CAPITAL",
@@ -23319,7 +23319,7 @@
                     ]
                   },
                   "as_of_block": "18250412",
-                  "status": "CURRENT"
+                  "freshness": "CURRENT"
                 }
               }
             }
@@ -24001,7 +24001,7 @@
                     "data": "0x22879f2b0000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000600aea7d000000000000000000000000000000000000000000000000000000002b98f840800000000000000000000000000000000000000000000000000000001671e344000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000006ab7d058000000000000000000000000000000000000000000000000000000006ab7d184000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000415e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e00000000000000000000000000000000000000000000000000000000000000",
                     "value": "0"
                   },
-                  "failure_code": null,
+                  "reason": null,
                   "next_eligible_at": "2026-09-26T14:07:00Z",
                   "created_at": "2026-09-26T14:02:00.214Z",
                   "updated_at": "2026-09-26T14:02:03.870Z"
@@ -24759,7 +24759,7 @@
                 "example": {
                   "context": {
                     "as_of": "2026-09-17T12:00:00Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   },
                   "from": "2026-09-17T00:00:00Z",
                   "through": "2026-09-18T00:00:00Z",
@@ -25235,16 +25235,16 @@
                 "example": {
                   "context": {
                     "as_of": "2026-09-17T12:00:00Z",
-                    "status": "CURRENT"
+                    "freshness": "CURRENT"
                   },
                   "from": "2026-09-17T00:00:00Z",
                   "through": "2026-09-17T12:00:00Z",
                   "recognition": "REALIZED_AT_ECONOMIC_CLOSE_V1",
                   "history_from": "2026-09-01T00:00:00Z",
-                  "closed_ticket_count": "1",
-                  "won_ticket_count": "0",
-                  "lost_ticket_count": "0",
-                  "even_ticket_count": "1",
+                  "closed_position_count": "1",
+                  "won_position_count": "0",
+                  "lost_position_count": "0",
+                  "even_position_count": "1",
                   "settled_net_stake": "100000000",
                   "gross_trading_pnl": "0",
                   "gross_winning_pnl": "0",
@@ -25257,13 +25257,13 @@
                     {
                       "at": "2026-09-17T00:00:00Z",
                       "net_trading_pnl": "0",
-                      "closed_ticket_count": "0",
+                      "closed_position_count": "0",
                       "net_trading_pnl_change": "0"
                     },
                     {
                       "at": "2026-09-17T12:00:00Z",
                       "net_trading_pnl": "0",
-                      "closed_ticket_count": "1",
+                      "closed_position_count": "1",
                       "net_trading_pnl_change": "0"
                     }
                   ]
@@ -25574,7 +25574,7 @@
         "name": "order",
         "in": "query",
         "required": false,
-        "description": "PUBLISHED (default): newest published first, so a backfilled activity appears on a fresh first page. OCCURRED: newest occurrence first, an activity of unknown occurrence at its recording time, then by activity ID. What reads as one lists together at its latest occurrence (an order's fills, one outcome side's settlement credits, one ticket's settlement and claims), one group after another within a moment.",
+        "description": "PUBLISHED (default): newest published first, so a backfilled activity appears on a fresh first page. OCCURRED: newest occurrence first, an activity of unknown occurrence at its recording time, then by activity ID. What reads as one lists together at its latest occurrence (an order's fills, one outcome side's settlement credits, one position's settlement and claims), one group after another within a moment.",
         "schema": {
           "type": "string",
           "enum": [
@@ -26134,7 +26134,7 @@
             "description": "Why a `FAILED` acceptance funded from the wallet failed, when the venue can tell: the wallet's approval (`INSUFFICIENT_APPROVAL`) or USDC (`INSUFFICIENT_WALLET_USDC`) fell short."
           }
         },
-        "description": "The one record of a taker accepting a quote."
+        "description": "The one record of a taker accepting a quote. For an entry, the position it opens has the accepted `quote_id` as its `position_id`."
       },
       "AcceptanceResult": {
         "type": "object",
@@ -26247,7 +26247,7 @@
         "type": "object",
         "required": [
           "account",
-          "state",
+          "freshness",
           "amount",
           "block_number",
           "wallet_usdc",
@@ -26263,7 +26263,7 @@
             "description": "The account's wallet, lowercase.",
             "$ref": "#/components/schemas/LowercaseNonZeroAddress"
           },
-          "state": {
+          "freshness": {
             "description": "CURRENT when every amount was read at block_number; UNKNOWN when the chain could not be read, or the projection did not reach that block in time, and every amount is null. Read again later.",
             "enum": [
               "CURRENT",
@@ -26271,7 +26271,7 @@
             ]
           },
           "amount": {
-            "description": "The account's value: wallet_usdc + vault_cash + run_off_cash + open_cost + claimable_profit. Null unless state is CURRENT.",
+            "description": "The account's value: wallet_usdc + vault_cash + run_off_cash + open_cost + claimable_profit. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26282,7 +26282,7 @@
             ]
           },
           "block_number": {
-            "description": "The HyperEVM block every amount was read at. Null unless state is CURRENT.",
+            "description": "The HyperEVM block every amount was read at. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/UInt64String"
@@ -26293,7 +26293,7 @@
             ]
           },
           "wallet_usdc": {
-            "description": "USDC in the account's wallet on HyperEVM, including any already committed to a Totalis withdrawal or stake that has not landed. Null unless state is CURRENT.",
+            "description": "USDC in the account's wallet on HyperEVM, including any already committed to a Totalis withdrawal or stake that has not landed. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26304,7 +26304,7 @@
             ]
           },
           "vault_cash": {
-            "description": "All the account's cash in the vault, including any held for an operation that has not landed, so it can exceed GET /v1/me/balances' free vault cash. Null unless state is CURRENT.",
+            "description": "All the account's cash in the vault, including any held for an operation that has not landed, so it can exceed GET /v1/me/balances' free vault cash. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26315,7 +26315,7 @@
             ]
           },
           "run_off_cash": {
-            "description": "The account's cash in vaults running off, all together; GET /v1/me/balances lists it per vault. Null unless state is CURRENT.",
+            "description": "The account's cash in vaults running off, all together; GET /v1/me/balances lists it per vault. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26326,7 +26326,7 @@
             ]
           },
           "open_positions": {
-            "description": "How many positions the account holds that have not settled: OPEN and AWAITING_SETTLEMENT in GET /v1/me/positions. Null unless state is CURRENT.",
+            "description": "How many positions the account holds that have not settled: OPEN and AWAITING_SETTLEMENT in GET /v1/me/positions. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "type": "integer",
@@ -26338,7 +26338,7 @@
             ]
           },
           "open_cost": {
-            "description": "What the account paid for those positions: the sum of their acquisition_cost. Null unless state is CURRENT.",
+            "description": "What the account paid for those positions: the sum of their acquisition_cost. Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26349,7 +26349,7 @@
             ]
           },
           "claimable_profit": {
-            "description": "What claiming every SETTLED_UNCLAIMED position would pay the account: each one's unclaimed_profit minus floor(unclaimed_profit * fee_bps / 10000). Null unless state is CURRENT.",
+            "description": "What claiming every SETTLED_UNCLAIMED position would pay the account: each one's unclaimed_profit minus floor(unclaimed_profit * fee_bps / 10000). Null unless freshness is CURRENT.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26360,7 +26360,7 @@
             ]
           },
           "checkpoint": {
-            "description": "The vault projection the read used to find the account's positions. When state is CURRENT it has reached block_number.",
+            "description": "The vault projection the read used to find the account's positions. When freshness is CURRENT it has reached block_number.",
             "$ref": "#/components/schemas/Checkpoint"
           }
         }
@@ -26696,7 +26696,7 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read: the oldest source observation and one status for every amount in the response."
+            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
           },
           "items": {
             "type": "array",
@@ -26762,7 +26762,7 @@
         "type": "object",
         "required": [
           "amount",
-          "state",
+          "freshness",
           "components",
           "pending",
           "checkpoint",
@@ -26770,7 +26770,7 @@
         ],
         "properties": {
           "amount": {
-            "description": "Spendable total in atomic USDC; null unless state is CURRENT. It is wallet USDC plus free vault cash minus the withdrawals and stake fundings in pending.wallet_reserved, floored at zero. A wallet deposit that has not committed stays in it.",
+            "description": "Spendable total in atomic USDC; null unless freshness is CURRENT. It is wallet USDC plus free vault cash minus the withdrawals and stake fundings in pending.wallet_reserved, floored at zero. A wallet deposit that has not committed stays in it.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26780,8 +26780,8 @@
               }
             ]
           },
-          "state": {
-            "description": "The components' state: both come from one chain read, so both are CURRENT or both UNKNOWN. STALE is no longer returned.",
+          "freshness": {
+            "description": "The components' freshness: both come from one chain read, so both are CURRENT or both UNKNOWN. STALE is no longer returned.",
             "enum": [
               "CURRENT",
               "UNKNOWN",
@@ -26825,17 +26825,17 @@
                 "description": "Route 2 exits leaving the vault or awaiting their HyperCore credit, each counted once."
               },
               "has_unknown_operations": {
-                "description": "True when one of the account's operations is in state UNKNOWN, so balances may still change when it resolves.",
+                "description": "True when one of the account's operations has status UNKNOWN, so balances may still change when it resolves.",
                 "type": "boolean"
               }
             }
           },
           "checkpoint": {
-            "description": "The chain projection the pending operations come from. Wallet and vault amounts come from a latest read at or after this block, independent of projection_state.",
+            "description": "The chain projection the pending operations come from. Wallet and vault amounts come from a latest read at or after this block, independent of the checkpoint's freshness.",
             "$ref": "#/components/schemas/Checkpoint"
           },
           "run_off": {
-            "description": "The account's cash in vaults running off, one item per vault holding any or with a claim in flight, outside amount: it is owned but never spendable here. A Totalis embedded wallet's moves to its HyperCore spot balance automatically. Any other wallet claims it to its own wallet, part of Cash, with one Exit signed for that vault and sent with Create run-off claim; a sponsored claim must move at least 1 USDC (1000000), so offer it only when state is CURRENT, vault_free is at least that and claim is null. Smaller amounts stay in the vault. Empty when no vault is running off.",
+            "description": "The account's cash in vaults running off, one item per vault holding any or with a claim in flight, outside amount: it is owned but never spendable here. A Totalis embedded wallet's moves to its HyperCore spot balance automatically. Any other wallet claims it to its own wallet, part of Cash, with one Exit signed for that vault and sent with Create run-off claim; a sponsored claim must move at least 1 USDC (1000000), so offer it only when freshness is CURRENT, vault_free is at least that and claim is null. Smaller amounts stay in the vault. Empty when no vault is running off.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RunOffCash"
@@ -26848,7 +26848,7 @@
         "required": [
           "kind",
           "amount",
-          "state"
+          "freshness"
         ],
         "properties": {
           "kind": {
@@ -26859,7 +26859,7 @@
             ]
           },
           "amount": {
-            "description": "Component amount in atomic USDC (6 decimals); null when the component could not be read (state UNKNOWN).",
+            "description": "Component amount in atomic USDC (6 decimals); null when the component could not be read (freshness UNKNOWN).",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CommonAmount"
@@ -26869,7 +26869,7 @@
               }
             ]
           },
-          "state": {
+          "freshness": {
             "description": "CURRENT when the chain read that gives wallet and vault at one block answered; UNKNOWN when it did not. STALE is no longer returned.",
             "enum": [
               "CURRENT",
@@ -26958,9 +26958,9 @@
               "FAILED",
               "DECLINED"
             ],
-            "description": "OPEN collects cash-out quotes until expires_at; EXPIRED means that window passed without an accepted quote; CANCELLED means the owner cancelled it; ACCEPTED means a quote was accepted and confirmed; FAILED means the accepted sell-back failed on chain (see terminal_reason); DECLINED means every maker that could answer declined to quote it before expires_at."
+            "description": "OPEN collects cash-out quotes until expires_at; EXPIRED means that window passed without an accepted quote; CANCELLED means the owner cancelled it; ACCEPTED means a quote was accepted and confirmed; FAILED means the accepted sell-back failed on chain (see reason); DECLINED means every maker that could answer declined to quote it before expires_at."
           },
-          "terminal_reason": {
+          "reason": {
             "$ref": "#/components/schemas/RfqTerminalReason",
             "description": "Why a FAILED RFQ ended: the accept transaction reverted, or it expired unexecuted. Present only when status is FAILED."
           },
@@ -26998,18 +26998,18 @@
                       "DECLINED"
                     ]
                   },
-                  "terminal_reason": false
+                  "reason": false
                 }
               },
               {
                 "required": [
-                  "terminal_reason"
+                  "reason"
                 ],
                 "properties": {
                   "status": {
                     "const": "FAILED"
                   },
-                  "terminal_reason": {
+                  "reason": {
                     "$ref": "#/components/schemas/RfqTerminalReason"
                   }
                 }
@@ -27290,14 +27290,14 @@
         "type": "object",
         "required": [
           "block_number",
-          "projection_state"
+          "freshness"
         ],
         "properties": {
           "block_number": {
             "description": "Last HyperEVM block the vault projection has indexed; the read reflects chain state up to and including this block.",
             "$ref": "#/components/schemas/UInt64String"
           },
-          "projection_state": {
+          "freshness": {
             "description": "CURRENT when the projection is within 32 blocks of a chain head observed in the last two minutes; STALE when it lags, so figures may be behind.",
             "enum": [
               "CURRENT",
@@ -27323,7 +27323,7 @@
           "operation_id",
           "operation_status",
           "transaction",
-          "failure_code",
+          "reason",
           "next_eligible_at",
           "created_at",
           "updated_at"
@@ -27468,7 +27468,7 @@
               }
             ]
           },
-          "failure_code": {
+          "reason": {
             "description": "Machine-readable reason the job failed, e.g. COOLDOWN_CHANGED; null otherwise.",
             "type": [
               "string",
@@ -27529,10 +27529,10 @@
           {
             "type": "object",
             "required": [
-              "state"
+              "status"
             ],
             "properties": {
-              "state": {
+              "status": {
                 "type": "string",
                 "const": "OPEN",
                 "description": "OPEN: an RFQ may include this market as a leg."
@@ -27543,12 +27543,12 @@
           {
             "type": "object",
             "required": [
-              "state",
+              "status",
               "reason",
               "opens_at"
             ],
             "properties": {
-              "state": {
+              "status": {
                 "type": "string",
                 "const": "CLOSED",
                 "description": "CLOSED: an RFQ that includes this market is refused; reason says why."
@@ -28374,7 +28374,7 @@
         "type": "object",
         "required": [
           "operation_id",
-          "state",
+          "status",
           "amount"
         ],
         "properties": {
@@ -28382,12 +28382,12 @@
             "description": "ID of the queued deposit operation; follow it with GET /v1/me/operations/{operation_id}.",
             "$ref": "#/components/schemas/Bytes32"
           },
-          "state": {
+          "status": {
             "description": "Always DURABLE: the deposit is recorded and queued, not yet executed on chain.",
             "const": "DURABLE"
           },
           "amount": {
-            "description": "Deposit amount in atomic USDC (6 decimals), the authorization value.",
+            "description": "Deposit amount in atomic USDC (6 decimals), the signed authorization `value`.",
             "$ref": "#/components/schemas/CommonAmount"
           }
         }
@@ -28397,14 +28397,14 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "value",
+          "amount",
           "valid_after",
           "valid_before",
           "salt",
           "authorization_signature"
         ],
         "properties": {
-          "value": {
+          "amount": {
             "description": "Deposit amount in atomic USDC (6 decimals); at least \"100000\" (0.10 USDC) from a Privy login wallet, embedded or external, and \"1000000\" (1 USDC) from any other, and no more than the wallet's USDC not already committed to other pending work.",
             "$ref": "#/components/schemas/CommonAmount"
           },
@@ -28433,7 +28433,7 @@
       "DiscoveryDisplay": {
         "required": [
           "title",
-          "state",
+          "status",
           "category",
           "subcategory"
         ],
@@ -28444,7 +28444,7 @@
             "maxLength": 512,
             "description": "Display title of the question, standalone market or price series."
           },
-          "state": {
+          "status": {
             "$ref": "#/components/schemas/MarketState",
             "description": "Lifecycle of the item: ACTIVE, CLOSED or UNSUPPORTED; for a question or price series, ACTIVE when any of its markets is active."
           },
@@ -28645,11 +28645,11 @@
       "EligibilityDisabled": {
         "type": "object",
         "required": [
-          "state",
+          "status",
           "reason"
         ],
         "properties": {
-          "state": {
+          "status": {
             "type": "string",
             "const": "DISABLED",
             "description": "DISABLED: Totalis does not currently accept new positions on this market; reason says why."
@@ -28679,10 +28679,10 @@
       "EligibilityEnabled": {
         "type": "object",
         "required": [
-          "state"
+          "status"
         ],
         "properties": {
-          "state": {
+          "status": {
             "type": "string",
             "const": "ENABLED",
             "description": "ENABLED: Totalis currently accepts new positions on this market."
@@ -28819,11 +28819,11 @@
               "FAILED",
               "DECLINED"
             ],
-            "description": "OPEN collects quotes until expires_at; EXPIRED means that window passed without an accepted quote; CANCELLED means the owner cancelled it; ACCEPTED means a quote was accepted and confirmed; FAILED means the accepted trade failed on chain (see terminal_reason); DECLINED means every maker that could answer declined to quote it before expires_at."
+            "description": "OPEN collects quotes until expires_at; EXPIRED means that window passed without an accepted quote; CANCELLED means the owner cancelled it; ACCEPTED means a quote was accepted and confirmed; FAILED means the accepted trade failed on chain (see reason); DECLINED means every maker that could answer declined to quote it before expires_at."
           },
-          "terminal_reason": {
+          "reason": {
             "$ref": "#/components/schemas/RfqTerminalReason",
-            "description": "Why a FAILED RFQ ended: the accept transaction reverted (REVERTED), it expired unexecuted (EXPIRED_UNEXECUTED), or the taker's Cash did not cover the stake when it was to execute (INSUFFICIENT_CASH). The accept's operation then has `failure_reason` INSUFFICIENT_CASH. Present only when status is FAILED."
+            "description": "Why a FAILED RFQ ended: the accept transaction reverted (REVERTED), it expired unexecuted (EXPIRED_UNEXECUTED), or the taker's Cash did not cover the stake when it was to execute (INSUFFICIENT_CASH). The accept's operation then has `reason` INSUFFICIENT_CASH. Present only when status is FAILED."
           },
           "created_at": {
             "type": "string",
@@ -28857,18 +28857,18 @@
                   "DECLINED"
                 ]
               },
-              "terminal_reason": false
+              "reason": false
             }
           },
           {
             "required": [
-              "terminal_reason"
+              "reason"
             ],
             "properties": {
               "status": {
                 "const": "FAILED"
               },
-              "terminal_reason": {
+              "reason": {
                 "$ref": "#/components/schemas/RfqTerminalReason"
               }
             }
@@ -29361,12 +29361,12 @@
         ]
       },
       "KeyCapabilities": {
-        "description": "Advisory, no-store snapshot of the scopes a new key for this account may hold and the owner whose signature issues it. Scope dependencies still apply. Issuance revalidates current authority and consumes the owner's proof; discovery is never an authorization lease.",
+        "description": "Advisory, no-store snapshot of the scopes a new key for this account may hold and the signer whose signature issues it. Scope dependencies still apply. Issuance revalidates current authority and consumes the signer's proof; discovery is never an authorization lease.",
         "type": "object",
         "required": [
           "account",
           "environment",
-          "owner",
+          "signer",
           "scopes",
           "as_of"
         ],
@@ -29383,7 +29383,7 @@
             ],
             "description": "The deployment a new key would work in."
           },
-          "owner": {
+          "signer": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
             "description": "The address that signs issuance: the account wallet for a personal account, the controller for a maker."
           },
@@ -29408,7 +29408,7 @@
             "$ref": "#/components/schemas/Uuid",
             "description": "Send back as `proof.challenge_id`."
           },
-          "owner": {
+          "signer": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
             "description": "The address that must sign: the account wallet for a personal account, the controller for a maker."
           },
@@ -29425,7 +29425,7 @@
         },
         "required": [
           "challenge_id",
-          "owner",
+          "signer",
           "message",
           "expires_at"
         ],
@@ -29972,8 +29972,8 @@
         "type": "object",
         "required": [
           "maker_id",
-          "owner",
-          "owner_version",
+          "controller",
+          "controller_version",
           "access_revision",
           "permissions"
         ],
@@ -29982,11 +29982,11 @@
             "$ref": "#/components/schemas/NonZeroUInt64String",
             "description": "On-chain maker ID this access applies to, as a decimal string."
           },
-          "owner": {
+          "controller": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "Maker controller (owner) address the access was verified against."
+            "description": "Maker controller address the access was verified against."
           },
-          "owner_version": {
+          "controller_version": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]{0,77})$",
             "description": "Maker controller epoch at verification, as a decimal string; a controller change invalidates access derived from an earlier epoch."
@@ -29994,7 +29994,7 @@
           "access_revision": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]{0,77})$",
-            "description": "Revision of the owner's wallet link, as a decimal string. It changes when the wallet is unlinked and relinked, which expires cursors bound to the old revision."
+            "description": "Revision of the controller's wallet link, as a decimal string. It changes when the wallet is unlinked and relinked, which expires cursors bound to the old revision."
           },
           "permissions": {
             "type": "array",
@@ -30010,7 +30010,7 @@
         "type": "object",
         "required": [
           "context",
-          "owner",
+          "controller",
           "signer",
           "vault_gross",
           "stake_escrow",
@@ -30030,11 +30030,11 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read: the oldest source observation and one status for every amount in the response."
+            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
           },
-          "owner": {
+          "controller": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "Maker owner (its controller) from the same indexed vault row as the lanes."
+            "description": "Maker controller, from the same indexed vault row as the lanes."
           },
           "signer": {
             "type": "string",
@@ -30047,15 +30047,15 @@
           },
           "stake_escrow": {
             "$ref": "#/components/schemas/UnsignedMetric",
-            "description": "Bettor net stakes escrowed in this maker's open tickets (E)."
+            "description": "Bettor net stakes escrowed in this maker's open positions (E)."
           },
           "payable_owed": {
             "$ref": "#/components/schemas/UnsignedMetric",
-            "description": "Settled winnings owed to ticket holders and not yet claimed (P)."
+            "description": "Settled winnings owed to position holders and not yet claimed (P)."
           },
           "gross_open": {
             "$ref": "#/components/schemas/UnsignedMetric",
-            "description": "Original open maker exposure G: payout minus net stake summed over open tickets."
+            "description": "Original open maker exposure G: payout minus net stake summed over open positions."
           },
           "discount": {
             "$ref": "#/components/schemas/UnsignedMetric",
@@ -30071,7 +30071,7 @@
           },
           "capital_net_of_senior_liabilities": {
             "$ref": "#/components/schemas/Metric",
-            "description": "Signed C = V - E - P. Excludes open-ticket valuation; not equity or NAV."
+            "description": "Signed C = V - E - P. Excludes open-position valuation; not equity or NAV."
           },
           "pending_commitments": {
             "$ref": "#/components/schemas/UnsignedMetric",
@@ -30110,7 +30110,7 @@
             "description": "Venue reservations on MAKER_VAULT that make up pending_commitments."
           }
         },
-        "description": "Maker capital lanes and derived collateral, in atomic USDC (6 decimals, \"1000000\" = 1 USDC). Amounts are null when unavailable; context.status is their freshness.",
+        "description": "Maker capital lanes and derived collateral, in atomic USDC (6 decimals, \"1000000\" = 1 USDC). Amounts are null when unavailable; context.freshness says how fresh they are.",
         "allOf": [
           {
             "if": {
@@ -30209,7 +30209,7 @@
           "controller",
           "pending",
           "as_of_block",
-          "status"
+          "freshness"
         ],
         "properties": {
           "maker_id": {
@@ -30235,7 +30235,7 @@
             "$ref": "#/components/schemas/UInt64String",
             "description": "Last HyperEVM block the projection behind this read has processed."
           },
-          "status": {
+          "freshness": {
             "enum": [
               "CURRENT",
               "STALE"
@@ -30305,7 +30305,7 @@
           "outcome_id",
           "native_question_id",
           "title",
-          "state",
+          "status",
           "result",
           "metadata_revision",
           "eligibility",
@@ -30338,7 +30338,7 @@
             "maxLength": 512,
             "description": "Display title derived from the market definition."
           },
-          "state": {
+          "status": {
             "$ref": "#/components/schemas/MarketState",
             "description": "Native lifecycle: ACTIVE while the market is live on Hyperliquid, CLOSED once it is no longer live, UNSUPPORTED when Totalis does not support it."
           },
@@ -31301,8 +31301,8 @@
               }
             ]
           },
-          "failure_reason": {
-            "description": "Why the operation ended EXPIRED_UNEXECUTED (OperationFailureReason). Absent on any other state, including REVERTED, and on an operation that expired before reasons were recorded.",
+          "reason": {
+            "description": "Why the operation ended EXPIRED_UNEXECUTED (OperationFailureReason). Absent on any other status, including REVERTED, and on an operation that expired before reasons were recorded.",
             "$ref": "#/components/schemas/OperationFailureReason"
           },
           "created_at": {
@@ -31326,7 +31326,7 @@
           "QUARANTINE_EXPIRED",
           "ATTESTATION_EXPIRED"
         ],
-        "description": "Why an operation ended EXPIRED_UNEXECUTED; nothing it would have done happened. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its approval draws) did not cover the stake when it was to execute; one drawing the wallet waits at least six seconds after the accept arrived for a HyperCore transfer to land; the RFQ fails with the same `terminal_reason`. DEADLINE_BEFORE_CLAIM: the venue reached it too late, with too little of its signed deadline left to sign and send it. AUTHORIZATION_TOO_CLOSE: when the venue took it, the chain's clock left too little of its signed deadline to send it. SIGNER_QUOTE_LIFE: its signed deadline could not cover the wait for its place in the sender's queue. SIMULATION_REVERTED: simulated before sending, the vault would have rejected it, for a reason other than INSUFFICIENT_CASH. QUARANTINE_EXPIRED: it was held for review after the signer refused it or its retries ran out, and its signed deadline passed meanwhile. ATTESTATION_EXPIRED: a maker's self-funded attestation expired before its signed transaction arrived. For an ACCEPT every reason but INSUFFICIENT_CASH fails the RFQ as EXPIRED_UNEXECUTED."
+        "description": "Why an operation ended EXPIRED_UNEXECUTED; nothing it would have done happened. INSUFFICIENT_CASH: an ACCEPT whose taker's money (free vault Cash, or the wallet USDC its approval draws) did not cover the stake when it was to execute; one drawing the wallet waits at least six seconds after the accept arrived for a HyperCore transfer to land; the RFQ fails with the same `reason`. DEADLINE_BEFORE_CLAIM: the venue reached it too late, with too little of its signed deadline left to sign and send it. AUTHORIZATION_TOO_CLOSE: when the venue took it, the chain's clock left too little of its signed deadline to send it. SIGNER_QUOTE_LIFE: its signed deadline could not cover the wait for its place in the sender's queue. SIMULATION_REVERTED: simulated before sending, the vault would have rejected it, for a reason other than INSUFFICIENT_CASH. QUARANTINE_EXPIRED: it was held for review after the signer refused it or its retries ran out, and its signed deadline passed meanwhile. ATTESTATION_EXPIRED: a maker's self-funded attestation expired before its signed transaction arrived. For an ACCEPT every reason but INSUFFICIENT_CASH fails the RFQ as EXPIRED_UNEXECUTED."
       },
       "OperationList": {
         "type": "object",
@@ -31639,11 +31639,11 @@
           "ownership": {
             "type": "object",
             "required": [
-              "state",
+              "status",
               "maker"
             ],
             "properties": {
-              "state": {
+              "status": {
                 "type": "string",
                 "enum": [
                   "NOT_CREATED",
@@ -31656,7 +31656,7 @@
                 ],
                 "description": "NOT_CREATED: the account's wallet controls no maker; WALLET_REQUIRED: the account has no single qualifying linked wallet; OWNERSHIP_CONFLICT: several candidate wallets, or the maker's current controller no longer matches; READY: the maker is admitted and current; PENDING: the maker profile awaits admission; RESTRICTED: the maker profile is restricted or closed; SETUP_REQUIRED: a maker controlled by the wallet exists on-chain but has no admitted profile yet."
               },
-              "owner": {
+              "controller": {
                 "$ref": "#/components/schemas/LowercaseNonZeroAddress",
                 "description": "Linked wallet that controls (owns) the maker; absent when the account has no single qualifying linked wallet."
               },
@@ -31669,10 +31669,10 @@
                     "type": "null"
                   }
                 ],
-                "description": "The admitted maker and the caller's owner access to it; null unless state is READY, PENDING or RESTRICTED."
+                "description": "The admitted maker and the caller's controller access to it; null unless status is READY, PENDING or RESTRICTED."
               }
             },
-            "description": "Maker ownership state of the caller's account, derived from its linked wallet and indexed on-chain controller evidence."
+            "description": "Maker ownership status of the caller's account, derived from its linked wallet and indexed on-chain controller evidence."
           }
         }
       },
@@ -31795,7 +31795,7 @@
       },
       "PartnerFeeFields": {
         "required": [
-          "tickets",
+          "positions",
           "stake_volume",
           "taker_fees",
           "winnings_fees",
@@ -31807,7 +31807,7 @@
           "new_accounts"
         ],
         "properties": {
-          "tickets": {
+          "positions": {
             "type": "integer",
             "minimum": 0,
             "description": "Positions opened through your codes."
@@ -31989,7 +31989,7 @@
           "payout_address",
           "amount",
           "counted",
-          "state",
+          "status",
           "queued_at",
           "closed_at",
           "transfers"
@@ -32022,7 +32022,7 @@
             "$ref": "#/components/schemas/CommonAmount",
             "description": "What it counts as paid: the whole amount while open or pending, then what landed."
           },
-          "state": {
+          "status": {
             "type": "string",
             "enum": [
               "OPEN",
@@ -32062,7 +32062,7 @@
           "as_of",
           "balance",
           "users",
-          "open_tickets",
+          "open_positions",
           "terms",
           "from",
           "to",
@@ -32104,15 +32104,15 @@
               }
             }
           },
-          "open_tickets": {
+          "open_positions": {
             "type": "object",
             "required": [
-              "tickets",
+              "positions",
               "stake"
             ],
             "description": "Positions opened through your codes that are open now and still held by the account that opened them.",
             "properties": {
-              "tickets": {
+              "positions": {
                 "type": "integer",
                 "minimum": 0,
                 "description": "How many."
@@ -32245,7 +32245,7 @@
             "type": "object",
             "required": [
               "id",
-              "type",
+              "kind",
               "created_at",
               "data"
             ],
@@ -32254,9 +32254,9 @@
                 "type": "string",
                 "description": "The event's id, as the webhook-id header carried it; dedupe on it."
               },
-              "type": {
+              "kind": {
                 "type": "string",
-                "description": "The event type, such as position.opened or balance.updated."
+                "description": "The event kind, such as position.opened or balance.updated."
               },
               "created_at": {
                 "type": "string",
@@ -32330,16 +32330,16 @@
           "from",
           "through",
           "recognition",
-          "closed_ticket_count",
+          "closed_position_count",
           "settled_net_stake",
           "gross_trading_pnl",
           "attributed_fees",
           "net_trading_pnl",
           "external_inflows",
           "external_outflows",
-          "won_ticket_count",
-          "lost_ticket_count",
-          "even_ticket_count",
+          "won_position_count",
+          "lost_position_count",
+          "even_position_count",
           "history_from",
           "gross_winning_pnl",
           "gross_losing_pnl"
@@ -32347,7 +32347,7 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read: the oldest source observation and one status for every amount in the response."
+            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
           },
           "from": {
             "type": "string",
@@ -32371,7 +32371,7 @@
             "format": "date-time",
             "description": "Earliest from this maker's periods can start at and still be complete: the later of where retained vault history and venue workflows begin, or the maker's opening block if later still. Request from=history_from for an all-time period. Null while vault history is unavailable."
           },
-          "closed_ticket_count": {
+          "closed_position_count": {
             "oneOf": [
               {
                 "type": "string",
@@ -32381,9 +32381,9 @@
                 "type": "null"
               }
             ],
-            "description": "Tickets economically closed in the period, as a decimal string; null when settled_net_stake is null."
+            "description": "Positions economically closed in the period, as a decimal string; null when settled_net_stake is null."
           },
-          "won_ticket_count": {
+          "won_position_count": {
             "oneOf": [
               {
                 "type": "string",
@@ -32393,9 +32393,9 @@
                 "type": "null"
               }
             ],
-            "description": "Closes in the period the maker won (positive maker P&L), as a decimal string; null exactly when closed_ticket_count is null."
+            "description": "Closes in the period the maker won (positive maker P&L), as a decimal string; null exactly when closed_position_count is null."
           },
-          "lost_ticket_count": {
+          "lost_position_count": {
             "oneOf": [
               {
                 "type": "string",
@@ -32405,9 +32405,9 @@
                 "type": "null"
               }
             ],
-            "description": "Closes in the period the maker lost (negative maker P&L), as a decimal string; null exactly when closed_ticket_count is null."
+            "description": "Closes in the period the maker lost (negative maker P&L), as a decimal string; null exactly when closed_position_count is null."
           },
-          "even_ticket_count": {
+          "even_position_count": {
             "oneOf": [
               {
                 "type": "string",
@@ -32417,7 +32417,7 @@
                 "type": "null"
               }
             ],
-            "description": "Closes in the period with zero maker P&L, as a decimal string; null exactly when closed_ticket_count is null. Won, lost and even add up to closed_ticket_count."
+            "description": "Closes in the period with zero maker P&L, as a decimal string; null exactly when closed_position_count is null. Won, lost and even add up to closed_position_count."
           },
           "settled_net_stake": {
             "$ref": "#/components/schemas/UnsignedMetric",
@@ -32459,7 +32459,7 @@
               "required": [
                 "at",
                 "net_trading_pnl",
-                "closed_ticket_count",
+                "closed_position_count",
                 "net_trading_pnl_change"
               ],
               "properties": {
@@ -32473,7 +32473,7 @@
                   "pattern": "^-?(0|[1-9][0-9]{0,77})$",
                   "description": "Cumulative signed net trading P&L from from up to at, in atomic USDC (6 decimals, \"1000000\" = 1 USDC)."
                 },
-                "closed_ticket_count": {
+                "closed_position_count": {
                   "type": "string",
                   "pattern": "^(0|[1-9][0-9]{0,77})$",
                   "description": "Closes since the previous point, as a decimal string: the day's closes for a day point (\"0\" only on a day whose maker-paid fees moved P&L); \"0\" for the opening point and for a through point added after the last such day."
@@ -32499,32 +32499,32 @@
             },
             "then": {
               "properties": {
-                "closed_ticket_count": {
+                "closed_position_count": {
                   "type": "null"
                 },
-                "won_ticket_count": {
+                "won_position_count": {
                   "type": "null"
                 },
-                "lost_ticket_count": {
+                "lost_position_count": {
                   "type": "null"
                 },
-                "even_ticket_count": {
+                "even_position_count": {
                   "type": "null"
                 }
               }
             },
             "else": {
               "properties": {
-                "closed_ticket_count": {
+                "closed_position_count": {
                   "$ref": "#/components/schemas/Amount"
                 },
-                "won_ticket_count": {
+                "won_position_count": {
                   "$ref": "#/components/schemas/Amount"
                 },
-                "lost_ticket_count": {
+                "lost_position_count": {
                   "$ref": "#/components/schemas/Amount"
                 },
-                "even_ticket_count": {
+                "even_position_count": {
                   "$ref": "#/components/schemas/Amount"
                 }
               }
@@ -32678,11 +32678,11 @@
       "PictureGlyph": {
         "type": "object",
         "required": [
-          "type",
+          "kind",
           "glyph"
         ],
         "properties": {
-          "type": {
+          "kind": {
             "type": "string",
             "const": "GLYPH",
             "description": "GLYPH: a mark of the client's own, never artwork."
@@ -32700,11 +32700,11 @@
       "PictureSubject": {
         "type": "object",
         "required": [
-          "type",
+          "kind",
           "key"
         ],
         "properties": {
-          "type": {
+          "kind": {
             "type": "string",
             "const": "SUBJECT",
             "description": "SUBJECT: a subject described once in the answer's `subjects`."
@@ -32817,7 +32817,7 @@
           "owner_username",
           "opened_via",
           "status",
-          "close_reason",
+          "reason",
           "fee_bps",
           "net_stake",
           "acquisition_cost",
@@ -32837,7 +32837,7 @@
           "position_id": {
             "type": "string",
             "pattern": "^0x[0-9a-f]{64}$",
-            "description": "Position ID: the contract's ticketId (bytes32 hex). A ticketId is the EIP-712 digest of its quote under its vault's domain, so it names one position across every vault."
+            "description": "Position ID: the contract's ticketId (bytes32 hex), which is the `quote_id` of the quote accepted to open it: the EIP-712 digest of that quote under its vault's domain, so it names one position across every vault."
           },
           "vault_address": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
@@ -32899,7 +32899,7 @@
             "maximum": 10000,
             "description": "Profit fee in basis points, fixed when the position opened. The holder claims unclaimed_profit minus unclaimed_profit * fee_bps / 10000."
           },
-          "close_reason": {
+          "reason": {
             "type": [
               "string",
               "null"
@@ -32933,7 +32933,7 @@
           },
           "cashout_price": {
             "$ref": "#/components/schemas/UnsignedMetric",
-            "description": "Cash-out price paid when the position was sold back; null unless close_reason is SELL_BACK."
+            "description": "Cash-out price paid when the position was sold back; null unless reason is SELL_BACK."
           },
           "legs": {
             "type": "array",
@@ -33034,7 +33034,7 @@
             },
             "then": {
               "properties": {
-                "close_reason": {
+                "reason": {
                   "type": "null"
                 }
               }
@@ -33043,7 +33043,7 @@
           {
             "if": {
               "properties": {
-                "close_reason": {
+                "reason": {
                   "not": {
                     "const": "SELL_BACK"
                   }
@@ -33061,7 +33061,7 @@
           {
             "if": {
               "properties": {
-                "close_reason": {
+                "reason": {
                   "const": "SELL_BACK"
                 }
               }
@@ -33134,7 +33134,7 @@
                 },
                 {
                   "properties": {
-                    "close_reason": {
+                    "reason": {
                       "const": "CLAIM"
                     }
                   },
@@ -33187,7 +33187,7 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read: the oldest source observation and one status for every amount in the response."
+            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
           },
           "position": {
             "$ref": "#/components/schemas/Position",
@@ -33207,7 +33207,7 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read: the oldest source observation and one status for every amount in the response."
+            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
           },
           "items": {
             "type": "array",
@@ -33294,7 +33294,7 @@
           "catalog_generation",
           "title",
           "outcome_ids",
-          "state",
+          "status",
           "category",
           "subcategory",
           "markets",
@@ -33326,7 +33326,7 @@
             },
             "description": "Outcome IDs of the question's markets in the current catalog."
           },
-          "state": {
+          "status": {
             "$ref": "#/components/schemas/MarketState",
             "description": "ACTIVE when any market is active, CLOSED when none is active and at least one is closed, UNSUPPORTED otherwise."
           },
@@ -33494,7 +33494,7 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read. Quotes are venue rows read now; FILLED and FAILED follow the vault projection, so as_of is its checkpoint and status is STALE while it lags."
+            "description": "Freshness of this read. Quotes are venue rows read now; FILLED and FAILED follow the vault projection, so as_of is its checkpoint and freshness is STALE while it lags."
           },
           "from": {
             "type": "string",
@@ -33937,14 +33937,14 @@
         "type": "object",
         "required": [
           "as_of",
-          "status"
+          "freshness"
         ],
         "properties": {
           "as_of": {
             "$ref": "#/components/schemas/Timestamp",
             "description": "RFC3339 observation time of the oldest source this read used."
           },
-          "status": {
+          "freshness": {
             "type": "string",
             "enum": [
               "CURRENT",
@@ -34155,7 +34155,7 @@
         "type": "object",
         "required": [
           "network",
-          "class",
+          "kind",
           "underlying",
           "period",
           "stream"
@@ -34169,7 +34169,7 @@
             ],
             "description": "Hyperliquid network the series runs on."
           },
-          "class": {
+          "kind": {
             "$ref": "#/components/schemas/RecurringClass",
             "description": "PRICE_BINARY for a single above-or-below round, PRICE_BUCKET for a three-bucket price range question. A template stream is always PRICE_BINARY."
           },
@@ -34195,7 +34195,7 @@
             "description": "The deployer template stream whose recorded cadence makes these rounds recurring; null for a native Hyperliquid recurring series."
           }
         },
-        "description": "Hyperliquid guarantees at most one native recurring series per network, class, underlying and period. A template stream is identified by its stream, so several can share an underlying and period."
+        "description": "Hyperliquid guarantees at most one native recurring series per network, kind, underlying and period. A template stream is identified by its stream, so several can share an underlying and period."
       },
       "RecurringStream": {
         "type": "object",
@@ -34436,7 +34436,7 @@
         "required": [
           "reservation_id",
           "operation_ids",
-          "value",
+          "amount",
           "status"
         ],
         "properties": {
@@ -34455,7 +34455,7 @@
             },
             "description": "Operations holding this reservation."
           },
-          "value": {
+          "amount": {
             "$ref": "#/components/schemas/Amount",
             "description": "Reserved amount in atomic USDC (6 decimals, \"1000000\" = 1 USDC)."
           },
@@ -34723,7 +34723,7 @@
           "vault_address",
           "vault_free",
           "pending_core_exits",
-          "state",
+          "freshness",
           "claim"
         ],
         "properties": {
@@ -34739,7 +34739,7 @@
             "description": "Exits from that vault leaving or awaiting their HyperCore credit, in atomic USDC.",
             "$ref": "#/components/schemas/CommonAmount"
           },
-          "state": {
+          "freshness": {
             "description": "CURRENT when that vault's projection is current; STALE when it lags, so the amounts may be behind and never authorize a claim.",
             "enum": [
               "CURRENT",
@@ -35189,11 +35189,11 @@
           },
           "price": {
             "$ref": "#/components/schemas/CommonAmount",
-            "description": "Buyback price the original maker pays the owner to close the ticket, in atomic USDC (6 decimals)."
+            "description": "Buyback price the original maker pays the owner to close the position, in atomic USDC (6 decimals)."
           },
           "owner": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "Current position owner, who sells the ticket back."
+            "description": "Current position owner, who sells the position back."
           },
           "expiry": {
             "$ref": "#/components/schemas/UInt64String",
@@ -35746,15 +35746,15 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "value",
+          "amount",
           "nonce",
           "deadline",
           "signature"
         ],
         "properties": {
-          "value": {
+          "amount": {
             "$ref": "#/components/schemas/Uint",
-            "description": "Atomic USDC (6 decimals) the approval becomes; 0 revokes it."
+            "description": "Atomic USDC (6 decimals) the approval becomes, the permit's signed `value`; 0 revokes it."
           },
           "nonce": {
             "$ref": "#/components/schemas/Uint",
@@ -35776,7 +35776,7 @@
         "required": [
           "request_id",
           "operation_id",
-          "value",
+          "amount",
           "nonce",
           "deadline",
           "status",
@@ -35791,7 +35791,7 @@
             "$ref": "#/components/schemas/Hash32",
             "description": "The USDC_PERMIT operation that relays it."
           },
-          "value": {
+          "amount": {
             "$ref": "#/components/schemas/Uint",
             "description": "The approval it sets, atomic USDC; 0 is a revoke."
           },
@@ -35818,7 +35818,7 @@
             ],
             "description": "HyperEVM hash of the transaction carrying it; null before it is broadcast."
           },
-          "failure_reason": {
+          "reason": {
             "enum": [
               "PERMIT_EXPIRED",
               "PERMIT_NONCE_USED",

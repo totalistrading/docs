@@ -12,13 +12,13 @@ Needs a key for this `maker_id`. Connecting and resuming are on
 ```json
 {
   "method": "subscribe",
-  "subscription": { "type": "maker", "maker_id": "7", "publication_freshness": true }
+  "subscription": { "kind": "maker", "maker_id": "7", "publication_freshness": true }
 }
 ```
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `type` | Yes | `maker`. |
+| `kind` | Yes | `maker`. |
 | `maker_id` | Yes | Your key's maker. Another maker's ID closes with `SUBSCRIPTION_DENIED`. |
 | `cursor` | No | Your last applied cursor. Needs `replay:read`. |
 | `account_reads` | No | `true` for `readInvalidated` frames. |
@@ -70,8 +70,8 @@ A key receives only the frames its scopes allow:
 | `event_type` | When | `payload` |
 | --- | --- | --- |
 | `RFQ_CREATED` | An RFQ opened | Entry: `rfq_id`, `kind: ENTRY`, `taker`, `stake`, `legs`, `created_at`, `expires_at`. Cash-out: `rfq_id`, `kind: CASHOUT`, `position_id`, `taker` (the position's owner), `maker_id`, `net_stake`, `payout`, `legs`, `created_at`, `expires_at`. It carries no chain state: read the legs' state yourself. What the cash-out fields mean is on [Price a cash-out](/hyperliquid/guides/market-making#price-a-cash-out). |
-| `RFQ_ACCEPTED` | The winning maker confirmed a taker's acceptance on the RFQ, yours or another maker's. Stop quoting it. | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at`. An entry RFQ also carries `accepted_payout`: the accepted quote's gross payout in atomic USDC (6 decimals). It never says which maker quoted it. |
-| `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended. Stop quoting it. | `rfq_id`, `status`, `terminal_reason`, `created_at`, `expires_at` |
+| `RFQ_ACCEPTED` | The winning maker confirmed a taker's acceptance on the RFQ, yours or another maker's. Stop quoting it. | `rfq_id`, `status`, `reason`, `created_at`, `expires_at`. An entry RFQ also carries `accepted_payout`: the accepted quote's gross payout in atomic USDC (6 decimals). It never says which maker quoted it. |
+| `RFQ_CANCELLED`, `RFQ_FAILED` | An RFQ ended. Stop quoting it. | `rfq_id`, `status`, `reason`, `created_at`, `expires_at` |
 | `QUOTE_ACCEPTED` | A taker accepted your quote | `quote_id`, `rfq_id`, `kind` (`ENTRY` or `SELL_BACK`), `deadline`, and one terms object: `entry` or `sell_back`, per `kind`. Answer with [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) before `deadline`. |
 | `OPERATION_UPDATED` | A maker operation changed status | `operation_id`, `kind`, `status`, `transaction_hash`, `updated_at` |
 | `POSITION_OPENED`, `POSITION_TRANSFERRED`, `POSITION_SETTLED`, `POSITION_CLOSED`, `POSITION_UPDATED` | A position your maker backs changed | `position_id`, `block_number`, `log_index`. Read that position with [Get position](/hyperliquid/api-reference/positions/get-position) for its status and payout. You don't need to poll positions. |
@@ -93,7 +93,7 @@ With `capital: true`, the stream sends your capital as a `capital` frame. `data`
 {
   "channel": "capital",
   "data": {
-    "context": { "as_of": "2026-09-26T12:00:02Z", "status": "CURRENT" },
+    "context": { "as_of": "2026-09-26T12:00:02Z", "freshness": "CURRENT" },
     "free_collateral": "4760000000",
     "pending_commitments": "25000000",
     "free_after_pending": "4735000000"
@@ -106,7 +106,7 @@ The example shows a few fields; a frame carries all of them.
 A frame arrives right after you subscribe, again when your capital changes (a fill, a hold from a quote, a deposit or a
 withdrawal), and at least every 5 seconds. Each is usually about a second behind the change. Keep the latest frame
 and check its `MAKER_QUOTE` action against it before you quote, instead of reading capital in your quote path. Check
-`context.status` too: treat anything but `CURRENT` as you would on the HTTP read.
+`context.freshness` too: treat anything but `CURRENT` as you would on the HTTP read.
 
 If no `capital` frame arrives for 15 seconds, read [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital)
 until one does. Capital frames are not events: they have no cursor and a replay doesn't resend them.

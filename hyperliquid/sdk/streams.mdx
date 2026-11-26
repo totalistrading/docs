@@ -15,7 +15,7 @@ import { TotalisStream } from "@totalis/hip4-client/realtime";
 const stream = new TotalisStream({
   environment: "production",
   accessToken: process.env.TOTALIS_API_KEY!,
-  subscription: { type: "account" }, // or { type: "maker", maker_id: "7" }
+  subscription: { kind: "account" }, // or { kind: "maker", maker_id: "7" }
 });
 
 stream.on("event", (event) => console.log(event.event_type, event.payload));

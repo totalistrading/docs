@@ -123,8 +123,8 @@ function connect() {
   let stable;
 
   ws.on("open", () => {
-    // A maker sends { type: "maker", maker_id: "7" }
-    ws.send(JSON.stringify({ method: "subscribe", subscription: { type: "account", ...(cursor && { cursor }) } }));
+    // A maker sends { kind: "maker", maker_id: "7" }
+    ws.send(JSON.stringify({ method: "subscribe", subscription: { kind: "account", ...(cursor && { cursor }) } }));
   });
 
   ws.on("message", (raw) => {

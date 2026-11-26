@@ -19,13 +19,13 @@ Hyperliquid feed.
 ```json
 {
   "method": "subscribe",
-  "subscription": { "type": "market", "outcome_ids": ["1209", "1211"] }
+  "subscription": { "kind": "market", "outcome_ids": ["1209", "1211"] }
 }
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `type` | `market`. |
+| `kind` | `market`. |
 | `outcome_ids` | 1 to 256 unique outcome IDs, as decimal strings ([Limits](/hyperliquid/limits-and-fees)). More is refused with `SUBSCRIPTION_DENIED`. To change them, open a new connection. |
 
 Response:
@@ -35,7 +35,7 @@ Response:
   "channel": "subscriptionResponse",
   "data": {
     "method": "subscribe",
-    "subscription": { "type": "market", "outcome_ids": ["1209", "1211"] },
+    "subscription": { "kind": "market", "outcome_ids": ["1209", "1211"] },
     "server_time": "2026-08-07T20:00:00.118Z",
     "heartbeat_interval_ms": 15000,
     "max_frame_bytes": 1048576
@@ -66,10 +66,10 @@ reads: see [Merge with REST](#merge-with-rest).
         "relationship_kind": "NAMED",
         "support_state": "SUPPORTED",
         "title": "HYPE touches 100 by 20261001-0000",
-        "state": "ACTIVE",
+        "status": "ACTIVE",
         "result": { "availability": "AVAILABLE", "result_state": "UNRESOLVED" },
         "metadata_revision": "7",
-        "eligibility": { "state": "ENABLED" },
+        "eligibility": { "status": "ENABLED" },
         "deadline": { "timing": null, "availability": "UNAVAILABLE", "reason": "UNQUALIFIED_MARKET_CLASS" },
         "venue": "",
         "sides": [
@@ -114,7 +114,7 @@ reads: see [Merge with REST](#merge-with-rest).
 | `native_question_id` | Its question ID, or `"4294967295"` for a market with no question (Get market sends `null`). |
 | `relationship_kind` | `STANDALONE` (no question), `NAMED` (a named outcome of a question) or `FALLBACK` (a question's fallback outcome). |
 | `support_state` | `SUPPORTED`, or why Totalis cannot support the market: `UNSUPPORTED_PROTOCOL_VERSION`, `UNSUPPORTED_QUOTE_ASSET` or `IDENTITY_CONFLICT`. |
-| `title`, `state`, `result`, `eligibility` | As in Get market. |
+| `title`, `status`, `result`, `eligibility` | As in Get market. |
 | `metadata_revision` | Rises when the market's metadata changes. |
 | `venue` | The Hyperliquid deployer's venue code, `""` for Hyperliquid's own markets. |
 | `sides` | `YES` then `NO`, each with its `coin` and the `asset_id` you trade it with. |
@@ -127,7 +127,7 @@ An entry has no `category`, `subcategory`, `dates`, `combo` or `deployer`. Read 
 ### Merge with REST
 
 Keep each Get market response as the market's record, and never replace it with a stream entry. From
-the stream, overlay only `state`, `result`, `eligibility` and the side references, matched by
+the stream, overlay only `status`, `result`, `eligibility` and the side references, matched by
 `outcome_id` and, for references, `side`.
 
 | When | Do |

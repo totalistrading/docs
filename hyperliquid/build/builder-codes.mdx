@@ -90,9 +90,9 @@ const report = await partner.report({ from: "2026-10-01", to: "2026-11-01" });
 | --- | --- |
 | `balance` | All time. `fees` charged on your positions; `accrued`, each terms period's fees times its share, rounded down; `paid`; and `owed`, which is `accrued - paid`. `unpriced_fees` were charged before your first terms and earn nothing. `share_bps` is your current share, in basis points. |
 | `terms` | Every terms entry, oldest first: `effective_from` (a UTC day) and `share_bps`. |
-| `days` | Each UTC day in the range with fees: positions opened (`tickets`), their stake, and the entry (`taker_fees`), winnings and cash-out (`buyback_fees`) fees, with the `share_bps` in force that day. |
+| `days` | Each UTC day in the range with fees: positions opened (`positions`), their stake, and the entry (`taker_fees`), winnings and cash-out (`buyback_fees`) fees, with the `share_bps` in force that day. |
 | `totals` | The range's days added up. |
-| `payouts` | Every payout to you, newest first: its period, payout address, `amount`, state, and each USDC transfer with its transaction hash, checked on-chain. |
+| `payouts` | Every payout to you, newest first: its period, payout address, `amount`, `status`, and each USDC transfer with its transaction hash, checked on-chain. |
 
 | Range | Rule |
 | --- | --- |

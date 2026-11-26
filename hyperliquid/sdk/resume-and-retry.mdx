@@ -128,7 +128,7 @@ await totalis.waitForOperation(operation_id); // COMMITTED when the cash is in t
 `signDeposit` signs a USDC authorization to the vault, valid for 10 minutes. `sendDeposit` sends it under
 `depositId` and answers with the operation. Sending the same record again resends the same bytes under the same
 key, so it never deposits twice. Both work with an API key or a wallet session. The record's `body` is flat:
-`{ value, valid_after, valid_before, salt, authorization_signature }`, and the venue takes the account from the
+`{ amount, valid_after, valid_before, salt, authorization_signature }`, and the venue takes the account from the
 credential. A record signed by SDK 0.124 or older no longer sends: sign it again.
 
 ## Withdrawal

@@ -212,7 +212,7 @@ The accept goes first. The bridge from HyperCore goes only once the accept answe
 4 seconds of sending the accept (`fundWindowMs`). The venue waits at least 6 seconds from the accept's arrival for
 the wallet's USDC. An accept the maker declines, or that times out, moves nothing. If the wallet's USDC or its
 approval still falls short when the trade is sent, nothing trades: the operation ends `EXPIRED_UNEXECUTED`, the RFQ
-`FAILED` with `terminal_reason` `INSUFFICIENT_CASH`, and the acceptance's `reason` is `INSUFFICIENT_WALLET_USDC` or
+`FAILED` with `reason` `INSUFFICIENT_CASH`, and the acceptance's `reason` is `INSUFFICIENT_WALLET_USDC` or
 `INSUFFICIENT_APPROVAL`. Pass `cash`, a `spendableCash` read you already hold, to skip a balances read
 on the press.
 

@@ -41,8 +41,8 @@ A market can be a leg when both hold:
 
 | Field | Value | Otherwise |
 | --- | --- | --- |
-| `eligibility.state` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
-| `combo.state` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
+| `eligibility.status` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
+| `combo.status` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
 | `chance`, on both sides | Not `null` | The book is empty, dust or one-sided, so it has no price. RFQ entry refuses the leg with `CHANCE_UNAVAILABLE`. |
 
 `combo.reason` is one of:
@@ -58,7 +58,7 @@ empty book reads 50 cents. A `chance` of `null` means the market has no price. D
 Combo's payout by multiplying leg prices: legs can be related, and the quote is the price.
 
 These fields change with the clock, the book and the market's state, so read them close to the RFQ. A market can
-trade alone while `combo.state` is `CLOSED`. A one-leg RFQ checks the same fields.
+trade alone while `combo.status` is `CLOSED`. A one-leg RFQ checks the same fields.
 
 #### Which legs combine
 
@@ -149,7 +149,7 @@ what it needs until it is spent. The venue draws only your account's linked wall
 key with `funding:deposit`. It never draws the wallet for a cash-out.
 
 If the approval or the wallet's USDC doesn't cover the shortfall, the trade fails: the operation's
-`failure_reason` is `INSUFFICIENT_CASH`, and the acceptance's `reason` says which part fell short, `INSUFFICIENT_APPROVAL` or
+`reason` is `INSUFFICIENT_CASH`, and the acceptance's `reason` says which part fell short, `INSUFFICIENT_APPROVAL` or
 `INSUFFICIENT_WALLET_USDC`. A short approval fails at once. Missing wallet USDC is waited for at least 6 seconds
 from the accept's arrival. So if you bridge USDC from HyperCore to fund the entry, send the bridge once the accept
 returns `ACCEPTED`, and within 4 seconds of sending the accept. `WALLET_FUNDING_UPDATED` reports the funding's
@@ -168,9 +168,9 @@ is final. Never accept the same quote under a second key.
 | --- | --- |
 | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
 | `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
-| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
 
-The position's ID is the `quote_id` you accepted:
+An entry's `position_id` is its accepted `quote_id`:
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/me/positions/$QUOTE_ID \
@@ -214,7 +214,7 @@ Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind`
 ```
 
 Sign `sell_back` as `SellBack`, then accept it like an entry quote. A cash-out never draws your wallet. On
-`COMMITTED` the position closes (`POSITION_CLOSED`, `close_reason: SELL_BACK`), and the proceeds land in your vault balance:
+`COMMITTED` the position closes (`POSITION_CLOSED`, `reason: SELL_BACK`), and the proceeds land in your vault balance:
 `price` less the profit fee on the part above the position's `net_stake`,
 `floor((price - net_stake) * fee_bps / 10000)`, with no fee when `price` is at or below `net_stake`
 ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout(bid, position)` computes it from the
@@ -230,7 +230,7 @@ to call or sign. `SETTLED_UNCLAIMED` is the short wait between the two.
 | `OPEN` | A leg is unresolved. You can cash out. |
 | `AWAITING_SETTLEMENT` | Resolved, or a leg lost; settlement has not landed. |
 | `SETTLED_UNCLAIMED` | A `WIN` with profit not yet claimed. |
-| `CLOSED` | Claimed (`CLAIM`), sold back (`SELL_BACK`), or settled with nothing to claim (`null`), per `close_reason`. |
+| `CLOSED` | Claimed (`CLAIM`), sold back (`SELL_BACK`), or settled with nothing to claim (`null`), per `reason`. |
 
 | `settlement_kind` | Meaning |
 | --- | --- |

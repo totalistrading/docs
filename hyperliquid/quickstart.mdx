@@ -34,7 +34,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=1"
       "outcome_id": "1209",
       "native_question_id": null,
       "title": "HYPE touches 100 by 20261001-0000",
-      "state": "ACTIVE",
+      "status": "ACTIVE",
       "sides": [
         { "side": "YES", "coin": "#12090" },
         { "side": "NO", "coin": "#12091" }
@@ -76,7 +76,7 @@ Subscribe to your account first, so no quote is missed:
 ```bash
 wscat -c wss://hip4-ws.totalis.trade/v1/stream -s totalis.realtime.v2 \
   -H "Authorization: Bearer $TOTALIS_API_KEY"
-> {"method":"subscribe","subscription":{"type":"account"}}
+> {"method":"subscribe","subscription":{"kind":"account"}}
 ```
 
 Then create an RFQ for 5 USDC on `YES` of outcome `1209`:

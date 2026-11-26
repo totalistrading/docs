@@ -18,7 +18,7 @@ Public market prices use a separate socket: [Market data](/hyperliquid/api-refer
 Send one frame after the upgrade:
 
 ```json
-{ "method": "subscribe", "subscription": { "type": "account" } }
+{ "method": "subscribe", "subscription": { "kind": "account" } }
 ```
 
 Response:
@@ -28,7 +28,7 @@ Response:
   "channel": "subscriptionResponse",
   "data": {
     "method": "subscribe",
-    "subscription": { "type": "account" },
+    "subscription": { "kind": "account" },
     "connection_id": "0199a1c8-7f01-7d10-9a2b-3c4d5e6f7081",
     "server_time": "2026-09-26T20:00:00.412Z",
     "heartbeat_interval_ms": 15000,
@@ -109,7 +109,7 @@ Send your last applied cursor. Resuming needs `replay:read`.
 {
   "method": "subscribe",
   "subscription": {
-    "type": "account",
+    "kind": "account",
     "cursor": { "stream_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a60", "generation_id": "0199a1c2-3b4d-7e5f-8a6b-1c2d3e4f5a61", "sequence": "184241" }
   }
 }
