@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "276.0.0-one-name-accounts"
+    "version": "277.0.0-lean-exits"
   },
   "servers": [
     {
@@ -8285,7 +8285,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Your positions, reconciled against the vault contract. A key for your account lists the positions you hold; a key for a maker lists the positions the maker backs. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
+            "description": "Your positions, reconciled against the vault contract. A key for your account lists the positions you hold; a key for a maker lists the positions the maker backs, in the same account view: who holds them and the maker's result are on List maker positions. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
             "headers": {
               "Cache-Control": {
                 "$ref": "#/components/headers/CacheControl"
@@ -8312,8 +8312,6 @@
                       "golden": false,
                       "maker_id": "7",
                       "owner": "0x1111111111111111111111111111111111111111",
-                      "owner_username": null,
-                      "opened_via": null,
                       "status": "OPEN",
                       "reason": null,
                       "fee_bps": 100,
@@ -8342,8 +8340,6 @@
                       "created_at": "2026-09-25T18:21:44Z",
                       "updated_at": "2026-09-25T18:21:44Z",
                       "settlement_kind": null,
-                      "maker_pnl": null,
-                      "maker_result": null,
                       "protocol_fees": "50000"
                     },
                     {
@@ -8353,8 +8349,6 @@
                       "golden": false,
                       "maker_id": "7",
                       "owner": "0x1111111111111111111111111111111111111111",
-                      "owner_username": null,
-                      "opened_via": null,
                       "status": "SETTLED_UNCLAIMED",
                       "reason": null,
                       "fee_bps": 100,
@@ -8383,8 +8377,6 @@
                       "created_at": "2026-09-20T09:14:02Z",
                       "updated_at": "2026-09-24T16:00:11Z",
                       "settlement_kind": "WIN",
-                      "maker_pnl": "-70100000",
-                      "maker_result": "LOST",
                       "protocol_fees": "100000"
                     }
                   ],
@@ -8746,7 +8738,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The position, reconciled against the vault contract. A key for your account reads the positions you hold; a key for a maker reads the positions the maker backs. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
+            "description": "The position, reconciled against the vault contract. A key for your account reads the positions you hold; a key for a maker reads the positions the maker backs, in the same account view: who holds it and the maker's result are on Get maker position. The key's permissions are checked on every request. One freshness status covers the read; amounts are atomic USDC strings or null. No shared caching.",
             "headers": {
               "Cache-Control": {
                 "$ref": "#/components/headers/CacheControl"
@@ -8772,8 +8764,6 @@
                     "golden": false,
                     "maker_id": "7",
                     "owner": "0x1111111111111111111111111111111111111111",
-                    "owner_username": null,
-                    "opened_via": null,
                     "status": "SETTLED_UNCLAIMED",
                     "reason": null,
                     "fee_bps": 100,
@@ -8802,8 +8792,6 @@
                     "created_at": "2026-09-20T09:14:02Z",
                     "updated_at": "2026-09-24T16:00:11Z",
                     "settlement_kind": "WIN",
-                    "maker_pnl": "-70100000",
-                    "maker_result": "LOST",
                     "protocol_fees": "100000"
                   }
                 }
@@ -11176,21 +11164,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CoreExitEnvelope"
+                "$ref": "#/components/schemas/CoreExitCommand"
               },
               "example": {
-                "schema_version": 1,
-                "request_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a50",
-                "sent_at": "2026-10-16T12:00:00Z",
-                "command": {
-                  "account": "0x1111111111111111111111111111111111111111",
-                  "to": "0x3333333333333333333333333333333333333333",
-                  "amount": "25000000",
-                  "expiry": "1792152300",
-                  "salt": "84190357266103877",
-                  "signature": "0xababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
-                  "purpose": "ORDER"
-                }
+                "amount": "25000000",
+                "expiry": "1792152300",
+                "salt": "84190357266103877",
+                "signature": "0xababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+                "purpose": "ORDER"
               }
             }
           }
@@ -11205,21 +11186,10 @@
                 },
                 "example": {
                   "exit_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b",
-                  "vault_address": "0x4444444444444444444444444444444444444444",
                   "status": "QUEUED",
                   "purpose": "ORDER",
-                  "account": "0x1111111111111111111111111111111111111111",
                   "amount": "25000000",
-                  "router_address": "0x3333333333333333333333333333333333333333",
-                  "expiry": "1792152300",
-                  "exit_digest": "0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e",
                   "activation_fee_accepted": false,
-                  "operation": {
-                    "operation_id": "0x4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d",
-                    "status": "QUEUED",
-                    "transaction_hash": null
-                  },
-                  "sent": null,
                   "credit": null,
                   "created_at": "2026-10-16T12:00:00Z",
                   "updated_at": "2026-10-16T12:00:00Z"
@@ -11228,7 +11198,7 @@
             }
           },
           "400": {
-            "description": "The `Idempotency-Key` is a UUIDv7 and becomes the exit ID. Exit `to` must be `deployment.router_address` from `GET /v1/me/core-exits`, and expiry at most `maximum_life_seconds` ahead.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "The `Idempotency-Key` is a UUIDv7 and becomes the exit ID. Sign the Exit with `account` the credential's account wallet and `to` `deployment.router_address` from `GET /v1/me/core-exits`, and expiry at most `maximum_life_seconds` ahead; a signature over other terms is `INVALID_REQUEST`. A wallet-only account under the minimum, or an activating exit under 2 USDC, names `/amount`.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11582,26 +11552,10 @@
                 },
                 "example": {
                   "exit_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b",
-                  "vault_address": "0x4444444444444444444444444444444444444444",
                   "status": "CREDITED",
                   "purpose": "ORDER",
-                  "account": "0x1111111111111111111111111111111111111111",
                   "amount": "25000000",
-                  "router_address": "0x3333333333333333333333333333333333333333",
-                  "expiry": "1792152300",
-                  "exit_digest": "0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e",
                   "activation_fee_accepted": false,
-                  "operation": {
-                    "operation_id": "0x4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d",
-                    "status": "COMMITTED",
-                    "transaction_hash": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
-                  },
-                  "sent": {
-                    "transaction_hash": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
-                    "block_number": "21457301",
-                    "sent_log_index": 3,
-                    "deposit_log_index": 2
-                  },
                   "credit": {
                     "event_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a:1",
                     "credited_at": "2026-10-16T12:00:02Z"
@@ -11930,17 +11884,10 @@
                 },
                 "example": {
                   "exit_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b",
-                  "vault_address": "0x4444444444444444444444444444444444444444",
                   "status": "ABANDONED",
                   "purpose": null,
-                  "account": null,
                   "amount": null,
-                  "router_address": null,
-                  "expiry": null,
-                  "exit_digest": null,
                   "activation_fee_accepted": false,
-                  "operation": null,
-                  "sent": null,
                   "credit": null,
                   "created_at": "2026-10-16T12:00:00Z",
                   "updated_at": "2026-10-16T12:00:00Z"
@@ -12296,21 +12243,10 @@
                   "exits": [
                     {
                       "exit_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b",
-                      "vault_address": "0x4444444444444444444444444444444444444444",
                       "status": "QUEUED",
                       "purpose": "ORDER",
-                      "account": "0x1111111111111111111111111111111111111111",
                       "amount": "25000000",
-                      "router_address": "0x3333333333333333333333333333333333333333",
-                      "expiry": "1792152300",
-                      "exit_digest": "0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e",
                       "activation_fee_accepted": false,
-                      "operation": {
-                        "operation_id": "0x4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d",
-                        "status": "QUEUED",
-                        "transaction_hash": null
-                      },
-                      "sent": null,
                       "credit": null,
                       "created_at": "2026-10-16T12:00:00Z",
                       "updated_at": "2026-10-16T12:00:00Z"
@@ -13410,21 +13346,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RunOffClaimEnvelope"
+                "$ref": "#/components/schemas/RunOffClaimCommand"
               },
               "example": {
-                "schema_version": 1,
-                "request_id": "0199a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a60",
-                "sent_at": "2026-10-16T12:00:00Z",
-                "command": {
-                  "vault_address": "0x2222222222222222222222222222222222222222",
-                  "account": "0x1111111111111111111111111111111111111111",
-                  "to": "0x1111111111111111111111111111111111111111",
-                  "amount": "4200000",
-                  "expiry": "1792152300",
-                  "salt": "84190357266103877",
-                  "signature": "0xababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
-                }
+                "vault_address": "0x2222222222222222222222222222222222222222",
+                "amount": "4200000",
+                "expiry": "1792152300",
+                "salt": "84190357266103877",
+                "signature": "0xababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
               }
             }
           }
@@ -13453,7 +13382,7 @@
             }
           },
           "400": {
-            "description": "The `Idempotency-Key` is a UUIDv7. `vault_address` must name a vault running off, the Exit must be signed for its domain with `to` equal to `account`, and a wallet-only account moves at least 1 USDC.\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
+            "description": "The `Idempotency-Key` is a UUIDv7. `vault_address` must name a vault running off, the Exit must be signed for its domain with `account` and `to` both the credential's account wallet, and a wallet-only account moves at least 1 USDC (else `/amount`).\n\n- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_IDEMPOTENCY_KEY` (retry `NEVER`): The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none.\n- `ORIGIN_REQUIRED` (retry `NEVER`): A browser route needs exactly one `Origin` header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -27716,17 +27645,10 @@
         "type": "object",
         "required": [
           "exit_id",
-          "vault_address",
           "status",
           "purpose",
-          "account",
           "amount",
-          "router_address",
-          "expiry",
-          "exit_digest",
           "activation_fee_accepted",
-          "operation",
-          "sent",
           "credit",
           "created_at",
           "updated_at"
@@ -27735,10 +27657,6 @@
           "exit_id": {
             "$ref": "#/components/schemas/Uuid",
             "description": "The exit ID: the Idempotency-Key it was created with."
-          },
-          "vault_address": {
-            "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-            "description": "The vault the cash leaves: the active one, or one running off."
           },
           "status": {
             "$ref": "#/components/schemas/CoreExitState",
@@ -27759,17 +27677,6 @@
             ],
             "description": "The purpose the exit was sent with; null for an ABANDONED tombstone."
           },
-          "account": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The signed Exit's account wallet; null for an ABANDONED tombstone."
-          },
           "amount": {
             "oneOf": [
               {
@@ -27781,125 +27688,9 @@
             ],
             "description": "Atomic USDC (6 decimals) the Exit moves; null for an ABANDONED tombstone."
           },
-          "router_address": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The CoreExit router the Exit names as to; null for an ABANDONED tombstone."
-          },
-          "expiry": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/UInt64String"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The signed Exit's expiry in Unix seconds; null for an ABANDONED tombstone."
-          },
-          "exit_digest": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Bytes32"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "EIP-712 digest of the signed Exit, which the vault marks consumed when it runs; null for an ABANDONED tombstone."
-          },
           "activation_fee_accepted": {
             "type": "boolean",
             "description": "True only for an exit admitted to create a missing HyperCore account. Its Core credit is the full amount less a 1 USDC activation fee, or the full amount if the account was created first by someone else."
-          },
-          "operation": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": [
-                  "operation_id",
-                  "status",
-                  "transaction_hash"
-                ],
-                "properties": {
-                  "operation_id": {
-                    "$ref": "#/components/schemas/Bytes32",
-                    "description": "ID of the Totalis relay operation that submits the Exit."
-                  },
-                  "status": {
-                    "$ref": "#/components/schemas/OperationState",
-                    "description": "The relay operation's status."
-                  },
-                  "transaction_hash": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/Bytes32"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "The relay's latest HyperEVM transaction, or null before one is broadcast."
-                  }
-                },
-                "title": "Operation id"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The Totalis relay of the signed Exit, or null when there is none, as for a tombstone."
-          },
-          "sent": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": [
-                  "transaction_hash",
-                  "block_number",
-                  "sent_log_index",
-                  "deposit_log_index"
-                ],
-                "properties": {
-                  "transaction_hash": {
-                    "$ref": "#/components/schemas/Bytes32",
-                    "description": "HyperEVM transaction that ran the Exit."
-                  },
-                  "block_number": {
-                    "$ref": "#/components/schemas/UInt64String",
-                    "description": "HyperEVM block of that transaction, as a decimal string."
-                  },
-                  "sent_log_index": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "description": "Log index of the router's CoreExitSent event in the block."
-                  },
-                  "deposit_log_index": {
-                    "oneOf": [
-                      {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Log index of the USDC transfer to the HyperCore system address that credits the account; null for RECOVERED."
-                  }
-                },
-                "title": "Transaction hash"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The qualified HyperEVM receipt. For RECOVERED, sent_log_index is the CoreExitRecovered log and deposit_log_index is null."
           },
           "credit": {
             "oneOf": [
@@ -27939,6 +27730,48 @@
           }
         }
       },
+      "CoreExitCommand": {
+        "description": "The account wallet's signed EIP-712 vault Exit that moves free vault cash to the account's HyperCore spot balance through the CoreExit router; Totalis relays it and pays the gas. The credential names the account: the Exit's account is the credential's account wallet, the vault account the cash leaves and the HyperCore account it reaches, and its to is deployment.router_address, so the body carries only the signed terms and the purpose.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "amount",
+          "expiry",
+          "salt",
+          "signature",
+          "purpose"
+        ],
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/CommonAmount",
+            "description": "Atomic USDC (6 decimals) to move; at most the account's free vault cash. An account whose wallet is not a Totalis embedded wallet moves at least 1 USDC (1000000)."
+          },
+          "expiry": {
+            "$ref": "#/components/schemas/UInt64String",
+            "description": "Exit expiry in Unix seconds, in the future and at most deployment.maximum_life_seconds ahead."
+          },
+          "salt": {
+            "$ref": "#/components/schemas/Uint",
+            "description": "Caller-chosen uint256 as a decimal string that makes the signed Exit unique."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/ContractSignature",
+            "description": "Signature by the account wallet over the EIP-712 Exit(account,to,amount,expiry,salt) digest, with account the credential's account wallet and to deployment.router_address; ECDSA or ERC-1271 contract signature bytes."
+          },
+          "purpose": {
+            "enum": [
+              "ORDER",
+              "WITHDRAW",
+              "SWEEP"
+            ],
+            "description": "Why the cash moves: ORDER before a HyperCore order, WITHDRAW before a HyperCore withdrawal, SWEEP for a background move. A label only, except that SWEEP never accepts the activation fee."
+          },
+          "activation_fee_accepted": {
+            "type": "boolean",
+            "description": "Omitted means false. The user accepted that this exit creates their HyperCore account and that Hyperliquid takes a one-time 1 USDC activation fee from it. Required when the account does not exist yet; ignored when it does. Never accepted for SWEEP, and the exit must then move at least 2 USDC (2000000)."
+          }
+        }
+      },
       "CoreExitDeployment": {
         "type": "object",
         "required": [
@@ -27969,88 +27802,12 @@
           },
           "router_address": {
             "$ref": "#/components/schemas/Address",
-            "description": "The exact Exit.to value."
+            "description": "The Exit's to: sign the Exit to this address. The body does not send it."
           },
           "maximum_life_seconds": {
             "type": "integer",
             "minimum": 1,
             "description": "The furthest ahead, in seconds from now, an Exit expiry may be."
-          }
-        }
-      },
-      "CoreExitEnvelope": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "schema_version",
-          "request_id",
-          "sent_at",
-          "command"
-        ],
-        "properties": {
-          "schema_version": {
-            "const": 1,
-            "description": "Envelope format version; always 1."
-          },
-          "request_id": {
-            "$ref": "#/components/schemas/Uuid",
-            "description": "Client-generated UUIDv7 for this request, echoed back in error responses."
-          },
-          "sent_at": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "RFC 3339 UTC time the client sent the request, ending in Z."
-          },
-          "command": {
-            "description": "The owner-signed EIP-712 vault Exit that moves free vault cash to the account's HyperCore spot balance through the CoreExit router; Totalis relays it and pays the gas.",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "account",
-              "to",
-              "amount",
-              "expiry",
-              "salt",
-              "signature",
-              "purpose"
-            ],
-            "properties": {
-              "account": {
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-                "description": "The account wallet, lowercase: the vault account the cash leaves and the HyperCore account it reaches."
-              },
-              "to": {
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress",
-                "description": "Must equal deployment.router_address."
-              },
-              "amount": {
-                "$ref": "#/components/schemas/CommonAmount",
-                "description": "Atomic USDC (6 decimals) to move; at most the account's free vault cash. An account whose wallet is not a Totalis embedded wallet moves at least 1 USDC (1000000)."
-              },
-              "expiry": {
-                "$ref": "#/components/schemas/UInt64String",
-                "description": "Exit expiry in Unix seconds, in the future and at most deployment.maximum_life_seconds ahead."
-              },
-              "salt": {
-                "$ref": "#/components/schemas/Uint",
-                "description": "Caller-chosen uint256 as a decimal string that makes the signed Exit unique."
-              },
-              "signature": {
-                "$ref": "#/components/schemas/ContractSignature",
-                "description": "Signature by the account wallet over the EIP-712 Exit(account,to,amount,expiry,salt) digest; ECDSA or ERC-1271 contract signature bytes."
-              },
-              "purpose": {
-                "enum": [
-                  "ORDER",
-                  "WITHDRAW",
-                  "SWEEP"
-                ],
-                "description": "Why the cash moves: ORDER before a HyperCore order, WITHDRAW before a HyperCore withdrawal, SWEEP for a background move. A label only, except that SWEEP never accepts the activation fee."
-              },
-              "activation_fee_accepted": {
-                "type": "boolean",
-                "description": "Omitted means false. The user accepted that this exit creates their HyperCore account and that Hyperliquid takes a one-time 1 USDC activation fee from it. Required when the account does not exist yet; ignored when it does. Never accepted for SWEEP, and the exit must then move at least 2 USDC (2000000)."
-              }
-            }
           }
         }
       },
@@ -32806,7 +32563,34 @@
         }
       },
       "Position": {
+        "description": "A position as an account reads it: GET /v1/me/positions and GET /v1/me/positions/{position_id}, a maker key's included.",
         "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PositionFields"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "PositionDetail": {
+        "type": "object",
+        "required": [
+          "context",
+          "position"
+        ],
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/ReadContext",
+            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position",
+            "description": "The requested position."
+          }
+        }
+      },
+      "PositionFields": {
+        "description": "What every read of a position carries: Position on an account's reads, and MakerPosition, which adds the maker's view, on the maker's.",
         "required": [
           "position_id",
           "vault_address",
@@ -32814,8 +32598,6 @@
           "golden",
           "maker_id",
           "owner",
-          "owner_username",
-          "opened_via",
           "status",
           "reason",
           "fee_bps",
@@ -32829,8 +32611,6 @@
           "created_at",
           "updated_at",
           "settlement_kind",
-          "maker_pnl",
-          "maker_result",
           "protocol_fees"
         ],
         "properties": {
@@ -32858,30 +32638,6 @@
           "owner": {
             "$ref": "#/components/schemas/LowercaseNonZeroAddress",
             "description": "Current position owner wallet (lowercase)."
-          },
-          "owner_username": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Username"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "On a maker's read, the owner's username when the owner wallet is the account wallet of a participant whose public trader profile is on, the pair GET /v1/traders/{username} shows; otherwise null, as for a participant's other linked wallets, and always null on a personal read."
-          },
-          "opened_via": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "On a maker's read, the display name of the partner whose builder code opened the position; null when it was opened without one, and always null on a personal read."
           },
           "status": {
             "type": "string",
@@ -32968,23 +32724,6 @@
             ],
             "description": "Settlement result: LOSS (zero payout), PARTIAL (payout below net stake), WIN (payout at or above net stake) or EARLY_LOST (lost before every leg resolved). Null before settlement, for sell-backs, or when historical evidence is missing."
           },
-          "maker_pnl": {
-            "$ref": "#/components/schemas/Metric",
-            "description": "The maker's signed P&L on this position once it closed economically: net_stake minus settlement_payout, or minus cashout_price for a sell-back; positive when the maker won. The same amount performance recognizes, so fees the owner paid never enter it. Null while OPEN or AWAITING_SETTLEMENT and when the close amount is unavailable."
-          },
-          "maker_result": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "WON",
-              "LOST",
-              "EVEN",
-              null
-            ],
-            "description": "Sign of maker_pnl: WON (positive), LOST (negative) or EVEN (zero); null exactly when maker_pnl is null."
-          },
           "protocol_fees": {
             "$ref": "#/components/schemas/UnsignedMetric",
             "description": "Fees the vault took on this position so far, all paid by its owners and none by the maker: the taker entry fee at opening plus the profit fee withheld from each claim and from a sell-back. Null when retained history has a gap that could hide one."
@@ -33011,12 +32750,6 @@
                   "type": "null"
                 },
                 "settlement_kind": {
-                  "type": "null"
-                },
-                "maker_pnl": {
-                  "type": "null"
-                },
-                "maker_result": {
                   "type": "null"
                 }
               }
@@ -33152,48 +32885,8 @@
                 }
               }
             }
-          },
-          {
-            "if": {
-              "properties": {
-                "maker_pnl": {
-                  "type": "null"
-                }
-              }
-            },
-            "then": {
-              "properties": {
-                "maker_result": {
-                  "type": "null"
-                }
-              }
-            },
-            "else": {
-              "properties": {
-                "maker_result": {
-                  "type": "string"
-                }
-              }
-            }
           }
         ]
-      },
-      "PositionDetail": {
-        "type": "object",
-        "required": [
-          "context",
-          "position"
-        ],
-        "properties": {
-          "context": {
-            "$ref": "#/components/schemas/ReadContext",
-            "description": "Freshness of this read: the oldest source observation and one freshness for every amount in the response."
-          },
-          "position": {
-            "$ref": "#/components/schemas/Position",
-            "description": "The requested position."
-          }
-        }
       },
       "PositionList": {
         "type": "object",
@@ -34776,71 +34469,37 @@
           }
         }
       },
-      "RunOffClaimEnvelope": {
+      "RunOffClaimCommand": {
+        "description": "The account wallet's signed EIP-712 Exit of the account's cash in a vault running off, to the account's own wallet; Totalis relays it and pays the gas. The credential names the account: the Exit's account and to are both the credential's account wallet, so the body carries only the vault and the signed terms.",
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "schema_version",
-          "request_id",
-          "sent_at",
-          "command"
+          "vault_address",
+          "amount",
+          "expiry",
+          "salt",
+          "signature"
         ],
         "properties": {
-          "schema_version": {
-            "description": "Envelope format version; always 1.",
-            "const": 1
+          "vault_address": {
+            "description": "The vault running off, from run_off in Get balances: the Exit's EIP-712 verifying contract. Any other address is INVALID_REQUEST.",
+            "$ref": "#/components/schemas/LowercaseNonZeroAddress"
           },
-          "request_id": {
-            "description": "Client-generated UUIDv7 for this request, echoed back in error responses.",
-            "$ref": "#/components/schemas/Uuid"
+          "amount": {
+            "description": "Atomic USDC (6 decimals) to move; at most vault_free. An account whose wallet is not a Totalis embedded wallet moves at least 1 USDC (1000000).",
+            "$ref": "#/components/schemas/CommonAmount"
           },
-          "sent_at": {
-            "description": "RFC 3339 UTC time the client sent the request, ending in Z.",
-            "$ref": "#/components/schemas/CommonTimestamp"
+          "expiry": {
+            "description": "Exit expiry in Unix seconds; at least 5 seconds ahead and at most 3600 seconds ahead, less a 5-second clock-skew margin.",
+            "$ref": "#/components/schemas/UInt64String"
           },
-          "command": {
-            "description": "The owner-signed EIP-712 Exit of the account's cash in a vault running off, to the account's own wallet; Totalis relays it and pays the gas.",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "vault_address",
-              "account",
-              "to",
-              "amount",
-              "expiry",
-              "salt",
-              "signature"
-            ],
-            "properties": {
-              "vault_address": {
-                "description": "The vault running off, from run_off in Get balances: the Exit's EIP-712 verifying contract. Any other address is INVALID_REQUEST.",
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress"
-              },
-              "account": {
-                "description": "The account wallet, lowercase.",
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress"
-              },
-              "to": {
-                "description": "Must equal account: the cash lands in the account's own wallet.",
-                "$ref": "#/components/schemas/LowercaseNonZeroAddress"
-              },
-              "amount": {
-                "description": "Atomic USDC (6 decimals) to move; at most vault_free. An account whose wallet is not a Totalis embedded wallet moves at least 1 USDC (1000000).",
-                "$ref": "#/components/schemas/CommonAmount"
-              },
-              "expiry": {
-                "description": "Exit expiry in Unix seconds; at least 5 seconds ahead and at most 3600 seconds ahead, less a 5-second clock-skew margin.",
-                "$ref": "#/components/schemas/UInt64String"
-              },
-              "salt": {
-                "description": "Caller-chosen uint256 as a decimal string that makes the signed Exit unique.",
-                "$ref": "#/components/schemas/Uint"
-              },
-              "signature": {
-                "description": "Signature by the account wallet over the EIP-712 Exit(account,to,amount,expiry,salt) digest for that vault's domain; ECDSA or ERC-1271 contract signature bytes.",
-                "$ref": "#/components/schemas/ContractSignature"
-              }
-            }
+          "salt": {
+            "description": "Caller-chosen uint256 as a decimal string that makes the signed Exit unique.",
+            "$ref": "#/components/schemas/Uint"
+          },
+          "signature": {
+            "description": "Signature by the account wallet over the EIP-712 Exit(account,to,amount,expiry,salt) digest for that vault's domain, with account and to both the credential's account wallet; ECDSA or ERC-1271 contract signature bytes.",
+            "$ref": "#/components/schemas/ContractSignature"
           }
         }
       },

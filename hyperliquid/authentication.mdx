@@ -148,7 +148,7 @@ and [Move maker funds](/hyperliquid/guides/collateral#move-maker-funds).
 | Deposit | Your wallet | USDC `ReceiveWithAuthorization` | [Create deposit](/hyperliquid/api-reference/deposits/create-deposit) `authorization_signature` |
 | Withdraw: vault shortfall | Your wallet, or its vault agent | `Exit` | `vault_withdrawal.signature` |
 | Withdraw: payout | Your wallet | USDC `TransferWithAuthorization` | `payout_authorization.authorization_signature` |
-| Exit to HyperCore | Your wallet, or its vault agent | `Exit` | [Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit) `command.signature` |
+| Exit to HyperCore | Your wallet, or its vault agent | `Exit` | [Create HyperCore exit](/hyperliquid/api-reference/core-exits/create-hypercore-exit) `signature` |
 | Grant or revoke a vault agent | Your wallet | `AgentGrant` | `POST /v1/me/vault-agents` body (wallet session only) |
 
 A vault agent signs only the rows that name it, and an agent's `Exit` only pays the account's own wallet or its
