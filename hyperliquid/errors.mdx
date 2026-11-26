@@ -60,7 +60,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJh
 
 | Field | Rule |
 | --- | --- |
-| `limit` | 1 to 200, default 50. [Get market history](/hyperliquid/api-reference/markets/get-market-history) allows 1,440. |
+| `limit` | 1 to 200, default 50. |
 | `cursor` | Omit for the first page, then send `next_cursor` unchanged. Never parse it. |
 | `next_cursor` | `null` exactly when `has_more` is `false`. |
 | `has_more` | Keep paging until `false`. A page may hold fewer than `limit` items, even none. |
@@ -74,7 +74,6 @@ A few lists name their rows after the resource instead of `items`:
 | [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `acceptances` |
 | [List operations](/hyperliquid/api-reference/account/list-operations) | `operations` |
 | [List HyperCore exits](/hyperliquid/api-reference/core-exits/list-hypercore-exits) | `exits`, with no cursor |
-| [Get market history](/hyperliquid/api-reference/markets/get-market-history) | `bars` |
 
 ## Errors
 

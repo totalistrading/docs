@@ -3,7 +3,7 @@
   "info": {
     "title": "Totalis Hyperliquid API",
     "description": "REST API for Totalis singles and parlays on Hyperliquid HIP-4 outcome markets, for client integrations and external market makers.\n\nThere are three ways in, each sent as `Authorization: Bearer <credential>`:\n\n- **Scoped API key** (`ttk_`), for servers, bots and market makers. The account owner creates it in the Totalis app, or a wallet-session user creates one with `POST /v1/me/api-keys` and a fresh wallet signature (see API keys). It acts for one account, yours or a maker's, with only the scopes it holds, and needs no `Origin`.\n- **Wallet session**, for users who bring their own wallet to a partner's web page. The page signs the wallet in with `POST /v1/auth/wallet-challenges` and `POST /v1/auth/wallet-sessions`; the session is bound to the page's registered `Origin` and must be sent from it. Pages may also label their traffic with their publishable browser key in `X-Totalis-Partner: tpb_...`.\n- **Partner server key** (`tpk_`), only for `POST /v1/partner/wallet-admissions`, which lets a new wallet open its account during the invite-only launch, `GET /v1/partner/report`, your fees, terms and payouts, `GET /v1/partner/fills`, each fee event on your users' positions, `GET /v1/partner/webhook-events`, the webhook events Totalis queued for you, and `GET /v1/partner/accounts/{wallet}/account-value`, the value of an account you admitted. Server to server, never in a browser, and never with an `Origin`.\n\nPublic market reads need no credential. A credential only authenticates: every bet, cash-out and withdrawal also carries the wallet or maker signature the HyperEVM contract verifies. An external wallet sends `POST /v1/core-exits` to move its vault cash to HyperCore before a HyperCore order.\n\nFor access, partner credentials (origins, browser and server keys), builder codes or staging, email [founders@totalis.trade](mailto:founders@totalis.trade).\n\nAmounts are base-10 strings in native USDC atomic units, large identifiers are decimal strings, and every command `POST` requires an `Idempotency-Key` header.\n\nEvery error is `{error: {code, message, retry, request_id, field_violations}}`. `code` is stable; each operation lists the codes it returns per status. `retry` is `NEVER` (stop), `BACKOFF` (resend the same request with the same `Idempotency-Key` after `Retry-After` seconds) or `REFRESH` (re-read state, then send a new request with a new key). `field_violations` names invalid inputs by JSON pointer, such as `/legs/0/side`.",
-    "version": "277.0.0-lean-exits"
+    "version": "279.0.0-no-market-history"
   },
   "servers": [
     {
@@ -18,7 +18,7 @@
   "tags": [
     {
       "name": "Markets",
-      "description": "HIP-4 questions and markets, their sides and price history. No API key needed."
+      "description": "HIP-4 questions and markets, their sides, results and charts. No API key needed."
     },
     {
       "name": "RFQs & Quotes",
@@ -1129,292 +1129,6 @@
         }
       }
     },
-    "/v1/markets/{outcome_id}/history": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/OutcomeId"
-        }
-      ],
-      "get": {
-        "operationId": "getMarketHistory",
-        "summary": "Get market history",
-        "deprecated": true,
-        "description": "Get up to 24 hours of one-minute price history for one side of a market; deprecated: the chart read `GET /v1/charts/{series}` replaces it.\n\nNo API key required.",
-        "tags": [
-          "Markets"
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/Side"
-          },
-          {
-            "$ref": "#/components/parameters/HistorySeries"
-          },
-          {
-            "$ref": "#/components/parameters/From"
-          },
-          {
-            "$ref": "#/components/parameters/To"
-          },
-          {
-            "$ref": "#/components/parameters/Cursor"
-          },
-          {
-            "$ref": "#/components/parameters/HistoryLimit"
-          },
-          {
-            "$ref": "#/components/parameters/HistoryIncludeGaps"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Exactly one labelled, sparse series: reference prices or trades. Only minutes that closed before `closed_before` are returned; take the current minute from the live market stream. Later pages reuse the window this first response returns.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MarketHistory"
-                },
-                "example": {
-                  "outcome_id": "1209",
-                  "side": "YES",
-                  "series_type": "TRADE_OHLCV",
-                  "source": "HYPERLIQUID_TRADES",
-                  "quality": "TRADE",
-                  "scale": "1000000000000000000",
-                  "volume_scale": "1000000000000000000",
-                  "from": "2026-09-25T20:00:07.998164544Z",
-                  "to": "2026-09-26T20:00:07.998164544Z",
-                  "bucket_time": "HYPERLIQUID_SOURCE_TIME",
-                  "closed_before": "2026-09-26T20:00:00Z",
-                  "anchor": {
-                    "minute": "2026-09-25T19:46:00Z",
-                    "open": "330000000000000000",
-                    "high": "330000000000000000",
-                    "low": "330000000000000000",
-                    "close": "330000000000000000",
-                    "volume": "39000000000000000000",
-                    "trade_count": 1
-                  },
-                  "bars": [
-                    {
-                      "minute": "2026-09-25T20:05:00Z",
-                      "open": "304510000000000000",
-                      "high": "304510000000000000",
-                      "low": "304510000000000000",
-                      "close": "304510000000000000",
-                      "volume": "40000000000000000000",
-                      "trade_count": 1
-                    },
-                    {
-                      "minute": "2026-09-25T20:36:00Z",
-                      "open": "330900000000000000",
-                      "high": "330900000000000000",
-                      "low": "328100000000000000",
-                      "close": "328100000000000000",
-                      "volume": "67000000000000000000",
-                      "trade_count": 2
-                    },
-                    {
-                      "minute": "2026-09-25T20:37:00Z",
-                      "open": "326010000000000000",
-                      "high": "326010000000000000",
-                      "low": "326010000000000000",
-                      "close": "326010000000000000",
-                      "volume": "40000000000000000000",
-                      "trade_count": 1
-                    }
-                  ],
-                  "gaps": [
-                    {
-                      "outcome_id": "1209",
-                      "source": "HYPERLIQUID_TRADES",
-                      "catalog_generation": "5770",
-                      "feed_generation": "1790366409618",
-                      "from": "2026-09-25T20:00:09.600639Z",
-                      "to": "2026-09-25T20:00:09.61714Z",
-                      "reason": "SOURCE_UNAVAILABLE"
-                    },
-                    {
-                      "outcome_id": "1209",
-                      "source": "HYPERLIQUID_TRADES",
-                      "catalog_generation": "5771",
-                      "feed_generation": "1790366410587",
-                      "from": "2026-09-25T20:00:10.56027Z",
-                      "to": "2026-09-25T20:00:10.586751Z",
-                      "reason": "SOURCE_UNAVAILABLE"
-                    }
-                  ],
-                  "next_cursor": "AQAABLkAGNiowyaFzkAY2PdXt9TOQBjYqsYsGzgAAAABoNpC2_8AAAAAAAAWugUEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADeC2s6dkAAA",
-                  "has_more": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "- `INVALID_REQUEST` (retry `NEVER`): The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again.\n- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.\n- `INVALID_CURSOR` (retry `NEVER`): The cursor is malformed or was issued for a different query.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "INVALID_REQUEST",
-                                "INVALID_QUERY",
-                                "INVALID_CURSOR"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "- `NOT_FOUND` (retry `NEVER`): The resource does not exist or is not visible to this credential.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "NOT_FOUND"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "NEVER"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "- `INTERNAL_ERROR` (retry `BACKOFF`): Something failed on Totalis's side that no dependency or input explains, such as a bug or a broken invariant; it is logged with its cause under `request_id`. Retry after Retry-After with the same idempotency key; if it persists, report the `request_id`.",
-            "headers": {
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "INTERNAL_ERROR"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "BACKOFF"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "- `MARKET_DATA_UNAVAILABLE` (retry `BACKOFF`): No complete market catalog is available.",
-            "headers": {
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Error"
-                    },
-                    {
-                      "properties": {
-                        "error": {
-                          "description": "The error this operation returns with this status.",
-                          "properties": {
-                            "code": {
-                              "description": "One of the registered codes listed in this response's description.",
-                              "enum": [
-                                "MARKET_DATA_UNAVAILABLE"
-                              ]
-                            },
-                            "retry": {
-                              "description": "The retry rule the registry fixes for the returned code.",
-                              "enum": [
-                                "BACKOFF"
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
-        ],
-        "x-mint": {
-          "href": "/hyperliquid/api-reference/markets/get-market-history",
-          "metadata": {
-            "title": "Get market history",
-            "sidebarTitle": "Get market history"
-          }
-        }
-      }
-    },
     "/v1/markets/{outcome_id}/trades": {
       "parameters": [
         {
@@ -2256,6 +1970,200 @@
           "metadata": {
             "title": "Get market display",
             "sidebarTitle": "Get market display"
+          }
+        }
+      }
+    },
+    "/v1/market-results": {
+      "get": {
+        "operationId": "getMarketResults",
+        "summary": "Get market results",
+        "description": "Read stored HIP-4 settlement results for up to 100 live or departed outcome IDs without calling Hyperliquid.\n\nNo API key required.",
+        "tags": [
+          "Markets"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OutcomeIds"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exactly one item per requested outcome, in request order, including outcomes with no known result.",
+            "headers": {
+              "Cache-Control": {
+                "description": "A day only when every item is final; otherwise five seconds. Errors are never stored.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "public, max-age=86400",
+                    "public, max-age=5"
+                  ]
+                }
+              },
+              "ETag": {
+                "description": "Strong validator of the whole answer; send it as `If-None-Match` to get 304 when unchanged.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9a-f]{32}\"$"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketResults"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "outcome_id": "35280",
+                      "state": "SETTLED",
+                      "yes_fraction": "0.625",
+                      "settlement_price": "76876.90",
+                      "source": "LENS",
+                      "final": true
+                    },
+                    {
+                      "outcome_id": "36412",
+                      "state": "PENDING",
+                      "yes_fraction": null,
+                      "settlement_price": null,
+                      "source": null,
+                      "final": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The answer matches the `If-None-Match` ETag."
+          },
+          "400": {
+            "description": "- `INVALID_QUERY` (retry `NEVER`): A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INVALID_QUERY"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "NEVER"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "- `INTERNAL_ERROR` (retry `BACKOFF`): Something failed on Totalis's side that no dependency or input explains, such as a bug or a broken invariant; it is logged with its cause under `request_id`. Retry after Retry-After with the same idempotency key; if it persists, report the `request_id`.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "INTERNAL_ERROR"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "- `MARKET_DATA_UNAVAILABLE` (retry `BACKOFF`): No complete market catalog is available.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "description": "The error this operation returns with this status.",
+                          "properties": {
+                            "code": {
+                              "description": "One of the registered codes listed in this response's description.",
+                              "enum": [
+                                "MARKET_DATA_UNAVAILABLE"
+                              ]
+                            },
+                            "retry": {
+                              "description": "The retry rule the registry fixes for the returned code.",
+                              "enum": [
+                                "BACKOFF"
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "x-mint": {
+          "href": "/hyperliquid/api-reference/markets/get-market-results",
+          "metadata": {
+            "title": "Get market results",
+            "sidebarTitle": "Get market results"
           }
         }
       }
@@ -6088,7 +5996,7 @@
             }
           },
           "409": {
-            "description": "`RFQ_NOT_CANCELLABLE`: a quote on the RFQ was already accepted, or the RFQ expired. `STATE_CONFLICT`: an acceptance on the RFQ is waiting for its HyperCore payment, so the RFQ stays open.\n\n- `RFQ_NOT_CANCELLABLE` (retry `NEVER`): The RFQ has progressed past cancellation.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
+            "description": "`RFQ_NOT_CANCELLABLE`: a quote on the RFQ was already accepted, or the RFQ expired. `STATE_CONFLICT`: an acceptance of a quote on the RFQ awaits the maker's answer, so the RFQ stays open for it; nothing was cancelled, and a repeat decides afresh once the maker answers or the acceptance lapses.\n\n- `RFQ_NOT_CANCELLABLE` (retry `NEVER`): The RFQ has progressed past cancellation.\n- `STATE_CONFLICT` (retry `REFRESH`): The resource changed and no longer admits this request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -25589,16 +25497,6 @@
         "description": "Browse contract of the detail. 4 adds game, the market's game with up to 256 current members, estimated_live_until and scoreboard, the in-play window end and live game reading of the market's matchup, and series_id for IPO ladder members; 2, 3 or omitted return the earlier detail. Only this query parameter selects it, so a browser read needs no CORS preflight; the X-Totalis-Browse-Contract header is ignored on this route. Repeated, malformed or other values return 400 UNSUPPORTED_BROWSE_CONTRACT.",
         "example": "4"
       },
-      "From": {
-        "name": "from",
-        "in": "query",
-        "description": "Inclusive RFC3339 window start. Omit from and to together for the exact rolling 24 hours ending at server time; supplying only one is rejected. The response repeats the resolved bounds, which later pages must reuse.",
-        "schema": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "example": "2026-09-25T12:00:00Z"
-      },
       "FromQueryOptional": {
         "name": "from",
         "in": "query",
@@ -25620,43 +25518,6 @@
           "format": "date-time"
         },
         "example": "2026-09-01T00:00:00Z"
-      },
-      "HistoryIncludeGaps": {
-        "name": "include_gaps",
-        "in": "query",
-        "description": "Include at most 1440 retained diagnostic gap records; gaps is empty unless this is true.",
-        "schema": {
-          "type": "boolean",
-          "default": false
-        },
-        "example": false
-      },
-      "HistoryLimit": {
-        "name": "limit",
-        "in": "query",
-        "description": "The shared page limit with one exception: the maximum is 1,440, a full 24-hour window of one-minute bars, so a chart loads in one request.",
-        "schema": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440,
-          "default": 50
-        },
-        "example": 1440
-      },
-      "HistorySeries": {
-        "name": "series",
-        "in": "query",
-        "description": "Use `REFERENCE_PRICE_OHLC` for a line chart and `TRADE_OHLCV` for candles; `AUTO` uses trades when there are any. AUTO selects retained closed trade buckets in the window, otherwise reference history. REFERENCE_PRICE_OHLC prefers L2, then BBO, then allMids among sources with a closed bucket in the window; with none it carries the most recent earlier source inside the 90-day online window, breaking ties in that order. With no evidence the empty reference response is labelled L2/BOOK_MID. Explicit series avoids AUTO switching when trades arrive.",
-        "schema": {
-          "type": "string",
-          "enum": [
-            "AUTO",
-            "REFERENCE_PRICE_OHLC",
-            "TRADE_OHLCV"
-          ],
-          "default": "AUTO"
-        },
-        "example": "AUTO"
       },
       "IdempotencyKey": {
         "name": "Idempotency-Key",
@@ -25897,20 +25758,6 @@
         "description": "The RFQ's `rfq_id`, from Create RFQ or `RFQ_CREATED`.",
         "example": "01994f3a-6c2e-7d41-9b8a-2f3c4d5e6f70"
       },
-      "Side": {
-        "name": "side",
-        "in": "query",
-        "required": true,
-        "schema": {
-          "type": "string",
-          "enum": [
-            "YES",
-            "NO"
-          ]
-        },
-        "description": "Outcome side whose price history is returned.",
-        "example": "YES"
-      },
       "Subcategory": {
         "name": "subcategory",
         "in": "query",
@@ -25985,16 +25832,6 @@
           "format": "date-time"
         },
         "example": "2026-09-26T00:00:00Z"
-      },
-      "To": {
-        "name": "to",
-        "in": "query",
-        "description": "Exclusive RFC3339 window end, at most 24 hours after from. Omit from and to together for the server default.",
-        "schema": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "example": "2026-09-26T12:00:00Z"
       }
     },
     "schemas": {
@@ -28962,112 +28799,6 @@
         "type": "string",
         "pattern": "^0x[0-9a-f]{64}$"
       },
-      "HistoryBar": {
-        "type": "object",
-        "required": [
-          "minute",
-          "open",
-          "high",
-          "low",
-          "close",
-          "volume",
-          "trade_count"
-        ],
-        "properties": {
-          "minute": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Inclusive UTC start of the one-minute bucket, RFC 3339; the clock is given by the response's bucket_time."
-          },
-          "open": {
-            "$ref": "#/components/schemas/IntegerValue",
-            "description": "First price in the bucket, at the response's scale."
-          },
-          "high": {
-            "$ref": "#/components/schemas/IntegerValue",
-            "description": "Highest price in the bucket, at the response's scale."
-          },
-          "low": {
-            "$ref": "#/components/schemas/IntegerValue",
-            "description": "Lowest price in the bucket, at the response's scale."
-          },
-          "close": {
-            "$ref": "#/components/schemas/IntegerValue",
-            "description": "Last price in the bucket, at the response's scale."
-          },
-          "volume": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/IntegerValue"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Executed base size in the bucket, divided by the response's volume_scale for contracts; null for reference-price bars."
-          },
-          "trade_count": {
-            "oneOf": [
-              {
-                "type": "integer",
-                "minimum": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Number of trades in the bucket; null for reference-price bars."
-          }
-        }
-      },
-      "HistoryGap": {
-        "type": "object",
-        "required": [
-          "outcome_id",
-          "source",
-          "catalog_generation",
-          "feed_generation",
-          "from",
-          "to",
-          "reason"
-        ],
-        "properties": {
-          "outcome_id": {
-            "$ref": "#/components/schemas/UInt32String",
-            "description": "Hyperliquid outcome ID of the market."
-          },
-          "source": {
-            "$ref": "#/components/schemas/Source",
-            "description": "Hyperliquid feed whose data is missing."
-          },
-          "catalog_generation": {
-            "$ref": "#/components/schemas/PositiveInt64",
-            "description": "Catalog generation in effect when the gap was recorded."
-          },
-          "feed_generation": {
-            "$ref": "#/components/schemas/PositiveInt64",
-            "description": "Price feed generation that recorded the gap."
-          },
-          "from": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Inclusive start of the missing interval, RFC 3339 UTC, clipped to the requested window."
-          },
-          "to": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Exclusive end of the missing interval, RFC 3339 UTC, clipped to the requested window."
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "NO_OBSERVATION",
-              "SOURCE_UNAVAILABLE",
-              "SPOOL_FULL",
-              "CORRUPT_SEGMENT",
-              "UPLOAD_FAILED"
-            ],
-            "description": "Why data is missing: SOURCE_UNAVAILABLE when the feed was down, SPOOL_FULL when local buffering overflowed, NO_OBSERVATION, CORRUPT_SEGMENT or UPLOAD_FAILED for other recording losses."
-          }
-        }
-      },
       "IntegerValue": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]*)$",
@@ -30486,290 +30217,6 @@
         "maximum": 9007199254740991,
         "description": "HyperCore block height."
       },
-      "MarketHistory": {
-        "type": "object",
-        "required": [
-          "outcome_id",
-          "side",
-          "series_type",
-          "source",
-          "quality",
-          "scale",
-          "volume_scale",
-          "from",
-          "to",
-          "bucket_time",
-          "closed_before",
-          "anchor",
-          "bars",
-          "gaps",
-          "next_cursor",
-          "has_more"
-        ],
-        "properties": {
-          "outcome_id": {
-            "$ref": "#/components/schemas/UInt32String",
-            "description": "Hyperliquid outcome ID of the market."
-          },
-          "side": {
-            "$ref": "#/components/schemas/Side",
-            "description": "Market side every bar describes, YES or NO."
-          },
-          "series_type": {
-            "type": "string",
-            "enum": [
-              "TRADE_OHLCV",
-              "REFERENCE_PRICE_OHLC"
-            ],
-            "description": "TRADE_OHLCV: bars are one-minute OHLCV of executed trade prices, with base-size volume. REFERENCE_PRICE_OHLC: bars are one-minute OHLC of indicative mid prices, falling back to the last trade, without volume. Minutes without observations have no bar and are never filled in."
-          },
-          "source": {
-            "$ref": "#/components/schemas/Source",
-            "description": "Hyperliquid feed every bar in the response was built from."
-          },
-          "quality": {
-            "$ref": "#/components/schemas/Quality",
-            "description": "Price quality every bar in the response carries."
-          },
-          "scale": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Scale"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Divisor for open, high, low and close of every bar and the anchor; null when there are neither. Currently 1000000000000000000 (18 decimals); a scale change starts a new page."
-          },
-          "volume_scale": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Scale"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Divisor for volume of every bar and the anchor; null for reference-price history or when there are no bars."
-          },
-          "from": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Authoritative window start. It repeats the request, or the rolling 24-hour default when from and to are both omitted. Reuse these bounds for later pages."
-          },
-          "to": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Authoritative exclusive window end. It repeats the request, or the request time when from and to are both omitted. Reuse these bounds for later pages."
-          },
-          "bucket_time": {
-            "type": "string",
-            "enum": [
-              "TOTALIS_RECEIVED_AT",
-              "HYPERLIQUID_SOURCE_TIME"
-            ],
-            "description": "minute is the inclusive UTC bucket start on this clock; bucket end is exclusive one minute later. Only full closed buckets contained in [from,to) appear in bars."
-          },
-          "closed_before": {
-            "$ref": "#/components/schemas/CommonTimestamp",
-            "description": "Exclusive bucket boundary, the earlier of to or server time rounded down to a minute. This is not a persistence or coverage watermark. Closed buckets can still be repaired."
-          },
-          "anchor": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/HistoryBar"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Latest retained earlier full bucket within the 90-day online window for the selected source and side, last received before from. Its close is an observed price, not proof that the value held through from. Null when there is none or its scale differs from the bars."
-          },
-          "bars": {
-            "type": "array",
-            "maxItems": 1440,
-            "items": {
-              "$ref": "#/components/schemas/HistoryBar"
-            },
-            "description": "Closed one-minute bars in the window, ascending by minute."
-          },
-          "gaps": {
-            "type": "array",
-            "maxItems": 1440,
-            "items": {
-              "$ref": "#/components/schemas/HistoryGap"
-            },
-            "description": "Recorded data gaps overlapping the window; empty unless gaps were requested."
-          },
-          "next_cursor": {
-            "$ref": "#/components/schemas/NextCursor",
-            "description": "Pass as cursor with the same from and to to read the next page; null when there are no more bars."
-          },
-          "has_more": {
-            "type": "boolean",
-            "description": "True when more bars follow in the window."
-          }
-        },
-        "oneOf": [
-          {
-            "properties": {
-              "series_type": {
-                "const": "TRADE_OHLCV"
-              },
-              "bars": {
-                "items": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/HistoryBar"
-                    },
-                    {
-                      "properties": {
-                        "volume": {
-                          "$ref": "#/components/schemas/IntegerValue",
-                          "description": "Executed base size in the bucket; always present for trade bars."
-                        },
-                        "trade_count": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "description": "Number of trades in the bucket; at least 1 for trade bars."
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              "gaps": {
-                "items": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/HistoryGap"
-                    },
-                    {
-                      "properties": {
-                        "source": {
-                          "const": "HYPERLIQUID_TRADES",
-                          "description": "Always HYPERLIQUID_TRADES for trade history."
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              "volume_scale": {
-                "oneOf": [
-                  {
-                    "$ref": "#/components/schemas/Scale"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Divisor for volume; null only when there are no bars."
-              },
-              "source": {
-                "const": "HYPERLIQUID_TRADES",
-                "description": "Always HYPERLIQUID_TRADES for trade history."
-              },
-              "quality": {
-                "const": "TRADE",
-                "description": "Always TRADE for trade history."
-              }
-            },
-            "title": "Trade ohlcv"
-          },
-          {
-            "properties": {
-              "series_type": {
-                "const": "REFERENCE_PRICE_OHLC"
-              },
-              "bars": {
-                "items": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/HistoryBar"
-                    },
-                    {
-                      "properties": {
-                        "volume": {
-                          "type": "null",
-                          "description": "Always null; reference-price bars carry no volume."
-                        },
-                        "trade_count": {
-                          "type": "null",
-                          "description": "Always null; reference-price bars carry no trade count."
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              "gaps": {
-                "items": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/HistoryGap"
-                    },
-                    {
-                      "properties": {
-                        "source": {
-                          "enum": [
-                            "HYPERLIQUID_L2_BOOK",
-                            "HYPERLIQUID_BBO",
-                            "HYPERLIQUID_ALL_MIDS"
-                          ],
-                          "description": "Reference feed with missing data: HYPERLIQUID_L2_BOOK, HYPERLIQUID_BBO or HYPERLIQUID_ALL_MIDS."
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              "volume_scale": {
-                "type": "null",
-                "description": "Always null; reference-price bars carry no volume."
-              }
-            },
-            "oneOf": [
-              {
-                "properties": {
-                  "source": {
-                    "const": "HYPERLIQUID_L2_BOOK",
-                    "description": "Reference feed; HYPERLIQUID_L2_BOOK in this branch."
-                  },
-                  "quality": {
-                    "const": "BOOK_MID",
-                    "description": "BOOK_MID for order book bars."
-                  }
-                }
-              },
-              {
-                "properties": {
-                  "source": {
-                    "const": "HYPERLIQUID_BBO",
-                    "description": "Reference feed; HYPERLIQUID_BBO in this branch."
-                  },
-                  "quality": {
-                    "const": "BOOK_MID",
-                    "description": "BOOK_MID for order book bars."
-                  }
-                }
-              },
-              {
-                "properties": {
-                  "source": {
-                    "const": "HYPERLIQUID_ALL_MIDS",
-                    "description": "Reference feed; HYPERLIQUID_ALL_MIDS in this branch."
-                  },
-                  "quality": {
-                    "const": "ALL_MIDS_FALLBACK",
-                    "description": "ALL_MIDS_FALLBACK for all-mids bars."
-                  }
-                }
-              }
-            ],
-            "title": "Reference price ohlc"
-          }
-        ]
-      },
       "MarketList": {
         "type": "object",
         "required": [
@@ -30798,6 +30245,79 @@
           "has_more": {
             "type": "boolean",
             "description": "True when another page follows."
+          }
+        }
+      },
+      "MarketResult": {
+        "type": "object",
+        "required": [
+          "outcome_id",
+          "state",
+          "yes_fraction",
+          "settlement_price",
+          "source",
+          "final"
+        ],
+        "properties": {
+          "outcome_id": {
+            "$ref": "#/components/schemas/UInt32String",
+            "description": "Hyperliquid outcome ID."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SETTLED",
+              "NONNUMERIC",
+              "PENDING",
+              "UNKNOWN"
+            ],
+            "description": "SETTLED: a YES fraction is known. NONNUMERIC: the lens recorded a recognized nonnumeric result and no numeric result is held. PENDING: listed in the current catalog, with no result. UNKNOWN: not listed now and no result is held."
+          },
+          "yes_fraction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(0(\\.[0-9]+)?|1(\\.0+)?)$",
+            "description": "Exact payout per YES share in [0, 1], or null unless SETTLED. NO pays one minus this value. A numeric lens result takes precedence over the stored Hyperliquid answer."
+          },
+          "settlement_price": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+(\\.[0-9]+)?$",
+            "description": "Settlement price exactly as written in a stored `price:<decimal>` detail for a recurring price round; otherwise null."
+          },
+          "source": {
+            "enum": [
+              "LENS",
+              "HYPERLIQUID_NODE",
+              "HYPERLIQUID_API",
+              null
+            ],
+            "description": "Where the YES fraction came from: the native lens, Totalis's Hyperliquid node, or Hyperliquid's public API. Null when no fraction is held."
+          },
+          "final": {
+            "type": "boolean",
+            "description": "True when no further settlement evidence is expected for this item: SETTLED with the lens result and the stored Hyperliquid answer agreeing, or SETTLED or NONNUMERIC for an outcome whose catalog replaced it more than 15 days ago (or that no catalog listed): market-data records results only for outcomes that left within 14 days, and a day covers any write already started. Only a correction of the catalog's outcome identity can still change a final item. Read again an item that is not final; stop once it is."
+          }
+        }
+      },
+      "MarketResults": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/MarketResult"
+            },
+            "description": "One result per requested outcome in request order."
           }
         }
       },
@@ -34932,16 +34452,6 @@
       "SignedAmount": {
         "type": "string",
         "pattern": "^(0|-?[1-9][0-9]{0,77})$"
-      },
-      "Source": {
-        "type": "string",
-        "enum": [
-          "HYPERLIQUID_FAST_ASSET_CTXS",
-          "HYPERLIQUID_ALL_MIDS",
-          "HYPERLIQUID_L2_BOOK",
-          "HYPERLIQUID_BBO",
-          "HYPERLIQUID_TRADES"
-        ]
       },
       "Subcategory": {
         "oneOf": [

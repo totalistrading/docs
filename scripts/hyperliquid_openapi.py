@@ -43,14 +43,14 @@ METHODS = ("get", "put", "post", "delete", "patch")
 # section); URL sections stay by resource so regrouping never breaks a link.
 PAGES: dict[str, tuple[str, list[tuple[str, str, str]]]] = {
     "Markets": (
-        "HIP-4 questions and markets, their sides and price history. No API key needed.",
+        "HIP-4 questions and markets, their sides, results and charts. No API key needed.",
         [
             ("GET /v1/markets", "List markets", "Markets"),
             ("GET /v1/discovery", "List questions", "Markets"),
             ("GET /v1/markets/{outcome_id}", "Get market", "Markets"),
-            ("GET /v1/markets/{outcome_id}/history", "Get market history", "Markets"),
             ("GET /v1/markets/{outcome_id}/trades", "List market trades", "Markets"),
             ("GET /v1/market-display", "Get market display", "Markets"),
+            ("GET /v1/market-results", "Get market results", "Markets"),
             ("GET /v1/live-marks", "Get live marks", "Markets"),
             ("GET /v1/charts/{series}", "Get chart", "Markets"),
         ],
