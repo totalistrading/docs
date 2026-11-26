@@ -17,6 +17,11 @@ the gas.
 4. Sign one quote and [accept](/hyperliquid/api-reference/quotes/accept-quote) it.
 5. Follow `OPERATION_UPDATED` until `COMMITTED`.
 
+An RFQ stays open while your account stream is connected: makers keep pricing it until you accept, cancel or
+disconnect, for at most an hour. Cancel the RFQ when you stop showing its price, and create a new one when the
+legs or stake change. It closes about 2 minutes after your stream disconnects. See
+[Limits](/hyperliquid/limits-and-fees).
+
 ### Create RFQ
 
 Legs go in strictly ascending `outcome_id` order. Two or more legs make a combo; an RFQ also takes one leg.
@@ -41,8 +46,8 @@ A market can be a leg when both hold:
 
 | Field | Value | Otherwise |
 | --- | --- | --- |
-| `eligibility.state` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
-| `combo.state` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
+| `eligibility.status` | `ENABLED` | `eligibility.reason` says why the market takes no new position. |
+| `combo.status` | `OPEN` | `combo.reason` says why it can't join a Combo. `combo.opens_at` (Unix seconds) is when it will. |
 | `chance`, on both sides | Not `null` | The book is empty, dust or one-sided, so it has no price. RFQ entry refuses the leg with `CHANCE_UNAVAILABLE`. |
 
 `combo.reason` is one of:
@@ -58,7 +63,7 @@ empty book reads 50 cents. A `chance` of `null` means the market has no price. D
 Combo's payout by multiplying leg prices: legs can be related, and the quote is the price.
 
 These fields change with the clock, the book and the market's state, so read them close to the RFQ. A market can
-trade alone while `combo.state` is `CLOSED`. A one-leg RFQ checks the same fields.
+trade alone while `combo.status` is `CLOSED`. A one-leg RFQ checks the same fields.
 
 #### Which legs combine
 
@@ -89,7 +94,6 @@ Each `QUOTE_CREATED` carries one quote:
   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
   "kind": "ENTRY",
   "sequence": 48213,
-  "accept_before": "2026-09-26T20:01:01Z",
   "entry": {
     "maker_id": "7",
     "legs": [{ "outcome_id": "1209", "side": "YES" }],
@@ -104,9 +108,9 @@ Each `QUOTE_CREATED` carries one quote:
 }
 ```
 
-`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. An entry quote
-stops being acceptable at `accept_before`, 14 seconds before `expiry` (unix seconds), which sends no event. A
-cash-out quote leaves the list 22 seconds before its `expiry`.
+`payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. Every listed quote
+can be accepted. An entry quote leaves the list 14 seconds before `expiry` (unix seconds), which sends no event; the
+maker's quote is renewed before then. A cash-out quote leaves the list 22 seconds before its `expiry`.
 
 ### Accept
 
@@ -126,13 +130,9 @@ The response waits for the maker's answer:
 
 ```json
 {
-  "acceptance_id": "01a0df4e-6269-78d2-a4f6-a1b3c5d7e9f8",
-  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
-  "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
   "status": "ACCEPTED",
-  "deadline": "2026-09-26T20:00:53.352Z",
-  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
-  "server_time": "2026-09-26T20:00:51.791Z"
+  "acceptance_id": "01a0df4e-6269-78d2-a4f6-a1b3c5d7e9f8",
+  "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
 }
 ```
 
@@ -141,33 +141,24 @@ The response waits for the maker's answer:
 | `ACCEPTED` | Confirmed. The trade is queued as `operation_id`. |
 | `DECLINED`, `TIMED_OUT`, `CANCELLED` | Nothing traded. Create a new RFQ. |
 
-Read later, an acceptance can also be `FILLED` or `FAILED`. With `funding`, an `ACCEPTED` acceptance also carries
-`fund_by`, 2 seconds after the confirm. Judge `deadline` and `fund_by` against `server_time`, not your clock.
+Read later, an acceptance can also be `FILLED` or `FAILED`. Responses carry no clocks, so you never compare
+against the venue's clock.
 
 ### Funding
 
-If your free vault balance is short of the stake, add `funding` to the accept. The vault draws exactly
-the shortfall in the same transaction as the trade. It needs `funding:deposit`.
+The accept body is only `taker_signature`; a `funding` field is refused with `400 INVALID_REQUEST`. If your free
+vault balance is short of the stake, the venue draws the shortfall from your wallet's USDC approval to
+WalletAccept, in the same transaction as the trade. Set the approval once with a gasless permit
+([Create wallet approval](/hyperliquid/api-reference/deposits/create-wallet-approval)); every entry then draws
+what it needs until it is spent. The venue draws only your account's linked wallet, and only under a session or a
+key with `funding:deposit`. It never draws the wallet for a cash-out.
 
-```json
-{
-  "taker_signature": "0xabab...ab1b",
-  "funding": {
-    "kind": "WALLET",
-    "value": "20000000",
-    "valid_after": "1790452800",
-    "valid_before": "1790453400",
-    "salt": "0x0000000000000000000000000000000000000000000000000000000000000042",
-    "authorization_signature": "0x9e9e...9e1b"
-  }
-}
-```
-
-`value` is the stake minus `VAULT_FREE` in [Get balances](/hyperliquid/api-reference/account/get-balances),
-signed as USDC `ReceiveWithAuthorization` from your wallet to the vault. `kind` is always `WALLET`. Sign
-`valid_after` at or before now and `valid_before` no earlier than the quote's `expiry`, at most 900 seconds apart. If
-you bridge USDC from HyperCore to fund it, send the bridge only after the accept returns `ACCEPTED` and before
-`fund_by`. `WALLET_FUNDING_UPDATED` reports the funding's progress.
+If the approval or the wallet's USDC doesn't cover the shortfall, the trade fails: the operation's
+`reason` is `INSUFFICIENT_CASH`, and the acceptance's `reason` says which part fell short, `INSUFFICIENT_APPROVAL` or
+`INSUFFICIENT_WALLET_USDC`. A short approval fails at once. Missing wallet USDC is waited for at least 6 seconds
+from the accept's arrival. So if you bridge USDC from HyperCore to fund the entry, send the bridge once the accept
+returns `ACCEPTED`, and within 4 seconds of sending the accept. `WALLET_FUNDING_UPDATED` reports the funding's
+progress.
 
 ### Lost response
 
@@ -182,9 +173,9 @@ is final. Never accept the same quote under a second key.
 | --- | --- |
 | `QUEUED`, `IN_FLIGHT`, `RETRYABLE`, `UNKNOWN` | In progress. |
 | `COMMITTED` | The position is on-chain. `POSITION_OPENED` follows. |
-| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
+| `REVERTED`, `EXPIRED_UNEXECUTED` | Nothing traded. The vault took no stake. When the wallet cannot fund the stake, the operation ends `EXPIRED_UNEXECUTED` and the RFQ ends `FAILED` with `reason` `INSUFFICIENT_CASH`. If the SDK bridged USDC from HyperCore for the entry, that USDC stays in your wallet on HyperEVM ([If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)). |
 
-The position's ID is the `quote_id` you accepted:
+An entry's `position_id` is its accepted `quote_id`:
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/me/positions/$QUOTE_ID \
@@ -208,7 +199,7 @@ curl https://hip4-api.totalis.trade/v1/me/positions/$POSITION_ID/cashout \
 { "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f" }
 ```
 
-Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind` is `SELL_BACK` and the quote carries `sell_back` terms:
+Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind` is `SELL_BACK`, `price` is what the maker pays, and the terms to sign sit under `signing.sell_back`:
 
 ```json
 {
@@ -216,22 +207,26 @@ Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind`
   "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f",
   "kind": "SELL_BACK",
   "sequence": 48240,
-  "sell_back": {
-    "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
-    "price": "18000000",
-    "owner": "0x1111111111111111111111111111111111111111",
-    "expiry": "1790452905",
-    "salt": "90210331458871",
-    "leg_state": "0x0000000000000000000000000000000000000000000000000000000000000002"
+  "price": "18000000",
+  "signing": {
+    "sell_back": {
+      "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
+      "price": "18000000",
+      "owner": "0x1111111111111111111111111111111111111111",
+      "expiry": "1790452905",
+      "salt": "90210331458871",
+      "leg_state": "0x0000000000000000000000000000000000000000000000000000000000000002"
+    }
   }
 }
 ```
 
-Sign `sell_back` as `SellBack`, then accept it like an entry quote, with no `funding`. On `COMMITTED` the
-position closes (`POSITION_CLOSED`, `close_reason: SELL_BACK`), and the proceeds land in your vault balance:
+Sign `signing.sell_back` as `SellBack`, then accept it like an entry quote. A cash-out never draws your wallet. On
+`COMMITTED` the position closes (`POSITION_CLOSED`, and the position's `reason` is `SELL_BACK`), and the proceeds land in your vault balance:
 `price` less the profit fee on the part above the position's `net_stake`,
 `floor((price - net_stake) * fee_bps / 10000)`, with no fee when `price` is at or below `net_stake`
-([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout` computes it.
+([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout(bid, position)` computes it from the
+bid and the `position` of [Get position](/hyperliquid/api-reference/positions/get-position).
 
 ## Settlement
 
@@ -243,7 +238,7 @@ to call or sign. `SETTLED_UNCLAIMED` is the short wait between the two.
 | `OPEN` | A leg is unresolved. You can cash out. |
 | `AWAITING_SETTLEMENT` | Resolved, or a leg lost; settlement has not landed. |
 | `SETTLED_UNCLAIMED` | A `WIN` with profit not yet claimed. |
-| `CLOSED` | Claimed (`CLAIM`), sold back (`SELL_BACK`), or settled with nothing to claim (`null`), per `close_reason`. |
+| `CLOSED` | Claimed (`CLAIM`), sold back (`SELL_BACK`), or settled with nothing to claim (`null`), per `reason`. |
 
 | `settlement_kind` | Meaning |
 | --- | --- |

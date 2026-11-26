@@ -32,10 +32,11 @@ a quote.
 | Minimum stake | Net stake (after the entry fee) of at least 0.9 USDC |
 | Maximum bet amount | Currently 1,000 USDC |
 | Maximum payout multiplier | 1,000x |
-| Entry RFQ open | 20 seconds for new quotes. A live quote stays acceptable until its `accept_before`. |
-| Cash-out RFQ open | 30 seconds |
-| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until `accept_before`, 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
-| Bridge from HyperCore into an entry (SDK) | Sent only after the maker confirms, before the acceptance's `fund_by`: 2 seconds after the confirm. |
+| Entry RFQ open | Until the taker accepts or cancels, for at most 1 hour (`expires_at`), while the taker's [account stream](/hyperliquid/api-reference/websocket/account) is connected. It closes about 2 minutes after that stream disconnects, or after it opens if none was connected. A quote still listed stays acceptable after `expires_at`. |
+| Cash-out RFQ open | The same as an entry RFQ. It also closes once the position settles or closes. |
+| RFQ Totalis opens for a taker | Copy trades and suggested combos: 20 seconds for an entry, 30 seconds for a cash-out. |
+| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
+| Bridge from HyperCore into an entry (SDK) | Sent only once the accept answers `ACCEPTED`, within 4 seconds of sending the accept (`fundWindowMs`). The venue waits at least 6 seconds from the accept's arrival for wallet USDC. |
 | Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
 | Quote lease `lease_ms` | 1,000 to 60,000 milliseconds |
@@ -43,7 +44,6 @@ a quote.
 
 | Signing | Window |
 | --- | --- |
-| Accept funding | `valid_after` at or before now; `valid_before` no earlier than the quote's `expiry`, and at most 900 seconds after `valid_after` |
 | Withdrawal `Exit` | `expiry` 5 to 3,600 seconds ahead, less a 5 second margin |
 | Withdrawal payout | At most 4,500 seconds from `valid_after` to `valid_before`; `valid_before` at least 300 seconds after the `Exit` `expiry`, or after now with no `Exit` |
 | Maker vault withdrawal delay | 86,400 seconds on mainnet. `ready_at` gives the exact time. |
@@ -68,7 +68,6 @@ For accounts that sign in with their own wallet ([Your users' own wallets](/hype
 | Sign-in message | 5 minutes, single use |
 | Wallet session | At most 30 days. Ends after 7 days unused. |
 | Admission consent `Expires At` | At most 1 day ahead. The SDK default is 1 hour. |
-| `builder_authorization_expiry` | In the future, at most 300 seconds ahead |
 | Withdrawals and exits to HyperCore | At least 1 USDC each. At most 10 per hour per account, together. |
 
 ## Partner webhooks
@@ -95,11 +94,12 @@ For [vault agents](/hyperliquid/build/partner-frontend#vault-agents).
 
 ## Deposits and exits
 
-For every account. A sponsored deposit needs a wallet session, and a wallet that controls a maker cannot deposit.
+For every account. A sponsored deposit takes a wallet session or an API key with `funding:deposit` and
+`sponsorship:use`. A wallet that controls a maker cannot deposit.
 
 | Item | Value |
 | --- | --- |
-| Sponsored deposit | At least 1 USDC. At most 5 per hour per account. |
+| Sponsored deposit | At least 1 USDC (0.1 USDC for a Totalis app wallet), and at most the wallet's available USDC (`409 INSUFFICIENT_WALLET_BALANCE` otherwise). At most 5 per hour per account. |
 | First exit to a new HyperCore account | At least 2 USDC. Hyperliquid takes 1 USDC to activate the account. |
 | Your own HyperCore send to a new account | Hyperliquid takes one quote token (USDC for Totalis's markets) to activate the account ([Activation gas fee](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/activation-gas-fee)). Activate a fresh treasury address once before you collect fees into it. |
 | Exits to HyperCore in flight | 1 per account |
@@ -124,8 +124,6 @@ across all callers, so you can get a `429` below these figures.
 | [Create API key](/hyperliquid/api-reference/api-keys/create-api-key), key rotations and key challenges | 10, shared |
 | [Revoke API key](/hyperliquid/api-reference/api-keys/revoke-api-key) | 60 |
 | [Admit own maker](/hyperliquid/api-reference/makers/admit-own-maker) | 10 |
-
-Too many open automatic RFQs (sent with `intent_id`) on one account returns `429 RFQ_INTENT_LIMIT`.
 
 ### Without a credential
 

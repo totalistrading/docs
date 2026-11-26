@@ -15,7 +15,7 @@ import { TotalisStream } from "@totalis/hip4-client/realtime";
 const stream = new TotalisStream({
   environment: "production",
   accessToken: process.env.TOTALIS_API_KEY!,
-  subscription: { type: "account" }, // or { type: "maker", maker_id: "7" }
+  subscription: { kind: "account" }, // or { kind: "maker", maker_id: "7" }
 });
 
 stream.on("event", (event) => console.log(event.event_type, event.payload));
@@ -56,7 +56,7 @@ for await (const position of items(
 | --- | --- |
 | `totalis.spendableCash()`, `spendableCash(balance)` | `{ vault, wallet, total }`, the cash the SDK plans with, net of reserved cash. Each is `null` while unknown, never 0. |
 | `netPayout(quote)` | What a full win pays the user after the profit fee |
-| `netCashout(bid, position)` | What a sell-back pays the user after the profit fee ([Cash out](/hyperliquid/guides/trading#cash-out)) |
+| `netCashout(bid, position)` | What a cash-out bid pays the owner after the profit fee, from the bid and the `position` of `GET /v1/me/positions/{position_id}`, for its `net_stake` and `fee_bps`. `null` while `net_stake` is unknown. ([Cash out](/hyperliquid/guides/trading#cash-out)) |
 
 For example, a 3 USDC stake quoted at 9.18 USDC, with a 20 bps entry fee and a 100 bps profit fee, has a
 `netPayout` of 9.118140 USDC.
@@ -66,7 +66,7 @@ For example, a 3 USDC stake quoted at 9.18 USDC, with a 20 bps entry fee and a 1
 `createUiAdapter(totalis, { onInvalidate, onCatalogStale })` gives a frontend what it needs without tying it to
 a framework:
 
-- live quotes, with the best one picked
-- the venue clock, as `serverNow` and `secondsLeft`
+- live quotes, with the best one picked, from `watchQuotes(rfqId, ({ quotes, best }) => ...)`
+- the venue clock, as `serverNow`
 - account invalidations, to refresh a query cache
 - a catalog refresh, only when `catalog_generation` moves

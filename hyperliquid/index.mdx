@@ -5,10 +5,10 @@ description: 'Trade combos on Hyperliquid HIP-4 outcome markets: request a quote
 ---
 
 Totalis lets you trade Hyperliquid's HIP-4 outcome markets as singles or combos. A **single** is one
-outcome and trades on the HyperCore order book. A **combo** is several outcomes in one position that
-pays in full only if every leg wins. Combos are request-for-quote: market makers compete to quote yours, and
-you take the best price with one signature. Totalis holds the position in its vault on HyperEVM and
-pays you when the markets settle.
+outcome. A **combo** is several outcomes in one position that pays in full only if every leg wins.
+A single trades either on the HyperCore order book or by request-for-quote (RFQ). A combo trades only by RFQ.
+In an RFQ, market makers compete to quote yours, and you take the best price with one signature. Totalis
+holds an RFQ position in its vault on HyperEVM and pays you when the markets settle.
 
 You can also put Totalis in your own frontend, where your users trade with their own wallets:
 [Build on Totalis](/hyperliquid/build/overview).
@@ -69,8 +69,8 @@ other account, trading and maker route needs an API key or a [wallet session](/h
 | 5 | Holds the position. | Backs it from the maker vault. |
 
 Your USDC sits in your Totalis wallet and the vault contract. The vault moves funds only with a
-signature from the funds' owner. You do not need to deposit before you trade: an accept with signed `funding` pulls any shortfall from your
-wallet, and the SDK adds it for you. Winnings are claimed for you.
+signature from the funds' owner. You do not need to deposit before you trade: once your wallet has approved its USDC for entries, an accept
+pulls any shortfall from your wallet, and the SDK asks for the approval when it is short. Winnings are claimed for you.
 
 ## The essentials
 

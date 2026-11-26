@@ -1,17 +1,19 @@
 ---
 title: 'Make markets'
 icon: 'chart-line'
-description: 'Run a maker bot with createMaker: quote entries, bid on cash-outs, answer acceptances, keep a quote lease, manage collateral and onboard headless.'
+description: 'Run a maker bot with createMaker: quote entries, bid on cash-outs, cancel, decline with a last look, manage collateral and onboard headless.'
 ---
 
-`createMaker` runs a maker: it delivers every open RFQ, publishes your quotes, and signs your answer to each
-acceptance. It never broadcasts a vault transaction: the maker wallet sends those itself and pays the gas in
-HYPE. Set up your maker first ([Market making](/hyperliquid/guides/market-making#set-up)).
+`createMaker` runs a maker. It delivers every open RFQ, publishes your prices, and confirms each accept of a
+price you published. You send one price per RFQ: Totalis fills in the other terms and keeps your quote takeable
+until the RFQ closes or you replace or cancel it. The SDK never broadcasts a vault transaction: the maker wallet
+sends those itself and pays the gas in HYPE. Set up your maker first
+([Market making](/hyperliquid/guides/market-making#set-up)).
 
 ## A minimal bot
 
 ```ts
-import { createMaker, type MakerAcceptance } from "@totalis/hip4-client/maker";
+import { createMaker } from "@totalis/hip4-client/maker";
 import { privateKeyToAccount } from "viem/accounts";
 
 const makerId = process.env.TOTALIS_MAKER_ID!;
@@ -33,15 +35,15 @@ maker.onRfq(
   (error) => console.error(error),
 );
 
-// Re-check your price and capital before you commit. This placeholder only checks the deadline.
-const stillGood = async (acceptance: MakerAcceptance) => Date.parse(acceptance.deadline) > maker.stream.serverNow();
-
-maker.onAcceptance(async (acceptance) => ((await stillGood(acceptance)) ? "CONFIRM" : "DECLINE"));
+process.once("SIGINT", async () => {
+  await maker.close(); // cancels your open quotes, then closes the stream
+  process.exit(0);
+});
 ```
 
-The prices are placeholders. Price from your own market data
-([Price entries](/hyperliquid/guides/market-making#price-entries)). `examples/node-bot.mjs` in the package is a
-fuller version.
+The SDK confirms every accept of a price this bot published. The prices are placeholders. Price from your own
+market data ([Price entries](/hyperliquid/guides/market-making#price-entries)). `examples/node-bot.mjs` in the
+package is a fuller version.
 
 ## Quote
 
@@ -51,61 +53,118 @@ Runs `handler` once per open RFQ per subscription, from both events and the snap
 
 - A restart or new subscription delivers the still-open RFQs again. Quoting again replaces your earlier quote,
   so it cannot double-fill.
-- An RFQ with an acceptance waiting for you is held back, and offered again once you decline it or its
-  `deadline` passes on the venue clock.
+- An RFQ where a taker's accept of your quote waits for your answer is held back, and offered again once it is
+  answered.
 - An RFQ you filled, or one that ended, is never offered again.
 - `onError` receives whatever the handler throws, and the RFQ can be offered again.
 
 ### `quote(rfq, { payout })`
 
-Publishes `entry` terms with the deployment's fees and returns the `quoteId`. It starts the stream and waits
-until it is live. After a truncated snapshot or a cursor resume, it first pages
+Publishes your payout on an entry RFQ and returns `{ quoteId }`. It replaces your previous quote on that RFQ.
+Totalis fills in the other terms and keeps the quote takeable until the RFQ closes or you replace or cancel it.
+Totalis renews the quote while it stands, and each renewal gives it a new ID. `cancelQuote` with any of them
+cancels it.
+
+It starts the stream and waits until it is live. After a truncated snapshot or a cursor resume, it first pages
 [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances), which needs `quote:read`.
 
-### `bid(rfq, { price })`
+### `bid(rfq, { price, legState })`
 
-Publishes `sell_back` terms. Totalis sends a cash-out RFQ only to the maker that backs the position
-([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
+Publishes your price on a cash-out RFQ and returns `{ quoteId }`. Totalis fills in the other terms and keeps the
+bid takeable until the RFQ closes or you replace or cancel it. Totalis sends a cash-out RFQ only to the maker
+that backs the position ([Cash-outs](/hyperliquid/guides/market-making#cash-outs)).
 
-### `cancelQuote(quoteId)`
+A cash-out RFQ names the position (`position_id`), its owner as `taker`, your `maker_id`, its `legs`, `net_stake`
+and `payout`. It carries no chain state: read the legs' state on chain, and pass it as `legState`. The SDK then
+confirms only a sale at that leg state. Without `legState` it confirms at whatever leg state the accept carries,
+which can differ from the one you priced if a leg resolved in between. Pass it whenever your price depends on the
+legs' state, which for a cash-out it nearly always does.
 
-Removes a quote. `ACCEPTED` means you already confirmed it. While an acceptance of it waits for you, the venue
-refuses with `STATE_CONFLICT`: decline the acceptance instead.
+`readCashoutPosition(rfq)` does the reading. Give `createMaker` a HyperEVM RPC as `chain`: a JSON-RPC URL, or an
+EIP-1193 provider such as a viem public client. The SDK sends it only `eth_call`.
 
-## Answer acceptances
+```ts
+import { createMaker, type CashoutRfq } from "@totalis/hip4-client/maker";
+import { privateKeyToAccount } from "viem/accounts";
 
-### `onAcceptance(handler, onError?)`
+const maker = createMaker({
+  environment: "production",
+  apiKey: process.env.TOTALIS_MAKER_KEY!,
+  makerId: process.env.TOTALIS_MAKER_ID!,
+  signer: privateKeyToAccount(process.env.TOTALIS_WALLET_KEY as `0x${string}`),
+  chain: "https://rpc.hyperliquid.xyz/evm",
+});
 
-Answers every pending acceptance once, with the handler's `CONFIRM` or `DECLINE`. It signs only terms this maker
-published that have not expired, and resends a lost answer byte for byte. `onError` receives what fails, with the
-acceptance.
+async function bidOnCashout(rfq: CashoutRfq) {
+  const position = await maker.readCashoutPosition(rfq); // { ticket, legsHash, legState }
+  const price = priceCashout(rfq, position.ticket, position.legState); // your model; undefined to pass
+  if (price !== undefined) await maker.bid(rfq, { price, legState: position.legState });
+}
+```
 
-To answer one yourself, call `confirm(acceptance, decision)`.
+`readCashoutPosition` reads the vault's `tickets(position_id)` and `legStateOf(legs, 500000)` at the latest block.
+It throws when the RFQ's `legs` don't hash to the ticket's `legsHash`, as they then aren't that position's legs.
+`ticket` holds the position as the vault records it: `stake`, `payout`, `feeBps`, `status` and `residual`, with
+amounts as atomic USDC decimal strings. What `legState` encodes, and how to price from it, is on
+[Price a cash-out](/hyperliquid/guides/market-making#price-a-cash-out). The sale lands only while every leg's state
+still equals the one signed. If a leg moves first, the trade reverts and nothing moves.
 
-### Remember what you published
+To read the chain your own way, `@totalis/hip4-client/maker` also exports the pieces: `legsHash(legs)`, the
+legs hash a ticket records; `readLegState(chain, deployment, legs)`; and `legStateReadGas`, the `500000` read gas
+the venue uses, so your read matches its read.
 
-The SDK only confirms quotes it knows this maker published. Pass a `published` store backed by durable storage so
-a restarted process can still confirm them. `memoryPublished` keeps them in memory only.
+While a taker's accept of your quote on the RFQ waits for your answer, `quote` and `bid` wait for that answer,
+then publish.
 
-### When an acceptance is waiting
+### Cancel
 
-While this maker has an unanswered acceptance on an RFQ that the SDK has already received, `quote` and `bid`
-send nothing and throw `AcceptancePendingError` (`code` `ACCEPTANCE_PENDING`, with `rfqId`, `quoteId` and
-`deadline`).
+| Function | Does |
+| --- | --- |
+| `cancelQuote(quoteId)` | Removes one quote. `ACCEPTED` means you already confirmed it. While an accept of it waits for your answer, the venue refuses with `STATE_CONFLICT`: decline the accept instead. |
+| `cancelAllQuotes()` | Removes every open quote of this maker and answers `{ cancelled, pending }`. A quote whose accept waits for your answer stays, counted in `pending`. |
+| `close()` | Cancels all your open quotes, then closes the stream. Await it before the process exits. It never rejects. |
 
-If the venue records an acceptance while a `quote`, `bid` or `cancelQuote` request is on its way, it refuses that
-request with `ApiError` `STATE_CONFLICT` (`retry` `REFRESH`).
+Publish again to come back. A bot that stops without `close()` keeps its quotes up until it misses a confirm,
+which withdraws all of them.
 
-Either way, the acceptance still waits for you: answer it in `onAcceptance`.
+## Decline with a last look
+
+The SDK confirms each accept of a price it published, signing the exact terms. To turn some down, for example
+because the price moved, pass `lastLook`:
+
+```ts
+// stillGood is your own re-check of price and capital.
+const maker = createMaker({
+  // ...
+  lastLook: async (acceptance) => ((await stillGood(acceptance)) ? "CONFIRM" : "DECLINE"),
+  onConfirmError: (error, acceptance) => console.error(acceptance?.quote_id, error),
+});
+```
+
+| Option | Default | Does |
+| --- | --- | --- |
+| `lastLook` | | Called with each accept before the SDK answers it. Return `"CONFIRM"` or `"DECLINE"`. Confirming a cash-out executes the owner-signed sale. |
+| `autoConfirm` | `true` | `false` leaves every answer to another process, such as a separate confirmer that shares this bot's `published` store |
+| `onConfirmError` | | Receives an answer that failed, with its accept |
+| `published` | In memory | Where the SDK records what this maker published: the only terms it will sign. Pass durable storage so a restarted or separate process can confirm them. |
+
+The SDK never answers an accept of a price it did not publish. It leaves that to the process that did.
+
+### Answer accepts yourself
+
+`onAcceptance(handler, onError?)` replaces the SDK's own answer while it is attached. It handles every pending
+accept once, and resends a lost answer byte for byte. A handler that confirms terms this maker did not publish
+gets an error, and nothing is sent. It must not await `quote` or `bid` on the accept's RFQ: those wait for its
+answer.
+
+`confirm(acceptance, decision)` answers one accept you read another way.
 
 ## Stay connected
 
 | Function or option | Does |
 | --- | --- |
-| `keepQuoteLease(leaseMs, onError?)` | Arms the [quote lease](/hyperliquid/guides/market-making#quote-lease) and renews it every third of `leaseMs` until stopped. If renewals stop, the venue cancels your open quotes that no taker is accepting. |
-| `renewQuoteLease(leaseMs)`, `releaseQuoteLease()` | Renews once, or releases the lease |
 | `stream: { cursor }` | Resumes after a saved `maker.stream.cursor` |
-| `deployment()` | The cached [deployment](/hyperliquid/api-reference/deployment/get-deployment) every quote signs against |
+| `deployment()` | The cached [deployment](/hyperliquid/api-reference/deployment/get-deployment) |
 
 ## Manage collateral
 
@@ -145,7 +204,7 @@ Both take a client signed in as the account (a wallet session), not a maker key.
 ### Issue the maker's keys
 
 ```ts
-import { createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalis/hip4-client/api-keys";
+import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey } from "@totalis/hip4-client/api-keys";
 import { toTotalisSigner } from "@totalis/hip4-client/signer";
 
 const keys = createApiKeyClient("production", {
@@ -154,21 +213,29 @@ const keys = createApiKeyClient("production", {
 });
 const owner = toTotalisSigner(wallet);
 
-const issued = await issueApiKey(keys, owner, {
+const quoting = await issueApiKey(keys, owner, {
   maker: makerId,
   label: "Quoting bot",
-  scopes: [...QUOTING_BOT_SCOPES],
+  preset: "MAKER", // QUOTING_BOT_SCOPES
   expires_in_days: 90, // 1 to 90, or 0 for no expiry; 30 when left out
+});
+const collateral = await issueApiKey(keys, owner, {
+  maker: makerId,
+  label: "Collateral",
+  scopes: [...COLLATERAL_SCOPES], // no preset: list the scopes
+  expires_in_days: 90,
 });
 ```
 
 | Function | Does |
 | --- | --- |
-| `issueApiKey(keys, owner, { maker, label, scopes, expires_in_days })` | Asks for the maker's key challenge, checks it, has the maker wallet sign it, and creates the key. The secret is returned once. |
+| `issueApiKey(keys, owner, { maker, label, preset or scopes, expires_in_days })` | Asks for the maker's key challenge, checks it grants exactly the preset's or the listed scopes, has the maker wallet sign it, and creates the key. The secret is returned once. |
 | `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | Replaces a key the same way. The old key keeps working for the overlap. |
 | `listApiKeys(keys, { maker })` | Every key of the maker, oldest first, revoked and expired ones included |
 | `revokeApiKey(keys, keyId, { maker })` | Revokes a key at once. No signature. |
 
-`QUOTING_BOT_SCOPES` and `COLLATERAL_SCOPES` are the [maker scope sets](/hyperliquid/authentication#scopes).
-Give the quoting bot `QUOTING_BOT_SCOPES`, which move no vault money, and keep `COLLATERAL_SCOPES` on a separate
-key for reductions.
+Pass either `preset` or `scopes`, not both. `preset: "MAKER"` grants `QUOTING_BOT_SCOPES`, which move no vault
+money; give it to the quoting bot. `COLLATERAL_SCOPES` has no preset: list it, on a separate key for reductions
+([maker scope sets](/hyperliquid/authentication#scopes)). A refused request is `INVALID_REQUEST`, and its
+`field_violations` names the entry it refused, `/preset` or `/scopes/<i>` (under `/request` when the challenge is
+refused), with the reason in the message.

@@ -1,15 +1,27 @@
 ---
-title: 'Resume and retry'
+title: 'Advanced: custom signing and recovery'
+sidebarTitle: 'Custom signing and recovery'
 icon: 'rotate'
-description: 'Sign, persist and send so an app survives a reload without signing twice, plus how the SDK retries and what each error means.'
+description: 'Sign, persist and send each action in steps so an app survives a reload without signing twice, plus how the SDK retries and what each error means.'
 ---
 
-Network calls fail and pages reload. The SDK is built so neither one trades twice or loses a trade.
+Each one-call action on [Trade](/hyperliquid/sdk/trading) is a sign step and a send step. Call the steps yourself
+to store the signed record between them. After a reload, send or recover the stored record: nothing is signed
+twice, and nothing trades twice.
 
-## Sign, persist, send
+| One call | Steps | Follow after a restart |
+| --- | --- | --- |
+| `openPosition` | `prepareEntryFunding`, `signEntry`, `sendAcceptance` | `recoverAcceptance` |
+| `cashOut` | `signCashout`, `sendAcceptance` | `recoverAcceptance` |
+| `deposit` | `signDeposit`, `sendDeposit` | `waitForOperation` |
+| `withdraw` | `signWithdrawal`, `sendWithdrawal` | `waitForWithdrawal` |
+| `exitToCore` | `signCoreExit`, `sendCoreExit` | `waitForCoreExit` |
+| `returnToCore` | `signReturnToCore`, `sendReturnToCore` | `sendReturnToCore` again, then `waitForCoreExit` |
+| `approveWallet` | `readWalletApproval`, `signWalletApproval`, `sendWalletApproval` | `recoverWalletApproval` |
 
-`openPosition` and `cashOut` run in one call. To survive a reload mid-trade, split them into three steps:
-sign, save the signed record, then send it.
+Every signed record is plain JSON. Save it in your own durable storage before you send it.
+
+## Entry and cash-out
 
 ```ts
 // save and load are your own durable storage.
@@ -21,28 +33,40 @@ const result = await totalis.sendAcceptance(signed, { onRecord: save });
 const resumed = await totalis.recoverAcceptance(await load(), { onRecord: save }); // never signs again
 ```
 
+To pick the quote yourself, list them with [`watchQuotes`](/hyperliquid/sdk/trading#watch-quotes-yourself). A
+quote stays takeable while it is listed.
+
 ### Sign the funding first
 
-The funding depends only on the stake, so it can be signed before a quote is chosen. Then only `TakerAccept`
-is left to sign once you pick, and the accept goes out straight after. Makers replace their quotes as they renew
-them, so the less time between the pick and the send, the less often a quote is gone when the accept arrives.
-`openPosition` works this way.
+The funding depends only on the stake, so it can be readied before a quote is chosen. Then only `TakerAccept`
+is left to sign once you pick, and the accept goes out straight after. Makers replace their quotes as their
+prices move, so the less time between the pick and the send, the less often a quote is gone when the accept
+arrives. `openPosition` works this way.
 
 ```ts
-const prepared = await totalis.prepareEntryFunding({ stake, core, cash });   // while quotes arrive
+const prepared = await totalis.prepareEntryFunding({ stake, core, cash }); // while quotes arrive
 const signed = await totalis.signEntry({ quote: best, prepared });           // TakerAccept only
 await save(signed);
 const result = await totalis.sendAcceptance(signed, { onRecord: save });
 ```
 
-A prepared funding is for one accept. If the venue refuses it with `QUOTE_REPLACED` or `QUOTE_EXPIRED`, or the
-maker answers `DECLINED` or `TIMED_OUT`, nothing traded and any bridge was discarded. Prepare again for the
-next quote. Before you sign the next one, mark a refused record with `refused: error.code` and persist it, so
-`recoverAcceptance` answers it `NOT_ADMITTED` from the record without cancelling the RFQ the next accept uses.
+A prepared funding is for one accept. If the venue refuses it with `QUOTE_REPLACED` or `QUOTE_EXPIRED` (the quote
+was just replaced), or the maker answers `DECLINED` or `TIMED_OUT`, nothing traded and any bridge was discarded.
+Prepare again for the next quote. Before you sign the next one, mark a refused record with `refused: error.code`
+and persist it, so `recoverAcceptance` answers it `NOT_ADMITTED` from the record without cancelling the RFQ the
+next accept uses.
+
+### `prepareEntryFunding({ stake, core, cash })`
+
+Readies the funding for `stake` without a quote, and returns it to pass to `signEntry` as `prepared`. It plans like
+`signEntry`, below. The venue draws the wallet's part from its [approval](#wallet-approval). When the approval left
+is short, it asks a permit first and waits until it lands. It signs any bridge from `core`.
 
 ### `signEntry({ quote, core, cash })`
 
-Without `prepared`, asks the wallet for every signature the entry needs, at once. It plans the funding from `cash` (a
+Without `prepared`, asks the wallet for every signature the entry needs, at once: `TakerAccept`, and any bridge.
+Signing sends nothing, so it can't land a permit: the approval left must already cover the wallet's part. It plans
+the funding from `cash` (a
 `spendableCash()` read) or, without it, from current balances: free vault cash first, then the wallet, then a
 bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
 
@@ -51,24 +75,29 @@ bridge of `core` to the wallet. 0.05 USDC (`bridgeGasBuffer`) stays behind.
 - Pass `cash` to plan before the wallet prompt. Without it, the wallet is asked for `TakerAccept` while the
   balances load, so a plan that fails throws after the prompt.
 - Throws `EntryError` `BALANCE_UNKNOWN` when the vault balance is not current.
+- Without `prepared`, throws `WalletApprovalError` `INSUFFICIENT_APPROVAL` when the approval left is short of the
+  wallet's part. Call `prepareEntryFunding` or `approveWallet` first.
 
 ### `signCashout({ quote })`
 
-Has the owner, or its vault agent, sign a cash-out quote's `SellBack`.
+Has the owner, or its vault agent, sign a cash-out bid's `SellBack`: the terms under `quote.signing.sell_back`.
+An entry quote's signed terms are under `quote.signing.entry`; `payout` and `price` at the top level are for
+display.
 
 ### `sendAcceptance(signed, { onRecord })`
 
 Sends either kind of record under its acceptance ID, and checks the answer echoes the record's IDs. An entry's
-bridge is sent only after the accept answers `ACCEPTED` with its `fund_by` still ahead. Any other answer
-discards it.
+bridge is sent only once the accept answers `ACCEPTED`, and only within `fundWindowMs` (4 seconds) of sending the
+accept. The venue waits at least 6 seconds from the accept's arrival for wallet USDC, so a bridge sent in that
+window keeps time to land. Any other answer discards it. It reads nothing after the answer.
 
 ### `recoverAcceptance(signed, { wait, onRecord })`
 
-Reads and fences the acceptance. It signs nothing. It sends a never-sent bridge only if the acceptance is
-`ACCEPTED` before its `fund_by`, and resends a sent one that got no answer, with the same bytes, in that same
-window. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
+Reads and fences the acceptance. It signs nothing, and never sends a bridge: the accept went out in another flow,
+so its window can't be shown to be open. A never-sent bridge is discarded, and a sent one with no answer stays
+`SENT`. It waits out `PENDING_CONFIRM` unless you pass `wait: false`.
 
-## Entry records and the bridge
+### Entry records and the bridge
 
 An entry record carries `version: 2` and a `bridgeState`: `SENT`, `LANDED`, `PROCESSED`, `REFUSED` or
 `DISCARDED`. `onRecord` is awaited with the record before the bridge is first sent and again on each new state.
@@ -78,7 +107,7 @@ only reads it.
 The result never waits for Hyperliquid:
 
 - `bridging` is set when this call sent the bridge. It resolves to Hyperliquid's answer, or `unknown` when none
-  came before `fund_by`.
+  came within `fundWindowMs` of the accept.
 - `bridged` is `{ amount, landed }` (amount in atomic USDC) once a bridge was sent, and never for one
   Hyperliquid refused. `landed: "yes"` means Hyperliquid answered `ok`: unless the operation `COMMITTED`, that
   cash is now in the wallet on HyperEVM, not on HyperCore. `"unknown"` means read the balances rather than
@@ -86,6 +115,117 @@ The result never waits for Hyperliquid:
 
 See [If an entry fails after its bridge](/hyperliquid/build/partner-frontend#if-an-entry-fails-after-its-bridge)
 for what to show the user.
+
+## Deposit
+
+```ts
+const signed = await totalis.signDeposit({ amount: 50_000_000n }); // { depositId, account, body }
+await save(signed);
+const { operation_id } = await totalis.sendDeposit(signed);
+await totalis.waitForOperation(operation_id); // COMMITTED when the cash is in the vault
+```
+
+`signDeposit` signs a USDC authorization to the vault, valid for 10 minutes. `sendDeposit` sends it under
+`depositId` and answers with the operation. Sending the same record again resends the same bytes under the same
+key, so it never deposits twice. Both work with an API key or a wallet session. The record's `body` is flat:
+`{ amount, valid_after, valid_before, salt, authorization_signature }`, and the venue takes the account from the
+credential. A record signed by SDK 0.124 or older no longer sends: sign it again.
+
+## Withdrawal
+
+```ts
+const signed = await totalis.signWithdrawal({ destination, amount: 15_000_000n }); // { idempotencyKey, account, body }
+await save(signed);
+await totalis.sendWithdrawal(signed, { onStarted: saveWithdrawal }); // resolves at PAYOUT_COMMITTED
+
+// After a reload:
+await totalis.waitForWithdrawal(withdrawalId);
+```
+
+`signWithdrawal` signs the `Exit` for any part of the amount the wallet is short of, and the USDC payout.
+`sendWithdrawal` sends them under `idempotencyKey` and follows the withdrawal. `onStarted` gets the withdrawal ID
+once the venue admits it.
+
+## Exit to HyperCore
+
+```ts
+const signed = await totalis.signCoreExit({ amount: 10_000_000n }); // { exitId, account, body }
+await save(signed);
+const exit = await totalis.sendCoreExit(signed);
+await totalis.waitForCoreExit(exit.exit_id);
+```
+
+`signCoreExit` signs an `Exit` of free vault cash to the account's HyperCore spot balance. It takes `purpose`
+(`ORDER` or `WITHDRAW`) and `activationFeeAccepted` for an account with no HyperCore account yet
+([Moving cash to HyperCore](/hyperliquid/build/partner-frontend#moving-cash-to-hypercore)). `sendCoreExit` sends
+it under `exitId` and answers once the exit is admitted. `waitForCoreExit` follows it until HyperCore credits it.
+
+## Return to HyperCore
+
+```ts
+const signed = await totalis.signReturnToCore(); // { deposit?, exit }
+await save(signed);
+const exit = await totalis.sendReturnToCore(signed);
+await totalis.waitForCoreExit(exit.exit_id);
+```
+
+`signReturnToCore` signs a deposit of the wallet's available USDC and one exit of that plus the free vault cash.
+`sendReturnToCore` sends the deposit, waits for it to commit, then sends the exit. After a restart, call
+`sendReturnToCore` with the stored record again: each leg is resent with the same bytes. Both legs expire after
+about 10 minutes. Past that, sign a new return.
+
+## Wallet approval
+
+When free vault cash is short of an entry's stake, the venue draws the wallet's share from the wallet's USDC
+approval to WalletAccept, with nothing in the accept
+([Get wallet approval](/hyperliquid/api-reference/deposits/get-wallet-approval)). There is no per-entry USDC
+authorization. When the approval left is short, `openPosition` and `prepareEntryFunding` ask the wallet for one
+permit, wait until it lands, then fund the entry. `signEntry` without `prepared` asks none.
+
+| Option | Does |
+| --- | --- |
+| `approvalValue` | The approval a permit sets. Default: 10,000 USDC (`defaultWalletApproval`), or the shortfall when larger. `null` never asks a permit and throws `INSUFFICIENT_APPROVAL` instead. |
+| `onApproval` | Awaited with the signed permit before it is sent. Persist it to recover. |
+| `approval` | An approval you just read, or a permit that just landed, used instead of reading it again |
+
+To set the approval yourself:
+
+```ts
+await totalis.approveWallet({ value: 1_000_000_000n, onSigned: save }); // resolves once the permit lands
+
+// Or in steps:
+const approval = await totalis.readWalletApproval();                     // { approved, nonce, ... }
+const signed = await totalis.signWalletApproval({ value: 1_000_000_000n, approval });
+await save(signed);
+await totalis.sendWalletApproval(signed);
+
+// After a reload:
+await totalis.recoverWalletApproval(await load()); // resends the same body, then waits for it to land
+```
+
+| Function | Does |
+| --- | --- |
+| `readWalletApproval()` | The wallet's approval to WalletAccept (`approved`) and its permit `nonce`, read at one block. Each is `null` when unread, never 0. |
+| `signWalletApproval({ value, approval })` | Signs a USDC permit setting the approval to `value`, at the nonce of `approval` (read now when left out). It can be sent for 30 minutes. |
+| `sendWalletApproval(signed)` | Sends a signed permit under its request ID and answers with the request as it stands |
+| `recoverWalletApproval(signed, { wait })` | Resends a stored permit, signing nothing, and follows it until it lands unless `wait: false` |
+| `approveWallet({ value, onSigned })` | All three in one call. Resolves once the permit landed. |
+| `revokeWalletApproval({ onSigned })` | `approveWallet` with `value` 0. The approval stands until it resolves. |
+
+`approveWallet`, `recoverWalletApproval` and `revokeWalletApproval` throw `WalletApprovalError` when the permit
+changed nothing:
+
+| `code` | Meaning |
+| --- | --- |
+| `PERMIT_EXPIRED` | It was sent after its deadline. Sign a new one. |
+| `PERMIT_NONCE_USED` | Another permit used its nonce first. Read the approval again. |
+| `PERMIT_REVERTED` | The chain reverted it |
+| `APPROVAL_UNKNOWN` | The approval or its nonce could not be read. Read it again. |
+| `INSUFFICIENT_APPROVAL` | The approval left is below what the entry needs, and no permit was asked |
+
+An entry that fails for its approval names `INSUFFICIENT_APPROVAL` from
+`entryFailure(record, operation, opened.outcome)`. One that fails for the wallet's USDC names `INSUFFICIENT_CASH`,
+and the acceptance's `reason` is `INSUFFICIENT_WALLET_USDC`.
 
 ## Retries
 
@@ -133,5 +273,5 @@ mayStillRun, resend, cause }`. `mayStillRun` is true when the command may have r
 | `EntryError` | An entry cannot be funded, before anything is sent ([Why an entry did not trade](/hyperliquid/sdk/trading#why-an-entry-did-not-trade)) |
 | `BalanceUnknownError` | A withdrawal or return to HyperCore needs a balance that has not been read |
 | `ExitUnavailableError` | `exitToCore` or `returnToCore` runs on staging, which has no exits to HyperCore |
-| `AcceptancePendingError` | A maker quotes an RFQ while one of its acceptances waits ([Make markets](/hyperliquid/sdk/making#when-an-acceptance-is-waiting)) |
+| `WalletApprovalError` | A permit changed nothing, or the approval an entry draws is short or unread ([Wallet approval](#wallet-approval)) |
 | `StreamClosedError` | A stream closes with `retry` `NEVER` |

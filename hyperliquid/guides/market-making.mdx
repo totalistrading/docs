@@ -167,12 +167,12 @@ then uses the staging app's origin, `https://hip4-staging.totalis.trade`.
     Copy the secret: it is shown once.
 
     ```ts
-    import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey, QUOTING_BOT_SCOPES } from "@totalis/hip4-client/api-keys";
+    import { COLLATERAL_SCOPES, createApiKeyClient, issueApiKey } from "@totalis/hip4-client/api-keys";
     import { toTotalisSigner } from "@totalis/hip4-client/signer";
 
     const keys = createApiKeyClient(environment, onSession);
     const owner = toTotalisSigner(wallet);
-    const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", scopes: [...QUOTING_BOT_SCOPES], expires_in_days: 90 });
+    const quoting = await issueApiKey(keys, owner, { maker: makerId, label: "Quoting bot", preset: "MAKER", expires_in_days: 90 });
     // Only to lower your collateral; keep it apart from the quoting bot's.
     const collateral = await issueApiKey(keys, owner, { maker: makerId, label: "Collateral", scopes: [...COLLATERAL_SCOPES], expires_in_days: 90 });
     ```
@@ -211,7 +211,7 @@ A [partner](/hyperliquid/build/overview) can run its maker from a wallet it admi
 browser step: admit the wallet, then follow the headless steps above, signing in with one of your registered
 origins instead of the Totalis app's. With the example, call its exported `onboard` with that `origin`.
 
-- Use a wallet of its own, not your builder signer. A wallet opens one maker.
+- Use a wallet of its own. A wallet opens one maker.
 - It signs in again whenever it needs a session, to manage its keys.
 - It holds no vault balance of its own, like an app wallet that controls a maker
   ([Cash-outs](#cash-outs)).
@@ -223,7 +223,7 @@ revoke keys. /mm lists them with their status, read-only.
 
 | Do | SDK (`.../api-keys`) | API |
 | --- | --- | --- |
-| Create | `issueApiKey(keys, owner, { maker, label, scopes })` | [Create maker API key challenge](/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge), then [Create maker API key](/hyperliquid/api-reference/api-keys/create-maker-api-key) |
+| Create | `issueApiKey(keys, owner, { maker, label, preset or scopes })` | [Create maker API key challenge](/hyperliquid/api-reference/api-keys/create-maker-api-key-challenge), then [Create maker API key](/hyperliquid/api-reference/api-keys/create-maker-api-key) |
 | Rotate | `rotateApiKey(keys, owner, keyId, { maker, overlap_seconds })` | The challenge, then [Rotate maker API key](/hyperliquid/api-reference/api-keys/rotate-maker-api-key) |
 | List | `listApiKeys(keys, { maker })` | [List maker API keys](/hyperliquid/api-reference/api-keys/list-maker-api-keys) |
 | Revoke | `revokeApiKey(keys, keyId, { maker })` | [Revoke maker API key](/hyperliquid/api-reference/api-keys/revoke-maker-api-key) |
@@ -252,7 +252,7 @@ has every vault call and its reverts.
 | Name | What it is | Where to read it |
 | --- | --- | --- |
 | `maker_id` | Your maker's number, a decimal string. It names your maker key's account and your channel. | `waitForMaker`'s `makerId`, or the vault's `makerOf(wallet)` |
-| `owner` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
+| `controller` | Your maker wallet. It opened the maker, funds, withdraws and approves keys. | [Get maker capital](/hyperliquid/api-reference/makers/get-maker-capital) |
 | `signer` | The same wallet. Its signature confirms your fills. | Get maker capital |
 
 Your maker is one wallet: your Totalis account's own wallet. Totalis admits a maker only from that wallet, so your
@@ -280,7 +280,7 @@ Before you quote:
 - Read [Get deployment](/hyperliquid/api-reference/deployment/get-deployment) for the current fees. A
   quote with other fees is refused.
 - Check your capital: the latest [`capital` frame](/hyperliquid/api-reference/websocket/maker#capital) if you
-  subscribed with `capital`, otherwise a read. If `context.status` is not `CURRENT`, stop quoting until it is.
+  subscribed with `capital`, otherwise a read. If `context.freshness` is not `CURRENT`, stop quoting until it is.
 
 ### Hedge on Hyperliquid
 
@@ -328,8 +328,7 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 
 ```json
 {
-  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
-  "accept_before": "2026-09-26T20:01:01Z"
+  "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
 }
 ```
 
@@ -339,7 +338,7 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 | `maker_id` | Your maker. |
 | `payout` | What you pay if every leg wins, gross of the profit fee. More than `stake`, and at most the maximum payout on [Limits](/hyperliquid/limits-and-fees). |
 | `fee_bps`, `taker_fee_bps` | Exactly the current values in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
-| `expiry` | Unix seconds, more than 14 and at most 30 seconds ahead ([Limits](/hyperliquid/limits-and-fees)). Takers can accept until the response's `accept_before`, 14 seconds before it. |
+| `expiry` | Unix seconds, more than 14 and at most 30 seconds ahead ([Limits](/hyperliquid/limits-and-fees)). Takers can accept until 14 seconds before it. |
 | `salt` | A random uint256. |
 | `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
 
@@ -364,9 +363,13 @@ are on [Limits](/hyperliquid/limits-and-fees).
 - Price the net stake. The taker fee comes off `stake` before it reaches you, so you risk
   `payout - net stake`.
 - Your newest quote on an RFQ replaces your last one. The taker sees `QUOTE_REMOVED` for the old one.
-- An entry quote can be accepted until its `accept_before`. Quote again before it passes to stay on the RFQ. The
-  RFQ stops taking new quotes at `expires_at`, but a live quote stays acceptable until its `accept_before`. Neither
-  sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
+- Every listed quote can be accepted. The venue renews an entry quote before it lapses, 14 seconds before its
+  `expiry`, and stops listing it then. The RFQ stops taking new quotes at `expires_at`, but a listed quote stays
+  acceptable. Neither sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
+- An RFQ stays open while its taker is connected, for up to an hour, so keep pricing it until `RFQ_ACCEPTED`,
+  `RFQ_CANCELLED` or `RFQ_FAILED`. `RFQ_CANCELLED` also arrives when the taker disconnects. `expires_at` on
+  `RFQ_CREATED` is the latest it can close: an hour out for a taker's own RFQ, 20 or 30 seconds for one Totalis
+  opens for a taker.
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
   `MAKER_QUOTE` in your capital's `actions` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
 - A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.
@@ -434,7 +437,6 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
   "quote_id": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
   "status": "ACCEPTED",
-  "deadline": "2026-09-26T20:00:53.352Z",
   "operation_id": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a"
 }
 ```
@@ -448,10 +450,9 @@ curl https://hip4-api.totalis.trade/v1/quotes/$QUOTE_ID/confirm \
 
 Follow `operation_id` on `OPERATION_UPDATED`. `COMMITTED` means filled. `REVERTED` or
 `EXPIRED_UNEXECUTED` means nothing filled: the contract checks your capital and the terms again when the trade
-lands, and an entry with taker `funding` also expires unsent when that funding does not arrive in time. Every confirm is checked against your capacity first
-([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). On an RFQ without
-`intent_id`, that check is skipped while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED`
-fill can still revert. Keep following `OPERATION_UPDATED`.
+lands, and an entry that draws the taker's wallet also expires unsent when the wallet's USDC or approval falls short. Every confirm is checked against your capacity first
+([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)). That check is skipped
+while Totalis's view of the chain lags, and the vault decides, so an `ACCEPTED` fill can still revert. Keep following `OPERATION_UPDATED`.
 
 - `{ "decision": "DECLINE" }` needs no signature. Decline when your price or your capital moved.
 - The confirm deadline is on [Limits](/hyperliquid/limits-and-fees). It is short, so sign on a hot
@@ -462,16 +463,11 @@ fill can still revert. Keep following `OPERATION_UPDATED`.
 | --- | --- | --- |
 | `409 QUOTE_CAPACITY_EXCEEDED` | Your free capital, less your confirmed fills not yet on-chain, does not cover this fill. | Nothing filled. Quote smaller, or add capital. |
 | `409 QUOTE_EXPIRED`, `QUOTE_SIGNER_CHANGED`, `RFQ_NOT_OPEN` | The quote or the RFQ moved on. | Nothing filled. Drop it. |
-| `409 RFQ_GENERATION_STALE` | RFQs with `intent_id` only: a newer RFQ replaced this one. | Nothing filled. Drop it. |
 | `409 STATE_CONFLICT` | The deadline passed, or the trade can no longer open, for example because a leg resolved. | Nothing filled. |
 | `422 INVALID_SIGNATURE`, `WRONG_AUTHORITY` | The signature is not your maker wallet's, over these exact terms. | Fix the signer, and resend before the deadline. |
-| `429 QUOTE_EXPOSURE_LIMIT` | RFQs with `intent_id` only: too many fills are pending for your maker, or on this RFQ. | Nothing filled. |
-| `503 QUOTE_EXPOSURE_STALE`, `COMBO_AUTOMATIC_DISABLED` | RFQs with `intent_id` only: Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 | `503 DEPENDENCY_STALE` | Totalis cannot check this fill right now. | Resend the same answer before the deadline. |
 
-Automatic RFQs carry `intent_id`: every RFQ the Totalis app opens, and any RFQ a taker opens with one
-([Maker channel](/hyperliquid/api-reference/websocket/maker#event)). Every code is on
-[Errors](/hyperliquid/errors#codes).
+Every code is on [Errors](/hyperliquid/errors#codes).
 
 ### After a restart
 
@@ -513,55 +509,56 @@ to reduce it.
 ## Cash-outs
 
 A taker can sell an open position before it settles. Totalis opens a cash-out RFQ to the maker that backs
-the position, and only to it: `RFQ_CREATED` with `kind: CASHOUT`, the `position_id`, its `owner`, your
-`maker_id`, its `net_stake` and `payout`, and the leg state to price against. Other makers never see it.
+the position, and only to it: `RFQ_CREATED` with `kind: CASHOUT`, the `position_id`, its owner as `taker`, your
+`maker_id`, its `legs`, `net_stake` and `payout`. Other makers never see it.
 
 | Quote | You pay from | The position |
 | --- | --- | --- |
-| `sell_back` terms, a `price` | Your maker vault | Closes |
+| A sell-back at your `price` | Your maker vault | Closes |
 
 ```bash
 curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
   -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
   -H "Idempotency-Key: 01a0df4e-6a20-7c11-8d4e-5f6a7b8c9d0e" \
   -H "Content-Type: application/json" \
-  -d '{
-    "quote_id": "0x7c7c...7c7c",
-    "sell_back": {
-      "position_id": "0x5e5e...5e5e",
-      "price": "18000000",
-      "owner": "0x1111111111111111111111111111111111111111",
-      "expiry": "1790452915",
-      "salt": "93841120577316",
-      "leg_state": "0x3d3d...3d3d"
-    }
-  }'
+  -d '{ "price": "18000000" }'
 ```
 
-`position_id`, `owner` and `leg_state` are copied from the RFQ. `quote_id` is the EIP-712 digest of
-`sell_back` as `SellBack`. The `expiry` window is on [Limits](/hyperliquid/limits-and-fees).
+You send only the price, in atomic USDC. Totalis fills in the other `SellBack` terms (the position, its owner,
+the legs' state, an expiry and a salt) and keeps the bid takeable until the RFQ closes or you replace or cancel
+it. The exact terms arrive in `QUOTE_ACCEPTED` as `sell_back`: check them against what you priced, including
+`leg_state`, before you sign.
 
 ### Price a cash-out
 
 | RFQ field | What it is |
 | --- | --- |
-| `legs`, `legs_hash` | The position's legs. `legs_hash` is the EIP-712 hash of `legs` as `Leg[]`: check it matches before you price. |
-| `leg_state` | Each leg's on-chain state when Totalis opened the RFQ, hashed. Sign it unchanged. |
-| `decision_block`, `decision_read_gas` | The HyperEVM block Totalis read `leg_state` at, and the read gas it used. |
-| `net_stake`, `payout` | What the position holds and pays if every leg wins. |
+| `legs` | The position's legs, in canonical order |
+| `net_stake`, `payout` | What the position holds and pays if every leg wins |
 
-`leg_state` is `keccak256(abi.encode(states))`, with one `uint256` per leg in order:
+The RFQ carries no chain state. Read it yourself from the vault, at the block you price from:
+
+1. Check the legs are the position's: their legs hash, the EIP-712 hash of `legs` as `Leg[]`, equals
+   `tickets(position_id).legsHash`.
+2. Read the legs' state with the vault's view `legStateOf(Leg[] legs, uint256 readGas)`, with `readGas`
+   `500000`.
+
+The SDK's `maker.readCashoutPosition(rfq)` does both and returns the ticket and the leg state
+([`bid`](/hyperliquid/sdk/making#quote)).
+
+The leg state is `keccak256(abi.encode(states))`, with one `uint256` per leg in order:
 `(code << 64) | value`. `code` is `0` for an open leg, `1` for a resolved leg and `2` for a pruned leg.
 For a resolved leg, `value` is the outcome's resolved value out of `100000000`, the same for either side: a
 `YES` leg's result is `value / 100000000`, and a `NO` leg's is `(100000000 - value) / 100000000`. It is `0`
-otherwise. To check it, call the vault's view `legStateOf(Leg[] legs, uint256 readGas)` with `legs` and
-`decision_read_gas` at `decision_block`.
+otherwise. To learn each leg's state, read its market ([Get market](/hyperliquid/api-reference/markets/get-market)).
 
-- Price from current books, not from `decision_block`. Drop legs already resolved as wins.
+- Drop legs already resolved as wins.
 - A position with a lost leg is worth nothing. Bid on a leg resolved to a fraction, or pruned, only if you can
   value it.
-- The sale lands only while every leg's state still equals `leg_state`. If a leg moves first, the trade
-  reverts and nothing moves.
+- Confirm only a `sell_back` whose `leg_state` is the one you priced. The SDK does this when you pass `legState`
+  to `maker.bid` ([`bid`](/hyperliquid/sdk/making#quote)).
+- The sale lands only while every leg's state still equals the signed `leg_state`. If a leg moves first, the
+  trade reverts and nothing moves.
 
 ## Compatibility
 

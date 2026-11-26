@@ -72,8 +72,11 @@ await partner.admitWallet(address, consent);
 
 | Function | Does |
 | --- | --- |
+| `totalis.deposit({ amount })` | A deposit the wallet signs and Totalis relays, paying the gas. Works with a wallet session or an API key. Resolves once its operation commits ([Deposit](/hyperliquid/sdk/trading#deposit)). |
 | `totalis.directDepositCalls(amount)` | The approve and `depositUser` transactions for the wallet to send itself, paying its own gas |
-| `totalis.signDeposit`, `totalis.sendDeposit` | A deposit the wallet signs and Totalis relays, paying the gas |
+
+To store the signed deposit before it is sent, use `signDeposit` and `sendDeposit`
+([Advanced: custom signing and recovery](/hyperliquid/sdk/resume-and-retry#deposit)).
 
 ## Move cash to HyperCore
 
@@ -82,13 +85,13 @@ const exit = await totalis.exitToCore({ amount: 10_000_000n });
 ```
 
 `exitToCore` moves vault cash to HyperCore. Store `exit.exit_id` if the process may restart: after one,
-`waitForCoreExit(exitId)` follows it. `signCoreExit`
-and `sendCoreExit` split it into sign and send.
+`waitForCoreExit(exitId)` follows it. To store the signed exit before it is sent, split it into steps
+([Exit to HyperCore](/hyperliquid/sdk/resume-and-retry#exit-to-hypercore)).
 
 `returnToCore()` takes no amount. It moves free vault cash and the wallet's available USDC (`WALLET_USDC` less
 `pending.wallet_reserved`) back to HyperCore. Available wallet USDC under the sponsored deposit minimum
-([Limits](/hyperliquid/limits-and-fees#deposits-and-exits)) stays in the wallet. `signReturnToCore` and
-`sendReturnToCore` split it.
+([Limits](/hyperliquid/limits-and-fees#deposits-and-exits)) stays in the wallet. To split it into steps, see
+[Return to HyperCore](/hyperliquid/sdk/resume-and-retry#return-to-hypercore).
 
 `returnToCore` throws for a Totalis app wallet (`wallet_kind: EMBEDDED` on `GET /v1/me`). A wallet embedded in
 your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, so both functions throw
@@ -108,6 +111,8 @@ your own app is `EXTERNAL` and can use it. Staging runs no exits to HyperCore, s
 
 ## Issue a key from a session
 
-`totalis.issueApiKey({ label, scopes })` issues the account's own `ttk_` key from a wallet session, with the
-wallet's approval. `rotateApiKey` replaces one. Makers issue their keys with the `.../api-keys` helpers
-instead ([Onboard headless](/hyperliquid/sdk/making#onboard-headless)).
+`totalis.issueApiKey({ label, preset: "TAKER" })` issues the account's own `ttk_` key from a wallet session, with
+the wallet's approval, for a bot that trades the account ([API keys](/hyperliquid/sdk/trading#api-keys)). Pass
+`scopes` instead of `preset` to choose them yourself. `rotateApiKey` replaces a key. Makers issue their keys with
+the `.../api-keys` helpers and `preset: "MAKER"` instead
+([Onboard headless](/hyperliquid/sdk/making#onboard-headless)).

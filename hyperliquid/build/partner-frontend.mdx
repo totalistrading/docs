@@ -28,11 +28,11 @@ refuses an admission that carries an `Origin` header.
 
 <Steps>
   <Step title="The wallet consents to you, in your frontend">
-    ```js
-    import { createClient } from "@totalis/hip4-client";
+    ```ts
+    import { createClient, unwrap } from "@totalis/hip4-client";
     import { signAdmissionConsent } from "@totalis/hip4-client/partner";
 
-    const { data: deployment } = await createClient("production").GET("/v1/deployment");
+    const deployment = unwrap(await createClient("production").GET("/v1/deployment"));
     const { address, consent } = await signAdmissionConsent({
       signer: window.ethereum, partner: "your-slug", environment: "production", chainId: deployment.chain_id,
     });
@@ -57,10 +57,10 @@ refuses an admission that carries an `Origin` header.
     [limit](/hyperliquid/limits-and-fees#wallet-sign-in-and-partners).
   </Step>
   <Step title="Your server admits the wallet">
-    ```js
+    ```ts
     import { createPartnerServer } from "@totalis/hip4-client/partner";
 
-    const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY });
+    const partner = createPartnerServer({ environment: "production", serverKey: process.env.TOTALIS_PARTNER_KEY! });
     await partner.admitWallet(address, consent); // { address, admitted_at }
     ```
 
@@ -113,8 +113,9 @@ A Totalis app user's wallet is embedded inside the Totalis app (`wallet_kind: EM
 on your site. To trade through your product they create an API key in the
 [Totalis app](https://app.totalis.trade/account/api-keys), or export their wallet key
 ([Wallet key](/hyperliquid/authentication#wallet-key)). An account created in the Totalis app is not admitted by
-you, so its RFQs are attributed to you only with a signed [origin builder code](/hyperliquid/build/builder-codes),
-which needs the user to sign in on your page with their exported wallet key. RFQs it sends with an API key cannot be attributed to you.
+you, so its RFQs are attributed to you only with your origin code, sent from a browser on your registered origin
+([How a code counts](/hyperliquid/build/builder-codes#how-a-code-counts)). That needs the user to sign in on your
+page with their exported wallet key. RFQs it sends with an API key cannot be attributed to you.
 
 ## Sessions
 
@@ -162,9 +163,9 @@ To add or remove an origin, email [founders@totalis.trade](mailto:founders@total
 
 | From | How | Who pays gas |
 | --- | --- | --- |
-| The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept. | Totalis |
-| The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the maker confirms, and the accept funds from there. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
-| The wallet's USDC on HyperEVM, ahead of time | `signDeposit` then `sendDeposit`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
+| The wallet's USDC on HyperEVM, at bet time | Automatic. `openPosition` funds any vault shortfall from the wallet in the same accept, drawing it from the wallet's USDC approval: the wallet signs a permit once, and later entries need no funding signature ([Wallet approval](/hyperliquid/sdk/trading#wallet-approval)). | Totalis |
+| The wallet's spot USDC on HyperCore, at bet time | Pass `core`, the HyperCore USDC you offer, to `openPosition` or `signEntry`. Free vault cash goes first, then the wallet's HyperEVM USDC. The wallet signs a Hyperliquid `sendAsset` that bridges the rest to its HyperEVM address once the accept answers `ACCEPTED`, and the accept draws it from there through the approval. 0.05 USDC stays on HyperCore for the bridge's gas. Pass `core: null` when your HyperCore read failed. | The wallet, from the 0.05 USDC it keeps on HyperCore |
+| The wallet's USDC on HyperEVM, ahead of time | `deposit({ amount })`: a USDC authorization Totalis relays into the vault ([Create deposit](/hyperliquid/api-reference/deposits/create-deposit)). Size and rate [limits](/hyperliquid/limits-and-fees#deposits-and-exits) apply. | Totalis |
 | The wallet's USDC on HyperEVM, ahead of time, self-sent | `directDepositCalls(amount)` returns an approve and a `depositUser` transaction. The wallet sends them with its own provider. The balance and activity show the deposit with no API call. | The wallet |
 
 ```js
@@ -181,36 +182,38 @@ gas. Pass the read as `cash` and its `offeredCore` as `core` to `openPosition`
 
 An entry takes one to three signatures, depending on where the stake comes from. `openPosition` asks for the
 funding ones first, while quotes arrive, then for `TakerAccept` once it has picked the quote, and sends the accept
-at once. In your own flow, use `prepareEntryFunding`, then `signEntry({ quote, prepared })`
-([Resume and retry](/hyperliquid/sdk/resume-and-retry#sign-the-funding-first)).
+at once. The wallet's USDC needs no signature per entry, only a permit once, when the approval left is short. To ask for that permit at sign-up instead of at the first bet, call
+`approveWallet({ value })`. In your own flow, use `prepareEntryFunding`, then `signEntry({ quote, prepared })`
+([Sign the funding first](/hyperliquid/sdk/resume-and-retry#sign-the-funding-first)).
 `signEntry` without `prepared` asks for them all at once.
 
 | The stake comes from | The wallet signs | Prompts | Prompts with a [vault agent](#vault-agents) |
 | --- | --- | --- | --- |
 | Free vault cash | `TakerAccept` | 1 | 0 |
-| The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, USDC `ReceiveWithAuthorization` | 2 | 1 |
-| The wallet's HyperCore USDC, for what HyperEVM lacks (`core`) | `TakerAccept`, Hyperliquid `SendAsset`, USDC `ReceiveWithAuthorization` | 3 | 2 |
+| The wallet's HyperEVM USDC, for some or all of it | `TakerAccept`, plus a USDC `Permit` when the approval left is short | 1, or 2 with a permit | 0, or 1 with a permit |
+| The wallet's HyperCore USDC, for what HyperEVM lacks (`core`) | `TakerAccept`, Hyperliquid `SendAsset`, plus a USDC `Permit` when the approval left is short | 2 or 3 | 1 or 2 |
 
 Every one of them, the Hyperliquid bridge included, names the deployment's chain: `chain_id` in
 [Get deployment](/hyperliquid/api-reference/deployment/get-deployment), `999` in production and `998` on staging.
 Some extension wallets refuse to sign for a chain other than the one they are on. Switch the wallet to HyperEVM
 before the first prompt.
 
-An entry quote can be accepted until its `accept_before`, 14 seconds before its `expiry`, which leaves time for the
-maker to confirm and the trade to land. Every prompt spends that time, so sign at once. `bestQuote()` keeps the
-highest payout whose `accept_before` is still ahead on the venue's clock. To pick from your own list, pass that
-clock: `bestQuote()(quotes, totalis.stream.serverNow())`, or the `serverNowMs` that `watchQuotes` gives you.
+The SDK does not time quotes: a quote stays takeable while `watchQuotes` lists it, and `bestQuote()(quotes)` picks
+the highest payout from a list. Over the HTTP API too, every listed quote can be accepted
+([Accept](/hyperliquid/guides/trading#accept)).
 
 Makers replace a quote when they renew it, and the venue keeps one live quote per maker, so an accept can arrive
 after its quote was replaced (`QUOTE_REPLACED`). Pick the quote as late as you can, after the funding is signed. If
 it is gone, nothing traded: take the best quote still paying what you showed the user and sign again.
-`openPosition` does this for you, up to `maxAttempts` within `refreshMs`. When every retry needs a wallet prompt,
-consider one attempt and let the user press again.
+`openPosition` does this for you, up to `maxAttempts`, waiting up to `quoteTimeoutMs` for each quote. When every
+retry needs a wallet prompt, consider one attempt and let the user press again.
 
-The accept goes first. The bridge from HyperCore goes only after the maker confirms, and only before the
-acceptance's `fund_by`, two seconds after the confirm. An accept the maker declines, or that times out, moves
-nothing. If the wallet still lacks the funding when the trade is sent, nothing trades: the operation ends
-`EXPIRED_UNEXECUTED` and the RFQ `FAILED` with `terminal_reason` `INSUFFICIENT_CASH`. Pass `cash`, a `spendableCash` read you already hold, to skip a balances read
+The accept goes first. The bridge from HyperCore goes only once the accept answers `ACCEPTED`, and only within
+4 seconds of sending the accept (`fundWindowMs`). The venue waits at least 6 seconds from the accept's arrival for
+the wallet's USDC. An accept the maker declines, or that times out, moves nothing. If the wallet's USDC or its
+approval still falls short when the trade is sent, nothing trades: the operation ends `EXPIRED_UNEXECUTED`, the RFQ
+`FAILED` with `reason` `INSUFFICIENT_CASH`, and the acceptance's `reason` is `INSUFFICIENT_WALLET_USDC` or
+`INSUFFICIENT_APPROVAL`. Pass `cash`, a `spendableCash` read you already hold, to skip a balances read
 on the press.
 
 ### If an entry fails after its bridge
@@ -218,7 +221,7 @@ on the press.
 The bridge and the accept are separate. The bridge is a HyperCore action that moves USDC from the user's
 HyperCore spot balance to their wallet on HyperEVM. The accept is the HyperEVM transaction that takes the stake.
 
-The bridge moves only after the maker confirms, so a declined, timed-out or refused accept moves nothing. When the
+The bridge moves only after the accept answers `ACCEPTED`, so a declined, timed-out or refused accept moves nothing. When the
 maker confirmed but the trade does not execute, nothing trades and the vault takes nothing, and a bridge that
 already landed stays landed: its USDC is now in the wallet on HyperEVM, not in the user's HyperCore balance. Get
 balances shows it as `WALLET_USDC`. This happens when the operation ends `REVERTED` or `EXPIRED_UNEXECUTED`. The SDK
@@ -229,8 +232,8 @@ names the amount as `bridged` on the result, so show it as wallet cash rather th
 | The user to bet again | Nothing. The next entry funds from that wallet USDC first. |
 | The cash back on HyperCore | `returnToCore()` ([Moving cash to HyperCore](#moving-cash-to-hypercore)) |
 
-A bridge whose answer never arrived can still land after the SDK stops resending it at `fund_by`.
-`recoverAcceptance` resends only the same bytes, only before `fund_by`. Read the balances to learn where the cash is;
+A bridge whose answer never arrived can still land after the SDK stops waiting for it, `fundWindowMs` after the
+accept. `recoverAcceptance` never sends a bridge: it discards one never sent and leaves a sent one `SENT`. Read the balances to learn where the cash is;
 never infer it from a missing answer.
 
 ## Moving cash to HyperCore
@@ -322,8 +325,9 @@ HyperCore or to another address.
     ```
 
     `signer` stays required: the SDK reads the account from it, and asks it for every message the agent cannot
-    sign. `openPosition` asks the wallet for any funding first, while quotes arrive, and the agent signs the accept
-    as soon as a quote is picked.
+    sign. `openPosition` asks the wallet for any funding first, while quotes arrive (only a permit when the
+    approval left is short, and any bridge from HyperCore), and the agent signs the accept as soon as a quote
+    is picked.
   </Step>
 </Steps>
 
@@ -365,9 +369,10 @@ const totalis = createTotalis({
 });
 ```
 
-An entry from free vault cash, a cash-out and an exit to HyperCore never call the device. An entry funded from the
-wallet or HyperCore asks the device for its funding before the quote is picked, so the round trip does not spend
-the quote's `accept_before`. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
+An entry from free vault cash, a cash-out and an exit to HyperCore never call the device. Neither does an entry
+funded from the wallet's approval, until the approval runs short. An entry that needs a permit or a bridge from
+HyperCore asks the device for it while quotes arrive, before
+the quote is picked, so the round trip does not delay the accept. A withdrawal asks the device for its payout. Granting, revoking and issuing the API
 key need a wallet session, so run them while the user is signed in.
 
 ## Every signature
@@ -384,7 +389,7 @@ values from [Get deployment](/hyperliquid/api-reference/deployment/get-deploymen
 | Issue an API key | `issueApiKey`, `rotateApiKey` | `personal_sign` (Sign-In with Ethereum) | No | In the text | |
 | Grant or revoke a vault agent | `grantVaultAgent`, `revokeVaultAgent` | `AgentGrant` | No | `chain_id` | `vault_address` |
 | Accept an entry | `openPosition`, `signEntry` | `TakerAccept` | Yes | `chain_id` | `vault_address` |
-| Fund an entry from the wallet | `openPosition`, `signEntry` | `ReceiveWithAuthorization` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
+| Approve WalletAccept for entries | `openPosition`, `prepareEntryFunding`, `approveWallet`, `signWalletApproval` | USDC `Permit` | No | `usdc.eip712_domain.chain_id` | `usdc.address` |
 | Bridge from HyperCore for an entry | `openPosition`, `signEntry` with `core` | `HyperliquidTransaction:SendAsset` | No | `chain_id` | `0x0000000000000000000000000000000000000000` |
 | Cash out | `cashOut`, `signCashout` | `SellBack` | Yes | `chain_id` | `vault_address` |
 | Withdraw: vault leg | `withdraw`, `signWithdrawal` | `Exit` | Yes | `chain_id` | `vault_address` |
@@ -411,10 +416,11 @@ of that type: an allowed `TransferWithAuthorization` pays anyone.
 
   | Message | Build it from |
   | --- | --- |
-  | `TakerAccept` | The `entry` terms of the quote the user chose, with `taker` the user's wallet |
+  | `TakerAccept` | The quote's `signing.entry` terms, for the quote the user chose, with `taker` the user's wallet and the `payout` you showed |
+  | `Permit` | `owner` the user's wallet, `spender` the WalletAccept address from [Get wallet approval](/hyperliquid/api-reference/deposits/get-wallet-approval), and the `value` the user approved. `walletPermitTypedData` builds it. |
   | `ReceiveWithAuthorization` | `from` the user's wallet, `to` `vault_address`, and the `value` the user approved. The `nonce` is `depositNonce`, derived from `vault`, `chainId`, `from`, `salt` and `account` ([USDC nonces](/hyperliquid/authentication#usdc-nonces)). `account` is the vault balance the deposit credits and appears nowhere else in the message. Derive the nonce yourself with the user's wallet as both `from` and `account`; never sign a nonce you did not derive. |
   | `SendAsset` | `bridgeAction` for the amount the user approved. Its `destination`, `0x2000000000000000000000000000000000000000`, credits the signer's own HyperEVM address. |
-  | `SellBack` | The terms of the bid the user chose, with the owner the user's wallet |
+  | `SellBack` | The bid's `signing.sell_back` terms, for the bid the user chose, with `owner` the user's wallet and the `price` you showed |
   | `Exit` | `account` the user's wallet, and the `amount` the user approved. `to` is the user's wallet for a withdrawal, or `deployment.router_address` from `GET /v1/me/core-exits` for an exit to HyperCore. |
   | `TransferWithAuthorization` | `from` the user's wallet, and the `to` and `value` the user entered. The `nonce` is `payoutNonce`, derived from the user's wallet and the withdrawal's `Idempotency-Key`, which binds the payout to that one withdrawal. Derive it yourself. |
   | `AgentGrant` | `account` the user's wallet, `agent` the key you made for that user, and `validUntil` the end the user approved, or `0` for a revoke |
@@ -433,9 +439,13 @@ client or ethers signer that calls your wallet API.
 
 An account you admit is yours for good. The partner is fixed when the account is created, so a copied browser key
 cannot move it to another partner. Every RFQ from the account records your account code, whatever credential it
-uses: its session, or an API key it issued. Its requests spend your share of rate limits.
+uses: its session, or an API key it issued. You send no builder fields for it. Its requests spend your share of
+rate limits.
 
-Payouts, reports and other accounts are on [Builder codes](/hyperliquid/build/builder-codes).
+An account you did not admit is attributed only RFQ by RFQ, when your page sends your origin code from your
+registered origin: pass it to `openPosition` as `builderCode`. No signature is needed, and the code costs the user
+nothing. Its API key RFQs are never yours. The cases and revocation are on
+[Builder codes](/hyperliquid/build/builder-codes), with payouts and reports.
 
 ## If something is switched off
 

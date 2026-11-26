@@ -12,13 +12,14 @@ the root exports `bridgeAction` and `hyperliquidNetwork`.
 
 | Builder | Message |
 | --- | --- |
-| `takerAcceptTypedData(deployment, entry)` | `TakerAccept` |
-| `quoteTypedData(deployment, entry)` | `Quote` |
-| `sellBackTypedData(deployment, sellBack)` | `SellBack` |
+| `takerAcceptTypedData(deployment, quote.signing.entry)` | `TakerAccept` |
+| `quoteTypedData(deployment, quote.signing.entry)` | `Quote` |
+| `sellBackTypedData(deployment, bid.signing.sell_back)` | `SellBack` |
 | `exitTypedData(deployment, exit)` | `Exit` |
 | `agentGrantTypedData(deployment, grant)` | `AgentGrant` |
 | `receiveWithAuthorizationTypedData(deployment, authorization)` | USDC `ReceiveWithAuthorization` |
 | `transferWithAuthorizationTypedData(deployment, payout)` | USDC `TransferWithAuthorization` |
+| `walletPermitTypedData(deployment, permit)` | USDC `Permit`, setting the wallet's approval to WalletAccept |
 | `issueKeyMessage`, `parseIssueKeyMessage` | The Sign-In with Ethereum key approval |
 | `sendAssetTypedData(bridgeAction(hyperliquidNetwork(chain_id), amount))` | Hyperliquid `SendAsset` |
 
@@ -26,7 +27,7 @@ the root exports `bridgeAction` and `hyperliquidNetwork`.
 
 | Helper | Gives |
 | --- | --- |
-| `hashTypedData` | The digest. A quote's digest is its `quote_id`. |
+| `hashTypedData` | The digest. A quote's digest of its `signing` terms is its `quote_id`. |
 | `canonicalSignature` | A signature in the form the API accepts |
 | `depositNonce`, `payoutNonce` | The [USDC nonces](/hyperliquid/authentication#usdc-nonces) |
 

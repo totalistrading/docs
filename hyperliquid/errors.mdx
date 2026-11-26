@@ -60,7 +60,7 @@ curl "https://hip4-api.totalis.trade/v1/markets?limit=50&cursor=eyJnIjo2NDM3LCJh
 
 | Field | Rule |
 | --- | --- |
-| `limit` | 1 to 200, default 50. [Get market history](/hyperliquid/api-reference/markets/get-market-history) allows 1,440. |
+| `limit` | 1 to 200, default 50. |
 | `cursor` | Omit for the first page, then send `next_cursor` unchanged. Never parse it. |
 | `next_cursor` | `null` exactly when `has_more` is `false`. |
 | `has_more` | Keep paging until `false`. A page may hold fewer than `limit` items, even none. |
@@ -74,7 +74,6 @@ A few lists name their rows after the resource instead of `items`:
 | [List acceptances](/hyperliquid/api-reference/quotes/list-acceptances) | `acceptances` |
 | [List operations](/hyperliquid/api-reference/account/list-operations) | `operations` |
 | [List HyperCore exits](/hyperliquid/api-reference/core-exits/list-hypercore-exits) | `exits`, with no cursor |
-| [Get market history](/hyperliquid/api-reference/markets/get-market-history) | `bars` |
 
 ## Errors
 
@@ -124,10 +123,10 @@ closes use the same codes.
 
 | Code | HTTP | Stream close | Retry | Meaning |
 | --- | ---: | ---: | --- | --- |
-| `INVALID_REQUEST` | 400 | - | `NEVER` | The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields; for an RFQ leg whose market refuses new positions now, `/legs/{i}/outcome_id`, with the reason in the message. `NEVER` means the same request will fail again; the leg's market can become eligible later, so before a new RFQ read its live `eligibility` and, for a Combo leg, `combo.state` and `combo.reason` (`combo.opens_at` is set only for an `OUTSIDE_WINDOW` refusal whose window has a known time). |
+| `INVALID_REQUEST` | 400 | - | `NEVER` | The body, a path parameter or a header is malformed or fails validation. `field_violations` names invalid body fields. `NEVER` means the same request will fail again. |
 | `INVALID_QUERY` | 400 | - | `NEVER` | A query parameter is malformed, out of range or not accepted by this operation. `field_violations` names it. |
 | `INVALID_CURSOR` | 400 | - | `NEVER` | The cursor is malformed or was issued for a different query. |
-| `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm takes none. |
+| `INVALID_IDEMPOTENCY_KEY` | 400 | - | `NEVER` | The command needs exactly one lowercase UUIDv7 `Idempotency-Key` header; confirm and cancel RFQ take none. |
 | `ORIGIN_REQUIRED` | 400 | - | `NEVER` | A browser route needs exactly one `Origin` header. |
 | `SUBPROTOCOL_REQUIRED` | 400 | 1008 | `NEVER` | The stream request did not negotiate a supported subprotocol or extension. |
 | `UNAUTHENTICATED` | 401 | - | `NEVER` | The credential is missing, invalid, expired or revoked. |
@@ -147,14 +146,14 @@ closes use the same codes.
 | `RFQ_NOT_CANCELLABLE` | 409 | - | `NEVER` | The RFQ has progressed past cancellation. |
 | `RFQ_NOT_OPEN` | 409 | - | `REFRESH` | The RFQ is no longer open. |
 | `RFQ_GENERATION_STALE` | 409 | - | `REFRESH` | The RFQ generation the quote targets was superseded. |
-| `RFQ_GENERATION_IN_FLIGHT` | 409 | - | `REFRESH` | The RFQ generation is changing; re-read the RFQ. |
-| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote is past its accept_before or expired. |
+| `QUOTE_EXPIRED` | 409 | - | `REFRESH` | The quote lapsed before the accept reached it. Read the RFQ's quotes again and accept a listed one. |
 | `QUOTE_CANCELLED` | 409 | - | `REFRESH` | The maker cancelled the quote. |
 | `QUOTE_REPLACED` | 409 | - | `REFRESH` | A newer quote from the same maker replaced this one. |
 | `QUOTE_SIGNER_CHANGED` | 409 | - | `REFRESH` | The maker's quote signer changed after the quote was signed. |
 | `QUOTE_CAPACITY_EXCEEDED` | 409 | - | `REFRESH` | The maker's current capacity does not cover the quote. |
 | `CORE_ACCOUNT_NOT_READY` | 409 | - | `REFRESH` | The HyperCore account is not an initialized user. |
 | `CORE_ACCOUNT_ACTIVATION_REQUIRED` | 409 | - | `NEVER` | The HyperCore account does not exist yet, and its first credit pays a 1 USDC activation fee. Resend with `activation_fee_accepted` once the user accepts it. |
+| `INSUFFICIENT_WALLET_BALANCE` | 409 | - | `REFRESH` | The wallet's USDC, less what its other pending work already draws, does not cover the deposit. Read the balances and deposit at most what the wallet has available. |
 | `CORE_MOVE_IN_FLIGHT` | 409 | - | `REFRESH` | A HyperCore transfer for this account is still in flight. |
 | `ACCEPTANCE_IN_FLIGHT` | 409 | - | `REFRESH` | Another entry acceptance by this account still awaits its maker or its trade, and an account has one in flight at a time. Nothing was created; once that acceptance's operation ends, accept a fresh quote. |
 | `GOLDEN_CASHOUT_REFUSED` | 409 | - | `NEVER` | This position was a golden gift, which is never sold back to its maker, whoever holds it now. |
@@ -164,8 +163,8 @@ closes use the same codes.
 | `KEY_LIMIT_REACHED` | 422 | - | `NEVER` | The owner already holds the maximum number of API keys. |
 | `RATE_LIMITED` | 429 | - | `BACKOFF` | The request quota for this credential or route is exhausted. |
 | `CONNECTION_LIMIT` | 429 | - | `BACKOFF` | The stream connection limit is reached. |
-| `RFQ_INTENT_LIMIT` | 429 | - | `BACKOFF` | The account has too many open RFQs. |
 | `QUOTE_EXPOSURE_LIMIT` | 429 | - | `BACKOFF` | The maker's open quote exposure is at its limit. |
+| `INTERNAL_ERROR` | 500 | 1011 | `BACKOFF` | Something failed on Totalis's side that no dependency or input explains, such as a bug or a broken invariant; it is logged with its cause under `request_id`. Retry after Retry-After with the same idempotency key; if it persists, report the `request_id`. |
 | `DEPENDENCY_STALE` | 503 | 1013 | `BACKOFF` | A projection or upstream the request depends on (chain projection, HyperCore state, database) is behind its freshness bound or unavailable. |
 | `AUTHORIZATION_UNAVAILABLE` | 503 | - | `BACKOFF` | Identity or credential authority storage is unavailable. |
 | `SOURCE_UNAVAILABLE` | 503 | 1013 | `BACKOFF` | The account-read or stream source is unavailable. |
