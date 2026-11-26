@@ -17,6 +17,11 @@ the gas.
 4. Sign one quote and [accept](/hyperliquid/api-reference/quotes/accept-quote) it.
 5. Follow `OPERATION_UPDATED` until `COMMITTED`.
 
+An RFQ stays open while your account stream is connected: makers keep pricing it until you accept, cancel or
+disconnect, for at most an hour. Cancel the RFQ when you stop showing its price, and create a new one when the
+legs or stake change. It closes about 2 minutes after your stream disconnects. See
+[Limits](/hyperliquid/limits-and-fees).
+
 ### Create RFQ
 
 Legs go in strictly ascending `outcome_id` order. Two or more legs make a combo; an RFQ also takes one leg.

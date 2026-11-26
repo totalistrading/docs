@@ -366,6 +366,10 @@ are on [Limits](/hyperliquid/limits-and-fees).
 - Every listed quote can be accepted. The venue renews an entry quote before it lapses, 14 seconds before its
   `expiry`, and stops listing it then. The RFQ stops taking new quotes at `expires_at`, but a listed quote stays
   acceptable. Neither sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
+- An RFQ stays open while its taker is connected, for up to an hour, so keep pricing it until `RFQ_ACCEPTED`,
+  `RFQ_CANCELLED` or `RFQ_FAILED`. `RFQ_CANCELLED` also arrives when the taker disconnects. `expires_at` on
+  `RFQ_CREATED` is the latest it can close: an hour out for a taker's own RFQ, 20 or 30 seconds for one Totalis
+  opens for a taker.
 - A quote reserves no collateral. Capacity is checked when you confirm, so quote only what
   `MAKER_QUOTE` in your capital's `actions` covers ([When collateral is checked](/hyperliquid/guides/collateral#when-collateral-is-checked)).
 - A `409 RFQ_NOT_OPEN` means the RFQ closed, a newer one replaced it, or one of its legs settled. Drop it.
