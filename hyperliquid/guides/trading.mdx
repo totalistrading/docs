@@ -194,7 +194,7 @@ curl https://hip4-api.totalis.trade/v1/me/positions/$POSITION_ID/cashout \
 { "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f" }
 ```
 
-Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind` is `SELL_BACK` and the quote carries `sell_back` terms:
+Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind` is `SELL_BACK`, `price` is what the maker pays, and the terms to sign sit under `signing.sell_back`:
 
 ```json
 {
@@ -202,19 +202,22 @@ Quotes arrive as `QUOTE_CREATED`, from the maker that backs the position. `kind`
   "rfq_id": "01a0df58-a825-7f0e-9d2c-3b4a5968778f",
   "kind": "SELL_BACK",
   "sequence": 48240,
-  "sell_back": {
-    "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
-    "price": "18000000",
-    "owner": "0x1111111111111111111111111111111111111111",
-    "expiry": "1790452905",
-    "salt": "90210331458871",
-    "leg_state": "0x0000000000000000000000000000000000000000000000000000000000000002"
+  "price": "18000000",
+  "signing": {
+    "sell_back": {
+      "position_id": "0xd9d9664d8d5996d51a8aea5a199441e519d09b797ea4b2a370016b03ce5a4e11",
+      "price": "18000000",
+      "owner": "0x1111111111111111111111111111111111111111",
+      "expiry": "1790452905",
+      "salt": "90210331458871",
+      "leg_state": "0x0000000000000000000000000000000000000000000000000000000000000002"
+    }
   }
 }
 ```
 
-Sign `sell_back` as `SellBack`, then accept it like an entry quote. A cash-out never draws your wallet. On
-`COMMITTED` the position closes (`POSITION_CLOSED`, `reason: SELL_BACK`), and the proceeds land in your vault balance:
+Sign `signing.sell_back` as `SellBack`, then accept it like an entry quote. A cash-out never draws your wallet. On
+`COMMITTED` the position closes (`POSITION_CLOSED`, and the position's `reason` is `SELL_BACK`), and the proceeds land in your vault balance:
 `price` less the profit fee on the part above the position's `net_stake`,
 `floor((price - net_stake) * fee_bps / 10000)`, with no fee when `price` is at or below `net_stake`
 ([Limits and fees](/hyperliquid/limits-and-fees)). The SDK's `netCashout(bid, position)` computes it from the
