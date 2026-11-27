@@ -57,7 +57,7 @@ Get deployment needs no key.
 | Read fees and the signing domain | [`GET /v1/deployment`](/hyperliquid/api-reference/deployment/get-deployment), no key |
 | Quote, or replace your quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
-| Pull every quote | [`DELETE /v1/makers/{maker_id}/quotes`](/hyperliquid/api-reference/quotes/cancel-all-quotes) |
+| Pull every quote not awaiting your answer | [`DELETE /v1/makers/{maker_id}/quotes`](/hyperliquid/api-reference/quotes/cancel-all-quotes) |
 | Receive acceptances | `QUOTE_ACCEPTED` on the maker channel. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
@@ -334,9 +334,10 @@ leg that has already settled returns `409 RFQ_NOT_OPEN`.
 - Price the net stake. The taker fee comes off `stake` before it reaches you, so you risk
   `payout - net stake`.
 - Your newest quote on an RFQ replaces your last one. The taker sees `QUOTE_REMOVED` for the old one.
-- Your quote stays takeable until you replace or cancel it, or the RFQ closes. Totalis keeps its terms fresh,
-  which gives it a new `quote_id`. Cancelling any of its `quote_id`s cancels the live one.
-- If the deployment's fees change, Totalis withdraws your quote instead of renewing it. Quote again.
+- Your quote stays takeable until you replace or cancel it or the RFQ closes, unless Totalis withdraws it. Totalis
+  keeps its terms fresh, which gives it a new `quote_id`. Cancelling any of its `quote_id`s cancels the live one.
+- Totalis withdraws your quote instead of renewing it if the deployment's fees change (quote again), or after a
+  [missed confirm](#missed-confirms).
 - An RFQ stays open while its taker is connected, for up to an hour, so keep pricing it until `RFQ_ACCEPTED`,
   `RFQ_CANCELLED` or `RFQ_FAILED`. `RFQ_CANCELLED` also arrives when the taker disconnects. `expires_at` on
   `RFQ_CREATED` is the latest it can close: an hour out for a taker's own RFQ, 20 or 30 seconds for one Totalis
@@ -375,8 +376,9 @@ If a taker's acceptance of your quote passes its `deadline` with no answer, Tota
 published before that deadline. A quote whose acceptance still waits for you stays up. Quotes you publish after
 the deadline are not affected.
 
-To pull all your quotes yourself, for example when your bot stops, call
-[Cancel all quotes](/hyperliquid/api-reference/quotes/cancel-all-quotes).
+To pull your quotes yourself, for example when your bot stops, call
+[Cancel all quotes](/hyperliquid/api-reference/quotes/cancel-all-quotes). It leaves any quote whose acceptance
+waits for your answer: confirm or decline those before their `deadline`.
 
 ## Confirm
 
