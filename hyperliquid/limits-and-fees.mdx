@@ -35,11 +35,9 @@ a quote.
 | Entry RFQ open | Until the taker accepts or cancels, for at most 1 hour (`expires_at`), while the taker's [account stream](/hyperliquid/api-reference/websocket/account) is connected. It closes about 2 minutes after that stream disconnects, or after it opens if none was connected. A quote still listed stays acceptable after `expires_at`. |
 | Cash-out RFQ open | The same as an entry RFQ. It also closes once the position settles or closes. |
 | RFQ Totalis opens for a taker | Copy trades and suggested combos: 20 seconds for an entry, 30 seconds for a cash-out. |
-| Entry quote `expiry` | More than 14 and at most 30 seconds ahead. Takers can accept it until 14 seconds before `expiry`, when it leaves the RFQ's quote list. |
+| Entry and cash-out quotes | Takeable until the maker replaces or cancels it, or the RFQ closes. Totalis renews the quote's terms. |
 | Bridge from HyperCore into an entry (SDK) | Sent only once the accept answers `ACCEPTED`, within 4 seconds of sending the accept (`fundWindowMs`). The venue waits at least 6 seconds from the accept's arrival for wallet USDC. |
-| Cash-out quote `expiry` | 25 to 60 seconds ahead. Quotes within 22 seconds of expiry are left out. |
 | Confirm deadline | 2 seconds after the accept. The accept responds at most 1 second later. |
-| Quote lease `lease_ms` | 1,000 to 60,000 milliseconds |
 | Settlement and claim | Automatic. Starts within about 10 seconds of the deciding leg resolving on HyperCore. |
 
 | Signing | Window |
@@ -115,7 +113,6 @@ across all callers, so you can get a `429` below these figures.
 | [Accept quote](/hyperliquid/api-reference/quotes/accept-quote) | 30 |
 | [Create quote](/hyperliquid/api-reference/quotes/create-quote), [Cancel quote](/hyperliquid/api-reference/quotes/cancel-quote) | 3,600 each |
 | [Confirm quote](/hyperliquid/api-reference/quotes/confirm-quote) | 1,800 |
-| [Keep quote lease](/hyperliquid/api-reference/quotes/keep-quote-lease), [Release quote lease](/hyperliquid/api-reference/quotes/release-quote-lease) | 600, shared |
 | [List quotes](/hyperliquid/api-reference/quotes/list-quotes), [Get acceptance](/hyperliquid/api-reference/quotes/get-acceptance) | 600 each |
 | Position and capital reads | 120, shared |
 | [List activity](/hyperliquid/api-reference/account/list-activity) | 120 |

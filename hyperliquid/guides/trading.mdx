@@ -94,27 +94,30 @@ Each `QUOTE_CREATED` carries one quote:
   "rfq_id": "01a0df4e-5e07-7a3c-8f21-d4e6b7a90c1a",
   "kind": "ENTRY",
   "sequence": 48213,
-  "entry": {
-    "maker_id": "7",
-    "legs": [{ "outcome_id": "1209", "side": "YES" }],
-    "stake": "25000000",
-    "payout": "98500000",
-    "fee_bps": 100,
-    "taker_fee_bps": 150,
-    "taker": "0x1111111111111111111111111111111111111111",
-    "expiry": "1790452875",
-    "salt": "48151623429108"
+  "payout": "98500000",
+  "signing": {
+    "entry": {
+      "maker_id": "7",
+      "legs": [{ "outcome_id": "1209", "side": "YES" }],
+      "stake": "25000000",
+      "payout": "98500000",
+      "fee_bps": 100,
+      "taker_fee_bps": 150,
+      "taker": "0x1111111111111111111111111111111111111111",
+      "expiry": "1790452875",
+      "salt": "48151623429108"
+    }
   }
 }
 ```
 
 `payout` is what the position pays if every leg wins. `QUOTE_REMOVED` names a quote that left. Every listed quote
-can be accepted. An entry quote leaves the list 14 seconds before `expiry` (unix seconds), which sends no event; the
-maker's quote is renewed before then. A cash-out quote leaves the list 22 seconds before its `expiry`.
+can be accepted. Totalis keeps a quote's terms fresh while it is listed, so a maker's quote can come back under a
+new `quote_id`, with `QUOTE_REMOVED` for the old one.
 
 ### Accept
 
-Sign the quote's `entry` terms as `TakerAccept` ([Signing](/hyperliquid/authentication#who-signs-what)).
+Sign the quote's `signing.entry` terms as `TakerAccept` ([Signing](/hyperliquid/authentication#who-signs-what)).
 The `Idempotency-Key` becomes the `acceptance_id`: choose it before the first send and reuse it on every
 retry.
 

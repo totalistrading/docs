@@ -142,7 +142,7 @@ request on a new connection is slower than the ones after it.
 | Receive RFQs | [`GET /v1/stream`](/hyperliquid/api-reference/websocket/maker), `maker` subscription, `RFQ_CREATED` |
 | Quote, or replace a quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
-| Pull your quotes if your bot stops | [`PUT /v1/makers/{maker_id}/quote-lease`](/hyperliquid/api-reference/quotes/keep-quote-lease) |
+| Pull all your quotes | [`DELETE /v1/makers/{maker_id}/quotes`](/hyperliquid/api-reference/quotes/cancel-all-quotes) |
 | Receive acceptances | `QUOTE_ACCEPTED`. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
