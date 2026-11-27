@@ -57,7 +57,7 @@ Get deployment needs no key.
 | Read fees and the signing domain | [`GET /v1/deployment`](/hyperliquid/api-reference/deployment/get-deployment), no key |
 | Quote, or replace your quote | [`POST /v1/rfqs/{rfq_id}/quotes`](/hyperliquid/api-reference/quotes/create-quote) |
 | Pull a quote | [`DELETE /v1/quotes/{quote_id}`](/hyperliquid/api-reference/quotes/cancel-quote) |
-| Pull every quote if your bot stops | [`PUT /v1/makers/{maker_id}/quote-lease`](/hyperliquid/api-reference/quotes/keep-quote-lease), [`DELETE`](/hyperliquid/api-reference/quotes/release-quote-lease) to release |
+| Pull every quote not awaiting your answer | [`DELETE /v1/makers/{maker_id}/quotes`](/hyperliquid/api-reference/quotes/cancel-all-quotes) |
 | Receive acceptances | `QUOTE_ACCEPTED` on the maker channel. Nothing is filled until you confirm. |
 | Confirm or decline | [`POST /v1/quotes/{quote_id}/confirm`](/hyperliquid/api-reference/quotes/confirm-quote) |
 | Reconcile after a restart | [`GET /v1/makers/{maker_id}/acceptances`](/hyperliquid/api-reference/quotes/list-acceptances) |
@@ -76,7 +76,7 @@ routes above. Every write runs headless through the [SDK](/hyperliquid/sdk/makin
 | Credential | Signs or authenticates |
 | --- | --- |
 | Your wallet key | Sign-in, key approvals, every vault transaction, and the signature in every confirm |
-| Your quoting key (`ttk_`) | Quotes, cancels, the quote lease, confirms and maker reads |
+| Your quoting key (`ttk_`) | Quotes, cancels, confirms and maker reads |
 | Your collateral key (`ttk_`) | Collateral reductions and their self-funded transaction |
 
 ## Set up
@@ -305,25 +305,14 @@ and settlement on [HIP-4](https://hyperliquid.gitbook.io/hyperliquid-docs/hyperl
 
 ## Quote
 
+Send only your `payout`, in atomic USDC:
+
 ```bash
 curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
   -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
   -H "Idempotency-Key: 01a0df4e-5f11-7a2b-9c3d-4e5f6a7b8c9d" \
   -H "Content-Type: application/json" \
-  -d '{
-    "quote_id": "0x5e5e...5e5e",
-    "entry": {
-      "maker_id": "7",
-      "legs": [{ "outcome_id": "1209", "side": "YES" }],
-      "stake": "25000000",
-      "payout": "98500000",
-      "fee_bps": 100,
-      "taker_fee_bps": 150,
-      "taker": "0x1111111111111111111111111111111111111111",
-      "expiry": "1790452875",
-      "salt": "48151623429108"
-    }
-  }'
+  -d '{ "payout": "98500000" }'
 ```
 
 ```json
@@ -332,40 +321,23 @@ curl https://hip4-api.totalis.trade/v1/rfqs/$RFQ_ID/quotes \
 }
 ```
 
-| Field | Rule |
-| --- | --- |
-| `legs`, `stake`, `taker` | Copied from the RFQ, unchanged. |
-| `maker_id` | Your maker. |
-| `payout` | What you pay if every leg wins, gross of the profit fee. More than `stake`, and at most the maximum payout on [Limits](/hyperliquid/limits-and-fees). |
-| `fee_bps`, `taker_fee_bps` | Exactly the current values in [Get deployment](/hyperliquid/api-reference/deployment/get-deployment). |
-| `expiry` | Unix seconds, more than 14 and at most 30 seconds ahead ([Limits](/hyperliquid/limits-and-fees)). Takers can accept until 14 seconds before it. |
-| `salt` | A random uint256. |
-| `quote_id` | The EIP-712 digest of `entry` as `Quote` ([Signing](/hyperliquid/authentication#types)). It becomes the `position_id`. |
+`payout` is what you pay if every leg wins, gross of the profit fee. It must be more than the RFQ's `stake`,
+and at most the maximum payout on [Limits](/hyperliquid/limits-and-fees). Totalis fills in every other term
+from the RFQ and the deployment. Nothing is signed until a taker accepts. You then get the exact terms in
+`QUOTE_ACCEPTED`, and you sign them when you [confirm](#confirm).
 
-An entry quote that could never fill is refused when you send it: `400 INVALID_REQUEST`, with
-`field_violations` naming the field.
-
-| `field_violations` | Why |
-| --- | --- |
-| `/quote_id` | Not the EIP-712 digest of `entry` as `Quote`. |
-| `/entry/maker_id` | Not your key's maker. |
-| `/entry/legs`, `/entry/stake`, `/entry/taker` | Differ from the RFQ. |
-| `/entry/stake` | The RFQ's net stake is under the minimum. |
-| `/entry/payout` | Not above `stake`, or over the maximum payout. |
-| `/entry/fee_bps`, `/entry/taker_fee_bps` | Differ from Get deployment now. |
-| `/entry/expiry` | 14 seconds or less ahead, or more than 30. |
-
-A leg that has already settled returns `409 RFQ_NOT_OPEN`. The minimum, the maximum payout and the window
-are on [Limits](/hyperliquid/limits-and-fees).
+A `payout` that could never fill returns `400 INVALID_REQUEST`, with `field_violations` naming `/payout`. A
+leg that has already settled returns `409 RFQ_NOT_OPEN`.
 
 ### Quoting rules
 
 - Price the net stake. The taker fee comes off `stake` before it reaches you, so you risk
   `payout - net stake`.
 - Your newest quote on an RFQ replaces your last one. The taker sees `QUOTE_REMOVED` for the old one.
-- Every listed quote can be accepted. The venue renews an entry quote before it lapses, 14 seconds before its
-  `expiry`, and stops listing it then. The RFQ stops taking new quotes at `expires_at`, but a listed quote stays
-  acceptable. Neither sends an event. The windows are on [Limits](/hyperliquid/limits-and-fees).
+- Your quote stays takeable until you replace or cancel it or the RFQ closes, unless Totalis withdraws it. Totalis
+  keeps its terms fresh, which gives it a new `quote_id`. Cancelling any of its `quote_id`s cancels the live one.
+- Totalis withdraws your quote instead of renewing it if the deployment's fees change (quote again), or after a
+  [missed confirm](#missed-confirms).
 - An RFQ stays open while its taker is connected, for up to an hour, so keep pricing it until `RFQ_ACCEPTED`,
   `RFQ_CANCELLED` or `RFQ_FAILED`. `RFQ_CANCELLED` also arrives when the taker disconnects. `expires_at` on
   `RFQ_CREATED` is the latest it can close: an hour out for a taker's own RFQ, 20 or 30 seconds for one Totalis
@@ -398,26 +370,15 @@ body) and changes nothing. To refuse the fill, [confirm](#confirm) with `{ "deci
 acceptance is answered or past its `deadline`, the cancel goes through, so repeating it is safe. Past the
 `deadline`, cancelling marks the acceptance `TIMED_OUT`.
 
-### Quote lease
+### Missed confirms
 
-A lease pulls your quotes if your bot goes quiet, so takers don't accept quotes no one will confirm. Arm it,
-and renew it well inside `lease_ms`, for example every third of it:
+If a taker's acceptance of your quote passes its `deadline` with no answer, Totalis withdraws every open quote you
+published before that deadline. A quote whose acceptance still waits for you stays up. Quotes you publish after
+the deadline are not affected.
 
-```bash
-curl -X PUT https://hip4-api.totalis.trade/v1/makers/$MAKER_ID/quote-lease \
-  -H "Authorization: Bearer $TOTALIS_MAKER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "lease_ms": 15000 }'
-```
-
-```json
-{ "lease_ms": 15000, "expires_at": "2026-09-26T20:00:21.000Z" }
-```
-
-If a renewal does not arrive before `expires_at`, Totalis cancels each of your open quotes no taker is
-accepting, and every quote you publish after, until you renew or release it. The lease covers the whole maker,
-whichever key renews it. It takes no `Idempotency-Key`. Release it with `DELETE` on the same path. The range
-is on [Limits](/hyperliquid/limits-and-fees).
+To pull your quotes yourself, for example when your bot stops, call
+[Cancel all quotes](/hyperliquid/api-reference/quotes/cancel-all-quotes). It leaves any quote whose acceptance
+waits for your answer: confirm or decline those before their `deadline`.
 
 ## Confirm
 
